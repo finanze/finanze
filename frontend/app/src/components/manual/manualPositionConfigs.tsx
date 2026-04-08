@@ -68,6 +68,7 @@ import {
   normalizeDateInput,
   isValidIsin,
 } from "@/utils/manualData"
+import { EntitySelector } from "@/components/EntitySelector"
 import {
   Calculator,
   ChevronDown,
@@ -225,23 +226,23 @@ const renderEntityField = <FormState extends ManualPositionFormBase>(
               disabled={!allowEntityChanges}
             />
           ) : (
-            <select
-              id="entity_id"
-              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
-              value={props.form.entity_id ?? ""}
-              onChange={event => {
-                props.updateField("entity_id", event.target.value)
+            <EntitySelector
+              entities={props.entityOptions}
+              selectedEntityIds={
+                props.form.entity_id ? [props.form.entity_id] : []
+              }
+              onSelectionChange={ids => {
+                props.updateField(
+                  "entity_id",
+                  (ids[0] ?? "") as FormState["entity_id"],
+                )
                 props.clearError("entity_id")
               }}
+              singleSelect
               disabled={!allowEntityChanges}
-            >
-              <option value="">{props.t("common.selectOptions")}</option>
-              {props.entityOptions.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
+              placeholder={props.t("common.selectOptions")}
+              className="max-w-none"
+            />
           )}
         </div>
         {allowEntityChanges && (

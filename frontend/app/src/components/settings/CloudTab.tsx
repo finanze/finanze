@@ -633,7 +633,8 @@ export function CloudTab() {
               isCooldownActive={backupStatus.isCooldownActive}
               isSyncCooldownActive={backupStatus.isSyncCooldownActive}
               isConflict={backupStatus.isConflict}
-              conflictTypes={backupStatus.conflictTypes}
+              conflictImportTypes={backupStatus.conflictImportTypes}
+              conflictUploadTypes={backupStatus.conflictUploadTypes}
               hasCredentialsMismatch={backupStatus.hasCredentialsMismatch}
               baseActionsDisabled={backupStatus.baseActionsDisabled}
               overallStatus={backupStatus.overallStatus}

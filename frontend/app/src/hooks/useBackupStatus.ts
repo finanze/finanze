@@ -47,6 +47,10 @@ let globalFetchPromise: Promise<FullBackupsInfo | null> | null = null
 let globalBackupsCache: FullBackupsInfo | null = null
 let globalLastFetchAt: number | null = null
 let globalHasCredentialsMismatch = false
+let globalAutoSyncInFlight = false
+let globalManualSyncInFlight = false
+let globalCooldownUntil: number | null = null
+let globalSyncCooldownUntil: number | null = null
 
 export function resetBackupStatusCache(): void {
   globalFetchInFlight = false
@@ -54,6 +58,10 @@ export function resetBackupStatusCache(): void {
   globalBackupsCache = null
   globalLastFetchAt = null
   globalHasCredentialsMismatch = false
+  globalAutoSyncInFlight = false
+  globalManualSyncInFlight = false
+  globalCooldownUntil = null
+  globalSyncCooldownUntil = null
   localStorage.removeItem(LAST_BACKUP_FETCH_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_HAD_TRANSFER_KEY)
@@ -189,6 +197,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         globalBackupsCache = next
         return next
       })
+      window.dispatchEvent(new CustomEvent("backup-data-change"))
     },
     [],
   )
@@ -196,6 +205,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const setLastBackupsFetchAt = useCallback((value: number | null) => {
     globalLastFetchAt = value
     setLastBackupsFetchAtState(value)
+    window.dispatchEvent(new CustomEvent("backup-data-change"))
   }, [])
 
   const lastBackupsFetchAt = lastBackupsFetchAtState
@@ -204,10 +214,24 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const [isUploading, setIsUploading] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
-  const [syncCooldownUntil, setSyncCooldownUntil] = useState<number | null>(
-    null,
+  const [cooldownUntil, setCooldownUntilState] = useState<number | null>(
+    () => globalCooldownUntil,
   )
+  const [syncCooldownUntil, setSyncCooldownUntilState] = useState<
+    number | null
+  >(() => globalSyncCooldownUntil)
+
+  const setCooldownUntil = useCallback((value: number | null) => {
+    globalCooldownUntil = value
+    setCooldownUntilState(value)
+    window.dispatchEvent(new CustomEvent("backup-cooldown-change"))
+  }, [])
+
+  const setSyncCooldownUntil = useCallback((value: number | null) => {
+    globalSyncCooldownUntil = value
+    setSyncCooldownUntilState(value)
+    window.dispatchEvent(new CustomEvent("backup-cooldown-change"))
+  }, [])
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [hasCredentialsMismatch, setHasCredentialsMismatchState] = useState(
     () => globalHasCredentialsMismatch,
@@ -241,11 +265,36 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
     }
   }, [])
+
+  useEffect(() => {
+    const handleBackupDataChange = () => {
+      setBackupsState(globalBackupsCache)
+      setLastBackupsFetchAtState(globalLastFetchAt)
+    }
+    window.addEventListener("backup-data-change", handleBackupDataChange)
+    return () => {
+      window.removeEventListener("backup-data-change", handleBackupDataChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleCooldownChange = () => {
+      setCooldownUntilState(globalCooldownUntil)
+      setSyncCooldownUntilState(globalSyncCooldownUntil)
+    }
+    window.addEventListener("backup-cooldown-change", handleCooldownChange)
+    return () => {
+      window.removeEventListener("backup-cooldown-change", handleCooldownChange)
+    }
+  }, [])
+
   const backupsRef = useRef<FullBackupsInfo | null>(null)
   const skipFastCheckUntilRef = useRef<number>(0)
   const lastBootstrappedModeRef = useRef<BackupMode | null>(null)
-  const autoSyncInFlightRef = useRef(false)
   const isConflictRef = useRef(false)
+  const isSyncingRef = useRef(false)
+  const isUploadingRef = useRef(false)
+  const isImportingRef = useRef(false)
   const errorBackoffRef = useRef<{ failures: number; until: number }>({
     failures: 0,
     until: 0,
@@ -299,15 +348,19 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         return
       }
 
-      if (autoSyncInFlightRef.current) {
+      if (globalAutoSyncInFlight) {
         return
       }
 
       if (!onlyLocal && globalFetchInFlight) {
         if (globalFetchPromise) {
-          const data = await globalFetchPromise
-          if (data) {
-            setBackups(normalizeBackupsInfo(data))
+          try {
+            const data = await globalFetchPromise
+            if (data) {
+              setBackups(normalizeBackupsInfo(data))
+            }
+          } catch (error) {
+            console.error("Failed to join in-flight backup fetch:", error)
           }
         }
         return
@@ -365,6 +418,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           setLastBackupsFetchAt(now)
           setPersistedLastFetchAt(now)
           skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+          setStatusMessage(null)
         }
       } catch (error) {
         console.error("Failed to fetch backup info:", error)
@@ -441,11 +495,44 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         .map(([type]) => type as BackupFileType) as BackupFileType[])
     : ([] as BackupFileType[])
 
+  const conflictImportTypes = backups
+    ? (Object.entries(backups.pieces)
+        .filter(
+          ([, piece]) =>
+            piece.status === SyncStatus.CONFLICT ||
+            piece.status === SyncStatus.OUTDATED,
+        )
+        .map(([type]) => type as BackupFileType) as BackupFileType[])
+    : ([] as BackupFileType[])
+
+  const conflictUploadTypes = backups
+    ? (Object.entries(backups.pieces)
+        .filter(
+          ([, piece]) =>
+            piece.status === SyncStatus.CONFLICT ||
+            piece.status === SyncStatus.PENDING ||
+            piece.status === SyncStatus.MISSING,
+        )
+        .map(([type]) => type as BackupFileType) as BackupFileType[])
+    : ([] as BackupFileType[])
+
   const isConflict = conflictTypes.length > 0
 
   useEffect(() => {
     isConflictRef.current = isConflict
   }, [isConflict])
+
+  useEffect(() => {
+    isSyncingRef.current = isSyncing
+  }, [isSyncing])
+
+  useEffect(() => {
+    isUploadingRef.current = isUploading
+  }, [isUploading])
+
+  useEffect(() => {
+    isImportingRef.current = isImporting
+  }, [isImporting])
 
   const actionInFlight = isUploading || isImporting || isSyncing
   const baseActionsDisabled =
@@ -455,19 +542,50 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     setIsUploading(true)
     setStatusMessage(null)
     try {
+      const outdatedTypes = backupsRef.current
+        ? Object.entries(backupsRef.current.pieces)
+            .filter(([, piece]) => piece.status === SyncStatus.OUTDATED)
+            .map(([type]) => type as BackupFileType)
+        : []
+
       const result = await uploadBackup({
         types,
         force: true,
       })
       applySyncResult(result)
+
+      if (outdatedTypes.length > 0 && canImportBackup) {
+        try {
+          const importResult = await importBackup({ types: outdatedTypes })
+          applySyncResult(importResult)
+          setHasCredentialsMismatch(false)
+          await Promise.all([
+            fetchEntities(),
+            fetchSettings(),
+            refreshData(),
+            refreshRealEstate(),
+            refreshFlows(),
+          ])
+        } catch (followUpError) {
+          console.error(
+            "Failed to import outdated pieces after upload:",
+            followUpError,
+          )
+        }
+      }
+
+      registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to upload backup:", error)
+      registerNetworkFailure()
       const errorCode = getErrorCode(error)
       if (errorCode === "TOO_MANY_REQUESTS") {
         setCooldownUntil(Date.now() + 30_000)
         setStatusMessage(t.settings.backup.tooManyRequests)
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
+      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+        setHasCredentialsMismatch(true)
       }
     } finally {
       setIsUploading(false)
@@ -478,18 +596,35 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     setIsImporting(true)
     setStatusMessage(null)
     try {
+      const pendingTypes = backupsRef.current
+        ? Object.entries(backupsRef.current.pieces)
+            .filter(
+              ([, piece]) =>
+                piece.status === SyncStatus.PENDING ||
+                piece.status === SyncStatus.MISSING,
+            )
+            .map(([type]) => type as BackupFileType)
+        : []
+
       const result = await importBackup({
         types,
         force: true,
       })
       applySyncResult(result)
       setHasCredentialsMismatch(false)
-      const refreshed = normalizeBackupsInfo(await getBackupsInfo())
-      setBackups(refreshed)
-      const now = Date.now()
-      setLastBackupsFetchAt(now)
-      setPersistedLastFetchAt(now)
-      skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+      try {
+        const refreshed = normalizeBackupsInfo(await getBackupsInfo())
+        setBackups(refreshed)
+        const now = Date.now()
+        setLastBackupsFetchAt(now)
+        setPersistedLastFetchAt(now)
+        skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+      } catch (refreshError) {
+        console.error(
+          "Failed to refresh backup info after import:",
+          refreshError,
+        )
+      }
       try {
         await Promise.all([
           fetchEntities(),
@@ -501,8 +636,23 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       } catch (refreshError) {
         console.error("Failed to refresh data after import:", refreshError)
       }
+
+      if (pendingTypes.length > 0 && canCreateBackup) {
+        try {
+          const uploadResult = await uploadBackup({ types: pendingTypes })
+          applySyncResult(uploadResult)
+        } catch (followUpError) {
+          console.error(
+            "Failed to upload pending pieces after import:",
+            followUpError,
+          )
+        }
+      }
+
+      registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to import backup:", error)
+      registerNetworkFailure()
       const errorCode = getErrorCode(error)
       if (errorCode === "TOO_MANY_REQUESTS") {
         setCooldownUntil(Date.now() + 30_000)
@@ -518,6 +668,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   }
 
   const runManualSync = useCallback(async () => {
+    if (globalManualSyncInFlight || globalAutoSyncInFlight) return
+    globalManualSyncInFlight = true
     setIsSyncing(true)
     setSyncCooldownUntil(Date.now() + 5 * 60_000)
     setStatusMessage(null)
@@ -583,6 +735,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       }
     } finally {
       setIsSyncing(false)
+      globalManualSyncInFlight = false
     }
   }, [
     canCreateBackup,
@@ -608,7 +761,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
       return
     }
-    if (isConflict) {
+    if (isConflictRef.current) {
       window.dispatchEvent(
         new CustomEvent("backup-auto-sync-complete", {
           detail: { hadTransfer: false },
@@ -616,11 +769,16 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
       return
     }
-    if (isSyncing || isUploading || isImporting) return
-    if (autoSyncInFlightRef.current) return
+    if (
+      isSyncingRef.current ||
+      isUploadingRef.current ||
+      isImportingRef.current
+    )
+      return
+    if (globalAutoSyncInFlight || globalManualSyncInFlight) return
 
     try {
-      autoSyncInFlightRef.current = true
+      globalAutoSyncInFlight = true
       setIsSyncing(true)
       const info = normalizeBackupsInfo(await getBackupsInfo())
       registerNetworkSuccess()
@@ -701,14 +859,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       )
     } finally {
       setIsSyncing(false)
-      autoSyncInFlightRef.current = false
+      globalAutoSyncInFlight = false
     }
   }, [
     canAttemptNetworkNow,
-    isConflict,
-    isSyncing,
-    isUploading,
-    isImporting,
     canCreateBackup,
     canImportBackup,
     applySyncResult,
@@ -811,7 +965,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const overallStatus = getOverallStatus(backups)
   const lastBackupDate = getLastRemoteBackupDate(backups)
   const derivedCooldownMessage =
-    (isManualMode || isConflict) && (isCooldownActive || isSyncCooldownActive)
+    (isManualMode || isConflict) && isCooldownActive
       ? t.settings.backup.cooldownActive
       : null
   const feedbackMessage = statusMessage ?? derivedCooldownMessage
@@ -835,6 +989,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     isSyncCooldownActive,
     isConflict,
     conflictTypes,
+    conflictImportTypes,
+    conflictUploadTypes,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,

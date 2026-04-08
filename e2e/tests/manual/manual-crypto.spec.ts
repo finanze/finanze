@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
 
 const BINANCE_CREDENTIALS = {
     apiKey: 'mock-api-key',
@@ -228,7 +229,7 @@ async function addManualCryptoPosition(page: Page) {
     await searchAndSelectCryptoAsset(page)
 
     // Select an existing entity for the manual position
-    await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+    await selectEntity(page, 'Urbanitae', { inDialog: true })
 
     // Fill amount
     await page.locator('#amount').fill('5')

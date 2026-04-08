@@ -4,7 +4,7 @@ import {
   RefreshCw,
   Loader2,
   Power,
-  Zap,
+  Timer,
   Hand,
 } from "lucide-react"
 import type { ReactNode } from "react"
@@ -91,7 +91,8 @@ interface BackupStatusContentProps {
   isCooldownActive: boolean
   isSyncCooldownActive: boolean
   isConflict: boolean
-  conflictTypes: BackupFileType[]
+  conflictImportTypes: BackupFileType[]
+  conflictUploadTypes: BackupFileType[]
   hasCredentialsMismatch: boolean
   baseActionsDisabled: boolean
   overallStatus: SyncStatus | null
@@ -119,7 +120,8 @@ export function BackupStatusContent({
   isCooldownActive,
   isSyncCooldownActive,
   isConflict,
-  conflictTypes,
+  conflictImportTypes,
+  conflictUploadTypes,
   hasCredentialsMismatch,
   baseActionsDisabled,
   overallStatus,
@@ -144,7 +146,7 @@ export function BackupStatusContent({
     {
       value: BackupMode.AUTO,
       label: t.settings.backup.auto,
-      icon: <Zap className="h-4 w-4" />,
+      icon: <Timer className="h-4 w-4" />,
     },
     {
       value: BackupMode.MANUAL,
@@ -164,14 +166,22 @@ export function BackupStatusContent({
                   key={value}
                   onClick={() => setBackupMode(value)}
                   className={cn(
-                    "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 min-[380px]:px-3 py-1.5 text-sm font-medium transition-colors",
                     backupMode === value
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {icon}
-                  <span>{label}</span>
+                  <span
+                    className={cn(
+                      backupMode === value
+                        ? "inline"
+                        : "hidden min-[360px]:inline",
+                    )}
+                  >
+                    {label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -266,7 +276,7 @@ export function BackupStatusContent({
                   disabled={
                     baseActionsDisabled || isCooldownActive || !canImportBackup
                   }
-                  onClick={() => handleImport(conflictTypes)}
+                  onClick={() => handleImport(conflictImportTypes)}
                 >
                   {isImporting ? (
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -282,7 +292,7 @@ export function BackupStatusContent({
                   disabled={
                     baseActionsDisabled || isCooldownActive || !canCreateBackup
                   }
-                  onClick={() => handleUpload(conflictTypes)}
+                  onClick={() => handleUpload(conflictUploadTypes)}
                 >
                   {isUploading ? (
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -313,7 +323,11 @@ export function BackupStatusContent({
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              {t.settings.backup.syncNow}
+              {isSyncing
+                ? t.settings.backup.syncing
+                : isSyncCooldownActive
+                  ? t.settings.backup.syncedRecently
+                  : t.settings.backup.syncNow}
             </Button>
           )}
         </>

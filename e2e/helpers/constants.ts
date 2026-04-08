@@ -1,4 +1,4 @@
-export const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7592)
+export const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7692)
 export const BACKEND_URL = `http://localhost:${BACKEND_PORT}`
 
 export const TEST_USER = 'testuser'

@@ -28,6 +28,7 @@ import {
   Home,
   ChartPie,
   Hash,
+  Landmark,
 } from "lucide-react"
 import { Switch } from "@/components/ui/Switch"
 import { getImageUrl } from "@/services/api"
@@ -55,6 +56,7 @@ type EntityInfo = {
 
 type DashboardOptions = {
   includePending: boolean
+  includeLoans: boolean
   includeCardExpenses: boolean
   includeRealEstate: boolean
   includeResidences: boolean
@@ -481,6 +483,22 @@ export function PortfolioDonutChart({
                 <div className="text-sm flex items-center gap-2">
                   <HandCoins className="h-4 w-4 text-muted-foreground" />
                   {t.dashboard.includePendingMoney}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-72 text-xs text-muted-foreground"
+                      side="left"
+                    >
+                      {t.dashboard.includePendingMoneyInfo}
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <Switch
                   disabled={forecastMode}
@@ -491,6 +509,37 @@ export function PortfolioDonutChart({
                     setDashboardOptions(prev => ({
                       ...prev,
                       includePending: Boolean(val),
+                    }))
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-muted-foreground" />
+                  {t.dashboard.includeLoans}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-72 text-xs text-muted-foreground"
+                      side="left"
+                    >
+                      {t.dashboard.includeLoansInfo}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <Switch
+                  checked={dashboardOptions.includeLoans}
+                  onCheckedChange={val =>
+                    setDashboardOptions(prev => ({
+                      ...prev,
+                      includeLoans: Boolean(val),
                     }))
                   }
                 />
@@ -515,6 +564,22 @@ export function PortfolioDonutChart({
                   <div className="text-sm flex items-center gap-2">
                     <Home className="h-4 w-4 text-muted-foreground" />
                     {t.dashboard.includeRealEstateEquity}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-72 text-xs text-muted-foreground"
+                        side="left"
+                      >
+                        {t.dashboard.includeRealEstateEquityInfo}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <Switch
                     checked={dashboardOptions.includeRealEstate}

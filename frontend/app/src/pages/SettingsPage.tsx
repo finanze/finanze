@@ -51,7 +51,11 @@ import {
 } from "@/types"
 import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
-import { EntitySelector } from "@/components/settings/EntitySelector"
+import { EntitySelector } from "@/components/EntitySelector"
+import {
+  getAutoRefreshCompatibleEntities,
+  entityHasPin,
+} from "@/utils/autoRefreshUtils"
 import { CloudTab } from "@/components/settings/CloudTab"
 import { copyToClipboard } from "@/lib/clipboard"
 import { isNativeMobile } from "@/lib/platform"
@@ -118,6 +122,7 @@ export default function SettingsPage() {
     isLoadingSettings,
     fetchExternalIntegrations,
     featureFlags,
+    entities,
   } = useAppContext()
   const { user, logout, startPasswordChange } = useAuth()
   const { role } = useCloud()
@@ -800,9 +805,44 @@ export default function SettingsPage() {
                                 </p>
                               </div>
                               <EntitySelector
+                                entities={getAutoRefreshCompatibleEntities(
+                                  entities,
+                                )}
                                 selectedEntityIds={autoRefreshEntityIds}
                                 onSelectionChange={
                                   handleAutoRefreshEntitiesChange
+                                }
+                                description={
+                                  t.settings.dataSettings.autoRefresh
+                                    .entitiesDescription
+                                }
+                                emptyMessage={
+                                  t.settings.dataSettings.autoRefresh
+                                    .noEntitiesAvailable
+                                }
+                                placeholder={
+                                  t.settings.dataSettings.autoRefresh
+                                    .entitiesPlaceholder
+                                }
+                                emptySelectionBadge={
+                                  t.settings.dataSettings.autoRefresh
+                                    .allEntities
+                                }
+                                entityWarning={entityHasPin}
+                                warningBanner={
+                                  getAutoRefreshCompatibleEntities(
+                                    entities,
+                                  ).some(entityHasPin) ? (
+                                    <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 m-1.5 text-xs">
+                                      <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-amber-500" />
+                                      <p className="text-muted-foreground">
+                                        {
+                                          t.settings.dataSettings.autoRefresh
+                                            .pinWarningTooltip
+                                        }
+                                      </p>
+                                    </div>
+                                  ) : undefined
                                 }
                               />
                             </div>

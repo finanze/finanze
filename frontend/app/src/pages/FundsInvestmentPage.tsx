@@ -49,9 +49,12 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import {
+  MultiSelect,
+  type MultiSelectOption,
+} from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import { useNavigate } from "react-router-dom"
-import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ManualPositionsManager,
@@ -198,7 +201,7 @@ function FundsInvestmentPageContent({
   }, [allFundPositions, selectedEntities, selectedPortfolios])
 
   // Get entity options for the filter
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithFunds = getEntitiesWithProductType(
       positionsData,
       ProductType.FUND,
@@ -206,37 +209,32 @@ function FundsInvestmentPageContent({
     const validIds = new Set(entitiesWithFunds)
 
     return (
-      entities
-        ?.filter(entity => {
-          if (!entity.id || typeof entity.id !== "string") {
-            return false
-          }
-          if (entity.id.startsWith("new-")) {
-            return false
-          }
-          return validIds.has(entity.id)
-        })
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => {
+        if (!entity.id || typeof entity.id !== "string") {
+          return false
+        }
+        if (entity.id.startsWith("new-")) {
+          return false
+        }
+        return validIds.has(entity.id)
+      }) || []
     )
   }, [entities, positionsData])
 
   useEffect(() => {
-    if (entityOptions.length === 0) {
+    if (filteredEntities.length === 0) {
       if (selectedEntities.length > 0) {
         setSelectedEntities([])
       }
       return
     }
 
-    const allowed = new Set(entityOptions.map(option => option.value))
+    const allowed = new Set(filteredEntities.map(e => e.id))
     setSelectedEntities(prev => {
       const next = prev.filter(id => allowed.has(id))
       return next.length === prev.length ? prev : next
     })
-  }, [entityOptions])
+  }, [filteredEntities])
 
   const portfolioOptions: MultiSelectOption[] = useMemo(() => {
     const names = new Set<string>()
@@ -689,11 +687,10 @@ function FundsInvestmentPageContent({
           </div>
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
             <div className="w-full sm:max-w-xs">
-              <MultiSelect
-                options={entityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
-                placeholder={t.transactions.selectEntities}
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={setSelectedEntities}
               />
             </div>
             {portfolioOptions.length > 0 && (
@@ -1058,8 +1055,8 @@ function FundsInvestmentPageContent({
                                   candidateId.startsWith("new-")
                                 )
                                   return
-                                const isValid = entityOptions.some(
-                                  option => option.value === candidateId,
+                                const isValid = filteredEntities.some(
+                                  e => e.id === candidateId,
                                 )
                                 if (!isValid) return
                                 setSelectedEntities(prev =>

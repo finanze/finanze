@@ -37,9 +37,9 @@ import {
 } from "@/types/position"
 import {
   DataSource,
+  EntityOrigin,
+  EntityType,
   type Entity,
-  type EntityType,
-  type EntityOrigin,
   type ExchangeRates,
 } from "@/types"
 import {
@@ -547,41 +547,6 @@ function CryptoInvestmentContent({
     return entries
   }, [positionsData])
 
-  const derivativesTotalValue = useMemo(() => {
-    if (!includeDerivatives) return 0
-    const rates = (exchangeRates ?? {}) as ExchangeRates
-    const targetCurrency = settings.general.defaultCurrency
-    return cryptoDerivatives.reduce((sum, entry) => {
-      const mv = entry.derivative.market_value || 0
-      const currency = normalizeDerivativeCurrency(entry.derivative.currency)
-      return sum + convertCurrency(mv, currency, targetCurrency, rates)
-    }, 0)
-  }, [
-    cryptoDerivatives,
-    includeDerivatives,
-    exchangeRates,
-    settings.general.defaultCurrency,
-  ])
-
-  const derivativeValueByEntity = useMemo(() => {
-    const map = new Map<string, number>()
-    if (!includeDerivatives) return map
-    const rates = (exchangeRates ?? {}) as ExchangeRates
-    const targetCurrency = settings.general.defaultCurrency
-    cryptoDerivatives.forEach(({ derivative, entityId }) => {
-      const mv = derivative.market_value || 0
-      const currency = normalizeDerivativeCurrency(derivative.currency)
-      const converted = convertCurrency(mv, currency, targetCurrency, rates)
-      map.set(entityId, (map.get(entityId) || 0) + converted)
-    })
-    return map
-  }, [
-    cryptoDerivatives,
-    includeDerivatives,
-    exchangeRates,
-    settings.general.defaultCurrency,
-  ])
-
   const walletGroups = useMemo<EntityWalletGroup[]>(() => {
     if (!positionsData?.positions) {
       return []
@@ -993,16 +958,33 @@ function CryptoInvestmentContent({
     exchangeRates,
   ])
 
-  const entityOptions = useMemo<MultiSelectOption[]>(() => {
-    const unique = new Map<string, string>()
-    walletGroupsWithDrafts.forEach(group => {
-      unique.set(group.entity.id, group.entity.name)
-    })
-    return Array.from(unique.entries()).map(([value, label]) => ({
-      value,
-      label,
-    }))
-  }, [walletGroupsWithDrafts])
+  const filteredEntities = useMemo(() => {
+    const unique = new Set<string>()
+    walletGroupsWithDrafts.forEach(group => unique.add(group.entity.id))
+    return entities?.filter(e => unique.has(e.id)) ?? []
+  }, [walletGroupsWithDrafts, entities])
+
+  const cryptoEntityImageOverride = useCallback(
+    (entity: Entity) => {
+      if (
+        entity.origin === EntityOrigin.NATIVE &&
+        entity.type === EntityType.CRYPTO_WALLET
+      ) {
+        return `entities/${entity.id}.png`
+      }
+      if (entity.origin !== EntityOrigin.MANUAL) return undefined
+      const nativeMatch = entities?.find(
+        e =>
+          e.id !== entity.id &&
+          e.origin === EntityOrigin.NATIVE &&
+          e.type === EntityType.CRYPTO_WALLET &&
+          e.name.toLowerCase() === entity.name.toLowerCase(),
+      )
+      if (nativeMatch) return `entities/${nativeMatch.id}.png`
+      return undefined
+    },
+    [entities],
+  )
 
   const entityFilteredWalletGroups = useMemo<EntityWalletGroup[]>(() => {
     const groups =
@@ -1065,6 +1047,48 @@ function CryptoInvestmentContent({
       .filter((group): group is EntityWalletGroup => group !== null)
       .sort((a, b) => b.totalValue - a.totalValue)
   }, [entityFilteredWalletGroups, selectedWalletFilters])
+
+  const filteredDerivativeEntityIds = useMemo(() => {
+    return new Set(filteredCryptoWallets.map(g => g.entity.id))
+  }, [filteredCryptoWallets])
+
+  const derivativesTotalValue = useMemo(() => {
+    if (!includeDerivatives) return 0
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    return cryptoDerivatives
+      .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+      .reduce((sum, entry) => {
+        const mv = entry.derivative.market_value || 0
+        const currency = normalizeDerivativeCurrency(entry.derivative.currency)
+        return sum + convertCurrency(mv, currency, targetCurrency, rates)
+      }, 0)
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
+  ])
+
+  const derivativeValueByEntity = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!includeDerivatives) return map
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    cryptoDerivatives.forEach(({ derivative, entityId }) => {
+      const mv = derivative.market_value || 0
+      const currency = normalizeDerivativeCurrency(derivative.currency)
+      const converted = convertCurrency(mv, currency, targetCurrency, rates)
+      map.set(entityId, (map.get(entityId) || 0) + converted)
+    })
+    return map
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
 
   useEffect(() => {
     setSelectedWalletFilters(prevFilters => {
@@ -1251,13 +1275,20 @@ function CryptoInvestmentContent({
       else passives += asset.value
     })
     if (includeDerivatives) {
-      cryptoDerivatives.forEach(({ derivative }) => {
-        const mv = derivative.market_value || 0
-        const currency = normalizeDerivativeCurrency(derivative.currency)
-        const converted = convertCurrency(mv, currency, defaultCurrency, rates)
-        if (converted >= 0) actives += converted
-        else passives += converted
-      })
+      cryptoDerivatives
+        .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+        .forEach(({ derivative }) => {
+          const mv = derivative.market_value || 0
+          const currency = normalizeDerivativeCurrency(derivative.currency)
+          const converted = convertCurrency(
+            mv,
+            currency,
+            defaultCurrency,
+            rates,
+          )
+          if (converted >= 0) actives += converted
+          else passives += converted
+        })
     }
     return { activesValue: actives, passivesValue: passives }
   }, [
@@ -1266,6 +1297,7 @@ function CryptoInvestmentContent({
     includeDerivatives,
     exchangeRates,
     settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
   ])
 
   const hasNegativePositions = passivesValue < 0
@@ -2619,12 +2651,13 @@ function CryptoInvestmentContent({
       <ManualPositionsUnsavedNotice />
 
       <InvestmentFilters
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         onEntitiesChange={setSelectedEntities}
         walletOptions={walletFilterOptions}
         selectedWallets={selectedWalletFilters}
         onWalletsChange={setSelectedWalletFilters}
+        entityImageOverride={cryptoEntityImageOverride}
         extraFilters={
           cryptoDerivatives.length > 0 ? (
             <Button

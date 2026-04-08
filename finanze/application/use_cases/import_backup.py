@@ -54,7 +54,7 @@ class ImportBackupImpl(ImportBackup):
         user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_IMPORT.check(user_auth)
 
-        await self._check_cooldown()
+        await self._check_cooldown(request.types)
 
         bkg_pass = request.password or await self._data_initiator.get_hashed_password()
         if bkg_pass is None:
@@ -165,7 +165,7 @@ class ImportBackupImpl(ImportBackup):
 
         return BackupSyncResult(pieces=affected_pieces)
 
-    async def _check_cooldown(self):
+    async def _check_cooldown(self, types: list[BackupFileType]):
         local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         if not local_backup_registry:
             return
@@ -173,7 +173,9 @@ class ImportBackupImpl(ImportBackup):
         now = datetime.now(tzlocal())
         cooldown_delta = timedelta(minutes=self.BACKUP_OPERATION_COOLDOWN_MINUTES)
 
-        for backup_info in local_backup_registry.values():
+        for bkg_type, backup_info in local_backup_registry.items():
+            if bkg_type not in types:
+                continue
             time_since_last_operation = now - backup_info.date
             if time_since_last_operation < cooldown_delta:
                 remaining_seconds = int(

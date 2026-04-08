@@ -20,6 +20,7 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
+  Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
   Calendar,
@@ -30,7 +31,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { getCurrencySymbol, getColorForName } from "@/lib/utils"
+import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -48,6 +49,7 @@ export default function PendingMoneyPage() {
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
+  const [groupByCategory, setGroupByCategory] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -500,108 +502,152 @@ export default function PendingMoneyPage() {
             animate="show"
             className="space-y-2"
           >
-            {flows.map(flow => (
-              <motion.div
-                key={flow.id}
-                variants={fadeListItem}
-                initial={initialVariant}
-                animate="show"
-                className={`${
-                  !flow.enabled
-                    ? "opacity-50 bg-gray-50 dark:bg-black"
-                    : "bg-card shadow-sm"
-                } flex items-start justify-between gap-4 p-4 border rounded-lg`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                    <div className="flex items-center gap-2">
-                      {(flow as any).icon && (
-                        <Icon
-                          name={(flow as any).icon as IconName}
-                          className="w-5 h-5"
-                        />
+            {(() => {
+              const renderFlowCard = (flow: PendingFlow) => (
+                <motion.div
+                  key={flow.id}
+                  variants={fadeListItem}
+                  initial={initialVariant}
+                  animate="show"
+                  className={`${
+                    !flow.enabled
+                      ? "opacity-50 bg-gray-50 dark:bg-black"
+                      : "bg-card shadow-sm"
+                  } flex items-start justify-between gap-4 p-4 border rounded-lg`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                      <div className="flex items-center gap-2">
+                        {(flow as any).icon && (
+                          <Icon
+                            name={(flow as any).icon as IconName}
+                            className="w-5 h-5"
+                          />
+                        )}
+                        <h3 className="font-medium">{flow.name}</h3>
+                      </div>
+                      {!groupByCategory && flow.category && (
+                        <Badge
+                          variant="secondary"
+                          onClick={() => toggleCategoryFilter(flow.category!)}
+                          className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
+                        >
+                          <Tag size={12} />
+                          {flow.category}
+                        </Badge>
                       )}
-                      <h3 className="font-medium">{flow.name}</h3>
+                      {(() => {
+                        const urgencyInfo = getDateUrgencyInfo(flow.date)
+                        if (urgencyInfo?.show) {
+                          return (
+                            <Badge
+                              variant={
+                                urgencyInfo.urgencyLevel === "urgent"
+                                  ? "destructive"
+                                  : urgencyInfo.urgencyLevel === "soon"
+                                    ? "default"
+                                    : "outline"
+                              }
+                              className={`flex items-center gap-1 ${
+                                urgencyInfo.urgencyLevel === "urgent"
+                                  ? "bg-red-500 text-white hover:bg-red-600"
+                                  : urgencyInfo.urgencyLevel === "soon"
+                                    ? "bg-orange-500 text-white hover:bg-orange-600"
+                                    : "bg-blue-500 text-white hover:bg-blue-600"
+                              }`}
+                            >
+                              <CalendarDays size={12} />
+                              {urgencyInfo.timeText}
+                            </Badge>
+                          )
+                        } else if (flow.date) {
+                          return (
+                            <Badge
+                              variant="outline"
+                              className="flex items-center gap-1"
+                            >
+                              <Calendar size={12} />
+                              {formatDate(flow.date || "", locale)}
+                            </Badge>
+                          )
+                        }
+                      })()}
+                      {!flow.enabled && (
+                        <span className="text-sm text-gray-500">
+                          {t.management.disabled}
+                        </span>
+                      )}
                     </div>
-                    {flow.category && (
-                      <Badge
-                        variant="secondary"
-                        onClick={() => toggleCategoryFilter(flow.category!)}
-                        className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
-                      >
-                        <Tag size={12} />
-                        {flow.category}
-                      </Badge>
-                    )}
-                    {(() => {
-                      const urgencyInfo = getDateUrgencyInfo(flow.date)
-                      if (urgencyInfo?.show) {
-                        return (
-                          <Badge
-                            variant={
-                              urgencyInfo.urgencyLevel === "urgent"
-                                ? "destructive"
-                                : urgencyInfo.urgencyLevel === "soon"
-                                  ? "default"
-                                  : "outline"
-                            }
-                            className={`flex items-center gap-1 ${
-                              urgencyInfo.urgencyLevel === "urgent"
-                                ? "bg-red-500 text-white hover:bg-red-600"
-                                : urgencyInfo.urgencyLevel === "soon"
-                                  ? "bg-orange-500 text-white hover:bg-orange-600"
-                                  : "bg-blue-500 text-white hover:bg-blue-600"
-                            }`}
-                          >
-                            <CalendarDays size={12} />
-                            {urgencyInfo.timeText}
-                          </Badge>
-                        )
-                      } else if (flow.date) {
-                        return (
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1"
-                          >
-                            <Calendar size={12} />
-                            {formatDate(flow.date || "", locale)}
-                          </Badge>
-                        )
-                      }
-                    })()}
-                    {!flow.enabled && (
-                      <span className="text-sm text-gray-500">
-                        {t.management.disabled}
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(flow.amount, locale, flow.currency)}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(flow.amount, locale, flow.currency)}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(flow)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openDeleteDialog(flow)}
-                    className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(flow)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openDeleteDialog(flow)}
+                      className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+
+              if (!groupByCategory) {
+                return flows.map(renderFlowCard)
+              }
+
+              const groups = flows.reduce(
+                (acc, flow) => {
+                  const key = flow.category || "__uncategorized__"
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(flow)
+                  return acc
+                },
+                {} as Record<string, PendingFlow[]>,
+              )
+
+              const sortedKeys = Object.keys(groups).sort((a, b) => {
+                if (a === "__uncategorized__") return 1
+                if (b === "__uncategorized__") return -1
+                return a.localeCompare(b)
+              })
+
+              return sortedKeys.map(key => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center gap-2 pt-2">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "flex items-center gap-1",
+                        key !== "__uncategorized__" && getColorForName(key),
+                      )}
+                    >
+                      <Tag size={12} />
+                      {key === "__uncategorized__"
+                        ? t.management.uncategorized
+                        : key}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 pl-2 border-l-2 border-muted">
+                    {groups[key].map(renderFlowCard)}
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+              ))
+            })()}
           </motion.div>
         )}
       </motion.div>
@@ -609,296 +655,319 @@ export default function PendingMoneyPage() {
   }
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={fadeListContainer}
-      initial={runEntranceAnimation ? "hidden" : false}
-      animate="show"
-    >
+    <>
       <motion.div
-        variants={fadeListItem}
+        className="space-y-6"
+        variants={fadeListContainer}
         initial={runEntranceAnimation ? "hidden" : false}
         animate="show"
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1 h-8 w-8"
-            onClick={() => navigate("/management")}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
-            <PinAssetButton
-              assetId="management-pending"
-              className="hidden md:inline-flex"
-            />
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        >
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={() => navigate("/management")}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">
+                {t.management.pendingMoney}
+              </h1>
+              <PinAssetButton
+                assetId="management-pending"
+                className="hidden md:inline-flex"
+              />
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div
-        variants={fadeListItem}
-        initial={runEntranceAnimation ? "hidden" : false}
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BanknoteArrowUp className="h-5 w-5 text-green-500" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {t.management.totalPendingEarnings}
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-green-600">
-            {formatCurrency(
-              totalPendingEarnings,
-              locale,
-              settings?.general?.defaultCurrency,
-            )}
-          </div>
-          <div className="text-xs text-gray-500">
-            {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
-            {kpiEarningsSource.filter(flow => flow.enabled).length === 1
-              ? t.management.flowType.EARNING.toLowerCase()
-              : t.management.earnings.toLowerCase()}
-          </div>
+        {/* KPI Cards */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BanknoteArrowUp className="h-5 w-5 text-green-500" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                {t.management.totalPendingEarnings}
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-green-600">
+              {formatCurrency(
+                totalPendingEarnings,
+                locale,
+                settings?.general?.defaultCurrency,
+              )}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
+              {kpiEarningsSource.filter(flow => flow.enabled).length === 1
+                ? t.management.flowType.EARNING.toLowerCase()
+                : t.management.earnings.toLowerCase()}
+            </div>
 
-          {/* Earnings Distribution Bar Chart */}
-          {flowDistribution.earnings.length > 0 && (
-            <div className="mt-4">
-              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                <div className="flex h-full">
+            {/* Earnings Distribution Bar Chart */}
+            {flowDistribution.earnings.length > 0 && (
+              <div className="mt-4">
+                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="flex h-full">
+                    {flowDistribution.earnings.map((earning, index) => {
+                      const isRealCategory = existingCategories.includes(
+                        earning.category,
+                      )
+                      return (
+                        <div
+                          key={`earning-${index}`}
+                          className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                          style={{ width: `${earning.percentage}%` }}
+                          title={`${earning.category}: ${formatCurrency(
+                            earning.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )} (${earning.percentage.toFixed(1)}%)`}
+                          onClick={() =>
+                            isRealCategory &&
+                            toggleCategoryFilter(earning.category)
+                          }
+                        >
+                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Earnings Legend */}
+                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
                   {flowDistribution.earnings.map((earning, index) => {
                     const isRealCategory = existingCategories.includes(
                       earning.category,
                     )
                     return (
                       <div
-                        key={`earning-${index}`}
-                        className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                        style={{ width: `${earning.percentage}%` }}
-                        title={`${earning.category}: ${formatCurrency(
-                          earning.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )} (${earning.percentage.toFixed(1)}%)`}
+                        key={`earning-legend-${index}`}
+                        className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                          isRealCategory
+                            ? "cursor-pointer"
+                            : "cursor-default opacity-70"
+                        }`}
                         onClick={() =>
                           isRealCategory &&
                           toggleCategoryFilter(earning.category)
                         }
                       >
-                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        <div
+                          className={`w-3 h-3 rounded-sm ${earning.color}`}
+                        ></div>
+                        <span
+                          className="truncate max-w-20"
+                          title={earning.category}
+                        >
+                          {earning.category}
+                        </span>
+                        <span className="text-gray-500">
+                          {formatCurrency(
+                            earning.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                        </span>
                       </div>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Earnings Legend */}
-              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                {flowDistribution.earnings.map((earning, index) => {
-                  const isRealCategory = existingCategories.includes(
-                    earning.category,
-                  )
-                  return (
-                    <div
-                      key={`earning-legend-${index}`}
-                      className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                        isRealCategory
-                          ? "cursor-pointer"
-                          : "cursor-default opacity-70"
-                      }`}
-                      onClick={() =>
-                        isRealCategory && toggleCategoryFilter(earning.category)
-                      }
-                    >
-                      <div
-                        className={`w-3 h-3 rounded-sm ${earning.color}`}
-                      ></div>
-                      <span
-                        className="truncate max-w-20"
-                        title={earning.category}
-                      >
-                        {earning.category}
-                      </span>
-                      <span className="text-gray-500">
-                        {formatCurrency(
-                          earning.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BanknoteArrowDown className="h-5 w-5 text-red-500" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {t.management.totalPendingExpenses}
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-red-600">
-            {formatCurrency(
-              totalPendingExpenses,
-              locale,
-              settings?.general?.defaultCurrency,
             )}
-          </div>
-          <div className="text-xs text-gray-500">
-            {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
-            {kpiExpensesSource.filter(flow => flow.enabled).length === 1
-              ? t.management.flowType.EXPENSE.toLowerCase()
-              : t.management.expenses.toLowerCase()}
-          </div>
+          </Card>
 
-          {/* Expenses Distribution Bar Chart */}
-          {flowDistribution.expenses.length > 0 && (
-            <div className="mt-4">
-              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                <div className="flex h-full">
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BanknoteArrowDown className="h-5 w-5 text-red-500" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                {t.management.totalPendingExpenses}
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-red-600">
+              {formatCurrency(
+                totalPendingExpenses,
+                locale,
+                settings?.general?.defaultCurrency,
+              )}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
+              {kpiExpensesSource.filter(flow => flow.enabled).length === 1
+                ? t.management.flowType.EXPENSE.toLowerCase()
+                : t.management.expenses.toLowerCase()}
+            </div>
+
+            {/* Expenses Distribution Bar Chart */}
+            {flowDistribution.expenses.length > 0 && (
+              <div className="mt-4">
+                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="flex h-full">
+                    {flowDistribution.expenses.map((expense, index) => {
+                      const isRealCategory = existingCategories.includes(
+                        expense.category,
+                      )
+                      return (
+                        <div
+                          key={`expense-${index}`}
+                          className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                          style={{ width: `${expense.percentage}%` }}
+                          title={`${expense.category}: ${formatCurrency(
+                            expense.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )} (${expense.percentage.toFixed(1)}%)`}
+                          onClick={() =>
+                            isRealCategory &&
+                            toggleCategoryFilter(expense.category)
+                          }
+                        >
+                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Expenses Legend */}
+                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
                   {flowDistribution.expenses.map((expense, index) => {
                     const isRealCategory = existingCategories.includes(
                       expense.category,
                     )
                     return (
                       <div
-                        key={`expense-${index}`}
-                        className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                        style={{ width: `${expense.percentage}%` }}
-                        title={`${expense.category}: ${formatCurrency(
-                          expense.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )} (${expense.percentage.toFixed(1)}%)`}
+                        key={`expense-legend-${index}`}
+                        className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                          isRealCategory
+                            ? "cursor-pointer"
+                            : "cursor-default opacity-70"
+                        }`}
                         onClick={() =>
                           isRealCategory &&
                           toggleCategoryFilter(expense.category)
                         }
                       >
-                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        <div
+                          className={`w-3 h-3 rounded-sm ${expense.color}`}
+                        ></div>
+                        <span
+                          className="truncate max-w-20"
+                          title={expense.category}
+                        >
+                          {expense.category}
+                        </span>
+                        <span className="text-gray-500">
+                          {formatCurrency(
+                            expense.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                        </span>
                       </div>
                     )
                   })}
                 </div>
               </div>
+            )}
+          </Card>
+        </motion.div>
 
-              {/* Expenses Legend */}
-              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                {flowDistribution.expenses.map((expense, index) => {
-                  const isRealCategory = existingCategories.includes(
-                    expense.category,
-                  )
-                  return (
-                    <div
-                      key={`expense-legend-${index}`}
-                      className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                        isRealCategory
-                          ? "cursor-pointer"
-                          : "cursor-default opacity-70"
-                      }`}
-                      onClick={() =>
-                        isRealCategory && toggleCategoryFilter(expense.category)
-                      }
-                    >
-                      <div
-                        className={`w-3 h-3 rounded-sm ${expense.color}`}
-                      ></div>
-                      <span
-                        className="truncate max-w-20"
-                        title={expense.category}
-                      >
-                        {expense.category}
-                      </span>
-                      <span className="text-gray-500">
-                        {formatCurrency(
-                          expense.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+        {/* Sorting Controls */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="flex items-center justify-between gap-3 flex-wrap"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {t.management.sortBy}
+            </span>
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setSortBy("amount")}
+                title={t.management.sortByAmount}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "amount"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Banknote size={16} />
+              </button>
+              <button
+                onClick={() => setSortBy("date")}
+                title={t.management.sortByDate}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "date"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <CalendarDays size={16} />
+              </button>
             </div>
-          )}
-        </Card>
-      </motion.div>
-
-      {/* Sorting Controls */}
-      <motion.div
-        variants={fadeListItem}
-        initial={runEntranceAnimation ? "hidden" : false}
-        animate="show"
-        className="flex items-center justify-between gap-3 flex-wrap"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">
-            {t.management.sortBy}
-          </span>
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setSortBy("amount")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "amount"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.management.sortByAmount}
-            </button>
-            <button
-              onClick={() => setSortBy("date")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "date"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.management.sortByDate}
-            </button>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-sm text-muted-foreground">
-            {t.management.category}
-          </span>
-          <MultiSelect
-            options={categoryOptions}
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            className="min-w-[220px]"
-          />
-        </div>
+          <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
+            <span className="text-sm text-muted-foreground">
+              {t.management.groupBy}
+            </span>
+            <button
+              onClick={() => setGroupByCategory(prev => !prev)}
+              title={t.management.groupByCategory}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+                groupByCategory
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Tag size={14} />
+              <span className="hidden sm:inline">
+                {t.management.groupByCategory}
+              </span>
+            </button>
+            <MultiSelect
+              options={categoryOptions}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
+            />
+          </div>
+        </motion.div>
+
+        {renderFlowSection({
+          title: t.management.pendingEarnings,
+          flows: earnings,
+          flowType: FlowType.EARNING,
+          emptyMessage: t.management.noPendingEarnings,
+          addMessage: t.management.addFirstPendingEarning,
+        })}
+
+        {renderFlowSection({
+          title: t.management.pendingExpenses,
+          flows: expenses,
+          flowType: FlowType.EXPENSE,
+          emptyMessage: t.management.noPendingExpenses,
+          addMessage: t.management.addFirstPendingExpense,
+        })}
       </motion.div>
-
-      {renderFlowSection({
-        title: t.management.pendingEarnings,
-        flows: earnings,
-        flowType: FlowType.EARNING,
-        emptyMessage: t.management.noPendingEarnings,
-        addMessage: t.management.addFirstPendingEarning,
-      })}
-
-      {renderFlowSection({
-        title: t.management.pendingExpenses,
-        flows: expenses,
-        flowType: FlowType.EXPENSE,
-        emptyMessage: t.management.noPendingExpenses,
-        addMessage: t.management.addFirstPendingExpense,
-      })}
 
       <AnimatePresence>
         {isDialogOpen && (
@@ -908,9 +977,6 @@ export default function PendingMoneyPage() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-gray-900/20 dark:bg-black/50 flex items-center justify-center p-4 z-[18000]"
-            onClick={e => {
-              if (e.target === e.currentTarget) setIsDialogOpen(false)
-            }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1085,6 +1151,6 @@ export default function PendingMoneyPage() {
         onConfirm={handleDelete}
         onCancel={() => setIsDeleteDialogOpen(false)}
       />
-    </motion.div>
+    </>
   )
 }

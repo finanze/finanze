@@ -10,6 +10,7 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 
 <p align="middle">
   <img src="resources/dashboard.png" width="49%" />
+  <img src="resources/m-stocks.png" height="450px" /> 
   <img src="resources/entitiespage.png" width="49%" /> 
   <img src="resources/earningsexpenses.png" width="49%" /> 
   <img src="resources/realestate.png" width="49%" />

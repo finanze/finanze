@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7592)
-const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT || 5173)
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7692)
+const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT || 5273)
 
 export default defineConfig({
     testDir: './tests',

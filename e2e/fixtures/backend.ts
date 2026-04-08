@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7592)
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7692)
 const PROJECT_ROOT = join(import.meta.dirname, '..', '..')
 
 export interface BackendFixture {

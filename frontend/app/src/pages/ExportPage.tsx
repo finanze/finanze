@@ -4807,53 +4807,55 @@ export default function ExportPage() {
   }
 
   return (
-    <motion.div
-      className="space-y-8"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-    >
-      <Tabs
-        value={activeTab}
-        onValueChange={value => setActiveTab(value as "export" | "import")}
-        className="space-y-6"
+    <>
+      <motion.div
+        className="space-y-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-3xl font-bold">{t.export.title}</h1>
-          <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 backdrop-blur self-center shadow-sm md:ml-auto md:self-auto">
-            <TabsTrigger
-              value="export"
-              className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-            >
-              <FileUp className="mr-2 h-4 w-4" />
-              {t.export.tabs.export}
-            </TabsTrigger>
-            <TabsTrigger
-              value="import"
-              className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {t.export.tabs.import}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="export" className="space-y-6">
-          {renderTemplatesCard(TemplateType.EXPORT)}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {renderFileExportCard()}
-            {renderGoogleSheetsCard()}
+        <Tabs
+          value={activeTab}
+          onValueChange={value => setActiveTab(value as "export" | "import")}
+          className="space-y-6"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-3xl font-bold">{t.export.title}</h1>
+            <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 backdrop-blur self-center shadow-sm md:ml-auto md:self-auto">
+              <TabsTrigger
+                value="export"
+                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
+              >
+                <FileUp className="mr-2 h-4 w-4" />
+                {t.export.tabs.export}
+              </TabsTrigger>
+              <TabsTrigger
+                value="import"
+                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {t.export.tabs.import}
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </TabsContent>
 
-        <TabsContent value="import" className="space-y-6">
-          {renderTemplatesCard(TemplateType.IMPORT)}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {renderFileImportCard()}
-            {renderGoogleSheetsImportCard()}
-          </div>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="export" className="space-y-6">
+            {renderTemplatesCard(TemplateType.EXPORT)}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {renderFileExportCard()}
+              {renderGoogleSheetsCard()}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="import" className="space-y-6">
+            {renderTemplatesCard(TemplateType.IMPORT)}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {renderFileImportCard()}
+              {renderGoogleSheetsImportCard()}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
 
       {renderFileExportDialog()}
       {renderFileImportDialog()}
@@ -4898,6 +4900,6 @@ export default function ExportPage() {
             : t.importErrors.description
         }
       />
-    </motion.div>
+    </>
   )
 }

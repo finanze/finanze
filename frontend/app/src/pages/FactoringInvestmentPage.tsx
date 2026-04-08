@@ -49,10 +49,7 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
@@ -137,7 +134,7 @@ interface FactoringViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: FactoringPosition[]
@@ -281,18 +278,14 @@ export default function FactoringInvestmentPage() {
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
   // Get entity options for the filter
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithFactoring = getEntitiesWithProductType(
       positionsData,
       ProductType.FACTORING,
     )
     return (
-      entities
-        ?.filter(entity => entitiesWithFactoring.includes(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => entitiesWithFactoring.includes(entity.id)) ??
+      []
     )
   }, [entities, positionsData])
 
@@ -327,7 +320,7 @@ export default function FactoringInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         positions={allFactoringPositions}
@@ -357,7 +350,7 @@ function FactoringViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -940,10 +933,10 @@ function FactoringViewContent({
               <span>{t.transactions.filters}</span>
             </div>
             <div className="w-full sm:max-w-xs">
-              <MultiSelect
-                options={entityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={setSelectedEntities}
               />
             </div>
             {selectedEntities.length > 0 && (

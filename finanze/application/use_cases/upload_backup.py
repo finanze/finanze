@@ -55,7 +55,7 @@ class UploadBackupImpl(UploadBackup):
         user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_CREATE.check(user_auth)
 
-        await self._check_cooldown()
+        await self._check_cooldown(request.types)
         hashed_pass = await self._data_initiator.get_hashed_password()
 
         remote_backup_info = (
@@ -186,7 +186,7 @@ class UploadBackupImpl(UploadBackup):
                     "Import the remote backup first or use force upload to overwrite."
                 )
 
-    async def _check_cooldown(self):
+    async def _check_cooldown(self, types: list[BackupFileType]):
         local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         if not local_backup_registry:
             return
@@ -194,7 +194,9 @@ class UploadBackupImpl(UploadBackup):
         now = datetime.now(tzlocal())
         cooldown_delta = timedelta(minutes=self.BACKUP_OPERATION_COOLDOWN_MINUTES)
 
-        for backup_info in local_backup_registry.values():
+        for bkg_type, backup_info in local_backup_registry.items():
+            if bkg_type not in types:
+                continue
             time_since_last_operation = now - backup_info.date
             if time_since_last_operation < cooldown_delta:
                 remaining_seconds = int(

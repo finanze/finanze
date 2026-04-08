@@ -49,10 +49,7 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import type { RealEstateCFEntry, HistoricSortBy } from "@/types/historic"
 import { useHistoricPagination } from "@/hooks/useHistoricPagination"
 import {
@@ -148,7 +145,7 @@ interface RealEstateViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: RealEstatePosition[]
@@ -344,18 +341,14 @@ export default function RealEstateCFInvestmentPage() {
     return realEstates
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithRealEstate = getEntitiesWithProductType(
       positionsData,
       ProductType.REAL_ESTATE_CF,
     )
     return (
-      entities
-        ?.filter(entity => entitiesWithRealEstate.includes(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => entitiesWithRealEstate.includes(entity.id)) ??
+      []
     )
   }, [entities, positionsData])
 
@@ -390,7 +383,7 @@ export default function RealEstateCFInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         positions={allRealEstatePositions}
@@ -420,7 +413,7 @@ function RealEstateViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -1048,10 +1041,10 @@ function RealEstateViewContent({
               <span>{t.transactions.filters}</span>
             </div>
             <div className="w-full sm:max-w-xs">
-              <MultiSelect
-                options={entityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={setSelectedEntities}
               />
             </div>
             {selectedEntities.length > 0 && (

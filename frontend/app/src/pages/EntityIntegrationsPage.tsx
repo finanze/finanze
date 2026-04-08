@@ -513,62 +513,292 @@ export default function EntityIntegrationsPage() {
   }, [hash, connectedCryptoEntities.length, view])
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={fadeListContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <>
       <motion.div
-        className="flex justify-between items-center"
-        variants={fadeListItem}
+        className="space-y-6"
+        variants={fadeListContainer}
+        initial="hidden"
+        animate="show"
       >
-        <h1 className="text-3xl font-bold">{t.entities.title}</h1>
-      </motion.div>
+        <motion.div
+          className="flex justify-between items-center"
+          variants={fadeListItem}
+        >
+          <h1 className="text-3xl font-bold">{t.entities.title}</h1>
+        </motion.div>
 
-      <motion.div variants={fadeListItem}>
-        <AnimatePresence mode="wait">
-          {isLoadingEntities ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col justify-center items-center h-64"
-            >
-              <LoadingSpinner size="lg" />
-              <p className="mt-4 text-gray-500 dark:text-gray-400">
-                {t.common.loading}
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="entities"
-              variants={fadeListContainer}
-              initial="hidden"
-              animate="show"
-              className="space-y-8"
-            >
-              {connectedEntities.length > 0 && (
+        <motion.div variants={fadeListItem}>
+          <AnimatePresence mode="wait">
+            {isLoadingEntities ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col justify-center items-center h-64"
+              >
+                <LoadingSpinner size="lg" />
+                <p className="mt-4 text-gray-500 dark:text-gray-400">
+                  {t.common.loading}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="entities"
+                variants={fadeListContainer}
+                initial="hidden"
+                animate="show"
+                className="space-y-8"
+              >
+                {connectedEntities.length > 0 && (
+                  <motion.div variants={fadeListItem} className="space-y-6">
+                    <h2 className="text-xl font-semibold">
+                      {t.entities.connected}
+                    </h2>
+
+                    {/* Financial Institutions */}
+                    {connectedFinancialEntities.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                          <Landmark className="h-5 w-5 mr-2" />
+                          {t.entities.financialInstitutions}
+                        </h3>
+                        <motion.div
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                          variants={fadeListContainer}
+                          initial={false}
+                          animate="show"
+                        >
+                          {connectedFinancialEntities.map(entity => (
+                            <motion.div key={entity.id} variants={fadeListItem}>
+                              <EntityCard
+                                entity={entity}
+                                onSelect={() => handleEntitySelect(entity)}
+                                onRelogin={() => handleRelogin(entity)}
+                                onDisconnect={() => handleDisconnect(entity)}
+                                onManage={() => handleManage(entity)}
+                                onAddAccount={() => handleAddAccount(entity)}
+                                onExternalContinue={
+                                  handleContinueExternalEntityLink
+                                }
+                                onExternalDisconnect={
+                                  handleDisconnectExternalProvided
+                                }
+                                linkingExternalEntityId={
+                                  linkingExternalEntityId
+                                }
+                                onExternalRelink={handleRelinkExternalProvided}
+                              />
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Crypto Wallets */}
+                    {connectedCryptoEntities.length > 0 && (
+                      <div className="space-y-3" id="crypto-enabled">
+                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                          <Wallet className="h-5 w-5 mr-2" />
+                          {t.entities.cryptoWallets}
+                        </h3>
+                        <motion.div
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                          variants={fadeListContainer}
+                          initial={false}
+                          animate="show"
+                        >
+                          {connectedCryptoEntities.map(entity => (
+                            <motion.div key={entity.id} variants={fadeListItem}>
+                              <EntityCard
+                                entity={entity}
+                                onSelect={() => handleEntitySelect(entity)}
+                                onRelogin={() => handleRelogin(entity)}
+                                onDisconnect={() => handleDisconnect(entity)}
+                                onManage={() => handleManage(entity)}
+                                onAddAccount={() => handleAddAccount(entity)}
+                                onExternalContinue={
+                                  handleContinueExternalEntityLink
+                                }
+                                onExternalDisconnect={
+                                  handleDisconnectExternalProvided
+                                }
+                                linkingExternalEntityId={
+                                  linkingExternalEntityId
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Crypto Exchanges */}
+                    {connectedCryptoExchangeEntities.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                          <Bitcoin className="h-5 w-5 mr-2" />
+                          {t.entities.cryptoExchanges}
+                        </h3>
+                        <motion.div
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                          variants={fadeListContainer}
+                          initial={false}
+                          animate="show"
+                        >
+                          {connectedCryptoExchangeEntities.map(entity => (
+                            <motion.div key={entity.id} variants={fadeListItem}>
+                              <EntityCard
+                                entity={entity}
+                                onSelect={() => handleEntitySelect(entity)}
+                                onRelogin={() => handleRelogin(entity)}
+                                onDisconnect={() => handleDisconnect(entity)}
+                                onManage={() => handleManage(entity)}
+                                onAddAccount={() => handleAddAccount(entity)}
+                                onExternalContinue={
+                                  handleContinueExternalEntityLink
+                                }
+                                onExternalDisconnect={
+                                  handleDisconnectExternalProvided
+                                }
+                                linkingExternalEntityId={
+                                  linkingExternalEntityId
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
                 <motion.div variants={fadeListItem} className="space-y-6">
                   <h2 className="text-xl font-semibold">
-                    {t.entities.connected}
+                    {t.entities.available}
                   </h2>
 
                   {/* Financial Institutions */}
-                  {connectedFinancialEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Landmark className="h-5 w-5 mr-2" />
+                      {t.entities.financialInstitutions}
+                    </h3>
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      variants={fadeListContainer}
+                    >
+                      {/* Add External Entity Card */}
+                      {hasProviderIntegration && (
+                        <motion.div variants={fadeListItem}>
+                          <Card
+                            className={`transition-all border-l-4 border-l-gray-300 ${
+                              isNativeMobile()
+                                ? "opacity-60 cursor-not-allowed"
+                                : "opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
+                            }`}
+                            onClick={() => {
+                              if (!isNativeMobile()) {
+                                openAddExternalEntity()
+                              }
+                            }}
+                          >
+                            <CardHeader className="pb-0 p-4">
+                              <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center min-w-0">
+                                  <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
+                                    <div className="absolute inset-0">
+                                      <img
+                                        src="icons/santander.png"
+                                        alt=""
+                                        className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                        style={{
+                                          transform:
+                                            "translate(-50%,-10%) rotate(-10deg)",
+                                        }}
+                                        draggable={false}
+                                      />
+                                      <img
+                                        src="icons/sabadell.png"
+                                        alt=""
+                                        className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                        style={{
+                                          transform:
+                                            "translate(0,-45%) rotate(6deg)",
+                                        }}
+                                        draggable={false}
+                                      />
+                                      <img
+                                        src="icons/n26.png"
+                                        alt=""
+                                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                        style={{
+                                          transform:
+                                            "translate(-55%,10%) rotate(9deg)",
+                                        }}
+                                        draggable={false}
+                                      />
+                                      <img
+                                        src="icons/vivid.png"
+                                        alt=""
+                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                        style={{
+                                          transform:
+                                            "translate(0%,-45%) rotate(-7deg)",
+                                        }}
+                                        draggable={false}
+                                      />
+                                    </div>
+                                  </div>
+                                  <span className="truncate">
+                                    {t.entities.moreFinancialInstitutionsCard}
+                                  </span>
+                                </div>
+                                {isNativeMobile() && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {t.common.notAvailableOnPlatform}
+                                  </span>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                          </Card>
+                        </motion.div>
+                      )}
+                      {unconnectedFinancialEntities.map(entity => (
+                        <motion.div key={entity.id} variants={fadeListItem}>
+                          <EntityCard
+                            entity={entity}
+                            onSelect={() => handleEntitySelect(entity)}
+                            onRelogin={() => handleRelogin(entity)}
+                            onDisconnect={() => handleDisconnect(entity)}
+                            onManage={() => handleManage(entity)}
+                            onAddAccount={() => handleAddAccount(entity)}
+                            onExternalContinue={
+                              handleContinueExternalEntityLink
+                            }
+                            onExternalDisconnect={
+                              handleDisconnectExternalProvided
+                            }
+                            linkingExternalEntityId={linkingExternalEntityId}
+                            onExternalRelink={handleRelinkExternalProvided}
+                          />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </div>
+
+                  {/* Crypto Wallets */}
+                  {unconnectedCryptoEntities.length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <Landmark className="h-5 w-5 mr-2" />
-                        {t.entities.financialInstitutions}
+                        <Wallet className="h-5 w-5 mr-2" />
+                        {t.entities.cryptoWallets}
                       </h3>
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
-                        initial={false}
-                        animate="show"
                       >
-                        {connectedFinancialEntities.map(entity => (
+                        {unconnectedCryptoEntities.map(entity => (
                           <motion.div key={entity.id} variants={fadeListItem}>
                             <EntityCard
                               entity={entity}
@@ -592,44 +822,8 @@ export default function EntityIntegrationsPage() {
                     </div>
                   )}
 
-                  {/* Crypto Wallets */}
-                  {connectedCryptoEntities.length > 0 && (
-                    <div className="space-y-3" id="crypto-enabled">
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <Wallet className="h-5 w-5 mr-2" />
-                        {t.entities.cryptoWallets}
-                      </h3>
-                      <motion.div
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                        variants={fadeListContainer}
-                        initial={false}
-                        animate="show"
-                      >
-                        {connectedCryptoEntities.map(entity => (
-                          <motion.div key={entity.id} variants={fadeListItem}>
-                            <EntityCard
-                              entity={entity}
-                              onSelect={() => handleEntitySelect(entity)}
-                              onRelogin={() => handleRelogin(entity)}
-                              onDisconnect={() => handleDisconnect(entity)}
-                              onManage={() => handleManage(entity)}
-                              onAddAccount={() => handleAddAccount(entity)}
-                              onExternalContinue={
-                                handleContinueExternalEntityLink
-                              }
-                              onExternalDisconnect={
-                                handleDisconnectExternalProvided
-                              }
-                              linkingExternalEntityId={linkingExternalEntityId}
-                            />
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    </div>
-                  )}
-
                   {/* Crypto Exchanges */}
-                  {connectedCryptoExchangeEntities.length > 0 && (
+                  {unconnectedCryptoExchangeEntities.length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                         <Bitcoin className="h-5 w-5 mr-2" />
@@ -638,10 +832,8 @@ export default function EntityIntegrationsPage() {
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
-                        initial={false}
-                        animate="show"
                       >
-                        {connectedCryptoExchangeEntities.map(entity => (
+                        {unconnectedCryptoExchangeEntities.map(entity => (
                           <motion.div key={entity.id} variants={fadeListItem}>
                             <EntityCard
                               entity={entity}
@@ -657,6 +849,7 @@ export default function EntityIntegrationsPage() {
                                 handleDisconnectExternalProvided
                               }
                               linkingExternalEntityId={linkingExternalEntityId}
+                              onExternalRelink={handleRelinkExternalProvided}
                             />
                           </motion.div>
                         ))}
@@ -664,193 +857,10 @@ export default function EntityIntegrationsPage() {
                     </div>
                   )}
                 </motion.div>
-              )}
-
-              <motion.div variants={fadeListItem} className="space-y-6">
-                <h2 className="text-xl font-semibold">
-                  {t.entities.available}
-                </h2>
-
-                {/* Financial Institutions */}
-                <div className="space-y-3">
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    <Landmark className="h-5 w-5 mr-2" />
-                    {t.entities.financialInstitutions}
-                  </h3>
-                  <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                    variants={fadeListContainer}
-                  >
-                    {/* Add External Entity Card */}
-                    {hasProviderIntegration && (
-                      <motion.div variants={fadeListItem}>
-                        <Card
-                          className={`transition-all border-l-4 border-l-gray-300 ${
-                            isNativeMobile()
-                              ? "opacity-60 cursor-not-allowed"
-                              : "opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
-                          }`}
-                          onClick={() => {
-                            if (!isNativeMobile()) {
-                              openAddExternalEntity()
-                            }
-                          }}
-                        >
-                          <CardHeader className="pb-0 p-4">
-                            <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center min-w-0">
-                                <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
-                                  <div className="absolute inset-0">
-                                    <img
-                                      src="icons/santander.png"
-                                      alt=""
-                                      className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                      style={{
-                                        transform:
-                                          "translate(-50%,-10%) rotate(-10deg)",
-                                      }}
-                                      draggable={false}
-                                    />
-                                    <img
-                                      src="icons/sabadell.png"
-                                      alt=""
-                                      className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                      style={{
-                                        transform:
-                                          "translate(0,-45%) rotate(6deg)",
-                                      }}
-                                      draggable={false}
-                                    />
-                                    <img
-                                      src="icons/n26.png"
-                                      alt=""
-                                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                      style={{
-                                        transform:
-                                          "translate(-55%,10%) rotate(9deg)",
-                                      }}
-                                      draggable={false}
-                                    />
-                                    <img
-                                      src="icons/vivid.png"
-                                      alt=""
-                                      className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                      style={{
-                                        transform:
-                                          "translate(0%,-45%) rotate(-7deg)",
-                                      }}
-                                      draggable={false}
-                                    />
-                                  </div>
-                                </div>
-                                <span className="truncate">
-                                  {t.entities.moreFinancialInstitutionsCard}
-                                </span>
-                              </div>
-                              {isNativeMobile() && (
-                                <span className="text-xs text-muted-foreground">
-                                  {t.common.notAvailableOnPlatform}
-                                </span>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                        </Card>
-                      </motion.div>
-                    )}
-                    {unconnectedFinancialEntities.map(entity => (
-                      <motion.div key={entity.id} variants={fadeListItem}>
-                        <EntityCard
-                          entity={entity}
-                          onSelect={() => handleEntitySelect(entity)}
-                          onRelogin={() => handleRelogin(entity)}
-                          onDisconnect={() => handleDisconnect(entity)}
-                          onManage={() => handleManage(entity)}
-                          onAddAccount={() => handleAddAccount(entity)}
-                          onExternalContinue={handleContinueExternalEntityLink}
-                          onExternalDisconnect={
-                            handleDisconnectExternalProvided
-                          }
-                          linkingExternalEntityId={linkingExternalEntityId}
-                          onExternalRelink={handleRelinkExternalProvided}
-                        />
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </div>
-
-                {/* Crypto Wallets */}
-                {unconnectedCryptoEntities.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Wallet className="h-5 w-5 mr-2" />
-                      {t.entities.cryptoWallets}
-                    </h3>
-                    <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                      variants={fadeListContainer}
-                    >
-                      {unconnectedCryptoEntities.map(entity => (
-                        <motion.div key={entity.id} variants={fadeListItem}>
-                          <EntityCard
-                            entity={entity}
-                            onSelect={() => handleEntitySelect(entity)}
-                            onRelogin={() => handleRelogin(entity)}
-                            onDisconnect={() => handleDisconnect(entity)}
-                            onManage={() => handleManage(entity)}
-                            onAddAccount={() => handleAddAccount(entity)}
-                            onExternalContinue={
-                              handleContinueExternalEntityLink
-                            }
-                            onExternalDisconnect={
-                              handleDisconnectExternalProvided
-                            }
-                            linkingExternalEntityId={linkingExternalEntityId}
-                            onExternalRelink={handleRelinkExternalProvided}
-                          />
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  </div>
-                )}
-
-                {/* Crypto Exchanges */}
-                {unconnectedCryptoExchangeEntities.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Bitcoin className="h-5 w-5 mr-2" />
-                      {t.entities.cryptoExchanges}
-                    </h3>
-                    <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                      variants={fadeListContainer}
-                    >
-                      {unconnectedCryptoExchangeEntities.map(entity => (
-                        <motion.div key={entity.id} variants={fadeListItem}>
-                          <EntityCard
-                            entity={entity}
-                            onSelect={() => handleEntitySelect(entity)}
-                            onRelogin={() => handleRelogin(entity)}
-                            onDisconnect={() => handleDisconnect(entity)}
-                            onManage={() => handleManage(entity)}
-                            onAddAccount={() => handleAddAccount(entity)}
-                            onExternalContinue={
-                              handleContinueExternalEntityLink
-                            }
-                            onExternalDisconnect={
-                              handleDisconnectExternalProvided
-                            }
-                            linkingExternalEntityId={linkingExternalEntityId}
-                            onExternalRelink={handleRelinkExternalProvided}
-                          />
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  </div>
-                )}
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </motion.div>
 
       {/* Login Modal */}
@@ -1300,6 +1310,6 @@ export default function EntityIntegrationsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </>
   )
 }

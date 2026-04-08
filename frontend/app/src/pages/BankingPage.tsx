@@ -9,10 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ManualPositionsManager,
@@ -689,45 +686,43 @@ export default function BankingPage() {
     )
   }, [loanPositions, selectedEntities])
 
-  const bankingEntityOptions: MultiSelectOption[] = useMemo(() => {
+  const bankingEntities = useMemo(() => {
     const ids = new Set<string>()
     accountPositions.forEach(position => ids.add(position.entityId))
     cardPositions.forEach(position => ids.add(position.entityId))
     loanPositions.forEach(position => ids.add(position.entityId))
 
     return (
-      entities
-        ?.filter(entity => {
-          const entityId = entity.id
-          if (typeof entityId !== "string" || entityId.length === 0) {
-            return false
-          }
-          if (entityId.startsWith("new-")) {
-            return false
-          }
-          if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
-            return false
-          }
-          return ids.has(entityId)
-        })
-        .map(entity => ({ value: entity.id, label: entity.name })) ?? []
+      entities?.filter(entity => {
+        const entityId = entity.id
+        if (typeof entityId !== "string" || entityId.length === 0) {
+          return false
+        }
+        if (entityId.startsWith("new-")) {
+          return false
+        }
+        if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
+          return false
+        }
+        return ids.has(entityId)
+      }) ?? []
     )
   }, [accountPositions, cardPositions, loanPositions, entities])
 
   useEffect(() => {
-    if (bankingEntityOptions.length === 0) {
+    if (bankingEntities.length === 0) {
       if (selectedEntities.length > 0) {
         setSelectedEntities([])
       }
       return
     }
 
-    const allowed = new Set(bankingEntityOptions.map(option => option.value))
+    const allowed = new Set(bankingEntities.map(e => e.id))
     setSelectedEntities(prev => {
       const next = prev.filter(id => allowed.has(id))
       return next.length === prev.length ? prev : next
     })
-  }, [bankingEntityOptions, selectedEntities])
+  }, [bankingEntities, selectedEntities])
 
   const handleFocusEntity = useCallback(
     (entityId: string) => {
@@ -826,15 +821,11 @@ export default function BankingPage() {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-3 [@media(min-width:450px)]:flex-row [@media(min-width:450px)]:items-center [@media(min-width:450px)]:justify-end">
-            <MultiSelect
-              options={bankingEntityOptions}
-              value={selectedEntities}
-              onChange={setSelectedEntities}
-              placeholder={t.transactions.selectEntities}
-              className="w-full min-w-0 max-w-full [@media(min-width:450px)]:min-w-[200px] [@media(min-width:450px)]:max-w-[320px]"
-            />
-          </div>
+          <InvestmentFilters
+            filteredEntities={bankingEntities}
+            selectedEntities={selectedEntities}
+            onEntitiesChange={setSelectedEntities}
+          />
         </div>
       </motion.div>
 

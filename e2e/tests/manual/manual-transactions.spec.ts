@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -106,9 +107,7 @@ async function createManualTransaction(
         timeout: 5_000,
     })
 
-    await page
-        .locator('#transaction-entity')
-        .selectOption({ label: 'Urbanitae' })
+    await selectEntity(page, 'Urbanitae', { inDialog: true })
     await page.locator('#transaction-name').fill(name)
     // Keep the default date (today) — no need to pick a specific day
     await page.locator('#transaction-type').selectOption('INTEREST')
@@ -266,9 +265,7 @@ test.describe('Manual Transactions', () => {
             timeout: 5_000,
         })
 
-        await page
-            .locator('#transaction-entity')
-            .selectOption({ label: 'Urbanitae' })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#transaction-name').fill('Decimal Test Tx')
         // Keep the default date (today)
         await page.locator('#transaction-type').selectOption('INTEREST')

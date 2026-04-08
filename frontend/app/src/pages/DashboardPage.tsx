@@ -128,6 +128,7 @@ export default function DashboardPage() {
 
   type DashboardOptions = {
     includePending: boolean
+    includeLoans: boolean
     includeCardExpenses: boolean
     includeRealEstate: boolean
     includeResidences: boolean
@@ -142,6 +143,7 @@ export default function DashboardPage() {
             const parsed = JSON.parse(raw)
             return {
               ...parsed,
+              includeLoans: parsed.includeLoans !== false,
               compactNumbers: parsed.compactNumbers !== false,
             }
           }
@@ -151,6 +153,7 @@ export default function DashboardPage() {
       }
       return {
         includePending: true,
+        includeLoans: true,
         includeCardExpenses: false,
         includeRealEstate: true,
         includeResidences: false,

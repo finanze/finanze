@@ -2,22 +2,25 @@ import React from "react"
 import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import { FilterX, Filter } from "lucide-react"
+import type { Entity } from "@/types"
 
 interface InvestmentFiltersProps {
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   onEntitiesChange: (entities: string[]) => void
   walletOptions?: MultiSelectOption[]
   selectedWallets?: string[]
   onWalletsChange?: (wallets: string[]) => void
-  minimal?: boolean // when true show only the selector (no label, icon, border)
+  minimal?: boolean
   placeholderOverride?: string
   extraFilters?: React.ReactNode
+  entityImageOverride?: (entity: Entity) => string | null | undefined
 }
 
 export function InvestmentFilters({
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   onEntitiesChange,
   walletOptions,
@@ -26,6 +29,7 @@ export function InvestmentFilters({
   minimal = false,
   placeholderOverride,
   extraFilters,
+  entityImageOverride,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
 
@@ -39,11 +43,12 @@ export function InvestmentFilters({
   if (minimal) {
     return (
       <div className="max-w-sm">
-        <MultiSelect
-          options={entityOptions}
-          value={selectedEntities}
-          onChange={onEntitiesChange}
+        <EntitySelector
+          entities={filteredEntities}
+          selectedEntityIds={selectedEntities}
+          onSelectionChange={onEntitiesChange}
           placeholder={placeholderOverride || t.transactions.selectEntities}
+          entityImageOverride={entityImageOverride}
         />
       </div>
     )
@@ -58,11 +63,11 @@ export function InvestmentFilters({
             <span>{t.transactions.filters}:</span>
           </div>
           <div className="flex-1 min-w-[200px] max-w-sm">
-            <MultiSelect
-              options={entityOptions}
-              value={selectedEntities}
-              onChange={onEntitiesChange}
-              placeholder={t.transactions.selectEntities}
+            <EntitySelector
+              entities={filteredEntities}
+              selectedEntityIds={selectedEntities}
+              onSelectionChange={onEntitiesChange}
+              entityImageOverride={entityImageOverride}
             />
           </div>
           {walletOptions && walletOptions.length > 0 && onWalletsChange && (
