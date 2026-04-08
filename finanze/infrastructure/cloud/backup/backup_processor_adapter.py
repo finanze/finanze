@@ -1,9 +1,8 @@
 import base64
 import hashlib
 import logging
-
 import zlib
-from cachetools import cached, TTLCache
+
 from cryptography.fernet import Fernet, InvalidToken
 
 from application.ports.backup_processor import BackupProcessor
@@ -34,6 +33,8 @@ class BackupProcessorAdapter(BackupProcessor):
 
 
 class BackupProcessorV1(BackupProcessor):
+    from cachetools import cached, TTLCache
+
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
