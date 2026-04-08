@@ -1334,213 +1334,218 @@ export default function AutoContributionsPage() {
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={fadeListContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <>
       <motion.div
-        variants={fadeListItem}
-        className="flex items-center justify-between gap-4 flex-wrap"
+        className="space-y-6"
+        variants={fadeListContainer}
+        initial="hidden"
+        animate="show"
       >
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1 h-8 w-8"
-            onClick={() => navigate("/management")}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">
-              {t.management.autoContributions}
-            </h1>
-            <PinAssetButton
-              assetId="management-auto-contributions"
-              className="hidden md:inline-flex"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenCreateModal}
-            disabled={financialEntities.length === 0}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            {t.management.manualContributions.add}
-          </Button>
-          {isEditMode ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRequestCancelEdit}
-                disabled={isSaving}
-              >
-                <X className="h-3.5 w-3.5 mr-1" />
-                {t.common.cancel}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSaveAll}
-                disabled={isSaving || !hasLocalChanges}
-              >
-                {isSaving ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {t.common.saving}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Save className="h-3.5 w-3.5" />
-                    {t.common.save}
-                  </span>
-                )}
-              </Button>
-            </>
-          ) : (
-            <Button variant="default" size="sm" onClick={handleEnterEditMode}>
-              <Pencil className="h-3.5 w-3.5 mr-1" />
-              {t.common.edit}
-            </Button>
-          )}
-        </div>
-      </motion.div>
-
-      {isEditMode && hasLocalChanges && (
         <motion.div
           variants={fadeListItem}
-          className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+          className="flex items-center justify-between gap-4 flex-wrap"
         >
-          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>{t.management.unsavedChanges}</div>
-        </motion.div>
-      )}
-
-      <motion.div variants={fadeListItem}>
-        <InvestmentFilters
-          filteredEntities={filteredEntities}
-          selectedEntities={selectedEntities}
-          onEntitiesChange={setSelectedEntities}
-        />
-      </motion.div>
-
-      <motion.div variants={fadeListItem}>
-        {chartData.length > 0 && (
-          <Card className="-mx-6 rounded-none border-x-0">
-            <CardContent className="pt-6">
-              <InvestmentDistributionChart
-                data={chartData}
-                title={t.common.distribution}
-                locale={locale}
-                currency={defaultCurrency}
-                hideLegend
-                containerClassName="overflow-visible w-full"
-                variant="bare"
-                toggleConfig={{
-                  activeView: "target",
-                  onViewChange: () => {},
-                  options: [
-                    {
-                      value: "target",
-                      label: t.management.monthlyPerTarget,
-                    },
-                  ],
-                }}
-                badges={[
-                  {
-                    icon: <Layers className="h-3 w-3" />,
-                    value: `${activeCount} ${t.management.activeContributions}`,
-                  },
-                ]}
-                centerContent={{
-                  rawValue: monthlyTotal,
-                }}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={() => navigate("/management")}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">
+                {t.management.autoContributions}
+              </h1>
+              <PinAssetButton
+                assetId="management-auto-contributions"
+                className="hidden md:inline-flex"
               />
-            </CardContent>
-          </Card>
-        )}
-      </motion.div>
-
-      {showEmptyState && (
-        <motion.div variants={fadeListItem}>
-          <Card className="p-10 flex flex-col items-center gap-4 text-center">
-            <PiggyBank className="h-12 w-12 text-muted-foreground" />
-            <div>
-              <h2 className="text-lg font-semibold mb-1">
-                {t.management.noAutoContributionsTitle}
-              </h2>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {t.management.noAutoContributionsDescription}
-              </p>
             </div>
-          </Card>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenCreateModal}
+              disabled={financialEntities.length === 0}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              {t.management.manualContributions.add}
+            </Button>
+            {isEditMode ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRequestCancelEdit}
+                  disabled={isSaving}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  {t.common.cancel}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveAll}
+                  disabled={isSaving || !hasLocalChanges}
+                >
+                  {isSaving ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {t.common.saving}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Save className="h-3.5 w-3.5" />
+                      {t.common.save}
+                    </span>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button variant="default" size="sm" onClick={handleEnterEditMode}>
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                {t.common.edit}
+              </Button>
+            )}
+          </div>
         </motion.div>
-      )}
 
-      {Array.from(groupedEntries.entries())
-        .filter(
-          ([entityId]) =>
-            selectedEntities.length === 0 ||
-            selectedEntities.includes(entityId),
-        )
-        .map(([entityId, list]) => {
-          const entityName =
-            entities.find(entity => entity.id === entityId)?.name || entityId
-          const draftsForEntity = manualDraftsByEntity.get(entityId) || []
-          const unsavedDrafts = draftsForEntity.filter(
-            draft => !draft.originalId,
-          )
+        {isEditMode && hasLocalChanges && (
+          <motion.div
+            variants={fadeListItem}
+            className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+          >
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div>{t.management.unsavedChanges}</div>
+          </motion.div>
+        )}
 
-          return (
-            <div key={entityId} className="space-y-4">
-              <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
-                {entityName}
-              </h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {list.map(c => {
-                  const manualDraft = manualDraftByOriginalId.get(c.id)
-                  if (
-                    isEditMode &&
-                    c.source === DataSource.MANUAL &&
-                    !manualDraft
-                  ) {
-                    return null
-                  }
-                  const isDirty = manualDraft
-                    ? isManualDraftDirty(manualDraft)
-                    : false
+        <motion.div variants={fadeListItem}>
+          <InvestmentFilters
+            filteredEntities={filteredEntities}
+            selectedEntities={selectedEntities}
+            onEntitiesChange={setSelectedEntities}
+          />
+        </motion.div>
 
-                  return (
-                    <div key={manualDraft?.localId ?? c.id} className="h-full">
-                      {renderContributionCard(
-                        c,
-                        entityId,
-                        manualDraft,
-                        isDirty,
-                      )}
-                    </div>
-                  )
-                })}
-                {isEditMode &&
-                  unsavedDrafts.map(draft => (
-                    <div key={draft.localId} className="h-full">
-                      {renderContributionCard(
-                        null,
-                        entityId,
-                        draft,
-                        isManualDraftDirty(draft),
-                      )}
-                    </div>
-                  ))}
+        <motion.div variants={fadeListItem}>
+          {chartData.length > 0 && (
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
+                <InvestmentDistributionChart
+                  data={chartData}
+                  title={t.common.distribution}
+                  locale={locale}
+                  currency={defaultCurrency}
+                  hideLegend
+                  containerClassName="overflow-visible w-full"
+                  variant="bare"
+                  toggleConfig={{
+                    activeView: "target",
+                    onViewChange: () => {},
+                    options: [
+                      {
+                        value: "target",
+                        label: t.management.monthlyPerTarget,
+                      },
+                    ],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${activeCount} ${t.management.activeContributions}`,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: monthlyTotal,
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
+
+        {showEmptyState && (
+          <motion.div variants={fadeListItem}>
+            <Card className="p-10 flex flex-col items-center gap-4 text-center">
+              <PiggyBank className="h-12 w-12 text-muted-foreground" />
+              <div>
+                <h2 className="text-lg font-semibold mb-1">
+                  {t.management.noAutoContributionsTitle}
+                </h2>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  {t.management.noAutoContributionsDescription}
+                </p>
               </div>
-            </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {Array.from(groupedEntries.entries())
+          .filter(
+            ([entityId]) =>
+              selectedEntities.length === 0 ||
+              selectedEntities.includes(entityId),
           )
-        })}
+          .map(([entityId, list]) => {
+            const entityName =
+              entities.find(entity => entity.id === entityId)?.name || entityId
+            const draftsForEntity = manualDraftsByEntity.get(entityId) || []
+            const unsavedDrafts = draftsForEntity.filter(
+              draft => !draft.originalId,
+            )
+
+            return (
+              <div key={entityId} className="space-y-4">
+                <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                  {entityName}
+                </h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {list.map(c => {
+                    const manualDraft = manualDraftByOriginalId.get(c.id)
+                    if (
+                      isEditMode &&
+                      c.source === DataSource.MANUAL &&
+                      !manualDraft
+                    ) {
+                      return null
+                    }
+                    const isDirty = manualDraft
+                      ? isManualDraftDirty(manualDraft)
+                      : false
+
+                    return (
+                      <div
+                        key={manualDraft?.localId ?? c.id}
+                        className="h-full"
+                      >
+                        {renderContributionCard(
+                          c,
+                          entityId,
+                          manualDraft,
+                          isDirty,
+                        )}
+                      </div>
+                    )
+                  })}
+                  {isEditMode &&
+                    unsavedDrafts.map(draft => (
+                      <div key={draft.localId} className="h-full">
+                        {renderContributionCard(
+                          null,
+                          entityId,
+                          draft,
+                          isManualDraftDirty(draft),
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )
+          })}
+      </motion.div>
 
       <AnimatePresence>
         {isModalOpen && modalForm && (
@@ -2006,6 +2011,6 @@ export default function AutoContributionsPage() {
         onConfirm={handleConfirmDiscardModal}
         onCancel={handleDismissDiscardModal}
       />
-    </motion.div>
+    </>
   )
 }

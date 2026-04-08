@@ -557,118 +557,124 @@ export default function CommoditiesInvestmentPage() {
   }
 
   return (
-    <div className="space-y-6 w-full">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1 h-8 w-8"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
-            {t.commodityManagement.title}
-            <PinAssetButton
-              assetId="commodities"
-              size="icon"
-              className="hidden md:inline-flex"
-            />
-          </h2>
-        </div>
-        <div className="flex flex-wrap items-center justify-center [@media(min-width:450px)]:justify-end gap-2 w-full [@media(min-width:450px)]:w-auto">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t.common.add}
-          </Button>
-          {hasChanges && (
+    <>
+      <div className="space-y-6 w-full">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <Button
-              data-testid="save-commodities"
+              variant="ghost"
               size="sm"
-              onClick={saveChanges}
-              disabled={isSaving}
+              className="p-1 h-8 w-8"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
+              {t.commodityManagement.title}
+              <PinAssetButton
+                assetId="commodities"
+                size="icon"
+                className="hidden md:inline-flex"
+              />
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center justify-center [@media(min-width:450px)]:justify-end gap-2 w-full [@media(min-width:450px)]:w-auto">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowAddForm(true)}
               className="flex items-center gap-2"
             >
-              <Save className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5" />
+              {t.common.add}
             </Button>
-          )}
+            {hasChanges && (
+              <Button
+                data-testid="save-commodities"
+                size="sm"
+                onClick={saveChanges}
+                disabled={isSaving}
+                className="flex items-center gap-2"
+              >
+                <Save className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {commodities.length > 0 && (
-        <Card className="-mx-6 rounded-none border-x-0">
-          <CardContent className="pt-6">
-            <InvestmentDistributionChart
-              data={chartData}
-              title={t.common.distribution}
-              locale={locale}
-              currency={defaultCurrency}
-              hideLegend
-              containerClassName="overflow-visible w-full"
-              variant="bare"
-              onSliceClick={handleSliceClick}
-              toggleConfig={{
-                activeView: "asset",
-                onViewChange: () => {},
-                options: [{ value: "asset", label: t.investments.byAsset }],
-              }}
-              badges={[
-                {
-                  icon: <Layers className="h-3 w-3" />,
-                  value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
-                },
-                {
-                  icon: <Scale className="h-3 w-3" />,
-                  value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
-                },
-              ]}
-              centerContent={{
-                rawValue: totalValue,
-                gainPercentage:
-                  totalInitialInvestmentConverted > 0
-                    ? (percentageChange ?? undefined)
-                    : undefined,
-                infoRows: [
+        {commodities.length > 0 && (
+          <Card className="-mx-6 rounded-none border-x-0">
+            <CardContent className="pt-6">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={defaultCurrency}
+                hideLegend
+                containerClassName="overflow-visible w-full"
+                variant="bare"
+                onSliceClick={handleSliceClick}
+                toggleConfig={{
+                  activeView: "asset",
+                  onViewChange: () => {},
+                  options: [{ value: "asset", label: t.investments.byAsset }],
+                }}
+                badges={[
                   {
-                    label: t.dashboard.totalValue,
-                    value: formatCurrency(totalValue, locale, defaultCurrency),
+                    icon: <Layers className="h-3 w-3" />,
+                    value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
                   },
-                  ...(totalInitialInvestmentConverted > 0
-                    ? [
-                        {
-                          label: t.dashboard.investedAmount,
-                          value: formatCurrency(
-                            totalInitialInvestmentConverted,
-                            locale,
-                            defaultCurrency,
-                          ),
-                        },
-                        {
-                          label: t.investments.sortAbsoluteGain,
-                          value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
-                            totalValue - totalInitialInvestmentConverted,
-                            locale,
-                            defaultCurrency,
-                          )}`,
-                          valueClassName:
-                            totalValue - totalInitialInvestmentConverted >= 0
-                              ? "text-green-500"
-                              : "text-red-500",
-                        },
-                      ]
-                    : []),
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
-      )}
+                  {
+                    icon: <Scale className="h-3 w-3" />,
+                    value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
+                  },
+                ]}
+                centerContent={{
+                  rawValue: totalValue,
+                  gainPercentage:
+                    totalInitialInvestmentConverted > 0
+                      ? (percentageChange ?? undefined)
+                      : undefined,
+                  infoRows: [
+                    {
+                      label: t.dashboard.totalValue,
+                      value: formatCurrency(
+                        totalValue,
+                        locale,
+                        defaultCurrency,
+                      ),
+                    },
+                    ...(totalInitialInvestmentConverted > 0
+                      ? [
+                          {
+                            label: t.dashboard.investedAmount,
+                            value: formatCurrency(
+                              totalInitialInvestmentConverted,
+                              locale,
+                              defaultCurrency,
+                            ),
+                          },
+                          {
+                            label: t.investments.sortAbsoluteGain,
+                            value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
+                              totalValue - totalInitialInvestmentConverted,
+                              locale,
+                              defaultCurrency,
+                            )}`,
+                            valueClassName:
+                              totalValue - totalInitialInvestmentConverted >= 0
+                                ? "text-green-500"
+                                : "text-red-500",
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <AnimatePresence>
         {showAddForm && (
@@ -1387,6 +1393,6 @@ export default function CommoditiesInvestmentPage() {
           </Card>
         </div>
       )}
-    </div>
+    </>
   )
 }

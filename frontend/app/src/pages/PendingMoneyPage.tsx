@@ -655,313 +655,319 @@ export default function PendingMoneyPage() {
   }
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={fadeListContainer}
-      initial={runEntranceAnimation ? "hidden" : false}
-      animate="show"
-    >
+    <>
       <motion.div
-        variants={fadeListItem}
+        className="space-y-6"
+        variants={fadeListContainer}
         initial={runEntranceAnimation ? "hidden" : false}
         animate="show"
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1 h-8 w-8"
-            onClick={() => navigate("/management")}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
-            <PinAssetButton
-              assetId="management-pending"
-              className="hidden md:inline-flex"
-            />
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        >
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={() => navigate("/management")}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">
+                {t.management.pendingMoney}
+              </h1>
+              <PinAssetButton
+                assetId="management-pending"
+                className="hidden md:inline-flex"
+              />
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div
-        variants={fadeListItem}
-        initial={runEntranceAnimation ? "hidden" : false}
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BanknoteArrowUp className="h-5 w-5 text-green-500" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {t.management.totalPendingEarnings}
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-green-600">
-            {formatCurrency(
-              totalPendingEarnings,
-              locale,
-              settings?.general?.defaultCurrency,
-            )}
-          </div>
-          <div className="text-xs text-gray-500">
-            {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
-            {kpiEarningsSource.filter(flow => flow.enabled).length === 1
-              ? t.management.flowType.EARNING.toLowerCase()
-              : t.management.earnings.toLowerCase()}
-          </div>
+        {/* KPI Cards */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BanknoteArrowUp className="h-5 w-5 text-green-500" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                {t.management.totalPendingEarnings}
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-green-600">
+              {formatCurrency(
+                totalPendingEarnings,
+                locale,
+                settings?.general?.defaultCurrency,
+              )}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
+              {kpiEarningsSource.filter(flow => flow.enabled).length === 1
+                ? t.management.flowType.EARNING.toLowerCase()
+                : t.management.earnings.toLowerCase()}
+            </div>
 
-          {/* Earnings Distribution Bar Chart */}
-          {flowDistribution.earnings.length > 0 && (
-            <div className="mt-4">
-              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                <div className="flex h-full">
+            {/* Earnings Distribution Bar Chart */}
+            {flowDistribution.earnings.length > 0 && (
+              <div className="mt-4">
+                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="flex h-full">
+                    {flowDistribution.earnings.map((earning, index) => {
+                      const isRealCategory = existingCategories.includes(
+                        earning.category,
+                      )
+                      return (
+                        <div
+                          key={`earning-${index}`}
+                          className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                          style={{ width: `${earning.percentage}%` }}
+                          title={`${earning.category}: ${formatCurrency(
+                            earning.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )} (${earning.percentage.toFixed(1)}%)`}
+                          onClick={() =>
+                            isRealCategory &&
+                            toggleCategoryFilter(earning.category)
+                          }
+                        >
+                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Earnings Legend */}
+                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
                   {flowDistribution.earnings.map((earning, index) => {
                     const isRealCategory = existingCategories.includes(
                       earning.category,
                     )
                     return (
                       <div
-                        key={`earning-${index}`}
-                        className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                        style={{ width: `${earning.percentage}%` }}
-                        title={`${earning.category}: ${formatCurrency(
-                          earning.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )} (${earning.percentage.toFixed(1)}%)`}
+                        key={`earning-legend-${index}`}
+                        className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                          isRealCategory
+                            ? "cursor-pointer"
+                            : "cursor-default opacity-70"
+                        }`}
                         onClick={() =>
                           isRealCategory &&
                           toggleCategoryFilter(earning.category)
                         }
                       >
-                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        <div
+                          className={`w-3 h-3 rounded-sm ${earning.color}`}
+                        ></div>
+                        <span
+                          className="truncate max-w-20"
+                          title={earning.category}
+                        >
+                          {earning.category}
+                        </span>
+                        <span className="text-gray-500">
+                          {formatCurrency(
+                            earning.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                        </span>
                       </div>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Earnings Legend */}
-              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                {flowDistribution.earnings.map((earning, index) => {
-                  const isRealCategory = existingCategories.includes(
-                    earning.category,
-                  )
-                  return (
-                    <div
-                      key={`earning-legend-${index}`}
-                      className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                        isRealCategory
-                          ? "cursor-pointer"
-                          : "cursor-default opacity-70"
-                      }`}
-                      onClick={() =>
-                        isRealCategory && toggleCategoryFilter(earning.category)
-                      }
-                    >
-                      <div
-                        className={`w-3 h-3 rounded-sm ${earning.color}`}
-                      ></div>
-                      <span
-                        className="truncate max-w-20"
-                        title={earning.category}
-                      >
-                        {earning.category}
-                      </span>
-                      <span className="text-gray-500">
-                        {formatCurrency(
-                          earning.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BanknoteArrowDown className="h-5 w-5 text-red-500" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              {t.management.totalPendingExpenses}
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-red-600">
-            {formatCurrency(
-              totalPendingExpenses,
-              locale,
-              settings?.general?.defaultCurrency,
             )}
-          </div>
-          <div className="text-xs text-gray-500">
-            {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
-            {kpiExpensesSource.filter(flow => flow.enabled).length === 1
-              ? t.management.flowType.EXPENSE.toLowerCase()
-              : t.management.expenses.toLowerCase()}
-          </div>
+          </Card>
 
-          {/* Expenses Distribution Bar Chart */}
-          {flowDistribution.expenses.length > 0 && (
-            <div className="mt-4">
-              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                <div className="flex h-full">
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BanknoteArrowDown className="h-5 w-5 text-red-500" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                {t.management.totalPendingExpenses}
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-red-600">
+              {formatCurrency(
+                totalPendingExpenses,
+                locale,
+                settings?.general?.defaultCurrency,
+              )}
+            </div>
+            <div className="text-xs text-gray-500">
+              {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
+              {kpiExpensesSource.filter(flow => flow.enabled).length === 1
+                ? t.management.flowType.EXPENSE.toLowerCase()
+                : t.management.expenses.toLowerCase()}
+            </div>
+
+            {/* Expenses Distribution Bar Chart */}
+            {flowDistribution.expenses.length > 0 && (
+              <div className="mt-4">
+                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="flex h-full">
+                    {flowDistribution.expenses.map((expense, index) => {
+                      const isRealCategory = existingCategories.includes(
+                        expense.category,
+                      )
+                      return (
+                        <div
+                          key={`expense-${index}`}
+                          className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                          style={{ width: `${expense.percentage}%` }}
+                          title={`${expense.category}: ${formatCurrency(
+                            expense.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )} (${expense.percentage.toFixed(1)}%)`}
+                          onClick={() =>
+                            isRealCategory &&
+                            toggleCategoryFilter(expense.category)
+                          }
+                        >
+                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Expenses Legend */}
+                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
                   {flowDistribution.expenses.map((expense, index) => {
                     const isRealCategory = existingCategories.includes(
                       expense.category,
                     )
                     return (
                       <div
-                        key={`expense-${index}`}
-                        className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                        style={{ width: `${expense.percentage}%` }}
-                        title={`${expense.category}: ${formatCurrency(
-                          expense.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )} (${expense.percentage.toFixed(1)}%)`}
+                        key={`expense-legend-${index}`}
+                        className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                          isRealCategory
+                            ? "cursor-pointer"
+                            : "cursor-default opacity-70"
+                        }`}
                         onClick={() =>
                           isRealCategory &&
                           toggleCategoryFilter(expense.category)
                         }
                       >
-                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                        <div
+                          className={`w-3 h-3 rounded-sm ${expense.color}`}
+                        ></div>
+                        <span
+                          className="truncate max-w-20"
+                          title={expense.category}
+                        >
+                          {expense.category}
+                        </span>
+                        <span className="text-gray-500">
+                          {formatCurrency(
+                            expense.amount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                        </span>
                       </div>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Expenses Legend */}
-              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                {flowDistribution.expenses.map((expense, index) => {
-                  const isRealCategory = existingCategories.includes(
-                    expense.category,
-                  )
-                  return (
-                    <div
-                      key={`expense-legend-${index}`}
-                      className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                        isRealCategory
-                          ? "cursor-pointer"
-                          : "cursor-default opacity-70"
-                      }`}
-                      onClick={() =>
-                        isRealCategory && toggleCategoryFilter(expense.category)
-                      }
-                    >
-                      <div
-                        className={`w-3 h-3 rounded-sm ${expense.color}`}
-                      ></div>
-                      <span
-                        className="truncate max-w-20"
-                        title={expense.category}
-                      >
-                        {expense.category}
-                      </span>
-                      <span className="text-gray-500">
-                        {formatCurrency(
-                          expense.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-      </motion.div>
-
-      {/* Sorting Controls */}
-      <motion.div
-        variants={fadeListItem}
-        initial={runEntranceAnimation ? "hidden" : false}
-        animate="show"
-        className="flex items-center justify-between gap-3 flex-wrap"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">
-            {t.management.sortBy}
-          </span>
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setSortBy("amount")}
-              title={t.management.sortByAmount}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "amount"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Banknote size={16} />
-            </button>
-            <button
-              onClick={() => setSortBy("date")}
-              title={t.management.sortByDate}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                sortBy === "date"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <CalendarDays size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
-          <span className="text-sm text-muted-foreground">
-            {t.management.groupBy}
-          </span>
-          <button
-            onClick={() => setGroupByCategory(prev => !prev)}
-            title={t.management.groupByCategory}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
-              groupByCategory
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:text-foreground",
             )}
-          >
-            <Tag size={14} />
-            <span className="hidden sm:inline">
-              {t.management.groupByCategory}
+          </Card>
+        </motion.div>
+
+        {/* Sorting Controls */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="flex items-center justify-between gap-3 flex-wrap"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {t.management.sortBy}
             </span>
-          </button>
-          <MultiSelect
-            options={categoryOptions}
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
-          />
-        </div>
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setSortBy("amount")}
+                title={t.management.sortByAmount}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "amount"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Banknote size={16} />
+              </button>
+              <button
+                onClick={() => setSortBy("date")}
+                title={t.management.sortByDate}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  sortBy === "date"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <CalendarDays size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
+            <span className="text-sm text-muted-foreground">
+              {t.management.groupBy}
+            </span>
+            <button
+              onClick={() => setGroupByCategory(prev => !prev)}
+              title={t.management.groupByCategory}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+                groupByCategory
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Tag size={14} />
+              <span className="hidden sm:inline">
+                {t.management.groupByCategory}
+              </span>
+            </button>
+            <MultiSelect
+              options={categoryOptions}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
+            />
+          </div>
+        </motion.div>
+
+        {renderFlowSection({
+          title: t.management.pendingEarnings,
+          flows: earnings,
+          flowType: FlowType.EARNING,
+          emptyMessage: t.management.noPendingEarnings,
+          addMessage: t.management.addFirstPendingEarning,
+        })}
+
+        {renderFlowSection({
+          title: t.management.pendingExpenses,
+          flows: expenses,
+          flowType: FlowType.EXPENSE,
+          emptyMessage: t.management.noPendingExpenses,
+          addMessage: t.management.addFirstPendingExpense,
+        })}
       </motion.div>
-
-      {renderFlowSection({
-        title: t.management.pendingEarnings,
-        flows: earnings,
-        flowType: FlowType.EARNING,
-        emptyMessage: t.management.noPendingEarnings,
-        addMessage: t.management.addFirstPendingEarning,
-      })}
-
-      {renderFlowSection({
-        title: t.management.pendingExpenses,
-        flows: expenses,
-        flowType: FlowType.EXPENSE,
-        emptyMessage: t.management.noPendingExpenses,
-        addMessage: t.management.addFirstPendingExpense,
-      })}
 
       <AnimatePresence>
         {isDialogOpen && (
@@ -1145,6 +1151,6 @@ export default function PendingMoneyPage() {
         onConfirm={handleDelete}
         onCancel={() => setIsDeleteDialogOpen(false)}
       />
-    </motion.div>
+    </>
   )
 }
