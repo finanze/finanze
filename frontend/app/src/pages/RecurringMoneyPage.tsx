@@ -21,6 +21,7 @@ import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   AlertTriangle,
   ArrowLeft,
+  Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
   CalendarDays,
@@ -1660,23 +1661,25 @@ export default function RecurringMoneyPage() {
         <div className="flex items-center bg-muted rounded-lg p-1">
           <button
             onClick={() => setSortBy("amount")}
+            title={t.management.sortByAmount}
             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
               sortBy === "amount"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t.management.sortByAmount}
+            <Banknote size={16} />
           </button>
           <button
             onClick={() => setSortBy("date")}
+            title={t.management.sortByDate}
             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
               sortBy === "date"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t.management.sortByDate}
+            <CalendarDays size={16} />
           </button>
         </div>
 
@@ -1686,6 +1689,7 @@ export default function RecurringMoneyPage() {
           </span>
           <button
             onClick={() => setGroupByCategory(prev => !prev)}
+            title={t.management.groupByCategory}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
               groupByCategory
@@ -1694,7 +1698,9 @@ export default function RecurringMoneyPage() {
             )}
           >
             <Tag size={14} />
-            {t.management.groupByCategory}
+            <span className="hidden sm:inline">
+              {t.management.groupByCategory}
+            </span>
           </button>
           <MultiSelect
             options={categoryOptions}

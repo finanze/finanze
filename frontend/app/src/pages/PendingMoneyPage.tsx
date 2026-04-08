@@ -20,6 +20,7 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
+  Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
   Calendar,
@@ -895,33 +896,36 @@ export default function PendingMoneyPage() {
           <div className="flex items-center bg-muted rounded-lg p-1">
             <button
               onClick={() => setSortBy("amount")}
+              title={t.management.sortByAmount}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                 sortBy === "amount"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.management.sortByAmount}
+              <Banknote size={16} />
             </button>
             <button
               onClick={() => setSortBy("date")}
+              title={t.management.sortByDate}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                 sortBy === "date"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.management.sortByDate}
+              <CalendarDays size={16} />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
           <span className="text-sm text-muted-foreground">
             {t.management.groupBy}
           </span>
           <button
             onClick={() => setGroupByCategory(prev => !prev)}
+            title={t.management.groupByCategory}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
               groupByCategory
@@ -930,13 +934,15 @@ export default function PendingMoneyPage() {
             )}
           >
             <Tag size={14} />
-            {t.management.groupByCategory}
+            <span className="hidden sm:inline">
+              {t.management.groupByCategory}
+            </span>
           </button>
           <MultiSelect
             options={categoryOptions}
             value={categoryFilter}
             onChange={setCategoryFilter}
-            className="min-w-[220px]"
+            className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
           />
         </div>
       </motion.div>
