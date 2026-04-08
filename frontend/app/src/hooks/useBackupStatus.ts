@@ -495,6 +495,27 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         .map(([type]) => type as BackupFileType) as BackupFileType[])
     : ([] as BackupFileType[])
 
+  const conflictImportTypes = backups
+    ? (Object.entries(backups.pieces)
+        .filter(
+          ([, piece]) =>
+            piece.status === SyncStatus.CONFLICT ||
+            piece.status === SyncStatus.OUTDATED,
+        )
+        .map(([type]) => type as BackupFileType) as BackupFileType[])
+    : ([] as BackupFileType[])
+
+  const conflictUploadTypes = backups
+    ? (Object.entries(backups.pieces)
+        .filter(
+          ([, piece]) =>
+            piece.status === SyncStatus.CONFLICT ||
+            piece.status === SyncStatus.PENDING ||
+            piece.status === SyncStatus.MISSING,
+        )
+        .map(([type]) => type as BackupFileType) as BackupFileType[])
+    : ([] as BackupFileType[])
+
   const isConflict = conflictTypes.length > 0
 
   useEffect(() => {
@@ -521,11 +542,38 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     setIsUploading(true)
     setStatusMessage(null)
     try {
+      const outdatedTypes = backupsRef.current
+        ? Object.entries(backupsRef.current.pieces)
+            .filter(([, piece]) => piece.status === SyncStatus.OUTDATED)
+            .map(([type]) => type as BackupFileType)
+        : []
+
       const result = await uploadBackup({
         types,
         force: true,
       })
       applySyncResult(result)
+
+      if (outdatedTypes.length > 0 && canImportBackup) {
+        try {
+          const importResult = await importBackup({ types: outdatedTypes })
+          applySyncResult(importResult)
+          setHasCredentialsMismatch(false)
+          await Promise.all([
+            fetchEntities(),
+            fetchSettings(),
+            refreshData(),
+            refreshRealEstate(),
+            refreshFlows(),
+          ])
+        } catch (followUpError) {
+          console.error(
+            "Failed to import outdated pieces after upload:",
+            followUpError,
+          )
+        }
+      }
+
       registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to upload backup:", error)
@@ -548,6 +596,16 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     setIsImporting(true)
     setStatusMessage(null)
     try {
+      const pendingTypes = backupsRef.current
+        ? Object.entries(backupsRef.current.pieces)
+            .filter(
+              ([, piece]) =>
+                piece.status === SyncStatus.PENDING ||
+                piece.status === SyncStatus.MISSING,
+            )
+            .map(([type]) => type as BackupFileType)
+        : []
+
       const result = await importBackup({
         types,
         force: true,
@@ -578,6 +636,19 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       } catch (refreshError) {
         console.error("Failed to refresh data after import:", refreshError)
       }
+
+      if (pendingTypes.length > 0 && canCreateBackup) {
+        try {
+          const uploadResult = await uploadBackup({ types: pendingTypes })
+          applySyncResult(uploadResult)
+        } catch (followUpError) {
+          console.error(
+            "Failed to upload pending pieces after import:",
+            followUpError,
+          )
+        }
+      }
+
       registerNetworkSuccess()
     } catch (error) {
       console.error("Failed to import backup:", error)
@@ -918,6 +989,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     isSyncCooldownActive,
     isConflict,
     conflictTypes,
+    conflictImportTypes,
+    conflictUploadTypes,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,

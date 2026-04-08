@@ -48,7 +48,8 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
     isCooldownActive,
     isSyncCooldownActive,
     isConflict,
-    conflictTypes,
+    conflictImportTypes,
+    conflictUploadTypes,
     hasCredentialsMismatch,
     actionInFlight,
     baseActionsDisabled,
@@ -255,7 +256,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                         variant="ghost"
                         size="sm"
                         className="flex-1 gap-1.5"
-                        onClick={() => handleImport(conflictTypes)}
+                        onClick={() => handleImport(conflictImportTypes)}
                         disabled={baseActionsDisabled}
                       >
                         <Download size={14} />
@@ -267,7 +268,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                         variant="ghost"
                         size="sm"
                         className="flex-1 gap-1.5"
-                        onClick={() => handleUpload(conflictTypes)}
+                        onClick={() => handleUpload(conflictUploadTypes)}
                         disabled={baseActionsDisabled}
                       >
                         <Upload size={14} />

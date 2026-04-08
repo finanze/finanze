@@ -91,7 +91,8 @@ interface BackupStatusContentProps {
   isCooldownActive: boolean
   isSyncCooldownActive: boolean
   isConflict: boolean
-  conflictTypes: BackupFileType[]
+  conflictImportTypes: BackupFileType[]
+  conflictUploadTypes: BackupFileType[]
   hasCredentialsMismatch: boolean
   baseActionsDisabled: boolean
   overallStatus: SyncStatus | null
@@ -119,7 +120,8 @@ export function BackupStatusContent({
   isCooldownActive,
   isSyncCooldownActive,
   isConflict,
-  conflictTypes,
+  conflictImportTypes,
+  conflictUploadTypes,
   hasCredentialsMismatch,
   baseActionsDisabled,
   overallStatus,
@@ -274,7 +276,7 @@ export function BackupStatusContent({
                   disabled={
                     baseActionsDisabled || isCooldownActive || !canImportBackup
                   }
-                  onClick={() => handleImport(conflictTypes)}
+                  onClick={() => handleImport(conflictImportTypes)}
                 >
                   {isImporting ? (
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -290,7 +292,7 @@ export function BackupStatusContent({
                   disabled={
                     baseActionsDisabled || isCooldownActive || !canCreateBackup
                   }
-                  onClick={() => handleUpload(conflictTypes)}
+                  onClick={() => handleUpload(conflictUploadTypes)}
                 >
                   {isUploading ? (
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
