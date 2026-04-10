@@ -335,6 +335,8 @@
     },
     "addAccountName": "Nombrar esta cuenta",
     "accountNamePlaceholder": "Nombre de cuenta (opcional)",
+    "credentialsSecurityTitle": "Tus datos están seguros",
+    "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos.",
     "title": "Bienvenido a Finanze",
     "subtitle": "Tus datos financieros están encriptados",
     "welcomeBack": "¡Bienvenido de vuelta, {username}!",
@@ -955,7 +957,8 @@
     "pendingPaymentsLegendLabel": "Pagos pendientes proyectados",
     "pendingPaymentsLegend": "Pagos de efectivo pendientes proyectados de {amount} (salidas futuras no contadas aún en activos totales)",
     "negativeCashWarningTitle": "Proyección inviable",
-    "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible."
+    "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible.",
+    "includeRealEstateTaxes": "Incluir impuestos inmobiliarios"
   },
   "export": {
     "title": "Exportar e Importar",

@@ -271,6 +271,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             login_result = await specific_fetcher.login(login_request)
             login_result_code = login_result.code
             login_message = login_result.message
+            details = login_result.details or {}
 
             if login_result_code == LoginResultCode.CODE_REQUESTED:
                 details = {"message": login_message}
@@ -305,7 +306,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             ]:
                 return FetchResult(
                     FETCH_BAD_LOGIN_CODES[login_result_code],
-                    details={"message": login_message},
+                    details={"message": login_message, **details},
                 )
 
             elif login_result_code == LoginResultCode.CREATED:

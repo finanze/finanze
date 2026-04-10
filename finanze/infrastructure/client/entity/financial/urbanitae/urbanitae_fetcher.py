@@ -100,7 +100,9 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         for field in fields:
             field_name = field.get("name", "").lower()
             field_unit = field.get("unit", "").upper()
-            if "PERCENTAGE" in field_unit and "anual" in field_name:
+            if "PERCENTAGE" in field_unit and (
+                "anual" in field_name or "tipo de interés" in field_name
+            ):
                 field_percentage = Dezimal(field.get("amount") or 0)
                 if field_percentage > 0:
                     interest_rate = (

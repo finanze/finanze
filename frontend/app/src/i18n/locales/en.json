@@ -337,6 +337,8 @@
     },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
+    "credentialsSecurityTitle": "Your data is safe",
+    "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data.",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",
@@ -956,7 +958,8 @@
     "pendingPaymentsLegendLabel": "Projected pending payments",
     "pendingPaymentsLegend": "Projected pending cash payments of {amount} (future outflows not counted in total assets yet)",
     "negativeCashWarningTitle": "Unfeasible projection",
-    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows."
+    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows.",
+    "includeRealEstateTaxes": "Include real estate taxes"
   },
   "export": {
     "title": "Export & Import",

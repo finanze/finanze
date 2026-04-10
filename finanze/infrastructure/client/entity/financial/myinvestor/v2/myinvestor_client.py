@@ -7,8 +7,6 @@ import httpx
 from aiocache import cached, Cache
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
-from infrastructure.client.http.http_response import HttpResponse
-from infrastructure.client.http.http_session import get_http_session
 
 from domain.entity_login import (
     EntityLoginResult,
@@ -19,6 +17,8 @@ from domain.entity_login import (
     ChallengeType,
 )
 from domain.public_keychain import PublicKeychain
+from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.http_session import get_http_session
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -27,6 +27,8 @@ DATE_FORMAT = "%Y-%m-%d"
 class MyInvestorAPIV2Client:
     LOGIN_URL = "https://api.myinvestor.es"
     BASE_URL = "https://api.myinvestor.es"
+
+    TIMEOUT = 20
 
     def __init__(self):
         self._headers = {}
@@ -47,7 +49,7 @@ class MyInvestorAPIV2Client:
             headers = self._headers
 
         response = await self._session.request(
-            method, base_url + path, json=body, headers=headers
+            method, base_url + path, json=body, headers=headers, timeout=self.TIMEOUT
         )
 
         if raw:

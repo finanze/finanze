@@ -1,12 +1,17 @@
 import type React from "react"
 import { useState, useEffect } from "react"
-import { ArrowRight, Clock, Plus, X } from "lucide-react"
+import { ArrowRight, Clock, LockKeyhole, Plus, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
@@ -85,8 +90,28 @@ export function LoginForm() {
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-center">
-          {t.login.enterCredentials} {selectedEntity.name}
+        <CardTitle className="flex items-center justify-center gap-2">
+          <span>
+            {t.login.enterCredentials} {selectedEntity.name}
+          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              >
+                <LockKeyhole className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 text-sm" side="bottom">
+              <p className="font-medium text-green-600 dark:text-green-400 mb-1">
+                {t.login.credentialsSecurityTitle}
+              </p>
+              <p className="text-muted-foreground">
+                {t.login.credentialsSecurityBody}
+              </p>
+            </PopoverContent>
+          </Popover>
         </CardTitle>
       </CardHeader>
       <CardContent>

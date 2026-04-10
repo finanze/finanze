@@ -25,6 +25,7 @@ async def forecast(forecast_uc: Forecast):
     avg_crypto_increase = Dezimal(0)
     avg_commodity_increase_val = body.get("avg_annual_commodity_increase")
     avg_commodity_increase = Dezimal(0)
+    include_re_taxes = body.get("include_real_estate_taxes", True)
     try:
         avg_increase = (
             Dezimal(avg_increase_val) if avg_increase_val is not None else None
@@ -54,6 +55,7 @@ async def forecast(forecast_uc: Forecast):
                 avg_annual_market_increase=avg_increase,
                 avg_annual_crypto_increase=avg_crypto_increase,
                 avg_annual_commodity_increase=avg_commodity_increase,
+                include_real_estate_taxes=bool(include_re_taxes),
             )
         )
     except ValueError as e:

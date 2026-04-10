@@ -83,6 +83,8 @@ interface RealEstatePosition extends Record<string, unknown> {
   formattedAmount: string
   formattedConvertedAmount: string
   formattedPendingAmount: string | null
+  formattedOriginalPendingAmount: string | null
+  formattedRepaidAmount: string | null
   formattedProfit: string | null
   profitabilityPct: number | null
   convertedProfit: number | null
@@ -226,12 +228,15 @@ export default function RealEstateCFInvestmentPage() {
             const profitabilityDecimal = !isNaN(realEstate.profitability)
               ? realEstate.profitability
               : null
+            const pendingAmountForProfit = !isNaN(realEstate.pending_amount)
+              ? realEstate.pending_amount
+              : realEstate.amount
             const rawProfit =
               profitabilityDecimal !== null
-                ? realEstate.amount * profitabilityDecimal
+                ? pendingAmountForProfit * profitabilityDecimal
                 : null
             const rawExpectedAtMaturity =
-              rawProfit !== null ? realEstate.amount + rawProfit : null
+              rawProfit !== null ? pendingAmountForProfit + rawProfit : null
             const convertedExpectedAtMaturity =
               rawExpectedAtMaturity !== null
                 ? convertCurrency(
@@ -308,6 +313,22 @@ export default function RealEstateCFInvestmentPage() {
                       convertedPendingAmount,
                       locale,
                       settings.general.defaultCurrency,
+                    )
+                  : null,
+              formattedOriginalPendingAmount: !isNaN(realEstate.pending_amount)
+                ? formatCurrency(
+                    realEstate.pending_amount,
+                    locale,
+                    realEstate.currency,
+                  )
+                : null,
+              formattedRepaidAmount:
+                !isNaN(realEstate.pending_amount) &&
+                Math.abs(realEstate.amount - realEstate.pending_amount) > 0.001
+                  ? formatCurrency(
+                      realEstate.amount - realEstate.pending_amount,
+                      locale,
+                      realEstate.currency,
                     )
                   : null,
               convertedExpectedAtMaturity,
@@ -743,7 +764,9 @@ function RealEstateViewContent({
             )
           : pendingAmount
 
-      const rawProfit = hasProfitability ? amount * profitabilityDecimal : null
+      const rawProfit = hasProfitability
+        ? pendingAmount * profitabilityDecimal
+        : null
 
       const convertedProfit =
         rawProfit !== null
@@ -758,7 +781,7 @@ function RealEstateViewContent({
           : null
 
       const rawExpectedAtMaturity =
-        rawProfit !== null ? amount + rawProfit : null
+        rawProfit !== null ? pendingAmount + rawProfit : null
 
       const convertedExpectedAtMaturity =
         rawExpectedAtMaturity !== null
@@ -798,6 +821,15 @@ function RealEstateViewContent({
         formattedPendingAmount:
           convertedPendingAmount !== null
             ? formatCurrency(convertedPendingAmount, locale, defaultCurrency)
+            : null,
+        formattedOriginalPendingAmount: formatCurrency(
+          pendingAmount,
+          locale,
+          draft.currency,
+        ),
+        formattedRepaidAmount:
+          amount - pendingAmount > 0.001
+            ? formatCurrency(amount - pendingAmount, locale, draft.currency)
             : null,
         formattedProfit:
           convertedProfit !== null
@@ -1346,11 +1378,13 @@ function RealEstateViewContent({
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            {position.formattedAmount}
+                            {position.formattedOriginalPendingAmount ??
+                              position.formattedAmount}
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
-                              {position.formattedConvertedAmount}
+                              {position.formattedPendingAmount ??
+                                position.formattedConvertedAmount}
                             </div>
                           )}
                           {position.formattedProfit && (
@@ -1423,16 +1457,26 @@ function RealEstateViewContent({
                                     </div>
                                   </div>
                                 )}
-                                {position.formattedPendingAmount && (
-                                  <div>
-                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                                      {t.investments.pending}
-                                    </div>
-                                    <div className="font-medium text-orange-600 dark:text-orange-400">
-                                      {position.formattedPendingAmount}
-                                    </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.dashboard.investedAmount}
                                   </div>
-                                )}
+                                  <div className="font-medium">
+                                    {position.formattedAmount}
+                                    {position.currency !== defaultCurrency && (
+                                      <span className="ml-1 text-xs text-muted-foreground">
+                                        ({position.formattedConvertedAmount})
+                                      </span>
+                                    )}
+                                    {position.formattedRepaidAmount && (
+                                      <span className="ml-1.5 text-xs text-orange-500 dark:text-orange-400">
+                                        ({position.formattedRepaidAmount}{" "}
+                                        {t.investments.historicSection.repaid.toLowerCase()}
+                                        )
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                                 {position.formattedProfit && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">

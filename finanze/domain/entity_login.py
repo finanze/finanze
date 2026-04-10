@@ -26,6 +26,9 @@ class LoginResultCode(str, Enum):
     CREATED = "CREATED"
     RESUMED = "RESUMED"
 
+    # Cooldown
+    COOLDOWN = "COOLDOWN"
+
     # Flow deferral
     CODE_REQUESTED = "CODE_REQUESTED"
     MANUAL_LOGIN = "MANUAL_LOGIN"
