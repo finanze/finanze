@@ -336,7 +336,7 @@
     "addAccountName": "Nombrar esta cuenta",
     "accountNamePlaceholder": "Nombre de cuenta (opcional)",
     "credentialsSecurityTitle": "Tus datos están seguros",
-    "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos.",
+    "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos. Además, esta app es de código abierto y puedes verificar tú mismo cómo se almacenan y manejan los datos.",
     "title": "Bienvenido a Finanze",
     "subtitle": "Tus datos financieros están encriptados",
     "welcomeBack": "¡Bienvenido de vuelta, {username}!",

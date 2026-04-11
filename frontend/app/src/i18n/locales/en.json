@@ -338,7 +338,7 @@
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
     "credentialsSecurityTitle": "Your data is safe",
-    "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data.",
+    "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",

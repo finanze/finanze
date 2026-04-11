@@ -1828,7 +1828,7 @@ export default function DashboardPage() {
                   delay={0.4}
                   className="lg:col-span-7"
                 >
-                  <div className="h-full flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
                     <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">
                         <ListCollapse className="h-5 w-5 mr-2 text-primary" />
@@ -2812,7 +2812,7 @@ export default function DashboardPage() {
                   delay={0.5}
                   className="lg:col-span-5"
                 >
-                  <div className="h-full flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
                     <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <div className="flex justify-between items-center">
                         <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">

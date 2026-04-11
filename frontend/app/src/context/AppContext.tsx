@@ -92,7 +92,10 @@ interface AppContextType {
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
-  saveSettings: (settings: AppSettings) => Promise<boolean>
+  saveSettings: (
+    settings: AppSettings,
+    options?: { silent?: boolean },
+  ) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
   fetchExternalIntegrations: () => Promise<void>
 }
@@ -349,11 +352,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast, t])
 
   const saveSettingsData = useCallback(
-    async (settingsData: AppSettings) => {
+    async (settingsData: AppSettings, options?: { silent?: boolean }) => {
       try {
         await saveSettings(settingsData)
         setSettings(mergeSettingsWithDefaults(settingsData))
-        showToast(t.settings.saveSuccess, "success")
+        if (!options?.silent) {
+          showToast(t.settings.saveSuccess, "success")
+        }
         return true
       } catch (error) {
         console.error("Error saving settings:", error)

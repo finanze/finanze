@@ -352,7 +352,7 @@ export function Sidebar() {
           )}
         >
           {/* Extend content backgrounds under the scrollbar gutter */}
-          <div className="pr-2 -mr-2">
+          <div>
             <ul className="space-y-1">
               {/* Dashboard */}
               <li>
