@@ -18,7 +18,7 @@ MAX_INSTRUMENTS_RETURNED = 15
 class InstrumentProviderAdapter(InstrumentInfoProvider):
     def __init__(self, enabled_clients: Optional[list[str]] = None):
         if enabled_clients is None:
-            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je"]
+            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je", "le"]
 
         self._clients_enabled = {name.lower() for name in enabled_clients}
         self._log = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         self._tv = None
         self._ee = None
         self._je = None
+        self._le = None
 
         if "ft" in self._clients_enabled:
             from infrastructure.client.instrument.ft_client import FtClient
@@ -61,6 +62,11 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             from infrastructure.client.instrument.jetf_client import JustEtfClient
 
             self._je = JustEtfClient()
+
+        if "le" in self._clients_enabled:
+            from infrastructure.client.instrument.local_etf_client import LocalEtfClient
+
+            self._le = LocalEtfClient()
 
     async def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = request.isin or request.ticker or request.name
@@ -127,7 +133,26 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                 )
 
         if self._yf is not None:
-            return await self._yf.lookup(request)
+            try:
+                return await self._yf.lookup(request)
+            except Exception:
+                if request.type == InstrumentType.ETF:
+                    self._log.exception(
+                        "YFinanceClient lookup failed for ETF, falling back to LocalEtfClient"
+                    )
+                else:
+                    self._log.exception(
+                        "YFinanceClient lookup failed, returning empty list"
+                    )
+                    return []
+
+        if request.type == InstrumentType.ETF and self._le is not None:
+            try:
+                return await self._le.search(request)
+            except Exception:
+                self._log.exception(
+                    "LocalEtfClient search failed, returning empty list"
+                )
 
         return []
 
