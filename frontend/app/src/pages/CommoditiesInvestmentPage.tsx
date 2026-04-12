@@ -98,6 +98,7 @@ export default function CommoditiesInvestmentPage() {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
     {},
   )
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
 
   const toggleCardExpanded = useCallback((key: string) => {
     setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
@@ -727,107 +728,140 @@ export default function CommoditiesInvestmentPage() {
                     </div>
                     <div>
                       <Label htmlFor="type">{t.commodityManagement.type}</Label>
-                      <select
-                        id="type"
-                        value={newEntry.type}
-                        onChange={e =>
-                          setNewEntry(p => ({
-                            ...p,
-                            type: e.target.value as CommodityType,
-                          }))
-                        }
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none"
-                      >
-                        {Object.values(CommodityType).map(type => (
-                          <option key={type} value={type}>
-                            {t.enums.commodityType[type]}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(CommodityType).map(type => {
+                          const isActive = newEntry.type === type
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => setNewEntry(p => ({ ...p, type }))}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              <CommodityIcon
+                                type={type}
+                                size="sm"
+                                className="w-4 h-4 text-[0.5rem]"
+                              />
+                              {t.enums.commodityType[type]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="amount">
                         {t.commodityManagement.amount}
                       </Label>
-                      <Input
-                        id="amount"
-                        type="number"
-                        step="0.0001"
-                        value={newEntry.amount || ""}
-                        onChange={e => {
-                          const value = e.target.value
-                          setNewEntry(p => ({
-                            ...p,
-                            amount: value === "" ? 0 : parseFloat(value) || 0,
-                          }))
-                        }}
-                        onFocus={e => {
-                          if (e.target.value === "0") e.target.select()
-                        }}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="amount"
+                          type="number"
+                          step="0.0001"
+                          className={newEntry.unit ? "pr-10" : undefined}
+                          value={newEntry.amount || ""}
+                          onChange={e => {
+                            const value = e.target.value
+                            setNewEntry(p => ({
+                              ...p,
+                              amount: value === "" ? 0 : parseFloat(value) || 0,
+                            }))
+                          }}
+                          onFocus={e => {
+                            if (e.target.value === "0") e.target.select()
+                          }}
+                        />
+                        {newEntry.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {t.enums.weightUnit[newEntry.unit]}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="unit">{t.commodityManagement.unit}</Label>
-                      <select
-                        id="unit"
-                        value={newEntry.unit}
-                        onChange={e =>
-                          setNewEntry(p => ({
-                            ...p,
-                            unit: e.target.value as WeightUnit,
-                          }))
-                        }
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2.5rem]"
-                      >
-                        {Object.values(WeightUnit).map(u => (
-                          <option key={u} value={u}>
-                            {t.enums.weightUnitName[u]}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(WeightUnit).map(u => {
+                          const isActive = newEntry.unit === u
+                          return (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() =>
+                                setNewEntry(p => ({ ...p, unit: u }))
+                              }
+                              className={cn(
+                                "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              {t.enums.weightUnitName[u]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-5">
                       <Label htmlFor="initial_investment">
-                        {t.commodityManagement.initialInvestment}{" "}
-                        {newEntry.currency &&
-                          `(${getCurrencySymbol(newEntry.currency)})`}
+                        {t.commodityManagement.initialInvestment}
                       </Label>
-                      <Input
-                        id="initial_investment"
-                        type="number"
-                        step="0.01"
-                        value={newEntry.initial_investment || ""}
-                        onChange={e =>
-                          setNewEntry(p => ({
-                            ...p,
-                            initial_investment:
-                              parseFloat(e.target.value) || null,
-                          }))
-                        }
-                      />
+                      <div className="relative">
+                        <Input
+                          id="initial_investment"
+                          type="number"
+                          step="0.01"
+                          className={newEntry.currency ? "pr-10" : undefined}
+                          value={newEntry.initial_investment || ""}
+                          onChange={e =>
+                            setNewEntry(p => ({
+                              ...p,
+                              initial_investment:
+                                parseFloat(e.target.value) || null,
+                            }))
+                          }
+                        />
+                        {newEntry.currency && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(newEntry.currency)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-5">
                       <Label htmlFor="average_buy_price">
-                        {t.commodityManagement.averageBuyPrice}{" "}
-                        {newEntry.currency &&
-                          newEntry.unit &&
-                          `(${getCurrencySymbol(newEntry.currency)}/${t.enums.weightUnit[newEntry.unit]})`}
+                        {t.commodityManagement.averageBuyPrice}
                       </Label>
-                      <Input
-                        id="average_buy_price"
-                        type="number"
-                        step="0.01"
-                        value={newEntry.average_buy_price || ""}
-                        onChange={e =>
-                          setNewEntry(p => ({
-                            ...p,
-                            average_buy_price:
-                              parseFloat(e.target.value) || null,
-                          }))
-                        }
-                      />
+                      <div className="relative">
+                        <Input
+                          id="average_buy_price"
+                          type="number"
+                          step="0.01"
+                          className={newEntry.currency ? "pr-14" : undefined}
+                          value={newEntry.average_buy_price || ""}
+                          onChange={e =>
+                            setNewEntry(p => ({
+                              ...p,
+                              average_buy_price:
+                                parseFloat(e.target.value) || null,
+                            }))
+                          }
+                        />
+                        {newEntry.currency && newEntry.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(newEntry.currency)}/
+                            {t.enums.weightUnit[newEntry.unit]}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="currency">
@@ -878,7 +912,7 @@ export default function CommoditiesInvestmentPage() {
       </AnimatePresence>
 
       {commodities.length === 0 ? (
-        <Card className="p-14 text-center flex flex-col items-center gap-4">
+        <Card className="mt-6 p-14 text-center flex flex-col items-center gap-4">
           <CommodityIconsStack
             size="lg"
             overlap="md"
@@ -896,7 +930,7 @@ export default function CommoditiesInvestmentPage() {
           variants={fadeListContainer}
           initial="hidden"
           animate="show"
-          className="space-y-6"
+          className="mt-6 space-y-6"
         >
           {groupedSorted.map(({ type, list, groupTotal }) => {
             const typedType = type
@@ -1038,7 +1072,12 @@ export default function CommoditiesInvestmentPage() {
                               </div>
                               <div className="flex flex-col items-center">
                                 <div data-no-expand>
-                                  <Popover>
+                                  <Popover
+                                    open={openPopoverId === c.id}
+                                    onOpenChange={open =>
+                                      setOpenPopoverId(open ? c.id : null)
+                                    }
+                                  >
                                     <PopoverTrigger asChild>
                                       <Button
                                         variant="ghost"
@@ -1056,9 +1095,10 @@ export default function CommoditiesInvestmentPage() {
                                     >
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        onClick={() => {
+                                          setOpenPopoverId(null)
                                           setEditingCommodityId(c.id)
-                                        }
+                                        }}
                                         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left transition-colors hover:bg-accent hover:text-accent-foreground"
                                       >
                                         <Edit3 className="h-3.5 w-3.5" />
@@ -1066,9 +1106,10 @@ export default function CommoditiesInvestmentPage() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        onClick={() => {
+                                          setOpenPopoverId(null)
                                           requestDeleteCommodity(c)
-                                        }
+                                        }}
                                         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -1233,26 +1274,34 @@ export default function CommoditiesInvestmentPage() {
                       <Label htmlFor={`amount-${editingCommodity.id}`}>
                         {t.commodityManagement.amount}
                       </Label>
-                      <Input
-                        id={`amount-${editingCommodity.id}`}
-                        type="number"
-                        step="0.0001"
-                        value={editingDraft.amount || ""}
-                        onChange={e => {
-                          const v = e.target.value
-                          updateDraftField(
-                            "amount",
-                            v === "" ? 0 : parseFloat(v) || 0,
-                          )
-                        }}
-                        onFocus={e => {
-                          if (e.target.value === "0") e.target.select()
-                        }}
-                        className={cn(
-                          fieldErrors[editingCommodity.id]?.amount &&
-                            "border-red-500",
+                      <div className="relative">
+                        <Input
+                          id={`amount-${editingCommodity.id}`}
+                          type="number"
+                          step="0.0001"
+                          value={editingDraft.amount || ""}
+                          onChange={e => {
+                            const v = e.target.value
+                            updateDraftField(
+                              "amount",
+                              v === "" ? 0 : parseFloat(v) || 0,
+                            )
+                          }}
+                          onFocus={e => {
+                            if (e.target.value === "0") e.target.select()
+                          }}
+                          className={cn(
+                            editingDraft.unit && "pr-10",
+                            fieldErrors[editingCommodity.id]?.amount &&
+                              "border-red-500",
+                          )}
+                        />
+                        {editingDraft.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {t.enums.weightUnit[editingDraft.unit]}
+                          </span>
                         )}
-                      />
+                      </div>
                       {fieldErrors[editingCommodity.id]?.amount && (
                         <p className="text-red-500 text-xs mt-1">
                           {fieldErrors[editingCommodity.id].amount}
@@ -1263,18 +1312,26 @@ export default function CommoditiesInvestmentPage() {
                       <Label htmlFor={`unit-${editingCommodity.id}`}>
                         {t.commodityManagement.unit}
                       </Label>
-                      <select
-                        id={`unit-${editingCommodity.id}`}
-                        value={editingDraft.unit}
-                        onChange={e => updateDraftField("unit", e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
-                      >
-                        {Object.values(WeightUnit).map(u => (
-                          <option key={u} value={u}>
-                            {t.enums.weightUnitName[u]}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(WeightUnit).map(u => {
+                          const isActive = editingDraft.unit === u
+                          return (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => updateDraftField("unit", u)}
+                              className={cn(
+                                "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              {t.enums.weightUnitName[u]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -1282,44 +1339,60 @@ export default function CommoditiesInvestmentPage() {
                       <Label
                         htmlFor={`initial-investment-${editingCommodity.id}`}
                       >
-                        {t.commodityManagement.initialInvestment}{" "}
-                        {editingDraft.currency &&
-                          `(${getCurrencySymbol(editingDraft.currency)})`}
+                        {t.commodityManagement.initialInvestment}
                       </Label>
-                      <Input
-                        id={`initial-investment-${editingCommodity.id}`}
-                        type="number"
-                        step="0.01"
-                        value={editingDraft.initial_investment || ""}
-                        onChange={e =>
-                          updateDraftField(
-                            "initial_investment",
-                            parseFloat(e.target.value) || null,
-                          )
-                        }
-                      />
+                      <div className="relative">
+                        <Input
+                          id={`initial-investment-${editingCommodity.id}`}
+                          type="number"
+                          step="0.01"
+                          className={
+                            editingDraft.currency ? "pr-10" : undefined
+                          }
+                          value={editingDraft.initial_investment || ""}
+                          onChange={e =>
+                            updateDraftField(
+                              "initial_investment",
+                              parseFloat(e.target.value) || null,
+                            )
+                          }
+                        />
+                        {editingDraft.currency && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(editingDraft.currency)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-5">
                       <Label
                         htmlFor={`average-buy-price-${editingCommodity.id}`}
                       >
-                        {t.commodityManagement.averageBuyPrice}{" "}
-                        {editingDraft.currency &&
-                          editingDraft.unit &&
-                          `(${getCurrencySymbol(editingDraft.currency)}/${t.enums.weightUnit[editingDraft.unit]})`}
+                        {t.commodityManagement.averageBuyPrice}
                       </Label>
-                      <Input
-                        id={`average-buy-price-${editingCommodity.id}`}
-                        type="number"
-                        step="0.01"
-                        value={editingDraft.average_buy_price || ""}
-                        onChange={e =>
-                          updateDraftField(
-                            "average_buy_price",
-                            parseFloat(e.target.value) || null,
-                          )
-                        }
-                      />
+                      <div className="relative">
+                        <Input
+                          id={`average-buy-price-${editingCommodity.id}`}
+                          type="number"
+                          step="0.01"
+                          className={
+                            editingDraft.currency ? "pr-14" : undefined
+                          }
+                          value={editingDraft.average_buy_price || ""}
+                          onChange={e =>
+                            updateDraftField(
+                              "average_buy_price",
+                              parseFloat(e.target.value) || null,
+                            )
+                          }
+                        />
+                        {editingDraft.currency && editingDraft.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(editingDraft.currency)}/
+                            {t.enums.weightUnit[editingDraft.unit]}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor={`currency-${editingCommodity.id}`}>

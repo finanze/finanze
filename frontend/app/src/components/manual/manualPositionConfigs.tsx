@@ -78,6 +78,8 @@ import {
   X,
   AlertTriangle,
   Coins,
+  Home,
+  User,
 } from "lucide-react"
 import {
   getInstrumentDetails,
@@ -86,6 +88,108 @@ import {
   getCryptoAssetDetails,
 } from "@/services/api"
 import { convertCurrency } from "@/utils/financialDataUtils"
+import { Switch } from "@/components/ui/Switch"
+import { cn, getCurrencySymbol } from "@/lib/utils"
+
+const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
+  field: keyof FormState,
+  label: string,
+  props: ManualFormFieldRenderProps<FormState>,
+  options: { value: string; label: string; icon?: React.ReactNode }[],
+) => (
+  <div className="space-y-1.5">
+    <Label htmlFor={String(field)}>{label}</Label>
+    <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+      {options.map(option => {
+        const isActive = (props.form[field] as string) === option.value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              props.updateField(field, option.value)
+              props.clearError(field)
+            }}
+            className={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all inline-flex items-center gap-1.5",
+              isActive
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+            )}
+          >
+            {option.icon}
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+    {props.errors[field] && (
+      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+        {props.errors[field]}
+      </p>
+    )}
+  </div>
+)
+
+const renderTextInputWithSuggestions = <
+  FormState extends ManualPositionFormBase,
+>(
+  field: keyof FormState,
+  label: string,
+  props: ManualFormFieldRenderProps<FormState>,
+  suggestions: { value: string; label: string }[],
+  options?: {
+    placeholder?: string
+  },
+) => {
+  const current = ((props.form[field] as string) ?? "").trim().toUpperCase()
+  const isPreset = suggestions.some(s => s.value === current)
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={String(field)}>{label}</Label>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {suggestions.map(option => {
+          const isActive = option.value === current
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                props.updateField(field, isActive ? "" : option.value)
+                props.clearError(field)
+              }}
+              className={cn(
+                "px-2 py-0.5 text-xs font-medium rounded-full border transition-all",
+                isActive
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+      {!isPreset && (
+        <Input
+          id={String(field)}
+          type="text"
+          placeholder={options?.placeholder}
+          value={(props.form[field] as string) ?? ""}
+          onChange={event => {
+            props.updateField(field, event.target.value)
+            props.clearError(field)
+          }}
+        />
+      )}
+      {props.errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const renderTextInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
@@ -102,30 +206,46 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     ) => void
     helperText?: string
     disabled?: boolean
+    suffix?: string
+    inputClassName?: string
+    autoUpperCase?: boolean
   },
 ) => (
   <div className="space-y-1.5">
     <Label htmlFor={String(field)}>{label}</Label>
-    <Input
-      id={String(field)}
-      type={options?.type === "number" ? "text" : (options?.type ?? "text")}
-      inputMode={
-        options?.type === "number"
-          ? (options?.inputMode ?? "decimal")
-          : options?.inputMode
-      }
-      placeholder={options?.placeholder}
-      value={(props.form[field] as string) ?? ""}
-      disabled={options?.disabled}
-      onChange={event => {
-        const value = event.target.value
-        props.updateField(field, value)
-        props.clearError(field)
-        if (options?.onValueChange) {
-          options.onValueChange(value, props)
+    <div className={options?.suffix ? "relative" : undefined}>
+      <Input
+        id={String(field)}
+        type={options?.type === "number" ? "text" : (options?.type ?? "text")}
+        inputMode={
+          options?.type === "number"
+            ? (options?.inputMode ?? "decimal")
+            : options?.inputMode
         }
-      }}
-    />
+        placeholder={options?.placeholder}
+        className={cn(
+          options?.suffix ? "pr-10" : undefined,
+          options?.inputClassName,
+        )}
+        value={(props.form[field] as string) ?? ""}
+        disabled={options?.disabled}
+        onChange={event => {
+          const value = options?.autoUpperCase
+            ? event.target.value.toUpperCase()
+            : event.target.value
+          props.updateField(field, value)
+          props.clearError(field)
+          if (options?.onValueChange) {
+            options.onValueChange(value, props)
+          }
+        }}
+      />
+      {options?.suffix && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+          {options.suffix}
+        </span>
+      )}
+    </div>
     {props.errors[field] && (
       <p className="text-xs text-red-600 dark:text-red-400 mt-1">
         {props.errors[field]}
@@ -142,13 +262,18 @@ const renderSelectInput = <FormState extends ManualPositionFormBase>(
   label: string,
   props: ManualFormFieldRenderProps<FormState>,
   options: { value: string; label: string }[],
+  config?: { disabled?: boolean; selectClassName?: string },
 ) => (
   <div className="space-y-1.5">
     <Label htmlFor={String(field)}>{label}</Label>
     <select
       id={String(field)}
-      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        config?.selectClassName,
+      )}
       value={(props.form[field] as string) ?? ""}
+      disabled={config?.disabled}
       onChange={event => {
         props.updateField(field, event.target.value)
         props.clearError(field)
@@ -1388,7 +1513,8 @@ function FundInstrumentSearchField({
           id={field}
           value={inputValue}
           onChange={event => {
-            const value = event.target.value
+            const rawValue = event.target.value
+            const value = field === "isin" ? rawValue.toUpperCase() : rawValue
             updateField(field, value)
             clearError(field)
             if (form._suggested_market_price) {
@@ -1414,7 +1540,7 @@ function FundInstrumentSearchField({
               handleSearch()
             }
           }}
-          className="pr-10"
+          className={cn("pr-10", field === "isin" && "font-mono")}
         />
         <button
           type="button"
@@ -1898,7 +2024,7 @@ function StockInstrumentSearchField({
               handleSearch()
             }
           }}
-          className="pr-10"
+          className={cn("pr-10", field === "isin" && "font-mono")}
         />
         <button
           type="button"
@@ -2322,22 +2448,9 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
     ""
   ).toUpperCase()
 
-  const investmentCurrencySymbol = (() => {
-    if (!investmentCurrencyCode) return ""
-    try {
-      const currencyPart = new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency: investmentCurrencyCode,
-        currencyDisplay: "narrowSymbol",
-      })
-        .formatToParts(0)
-        .find(part => part.type === "currency")
-
-      return currencyPart?.value || investmentCurrencyCode
-    } catch {
-      return investmentCurrencyCode
-    }
-  })()
+  const investmentCurrencySymbol = investmentCurrencyCode
+    ? getCurrencySymbol(investmentCurrencyCode)
+    : ""
 
   const handleSelectPlatform = useCallback(
     (platform: CryptoAssetPlatform, providerOverride?: string) => {
@@ -2694,16 +2807,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
             </span>
           </Label>
           <div className="relative">
-            {investmentCurrencySymbol && (
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
-                {investmentCurrencySymbol}
-              </span>
-            )}
             <Input
               id="initial_investment"
               type="text"
               inputMode="decimal"
-              className={investmentCurrencySymbol ? "pl-9" : undefined}
+              className={investmentCurrencySymbol ? "pr-10" : undefined}
               value={form.initial_investment}
               onChange={e => {
                 const nextInitial = e.target.value
@@ -2722,6 +2830,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
                 clearError("average_buy_price" as keyof CryptoFormState)
               }}
             />
+            {investmentCurrencySymbol && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                {investmentCurrencySymbol}
+              </span>
+            )}
           </div>
           {errors.initial_investment && (
             <p className="text-xs text-red-600 dark:text-red-400">
@@ -2738,16 +2851,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
             </span>
           </Label>
           <div className="relative">
-            {investmentCurrencySymbol && (
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
-                {investmentCurrencySymbol}
-              </span>
-            )}
             <Input
               id="average_buy_price"
               type="text"
               inputMode="decimal"
-              className={investmentCurrencySymbol ? "pl-9" : undefined}
+              className={investmentCurrencySymbol ? "pr-10" : undefined}
               value={form.average_buy_price}
               onChange={e => {
                 const nextAverage = e.target.value
@@ -2766,6 +2874,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
                 clearError("initial_investment" as keyof CryptoFormState)
               }}
             />
+            {investmentCurrencySymbol && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                {investmentCurrencySymbol}
+              </span>
+            )}
           </div>
           {errors.average_buy_price && (
             <p className="text-xs text-red-600 dark:text-red-400">
@@ -2946,19 +3059,33 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "total",
           props.t("management.manualPositions.bankAccounts.fields.total"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest",
           props.t("management.manualPositions.bankAccounts.fields.interest"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "retained",
           props.t("management.manualPositions.bankAccounts.fields.retained"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "pending_transfers",
@@ -2966,7 +3093,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.bankAccounts.fields.pendingTransfers",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "iban",
@@ -2976,6 +3110,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             helperText: props.t(
               "management.manualPositions.bankAccounts.helpers.ibanRecommendation",
             ),
+            inputClassName: "font-mono",
+            autoUpperCase: true,
           },
         )}
       </div>
@@ -3110,7 +3246,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     renderFormFields: props => (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {renderEntityField(props)}
-        {renderSelectInput(
+        {renderBadgeSelector(
           "type",
           props.t("management.manualPositions.bankCards.fields.type"),
           props,
@@ -3134,20 +3270,36 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "used",
           props.t("management.manualPositions.bankCards.fields.used"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "limit",
           props.t("management.manualPositions.bankCards.fields.limit"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "ending",
           props.t("management.manualPositions.bankCards.fields.ending"),
           props,
+          { inputClassName: "font-mono" },
         )}
         {(() => {
+          const entitySelected = !!props.form.entity_id
           const options = props.accountOptions?.(props.form.entity_id) ?? []
           return options.length > 0
             ? renderSelectInput(
@@ -3157,6 +3309,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 ),
                 props,
                 options,
+                { disabled: !entitySelected, selectClassName: "font-mono" },
               )
             : renderTextInput(
                 "related_account",
@@ -3164,17 +3317,28 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   "management.manualPositions.bankCards.fields.relatedAccount",
                 ),
                 props,
+                { disabled: !entitySelected, inputClassName: "font-mono" },
               )
         })()}
-        {renderSelectInput(
-          "active",
-          props.t("management.manualPositions.bankCards.fields.active"),
-          props,
-          [
-            { value: "true", label: props.t("common.enabled") },
-            { value: "false", label: props.t("common.disabled") },
-          ],
-        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="active">
+            {props.t("management.manualPositions.bankCards.fields.active")}
+          </Label>
+          <div className="flex items-center gap-2 min-h-[2.5rem] py-1">
+            <Switch
+              id="active"
+              checked={props.form.active !== "false"}
+              onCheckedChange={checked => {
+                props.updateField("active" as any, checked ? "true" : "false")
+              }}
+            />
+            <span className="text-sm text-muted-foreground">
+              {props.form.active !== "false"
+                ? props.t("common.enabled")
+                : props.t("common.disabled")}
+            </span>
+          </div>
+        </div>
       </div>
     ),
     getDisplayName: draft => draft.name ?? draft.ending ?? draft.entityName,
@@ -3463,13 +3627,19 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {renderEntityField(props)}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "type",
             props.t("management.manualPositions.bankLoans.fields.type"),
             props,
             Object.values(LoanType).map(value => ({
               value,
               label: props.t(`enums.loanType.${value}`) || value,
+              icon:
+                value === LoanType.MORTGAGE ? (
+                  <Home className="h-3 w-3" />
+                ) : (
+                  <User className="h-3 w-3" />
+                ),
             })),
           )}
           {renderTextInput(
@@ -3487,15 +3657,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "loan_amount",
             props.t("management.manualPositions.bankLoans.fields.loanAmount"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
           )}
           {renderTextInput(
             "interest_rate",
             props.t("management.manualPositions.bankLoans.fields.interestRate"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
           )}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "interest_type",
             props.t("management.manualPositions.bankLoans.fields.interestType"),
             props,
@@ -3560,7 +3737,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.bankLoans.fields.fixedInterestRate",
               ),
               props,
-              { type: "number", step: "0.01", inputMode: "decimal" },
+              {
+                type: "number",
+                step: "0.01",
+                inputMode: "decimal",
+                suffix: "%",
+              },
             )}
           {renderDateInput(
             "creation",
@@ -3578,7 +3760,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               "management.manualPositions.bankLoans.fields.currentInstallment",
             ),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
           )}
           {renderTextInput(
             "principal_outstanding",
@@ -3586,7 +3775,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               "management.manualPositions.bankLoans.fields.principalOutstanding",
             ),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
           )}
           <LoanCalculationHelper {...loanProps} />
         </div>
@@ -4265,7 +4461,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             label={props.t("management.manualPositions.funds.fields.isin")}
             formProps={props}
           />
-          {renderSelectInput(
+          {renderBadgeSelector(
             "type",
             props.t("management.manualPositions.funds.fields.type"),
             props,
@@ -4374,17 +4570,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.funds.fields.initialInvestment",
               )}
             </Label>
-            <Input
-              value={props.form.initial_investment}
-              type="text"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("initial_investment", event.target.value)
-                props.updateField("_last_investment_field", "initial" as any)
-                props.clearError("initial_investment")
-                props.clearError("average_buy_price")
-              }}
-            />
+            <div className="relative">
+              <Input
+                value={props.form.initial_investment}
+                type="text"
+                inputMode="decimal"
+                className={props.form.currency ? "pr-10" : undefined}
+                onChange={event => {
+                  props.updateField("initial_investment", event.target.value)
+                  props.updateField("_last_investment_field", "initial" as any)
+                  props.clearError("initial_investment")
+                  props.clearError("average_buy_price")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.initial_investment && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.initial_investment}
@@ -4397,17 +4601,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.funds.fields.averageBuyPrice",
               )}
             </Label>
-            <Input
-              value={props.form.average_buy_price}
-              type="text"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("average_buy_price", event.target.value)
-                props.updateField("_last_investment_field", "average" as any)
-                props.clearError("average_buy_price")
-                props.clearError("initial_investment")
-              }}
-            />
+            <div className="relative">
+              <Input
+                value={props.form.average_buy_price}
+                type="text"
+                inputMode="decimal"
+                className={props.form.currency ? "pr-10" : undefined}
+                onChange={event => {
+                  props.updateField("average_buy_price", event.target.value)
+                  props.updateField("_last_investment_field", "average" as any)
+                  props.clearError("average_buy_price")
+                  props.clearError("initial_investment")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.average_buy_price && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.average_buy_price}
@@ -4433,21 +4645,29 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                     "management.manualPositions.funds.fields.marketValue",
                   )}
                 </Label>
-                <Input
-                  id="market_value"
-                  type="text"
-                  inputMode="decimal"
-                  value={props.form.market_value ?? ""}
-                  disabled={isTrackingActive}
-                  onChange={event => {
-                    const value = event.target.value
-                    props.updateField("market_value", value)
-                    props.clearError("market_value")
-                    if (props.form._suggested_market_price) {
-                      props.updateField("_suggested_market_price", "")
-                    }
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="market_value"
+                    type="text"
+                    inputMode="decimal"
+                    className={props.form.currency ? "pr-10" : undefined}
+                    value={props.form.market_value ?? ""}
+                    disabled={isTrackingActive}
+                    onChange={event => {
+                      const value = event.target.value
+                      props.updateField("market_value", value)
+                      props.clearError("market_value")
+                      if (props.form._suggested_market_price) {
+                        props.updateField("_suggested_market_price", "")
+                      }
+                    }}
+                  />
+                  {props.form.currency && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                      {getCurrencySymbol(props.form.currency)}
+                    </span>
+                  )}
+                </div>
                 {props.errors.market_value && (
                   <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                     {props.errors.market_value}
@@ -4651,7 +4871,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: "",
       market_value: "",
       currency: defaultCurrency,
-      type: "",
+      type: EquityType.STOCK,
       _last_investment_field: "",
       _suggested_market_price: "",
       _instrument_currency: "",
@@ -4909,26 +5129,32 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             <Label htmlFor="type">
               {props.t("management.manualPositions.stocks.fields.type")}
             </Label>
-            <select
-              id="type"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={(props.form.type as string) ?? ""}
-              onChange={event => {
-                const nextType = event.target.value
-                props.updateField("type", nextType)
-                props.clearError("type")
-                if (props.form._tracker_candidate) {
-                  props.updateField("_tracker_candidate", "")
-                }
-              }}
-            >
-              <option value="">{props.t("common.selectOptions")}</option>
-              {Object.values(EquityType).map(value => (
-                <option key={value} value={value}>
-                  {props.t(`enums.equityType.${value}`) || value}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+              {Object.values(EquityType).map(value => {
+                const isActive = (props.form.type as string) === value
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      props.updateField("type", value)
+                      props.clearError("type")
+                      if (props.form._tracker_candidate) {
+                        props.updateField("_tracker_candidate", "")
+                      }
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                      isActive
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                    )}
+                  >
+                    {props.t(`enums.equityType.${value}`) || value}
+                  </button>
+                )
+              })}
+            </div>
             {props.errors.type && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.type}
@@ -5050,17 +5276,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.stocks.fields.initialInvestment",
               )}
             </Label>
-            <Input
-              value={props.form.initial_investment}
-              type="text"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("initial_investment", event.target.value)
-                props.updateField("_last_investment_field", "initial" as any)
-                props.clearError("initial_investment")
-                props.clearError("average_buy_price")
-              }}
-            />
+            <div className="relative">
+              <Input
+                value={props.form.initial_investment}
+                type="text"
+                inputMode="decimal"
+                className={props.form.currency ? "pr-10" : undefined}
+                onChange={event => {
+                  props.updateField("initial_investment", event.target.value)
+                  props.updateField("_last_investment_field", "initial" as any)
+                  props.clearError("initial_investment")
+                  props.clearError("average_buy_price")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.initial_investment && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.initial_investment}
@@ -5073,17 +5307,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.stocks.fields.averageBuyPrice",
               )}
             </Label>
-            <Input
-              value={props.form.average_buy_price}
-              type="text"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("average_buy_price", event.target.value)
-                props.updateField("_last_investment_field", "average" as any)
-                props.clearError("average_buy_price")
-                props.clearError("initial_investment")
-              }}
-            />
+            <div className="relative">
+              <Input
+                value={props.form.average_buy_price}
+                type="text"
+                inputMode="decimal"
+                className={props.form.currency ? "pr-10" : undefined}
+                onChange={event => {
+                  props.updateField("average_buy_price", event.target.value)
+                  props.updateField("_last_investment_field", "average" as any)
+                  props.clearError("average_buy_price")
+                  props.clearError("initial_investment")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.average_buy_price && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.average_buy_price}
@@ -5109,21 +5351,29 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                     "management.manualPositions.stocks.fields.marketValue",
                   )}
                 </Label>
-                <Input
-                  id="market_value"
-                  type="text"
-                  inputMode="decimal"
-                  value={props.form.market_value ?? ""}
-                  disabled={isTrackingActive}
-                  onChange={event => {
-                    const value = event.target.value
-                    props.updateField("market_value", value)
-                    props.clearError("market_value")
-                    if (props.form._suggested_market_price) {
-                      props.updateField("_suggested_market_price", "")
-                    }
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="market_value"
+                    type="text"
+                    inputMode="decimal"
+                    className={props.form.currency ? "pr-10" : undefined}
+                    value={props.form.market_value ?? ""}
+                    disabled={isTrackingActive}
+                    onChange={event => {
+                      const value = event.target.value
+                      props.updateField("market_value", value)
+                      props.clearError("market_value")
+                      if (props.form._suggested_market_price) {
+                        props.updateField("_suggested_market_price", "")
+                      }
+                    }}
+                  />
+                  {props.form.currency && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                      {getCurrencySymbol(props.form.currency)}
+                    </span>
+                  )}
+                </div>
                 {props.errors.market_value && (
                   <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                     {props.errors.market_value}
@@ -5241,7 +5491,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       creation: normalizeDateInput(draft.creation ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -5296,13 +5548,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "amount",
           props.t("management.manualPositions.deposits.fields.amount"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
           props.t("management.manualPositions.deposits.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "creation",
@@ -5402,11 +5661,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       late_interest_rate:
         draft.late_interest_rate != null
-          ? formatNumberInput(draft.late_interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.late_interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -5475,13 +5738,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "amount",
           props.t("management.manualPositions.factoring.fields.amount"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
           props.t("management.manualPositions.factoring.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "late_interest_rate",
@@ -5489,7 +5759,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.factoring.fields.lateInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "start",
@@ -5501,15 +5771,44 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.t("management.manualPositions.factoring.fields.maturity"),
           props,
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "type",
           props.t("management.manualPositions.factoring.fields.type"),
           props,
+          [
+            {
+              value: "PUBLIC_ADMIN",
+              label: props.t("investments.projectTypes.PUBLIC_ADMIN"),
+            },
+            {
+              value: "INSURED",
+              label: props.t("investments.projectTypes.INSURED"),
+            },
+            {
+              value: "NON_INSURED",
+              label: props.t("investments.projectTypes.NON_INSURED"),
+            },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "state",
           props.t("management.manualPositions.factoring.fields.state"),
           props,
+          [
+            { value: "FUNDED", label: props.t("investments.states.FUNDED") },
+            {
+              value: "IN_PROGRESS",
+              label: props.t("investments.states.IN_PROGRESS"),
+            },
+            {
+              value: "MANAGING_COLLECTION",
+              label: props.t("investments.states.MANAGING_COLLECTION"),
+            },
+            {
+              value: "COMPLETED",
+              label: props.t("investments.states.COMPLETED"),
+            },
+          ],
         )}
       </div>
     ),
@@ -5618,11 +5917,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       extended_interest_rate:
         draft.extended_interest_rate != null
-          ? formatNumberInput(draft.extended_interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.extended_interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -5710,6 +6013,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             type: "number",
             step: "0.01",
             inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
             onValueChange: (value, helpers) => {
               const previousPending = helpers.form.pending_amount ?? ""
               const previousAmount = helpers.form.amount ?? ""
@@ -5729,7 +6035,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.pendingAmount",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
@@ -5737,7 +6050,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.interestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "extended_interest_rate",
@@ -5745,7 +6058,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.extendedInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "start",
@@ -5757,22 +6070,75 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.t("management.manualPositions.realEstateCf.fields.maturity"),
           props,
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "type",
           props.t("management.manualPositions.realEstateCf.fields.type"),
           props,
+          [
+            {
+              value: "HOUSING",
+              label: props.t("investments.projectTypes.HOUSING"),
+            },
+            {
+              value: "FLOOR",
+              label: props.t("investments.projectTypes.FLOOR"),
+            },
+            {
+              value: "COMMERCIAL_OFFICE",
+              label: props.t("investments.projectTypes.COMMERCIAL_OFFICE"),
+            },
+            {
+              value: "HOTEL",
+              label: props.t("investments.projectTypes.HOTEL"),
+            },
+            {
+              value: "PREMISES",
+              label: props.t("investments.projectTypes.PREMISES"),
+            },
+            {
+              value: "RENEWABLES",
+              label: props.t("investments.projectTypes.RENEWABLES"),
+            },
+            {
+              value: "LOGISTIC",
+              label: props.t("investments.projectTypes.LOGISTIC"),
+            },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "business_type",
           props.t(
             "management.manualPositions.realEstateCf.fields.businessType",
           ),
           props,
+          [
+            {
+              value: "EQUITY",
+              label: props.t("investments.businessTypes.EQUITY"),
+            },
+            {
+              value: "LENDING",
+              label: props.t("investments.businessTypes.LENDING"),
+            },
+            { value: "SOLD", label: props.t("investments.businessTypes.SOLD") },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "state",
           props.t("management.manualPositions.realEstateCf.fields.state"),
           props,
+          [
+            { value: "FUNDED", label: props.t("investments.states.FUNDED") },
+            {
+              value: "IN_PROGRESS",
+              label: props.t("investments.states.IN_PROGRESS"),
+            },
+            { value: "DISPUTE", label: props.t("investments.states.DISPUTE") },
+            {
+              value: "COMPLETED",
+              label: props.t("investments.states.COMPLETED"),
+            },
+          ],
         )}
         {renderDateInput(
           "extended_maturity",

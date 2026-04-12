@@ -592,7 +592,7 @@ function DayDetailModal({
             {stockTx.isin && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-                {stockTx.isin}
+                <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
             {stockTx.shares !== undefined && stockTx.shares !== null && (
@@ -659,7 +659,7 @@ function DayDetailModal({
             {fundTx.isin && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-                {fundTx.isin}
+                <span className="font-mono">{fundTx.isin}</span>
               </div>
             )}
             {fundTx.shares !== undefined && fundTx.shares !== null && (
@@ -739,7 +739,7 @@ function DayDetailModal({
             {fpTx.iban && (
               <div className={`${detailRowClass} break-all`}>
                 <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
-                {fpTx.iban}
+                <span className="font-mono">{fpTx.iban}</span>
               </div>
             )}
             {fpTx.portfolio_name && (

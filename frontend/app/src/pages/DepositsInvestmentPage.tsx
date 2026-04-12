@@ -823,7 +823,7 @@ function DepositsViewContent({
                             </div>
 
                             {position.formattedExpectedAmount && (
-                              <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 text-sm">
                                 <span className="text-gray-500 dark:text-gray-400">
                                   {t.investments.expected}
                                 </span>

@@ -276,6 +276,14 @@
       "INSURED": "Insured",
       "NON_INSURED": "Non-insured"
     },
+    "businessTypes": {
+      "EQUITY": "Equity",
+      "LENDING": "Lending",
+      "RENT": "Rent",
+      "SOLD": "Sale",
+      "RENT_AND_SOLD": "Rent & Sale",
+      "DONATION": "Donation"
+    },
     "historicSection": {
       "heading": "Past investments",
       "showToggle": "Show completed",
@@ -1972,7 +1980,7 @@
         "fields": {
           "type": "Account type",
           "total": "Balance",
-          "interest": "Interest rate (%)",
+          "interest": "Interest rate",
           "retained": "Retained amount",
           "pendingTransfers": "Pending transfers",
           "iban": "IBAN"
@@ -2033,7 +2041,7 @@
         "fields": {
           "type": "Loan type",
           "loanAmount": "Original amount",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "currentInstallment": "Current installment",
           "principalOutstanding": "Principal outstanding",
           "principalPaid": "Principal paid",
@@ -2044,7 +2052,7 @@
           "creation": "Start date",
           "maturity": "Maturity",
           "installmentFrequency": "Installment frequency",
-          "fixedInterestRate": "Fixed interest rate (%)",
+          "fixedInterestRate": "Fixed interest rate",
           "trackLoan": "Update loan automatically",
           "trackLoanLabel": "Auto-update",
           "trackLoanInfo": "Automatically recalculates the installment, interests, and outstanding principal over time. Only for fixed interest loans."
@@ -2232,7 +2240,7 @@
         "fields": {
           "amount": "Amount",
           "expectedInterests": "Expected interests",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "creation": "Start date",
           "maturity": "Maturity"
         }
@@ -2253,9 +2261,9 @@
         },
         "fields": {
           "amount": "Amount",
-          "interestRate": "Interest rate (%)",
-          "lateInterestRate": "Late interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "lateInterestRate": "Late interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "type": "Type",
@@ -2279,9 +2287,9 @@
         "fields": {
           "amount": "Amount",
           "pendingAmount": "Pending amount",
-          "interestRate": "Interest rate (%)",
-          "extendedInterestRate": "Extended interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "extendedInterestRate": "Extended interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "extendedMaturity": "Extended maturity",
@@ -2445,7 +2453,7 @@
     "valuation": {
       "estimatedMarketValue": "Estimated market value",
       "valuations": "Valuations",
-      "addValuation": "Add valuation",
+      "addValuation": "Add",
       "date": "Date",
       "amount": "Value",
       "notes": "Notes",
@@ -2484,7 +2492,7 @@
       "loanTypeLabel": "Loan type",
       "totalLoanAmountLabel": "Total loan amount",
       "interestTypeLabel": "Interest type",
-      "interestRateLabel": "Interest rate (%)",
+      "interestRateLabel": "Interest rate",
       "noAssociatedLoans": "No associated loans",
       "paymentDate": "Payment date",
       "principalOutstanding": "Principal outstanding",

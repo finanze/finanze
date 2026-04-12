@@ -91,6 +91,19 @@ async function selectTransactionDate(page: Page, day: number) {
     await page.waitForTimeout(200)
 }
 
+async function selectCustomDropdown(
+    page: Page,
+    labelFor: string,
+    optionText: string,
+) {
+    const dialog = page.locator('.fixed.inset-0').last()
+    const section = dialog.locator(`label[for="${labelFor}"]`).locator('..')
+    await section.locator('.cursor-pointer').first().click()
+    await page.waitForTimeout(200)
+    await section.getByText(optionText, { exact: true }).click()
+    await page.waitForTimeout(200)
+}
+
 async function expandTransaction(page: Page, txName: string) {
     const txRow = page.getByText(txName).first().locator('../..')
     await txRow.getByTestId('expand-tx').click()
@@ -110,7 +123,7 @@ async function createManualTransaction(
     await selectEntity(page, 'Urbanitae', { inDialog: true })
     await page.locator('#transaction-name').fill(name)
     // Keep the default date (today) — no need to pick a specific day
-    await page.locator('#transaction-type').selectOption('INTEREST')
+    await selectCustomDropdown(page, 'transaction-type', 'Interest')
     await page.locator('#transaction-amount').fill(amount)
     await page.locator('#transaction-currency').selectOption('EUR')
 
@@ -268,7 +281,7 @@ test.describe('Manual Transactions', () => {
         await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#transaction-name').fill('Decimal Test Tx')
         // Keep the default date (today)
-        await page.locator('#transaction-type').selectOption('INTEREST')
+        await selectCustomDropdown(page, 'transaction-type', 'Interest')
         await page.locator('#transaction-amount').fill('1234.56')
         await page.locator('#transaction-currency').selectOption('EUR')
 

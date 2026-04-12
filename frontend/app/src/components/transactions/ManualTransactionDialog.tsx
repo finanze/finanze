@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
-import { X } from "lucide-react"
+import {
+  X,
+  ChevronDown,
+  Check,
+  ListFilter,
+  ChartCandlestick,
+  BarChart3,
+} from "lucide-react"
 import { EntitySelector } from "@/components/EntitySelector"
 import { useI18n } from "@/i18n"
 import {
@@ -16,12 +23,23 @@ import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { DataSource, EntityOrigin, type Entity } from "@/types"
+import { getCurrencySymbol, cn } from "@/lib/utils"
+import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover"
 import {
   ProductType,
+  EquityType,
   type StockInvestments,
+  type StockDetail,
   type FundInvestments,
+  type FundDetail,
   type FundPortfolios,
 } from "@/types/position"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import {
   ManualTransactionPayload,
@@ -116,6 +134,89 @@ interface FieldConfig {
 interface SuggestionOption {
   value: string
   label: string
+  name?: string
+  ticker?: string
+  market?: string
+  equityType?: string
+  issuer?: string | null
+}
+
+function SuggestionItemIcon({
+  option,
+  productType,
+}: {
+  option: SuggestionOption
+  productType: string
+}) {
+  const [failedCount, setFailedCount] = useState(0)
+
+  const sources = useMemo(() => {
+    if (productType === ProductType.STOCK_ETF) {
+      if (option.equityType === EquityType.ETF) {
+        const issuerPath = getIssuerIconPath(option.issuer ?? null)
+        return issuerPath ? [`/${issuerPath}`] : []
+      }
+      return [
+        option.value?.trim()
+          ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(option.value.trim())}.png`
+          : null,
+        option.ticker?.trim()
+          ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(option.ticker.trim())}.png`
+          : null,
+      ].filter((v): v is string => Boolean(v))
+    }
+    if (productType === ProductType.FUND) {
+      const issuerPath = getIssuerIconPath(option.issuer ?? null)
+      return issuerPath ? [`/${issuerPath}`] : []
+    }
+    return []
+  }, [
+    option.value,
+    option.ticker,
+    option.equityType,
+    option.issuer,
+    productType,
+  ])
+
+  const currentSrc = sources[failedCount]
+
+  if (productType === ProductType.STOCK_ETF) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <ChartCandlestick className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (productType === ProductType.FUND) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <BarChart3 className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  return null
 }
 
 const normalizeDateValue = (value?: string | null) => {
@@ -404,77 +505,75 @@ export function ManualTransactionDialog({
       return suggestions
     }
 
-    const entityPosition = positionsData.positions[formState.entityId]?.[0]
-    if (!entityPosition) {
+    const entityPositions = positionsData.positions[formState.entityId] ?? []
+    if (entityPositions.length === 0) {
       return suggestions
     }
 
     if (formState.productType === ProductType.STOCK_ETF) {
-      const stockPositions = entityPosition.products[ProductType.STOCK_ETF] as
-        | StockInvestments
-        | undefined
-      if (stockPositions?.entries?.length) {
-        const seen = new Set<string>()
-        const options = stockPositions.entries.reduce<SuggestionOption[]>(
-          (acc, entry) => {
-            const value = entry.isin?.trim().toUpperCase()
-            if (!value || seen.has(value)) return acc
-            seen.add(value)
-            const parts = [value]
-            if (entry.ticker) {
-              parts.push(entry.ticker.toUpperCase())
-            }
-            acc.push({
-              value,
-              label: parts.join(" · "),
-            })
-            return acc
-          },
-          [],
-        )
-        if (options.length > 0) {
-          suggestions.isin = options.slice(0, 6)
-        }
+      const seen = new Set<string>()
+      const options: SuggestionOption[] = []
+      entityPositions.forEach(ep => {
+        const stockPositions = ep.products[ProductType.STOCK_ETF] as
+          | StockInvestments
+          | undefined
+        stockPositions?.entries?.forEach((entry: StockDetail) => {
+          const value = entry.isin?.trim().toUpperCase()
+          if (!value || seen.has(value)) return
+          seen.add(value)
+          options.push({
+            value,
+            label: entry.ticker
+              ? `${value} · ${entry.ticker.toUpperCase()}`
+              : value,
+            name: entry.name,
+            ticker: entry.ticker?.toUpperCase(),
+            market: entry.market || undefined,
+            equityType: entry.type,
+            issuer: entry.issuer,
+          })
+        })
+      })
+      if (options.length > 0) {
+        suggestions.isin = options
       }
     }
 
     if (formState.productType === ProductType.FUND) {
-      const fundPositions = entityPosition.products[ProductType.FUND] as
-        | FundInvestments
-        | undefined
-      if (fundPositions?.entries?.length) {
-        const seen = new Set<string>()
-        const options = fundPositions.entries.reduce<SuggestionOption[]>(
-          (acc, entry) => {
-            const value = entry.isin?.trim().toUpperCase()
-            if (!value || seen.has(value)) return acc
-            seen.add(value)
-            const label = entry.name ? `${value} · ${entry.name}` : value
-            acc.push({
-              value,
-              label,
-            })
-            return acc
-          },
-          [],
-        )
-        if (options.length > 0) {
-          suggestions.isin = options.slice(0, 6)
-        }
+      const seen = new Set<string>()
+      const options: SuggestionOption[] = []
+      entityPositions.forEach(ep => {
+        const fundPositions = ep.products[ProductType.FUND] as
+          | FundInvestments
+          | undefined
+        fundPositions?.entries?.forEach((entry: FundDetail) => {
+          const value = entry.isin?.trim().toUpperCase()
+          if (!value || seen.has(value)) return
+          seen.add(value)
+          options.push({
+            value,
+            label: entry.name ? `${value} · ${entry.name}` : value,
+            name: entry.name,
+            issuer: entry.issuer,
+          })
+        })
+      })
+      if (options.length > 0) {
+        suggestions.isin = options
       }
     }
 
     if (formState.productType === ProductType.FUND_PORTFOLIO) {
-      const fundPortfolios = entityPosition.products[
-        ProductType.FUND_PORTFOLIO
-      ] as FundPortfolios | undefined
-      if (fundPortfolios?.entries?.length) {
-        const nameSeen = new Set<string>()
-        const names: SuggestionOption[] = []
-        const ibanSeen = new Set<string>()
-        const ibans: SuggestionOption[] = []
+      const nameSeen = new Set<string>()
+      const names: SuggestionOption[] = []
+      const ibanSeen = new Set<string>()
+      const ibans: SuggestionOption[] = []
 
-        fundPortfolios.entries.forEach(portfolio => {
+      entityPositions.forEach(ep => {
+        const fundPortfolios = ep.products[ProductType.FUND_PORTFOLIO] as
+          | FundPortfolios
+          | undefined
+        fundPortfolios?.entries?.forEach(portfolio => {
           const portfolioName = portfolio.name?.trim()
           if (portfolioName && !nameSeen.has(portfolioName)) {
             nameSeen.add(portfolioName)
@@ -491,17 +590,18 @@ export function ManualTransactionDialog({
               ibans.push({
                 value: normalized,
                 label: accountLabel ? `${display} · ${accountLabel}` : display,
+                name: accountLabel ?? undefined,
               })
             }
           }
         })
+      })
 
-        if (names.length > 0) {
-          suggestions.portfolio_name = names.slice(0, 6)
-        }
-        if (ibans.length > 0) {
-          suggestions.iban = ibans.slice(0, 6)
-        }
+      if (names.length > 0) {
+        suggestions.portfolio_name = names
+      }
+      if (ibans.length > 0) {
+        suggestions.iban = ibans
       }
     }
 
@@ -577,6 +677,39 @@ export function ManualTransactionDialog({
   const netAmountFormulaText = isOutgoingType
     ? t.transactions.form.netAmountFormulaOutgoing
     : t.transactions.form.netAmountFormulaIncoming
+
+  const currencySymbol = useMemo(
+    () => getCurrencySymbol(formState.currency || defaultCurrency),
+    [formState.currency, defaultCurrency],
+  )
+
+  const [suggestionPopoverField, setSuggestionPopoverField] = useState<
+    string | null
+  >(null)
+
+  const [txTypeDropdownOpen, setTxTypeDropdownOpen] = useState(false)
+  const [productTypeDropdownOpen, setProductTypeDropdownOpen] = useState(false)
+  const txTypeDropdownRef = useRef<HTMLDivElement>(null)
+  const productTypeDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        txTypeDropdownRef.current &&
+        !txTypeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setTxTypeDropdownOpen(false)
+      }
+      if (
+        productTypeDropdownRef.current &&
+        !productTypeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setProductTypeDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (
@@ -809,18 +942,43 @@ export function ManualTransactionDialog({
     if (name === "shares" || name === "price") {
       sharesPriceEditedRef.current = true
     }
+    const normalizedValue =
+      name === "isin" || name === "ticker" || name === "iban"
+        ? value.toUpperCase()
+        : value
     setFormState(prev => ({
       ...prev,
       extra: {
         ...prev.extra,
-        [name]: value,
+        [name]: normalizedValue,
       },
     }))
     clearError(`extra.${name}`)
   }
 
-  const handleSuggestionApply = (name: string, value: string) => {
-    handleExtraChange(name, value)
+  const handleSuggestionApply = (
+    fieldName: string,
+    value: string,
+    option?: SuggestionOption,
+  ) => {
+    handleExtraChange(fieldName, value)
+    if (!option) return
+
+    if (
+      fieldName === "isin" &&
+      formState.productType === ProductType.STOCK_ETF
+    ) {
+      if (option.ticker && !formState.extra.ticker?.trim()) {
+        handleExtraChange("ticker", option.ticker)
+      }
+      if (option.market && !formState.extra.market?.trim()) {
+        handleExtraChange("market", option.market)
+      }
+    }
+
+    if (fieldName === "isin" && option.name && !formState.name.trim()) {
+      setFormState(prev => ({ ...prev, name: option.name! }))
+    }
   }
 
   const validate = () => {
@@ -1123,20 +1281,56 @@ export function ManualTransactionDialog({
                       <Label htmlFor="transaction-type">
                         {t.transactions.form.transactionType}
                       </Label>
-                      <select
-                        id="transaction-type"
-                        value={formState.type}
-                        onChange={event =>
-                          handleBaseChange("type", event.target.value as TxType)
-                        }
-                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.type ? "border-red-500" : ""}`}
-                      >
-                        {Object.values(TxType).map(type => (
-                          <option key={type} value={type}>
-                            {(t.enums as any)?.transactionType?.[type] || type}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative" ref={txTypeDropdownRef}>
+                        <div
+                          className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
+                            "focus-within:ring-2 focus-within:ring-ring",
+                            errors.type && "border-red-500",
+                          )}
+                          onClick={() => setTxTypeDropdownOpen(prev => !prev)}
+                        >
+                          <span className="flex items-center gap-2">
+                            {getIconForTxType(formState.type, "h-4 w-4")}
+                            {(t.enums as any)?.transactionType?.[
+                              formState.type
+                            ] || formState.type}
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform",
+                              txTypeDropdownOpen && "rotate-180",
+                            )}
+                          />
+                        </div>
+                        {txTypeDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                            {Object.values(TxType).map(type => (
+                              <div
+                                key={type}
+                                className={cn(
+                                  "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                  formState.type === type &&
+                                    "bg-accent text-accent-foreground",
+                                )}
+                                onClick={() => {
+                                  handleBaseChange("type", type)
+                                  setTxTypeDropdownOpen(false)
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  {getIconForTxType(type, "h-4 w-4")}
+                                  {(t.enums as any)?.transactionType?.[type] ||
+                                    type}
+                                </span>
+                                {formState.type === type && (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {errors.type && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.type}
@@ -1148,38 +1342,78 @@ export function ManualTransactionDialog({
                       <Label htmlFor="transaction-product">
                         {t.transactions.product}
                       </Label>
-                      <select
-                        id="transaction-product"
-                        value={formState.productType}
-                        onChange={event => {
-                          const value = event.target
-                            .value as SupportedManualProductType
-                          clearError("productType")
-                          setFormState(prev => ({
-                            ...prev,
-                            productType: value,
-                            extra: createExtraDefaults(value),
-                          }))
-                          setErrors(prev => {
-                            const next: Record<string, string> = {}
-                            Object.entries(prev).forEach(([key, message]) => {
-                              if (!key.startsWith("extra.")) {
-                                next[key] = message
-                              }
-                            })
-                            return next
-                          })
-                          sharesPriceEditedRef.current = false
-                        }}
-                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.productType ? "border-red-500" : ""}`}
-                        disabled={isSubmitting}
-                      >
-                        {SUPPORTED_PRODUCT_TYPES.map(type => (
-                          <option key={type} value={type}>
-                            {t.enums?.productType?.[type] || type}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative" ref={productTypeDropdownRef}>
+                        <div
+                          className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
+                            "focus-within:ring-2 focus-within:ring-ring",
+                            isSubmitting && "cursor-not-allowed opacity-50",
+                            errors.productType && "border-red-500",
+                          )}
+                          onClick={() => {
+                            if (!isSubmitting)
+                              setProductTypeDropdownOpen(prev => !prev)
+                          }}
+                        >
+                          <span className="flex items-center gap-2">
+                            {getIconForProductType(
+                              formState.productType,
+                              "h-4 w-4",
+                            )}
+                            {t.enums?.productType?.[formState.productType] ||
+                              formState.productType}
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform",
+                              productTypeDropdownOpen && "rotate-180",
+                            )}
+                          />
+                        </div>
+                        {productTypeDropdownOpen && !isSubmitting && (
+                          <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                            {SUPPORTED_PRODUCT_TYPES.map(type => (
+                              <div
+                                key={type}
+                                className={cn(
+                                  "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                  formState.productType === type &&
+                                    "bg-accent text-accent-foreground",
+                                )}
+                                onClick={() => {
+                                  clearError("productType")
+                                  setFormState(prev => ({
+                                    ...prev,
+                                    productType: type,
+                                    extra: createExtraDefaults(type),
+                                  }))
+                                  setErrors(prev => {
+                                    const next: Record<string, string> = {}
+                                    Object.entries(prev).forEach(
+                                      ([key, message]) => {
+                                        if (!key.startsWith("extra.")) {
+                                          next[key] = message
+                                        }
+                                      },
+                                    )
+                                    return next
+                                  })
+                                  sharesPriceEditedRef.current = false
+                                  setProductTypeDropdownOpen(false)
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  {getIconForProductType(type, "h-4 w-4")}
+                                  {t.enums?.productType?.[type] || type}
+                                </span>
+                                {formState.productType === type && (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {errors.productType && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.productType}
@@ -1191,16 +1425,24 @@ export function ManualTransactionDialog({
                       <Label htmlFor="transaction-amount">
                         {t.transactions.amount}
                       </Label>
-                      <Input
-                        id="transaction-amount"
-                        type="text"
-                        inputMode="decimal"
-                        value={formState.amount}
-                        onChange={event =>
-                          handleBaseChange("amount", event.target.value)
-                        }
-                        className={errors.amount ? "border-red-500" : ""}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="transaction-amount"
+                          type="text"
+                          inputMode="decimal"
+                          value={formState.amount}
+                          onChange={event =>
+                            handleBaseChange("amount", event.target.value)
+                          }
+                          className={cn(
+                            "pr-10",
+                            errors.amount && "border-red-500",
+                          )}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                          {currencySymbol}
+                        </span>
+                      </div>
                       {errors.amount && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.amount}
@@ -1339,34 +1581,40 @@ export function ManualTransactionDialog({
                                       {priceField?.labelKey ??
                                         t.transactions.price}
                                     </Label>
-                                    <Input
-                                      id="transaction-price"
-                                      type={
-                                        priceField?.type === "number"
-                                          ? "number"
-                                          : "text"
-                                      }
-                                      inputMode={
-                                        priceField?.type === "number"
-                                          ? "decimal"
-                                          : undefined
-                                      }
-                                      step={
-                                        priceField?.type === "number"
-                                          ? (priceField.step ?? "0.01")
-                                          : undefined
-                                      }
-                                      value={formState.extra.price ?? ""}
-                                      onChange={event =>
-                                        handleExtraChange(
-                                          "price",
-                                          event.target.value,
-                                        )
-                                      }
-                                      className={
-                                        priceError ? "border-red-500" : ""
-                                      }
-                                    />
+                                    <div className="relative">
+                                      <Input
+                                        id="transaction-price"
+                                        type={
+                                          priceField?.type === "number"
+                                            ? "number"
+                                            : "text"
+                                        }
+                                        inputMode={
+                                          priceField?.type === "number"
+                                            ? "decimal"
+                                            : undefined
+                                        }
+                                        step={
+                                          priceField?.type === "number"
+                                            ? (priceField.step ?? "0.01")
+                                            : undefined
+                                        }
+                                        value={formState.extra.price ?? ""}
+                                        onChange={event =>
+                                          handleExtraChange(
+                                            "price",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className={cn(
+                                          "pr-10",
+                                          priceError && "border-red-500",
+                                        )}
+                                      />
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                                        {currencySymbol}
+                                      </span>
+                                    </div>
                                     {priceError && (
                                       <p className="text-xs text-red-600 dark:text-red-400">
                                         {priceError}
@@ -1393,55 +1641,145 @@ export function ManualTransactionDialog({
                             return null
                           }
 
+                          const isMonoField =
+                            field.name === "isin" || field.name === "iban"
+                          const fieldSuffix =
+                            field.name === "interest_rate"
+                              ? "%"
+                              : ["fees", "retentions", "avg_balance"].includes(
+                                    field.name,
+                                  )
+                                ? currencySymbol
+                                : null
+
                           return (
                             <div key={field.name} className="space-y-1.5">
-                              <Label htmlFor={`transaction-${field.name}`}>
-                                {field.labelKey}
-                              </Label>
-                              <Input
-                                id={`transaction-${field.name}`}
-                                type="text"
-                                inputMode={
-                                  field.type === "number"
-                                    ? "decimal"
-                                    : undefined
-                                }
-                                value={formState.extra[field.name] ?? ""}
-                                onChange={event =>
-                                  handleExtraChange(
-                                    field.name,
-                                    event.target.value,
-                                  )
-                                }
-                                className={error ? "border-red-500" : ""}
-                              />
-                              {showSuggestions && (
-                                <div className="w-full space-y-1 pt-1">
-                                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                    {getSuggestionLabel(field.name)}
-                                    {selectedEntityName
-                                      ? ` · ${selectedEntityName}`
-                                      : ""}
-                                  </span>
-                                  <div className="flex max-h-24 flex-wrap items-center gap-1 overflow-y-auto pr-1">
-                                    {fieldSuggestions.map(option => (
+                              <div className="flex items-center justify-between gap-2 min-h-[20px]">
+                                <Label
+                                  htmlFor={`transaction-${field.name}`}
+                                  className="shrink-0"
+                                >
+                                  {field.labelKey}
+                                </Label>
+                                {showSuggestions && (
+                                  <Popover
+                                    open={suggestionPopoverField === field.name}
+                                    onOpenChange={open =>
+                                      setSuggestionPopoverField(
+                                        open ? field.name : null,
+                                      )
+                                    }
+                                  >
+                                    <PopoverTrigger asChild>
                                       <button
-                                        key={`${field.name}-${option.value}`}
                                         type="button"
-                                        onClick={() =>
-                                          handleSuggestionApply(
-                                            field.name,
-                                            option.value,
-                                          )
-                                        }
-                                        className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-0"
                                       >
-                                        {option.label}
+                                        <ListFilter className="h-3 w-3 shrink-0" />
+                                        <span className="hidden sm:inline truncate">
+                                          {getSuggestionLabel(field.name)}
+                                          {selectedEntityName
+                                            ? ` · ${selectedEntityName}`
+                                            : ""}
+                                        </span>
                                       </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      align="end"
+                                      className="w-80 p-0"
+                                    >
+                                      <div className="max-h-72 overflow-y-auto py-1">
+                                        {fieldSuggestions.map(option => (
+                                          <button
+                                            key={`${field.name}-${option.value}`}
+                                            type="button"
+                                            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                            onClick={() => {
+                                              handleSuggestionApply(
+                                                field.name,
+                                                option.value,
+                                                option,
+                                              )
+                                              setSuggestionPopoverField(null)
+                                            }}
+                                          >
+                                            <SuggestionItemIcon
+                                              option={option}
+                                              productType={
+                                                formState.productType
+                                              }
+                                            />
+                                            <div className="flex flex-col gap-0.5 overflow-hidden">
+                                              {option.name ? (
+                                                <>
+                                                  <span className="truncate font-medium text-foreground">
+                                                    {option.name}
+                                                  </span>
+                                                  <span
+                                                    className={cn(
+                                                      "truncate text-xs text-muted-foreground",
+                                                      isMonoField &&
+                                                        "font-mono",
+                                                    )}
+                                                  >
+                                                    {option.value}
+                                                    {option.ticker &&
+                                                      option.ticker !==
+                                                        option.value && (
+                                                        <span className="ml-1.5 text-muted-foreground/70">
+                                                          {option.ticker}
+                                                        </span>
+                                                      )}
+                                                  </span>
+                                                </>
+                                              ) : (
+                                                <span
+                                                  className={cn(
+                                                    "truncate font-medium text-foreground",
+                                                    isMonoField && "font-mono",
+                                                  )}
+                                                >
+                                                  {option.value}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
+                              </div>
+                              <div
+                                className={fieldSuffix ? "relative" : undefined}
+                              >
+                                <Input
+                                  id={`transaction-${field.name}`}
+                                  type="text"
+                                  inputMode={
+                                    field.type === "number"
+                                      ? "decimal"
+                                      : undefined
+                                  }
+                                  value={formState.extra[field.name] ?? ""}
+                                  onChange={event =>
+                                    handleExtraChange(
+                                      field.name,
+                                      event.target.value,
+                                    )
+                                  }
+                                  className={cn(
+                                    isMonoField && "font-mono",
+                                    fieldSuffix && "pr-10",
+                                    error && "border-red-500",
+                                  )}
+                                />
+                                {fieldSuffix && (
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                                    {fieldSuffix}
+                                  </span>
+                                )}
+                              </div>
                               {error && (
                                 <p className="text-xs text-red-600 dark:text-red-400">
                                   {error}

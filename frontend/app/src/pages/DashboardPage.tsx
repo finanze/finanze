@@ -145,7 +145,7 @@ export default function DashboardPage() {
             const parsed = JSON.parse(raw)
             return {
               ...parsed,
-              includeLoans: parsed.includeLoans !== false,
+              includeLoans: parsed.includeLoans === true,
               compactNumbers: parsed.compactNumbers !== false,
             }
           }
@@ -155,7 +155,7 @@ export default function DashboardPage() {
       }
       return {
         includePending: true,
-        includeLoans: true,
+        includeLoans: false,
         includeCardExpenses: false,
         includeRealEstate: true,
         includeResidences: false,

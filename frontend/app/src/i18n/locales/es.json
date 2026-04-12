@@ -274,6 +274,14 @@
       "INSURED": "Con seguro",
       "NON_INSURED": "Sin seguro"
     },
+    "businessTypes": {
+      "EQUITY": "Equity",
+      "LENDING": "Préstamo",
+      "RENT": "Alquiler",
+      "SOLD": "Venta",
+      "RENT_AND_SOLD": "Alquiler y venta",
+      "DONATION": "Donación"
+    },
     "historicSection": {
       "heading": "Inversiones pasadas",
       "showToggle": "Mostrar completadas",
@@ -1971,7 +1979,7 @@
         "fields": {
           "type": "Tipo de cuenta",
           "total": "Saldo",
-          "interest": "Interés (%)",
+          "interest": "Interés",
           "retained": "Importe retenido",
           "pendingTransfers": "Transferencias pendientes",
           "iban": "IBAN"
@@ -2045,7 +2053,7 @@
         "fields": {
           "type": "Tipo de préstamo",
           "loanAmount": "Importe original",
-          "interestRate": "Tipo de interés (%)",
+          "interestRate": "Tipo de interés",
           "currentInstallment": "Cuota actual",
           "principalOutstanding": "Principal pendiente",
           "principalPaid": "Principal pagado",
@@ -2056,7 +2064,7 @@
           "creation": "Fecha de inicio",
           "maturity": "Vencimiento",
           "installmentFrequency": "Frecuencia de cuota",
-          "fixedInterestRate": "Tipo de interés fijo (%)",
+          "fixedInterestRate": "Tipo de interés fijo",
           "trackLoan": "Actualizar préstamo automáticamente",
           "trackLoanLabel": "Auto-actualizar",
           "trackLoanInfo": "Recalcula automáticamente la cuota, los intereses y el principal pendiente con el tiempo. Solo para tipo fijo."
@@ -2244,7 +2252,7 @@
         "fields": {
           "amount": "Importe",
           "expectedInterests": "Intereses esperados",
-          "interestRate": "Tipo de interés (%)",
+          "interestRate": "Tipo de interés",
           "creation": "Fecha de inicio",
           "maturity": "Vencimiento"
         }
@@ -2265,9 +2273,9 @@
         },
         "fields": {
           "amount": "Importe",
-          "interestRate": "Tipo de interés (%)",
-          "lateInterestRate": "Interés de demora (%)",
-          "profitability": "Rentabilidad (%)",
+          "interestRate": "Tipo de interés",
+          "lateInterestRate": "Interés de demora",
+          "profitability": "Rentabilidad",
           "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "type": "Tipo",
@@ -2291,9 +2299,9 @@
         "fields": {
           "amount": "Importe",
           "pendingAmount": "Importe pendiente",
-          "interestRate": "Tipo de interés (%)",
-          "extendedInterestRate": "Tipo de interés extendido (%)",
-          "profitability": "Rentabilidad (%)",
+          "interestRate": "Tipo de interés",
+          "extendedInterestRate": "Tipo de interés extendido",
+          "profitability": "Rentabilidad",
           "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "extendedMaturity": "Vencimiento extendido",
@@ -2457,7 +2465,7 @@
     "valuation": {
       "estimatedMarketValue": "Valor estimado de mercado",
       "valuations": "Tasaciones",
-      "addValuation": "Añadir tasación",
+      "addValuation": "Añadir",
       "date": "Fecha",
       "amount": "Valor",
       "notes": "Notas",

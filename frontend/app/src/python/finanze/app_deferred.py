@@ -404,7 +404,7 @@ class DeferredComponents:
         )
         metal_client = MetalPriceClient()
         inst_provider = InstrumentProviderAdapter(
-            enabled_clients=["ft", "yf", "finect", "tv", "ee"]
+            enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
         )
         public_key_derivation = PublicKeyDerivationAdapter()
 

@@ -198,7 +198,7 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
     }
 
     // Only copy python files or strictly necessary data files
-    if (!source.endsWith(".py")) return
+    if (!source.endsWith(".py") && !source.endsWith(".pkl")) return
 
     fs.copyFileSync(source, dest)
 

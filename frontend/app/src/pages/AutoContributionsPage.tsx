@@ -26,6 +26,10 @@ import {
   Loader2,
   Bitcoin,
   Layers,
+  ChevronDown,
+  Check,
+  ListFilter,
+  ChartCandlestick,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -52,9 +56,12 @@ import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
-import { cn } from "@/lib/utils"
+import { getCurrencySymbol, cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import { getProductTypeColor } from "@/utils/dashboardUtils"
+import {
+  getProductTypeColor,
+  getIconForProductType,
+} from "@/utils/dashboardUtils"
 import { EntitySelector } from "@/components/EntitySelector"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
@@ -69,12 +76,14 @@ import {
 import { DataSource, EntityType } from "@/types"
 import {
   AccountType,
+  EquityType,
   ProductType,
   type Accounts,
   type CryptoCurrencies,
   type FundInvestments,
   type StockInvestments,
 } from "@/types/position"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { saveManualContributions } from "@/services/api"
 
 interface ManualContributionDraft extends ManualPeriodicContribution {
@@ -119,6 +128,10 @@ interface TargetSuggestion {
   value: string
   label: string
   secondary?: string
+  ticker?: string
+  equityType?: string
+  issuer?: string | null
+  iconUrls?: string[] | null
 }
 
 const isValidIsin = (value: string) => {
@@ -149,6 +162,96 @@ const monthlyMultiplier = (f: ContributionFrequency) => {
     default:
       return 1
   }
+}
+
+function SuggestionIcon({
+  suggestion,
+  targetType,
+}: {
+  suggestion: TargetSuggestion
+  targetType: ContributionTargetType
+}) {
+  const [failedCount, setFailedCount] = useState(0)
+
+  const sources = useMemo(() => {
+    if (targetType === ContributionTargetType.STOCK_ETF) {
+      if (suggestion.equityType === EquityType.ETF) {
+        const issuerPath = getIssuerIconPath(suggestion.issuer ?? null)
+        return issuerPath ? [`/${issuerPath}`] : []
+      }
+      return [
+        suggestion.ticker?.trim()
+          ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(suggestion.ticker.trim())}.png`
+          : null,
+      ].filter((v): v is string => Boolean(v))
+    }
+    if (targetType === ContributionTargetType.FUND) {
+      const issuerPath = getIssuerIconPath(suggestion.issuer ?? null)
+      return issuerPath ? [`/${issuerPath}`] : []
+    }
+    if (targetType === ContributionTargetType.CRYPTO) {
+      return (suggestion.iconUrls ?? []).filter((v): v is string => Boolean(v))
+    }
+    return []
+  }, [suggestion, targetType])
+
+  const currentSrc = sources[failedCount]
+
+  if (targetType === ContributionTargetType.STOCK_ETF) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <ChartCandlestick className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (targetType === ContributionTargetType.FUND) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <BarChart3 className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (targetType === ContributionTargetType.CRYPTO) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <Bitcoin className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  return null
 }
 
 export default function AutoContributionsPage() {
@@ -382,6 +485,32 @@ export default function AutoContributionsPage() {
   const modalInitialSnapshotRef = useRef<ManualContributionFormState | null>(
     null,
   )
+  const [subtypeDropdownOpen, setSubtypeDropdownOpen] = useState(false)
+  const subtypeDropdownRef = useRef<HTMLDivElement>(null)
+  const [suggestionPopoverOpen, setSuggestionPopoverOpen] = useState(false)
+
+  const selectedModalEntityName = useMemo(() => {
+    if (!modalForm?.entity_id) return ""
+    return financialEntities.find(e => e.id === modalForm.entity_id)?.name || ""
+  }, [modalForm?.entity_id, financialEntities])
+
+  const currencySymbol = useMemo(
+    () => getCurrencySymbol(modalForm?.currency || defaultCurrency),
+    [modalForm?.currency, defaultCurrency],
+  )
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        subtypeDropdownRef.current &&
+        !subtypeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setSubtypeDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (!hasLocalChanges) {
@@ -712,6 +841,7 @@ export default function AutoContributionsPage() {
                 value,
                 label: value,
                 secondary: fund.name,
+                issuer: fund.issuer,
               })
             }
           })
@@ -735,6 +865,9 @@ export default function AutoContributionsPage() {
                 value,
                 label: value,
                 secondary,
+                ticker: stock.ticker?.toUpperCase(),
+                equityType: stock.type,
+                issuer: stock.issuer,
               })
             }
           })
@@ -780,6 +913,7 @@ export default function AutoContributionsPage() {
                   value,
                   label: value,
                   secondary: asset.name || undefined,
+                  iconUrls: asset.crypto_asset.icon_urls,
                 })
               }
             })
@@ -1668,56 +1802,92 @@ export default function AutoContributionsPage() {
                                   ContributionTargetType.CRYPTO,
                               )
                             : targetSubtypeOptions
+                          const currentValue =
+                            modalForm.target_type ===
+                            ContributionTargetType.FUND_PORTFOLIO
+                              ? "FUND_PORTFOLIO"
+                              : modalForm.target_type ===
+                                  ContributionTargetType.CRYPTO
+                                ? "CRYPTO"
+                                : modalForm.target_subtype || ""
+                          const currentOption = filteredOptions.find(
+                            opt => opt.value === currentValue,
+                          )
                           return (
-                            <select
-                              id="targetSubtype"
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              value={
-                                modalForm.target_type ===
-                                ContributionTargetType.FUND_PORTFOLIO
-                                  ? "FUND_PORTFOLIO"
-                                  : modalForm.target_type ===
-                                      ContributionTargetType.CRYPTO
-                                    ? "CRYPTO"
-                                    : modalForm.target_subtype || ""
-                              }
-                              disabled={isCryptoOnly}
-                              onChange={event => {
-                                const value = event.target.value as
-                                  | ContributionTargetSubtype
-                                  | "FUND_PORTFOLIO"
-                                  | "CRYPTO"
-                                const option = filteredOptions.find(
-                                  opt => opt.value === value,
-                                )
-                                if (!option) {
-                                  return
-                                }
-                                setModalForm(prev =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        target_type: option.targetType,
-                                        target_subtype:
-                                          value === "FUND_PORTFOLIO" ||
-                                          value === "CRYPTO"
-                                            ? ""
-                                            : value,
-                                      }
-                                    : prev,
-                                )
-                                clearFormError("target_type")
-                              }}
-                            >
-                              <option value="" disabled>
-                                {t.common.selectOptions}
-                              </option>
-                              {filteredOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="relative" ref={subtypeDropdownRef}>
+                              <div
+                                className={cn(
+                                  "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
+                                  "focus-within:ring-2 focus-within:ring-ring",
+                                  isCryptoOnly &&
+                                    "cursor-not-allowed opacity-50",
+                                  formErrors.target_type && "border-red-500",
+                                )}
+                                onClick={() => {
+                                  if (!isCryptoOnly)
+                                    setSubtypeDropdownOpen(prev => !prev)
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  {currentOption &&
+                                    getIconForProductType(
+                                      currentOption.targetType as unknown as ProductType,
+                                      "h-4 w-4",
+                                    )}
+                                  {currentOption?.label ||
+                                    t.common.selectOptions}
+                                </span>
+                                <ChevronDown
+                                  className={cn(
+                                    "h-4 w-4 shrink-0 transition-transform",
+                                    subtypeDropdownOpen && "rotate-180",
+                                  )}
+                                />
+                              </div>
+                              {subtypeDropdownOpen && !isCryptoOnly && (
+                                <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                                  {filteredOptions.map(option => (
+                                    <div
+                                      key={option.value}
+                                      className={cn(
+                                        "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                        currentValue === option.value &&
+                                          "bg-accent text-accent-foreground",
+                                      )}
+                                      onClick={() => {
+                                        setModalForm(prev =>
+                                          prev
+                                            ? {
+                                                ...prev,
+                                                target_type: option.targetType,
+                                                target_subtype:
+                                                  option.value ===
+                                                    "FUND_PORTFOLIO" ||
+                                                  option.value === "CRYPTO"
+                                                    ? ""
+                                                    : option.value,
+                                              }
+                                            : prev,
+                                        )
+                                        clearFormError("target_type")
+                                        setSubtypeDropdownOpen(false)
+                                      }}
+                                    >
+                                      <span className="flex items-center gap-2">
+                                        {getIconForProductType(
+                                          option.targetType as unknown as ProductType,
+                                          "h-4 w-4",
+                                        )}
+                                        {option.label}
+                                      </span>
+                                      {currentValue === option.value && (
+                                        <Check className="h-4 w-4" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )
                         })()}
                         {formErrors.target_type && (
@@ -1727,7 +1897,109 @@ export default function AutoContributionsPage() {
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="target">{t.management.target}</Label>
+                        <div className="flex items-center justify-between gap-2 min-h-[20px]">
+                          <Label htmlFor="target">{t.management.target}</Label>
+                          {modalSuggestions.length > 0 && (
+                            <Popover
+                              open={suggestionPopoverOpen}
+                              onOpenChange={setSuggestionPopoverOpen}
+                            >
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-0"
+                                >
+                                  <ListFilter className="h-3 w-3 shrink-0" />
+                                  <span className="hidden sm:inline truncate">
+                                    {
+                                      t.management.manualContributions
+                                        .suggestions
+                                    }
+                                    {selectedModalEntityName
+                                      ? ` · ${selectedModalEntityName}`
+                                      : ""}
+                                  </span>
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-80 p-0">
+                                <div className="max-h-72 overflow-y-auto py-1">
+                                  {modalSuggestions.map(suggestion => {
+                                    const isIsin =
+                                      modalForm.target_type ===
+                                        ContributionTargetType.FUND ||
+                                      modalForm.target_type ===
+                                        ContributionTargetType.STOCK_ETF
+                                    return (
+                                      <button
+                                        key={suggestion.value}
+                                        type="button"
+                                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                        onClick={() => {
+                                          setModalForm(prev =>
+                                            prev
+                                              ? {
+                                                  ...prev,
+                                                  target: suggestion.value,
+                                                  target_name:
+                                                    prev.target_name.trim()
+                                                      .length > 0
+                                                      ? prev.target_name
+                                                      : (suggestion.secondary ??
+                                                        suggestion.value),
+                                                  name:
+                                                    prev.name.trim().length > 0
+                                                      ? prev.name
+                                                      : (suggestion.secondary ??
+                                                        (prev.target_name.trim()
+                                                          .length > 0
+                                                          ? prev.target_name
+                                                          : suggestion.value)),
+                                                }
+                                              : prev,
+                                          )
+                                          clearFormError("target")
+                                          clearFormError("name")
+                                          setSuggestionPopoverOpen(false)
+                                        }}
+                                      >
+                                        <SuggestionIcon
+                                          suggestion={suggestion}
+                                          targetType={modalForm.target_type}
+                                        />
+                                        <div className="flex flex-col gap-0.5 overflow-hidden">
+                                          {suggestion.secondary ? (
+                                            <>
+                                              <span className="truncate font-medium text-foreground">
+                                                {suggestion.secondary}
+                                              </span>
+                                              <span
+                                                className={cn(
+                                                  "truncate text-xs text-muted-foreground",
+                                                  isIsin && "font-mono",
+                                                )}
+                                              >
+                                                {suggestion.value}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span
+                                              className={cn(
+                                                "truncate font-medium text-foreground",
+                                                isIsin && "font-mono",
+                                              )}
+                                            >
+                                              {suggestion.value}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
                         <Input
                           id="target"
                           value={modalForm.target}
@@ -1822,23 +2094,32 @@ export default function AutoContributionsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="amount">{t.management.amount}</Label>
-                        <Input
-                          id="amount"
-                          type="text"
-                          inputMode="decimal"
-                          value={modalForm.amount}
-                          onChange={event => {
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    amount: event.target.value,
-                                  }
-                                : prev,
-                            )
-                            clearFormError("amount")
-                          }}
-                        />
+                        <div className="relative">
+                          <Input
+                            id="amount"
+                            type="text"
+                            inputMode="decimal"
+                            value={modalForm.amount}
+                            onChange={event => {
+                              setModalForm(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      amount: event.target.value,
+                                    }
+                                  : prev,
+                              )
+                              clearFormError("amount")
+                            }}
+                            className={cn(
+                              "pr-10",
+                              formErrors.amount && "border-red-500",
+                            )}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                            {currencySymbol}
+                          </span>
+                        </div>
                         {formErrors.amount && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                             {formErrors.amount}
@@ -1913,64 +2194,6 @@ export default function AutoContributionsPage() {
                           }}
                         />
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        {t.management.manualContributions.suggestions}
-                      </div>
-                      {modalSuggestions.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {modalSuggestions.map(suggestion => (
-                            <Button
-                              key={suggestion.value}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setModalForm(prev =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        target: suggestion.value,
-                                        target_name:
-                                          prev.target_name.trim().length > 0
-                                            ? prev.target_name
-                                            : (suggestion.secondary ??
-                                              suggestion.value),
-                                        name:
-                                          prev.name.trim().length > 0
-                                            ? prev.name
-                                            : (suggestion.secondary ??
-                                              (prev.target_name.trim().length >
-                                              0
-                                                ? prev.target_name
-                                                : suggestion.value)),
-                                      }
-                                    : prev,
-                                )
-                                clearFormError("target")
-                                clearFormError("name")
-                              }}
-                            >
-                              <span className="text-xs">
-                                <span className="font-medium">
-                                  {suggestion.label}
-                                </span>
-                                {suggestion.secondary && (
-                                  <span className="block text-[0.7rem] text-muted-foreground">
-                                    {suggestion.secondary}
-                                  </span>
-                                )}
-                              </span>
-                            </Button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          {t.management.manualContributions.noSuggestions}
-                        </p>
-                      )}
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">
