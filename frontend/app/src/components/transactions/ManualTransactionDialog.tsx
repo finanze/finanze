@@ -1448,12 +1448,25 @@ export function ManualTransactionDialog({
                       </Label>
                       <div className="relative" ref={txTypeDropdownRef}>
                         <div
+                          id="transaction-type"
+                          role="combobox"
+                          tabIndex={0}
+                          aria-haspopup="listbox"
+                          aria-expanded={txTypeDropdownOpen}
                           className={cn(
                             "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
                             "focus-within:ring-2 focus-within:ring-ring",
                             errors.type && "border-red-500",
                           )}
                           onClick={() => setTxTypeDropdownOpen(prev => !prev)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              setTxTypeDropdownOpen(prev => !prev)
+                            } else if (e.key === "Escape") {
+                              setTxTypeDropdownOpen(false)
+                            }
+                          }}
                         >
                           <span className="flex items-center gap-2">
                             {getIconForTxType(formState.type, "h-4 w-4")}
@@ -1469,10 +1482,15 @@ export function ManualTransactionDialog({
                           />
                         </div>
                         {txTypeDropdownOpen && (
-                          <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                          <div
+                            role="listbox"
+                            className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                          >
                             {Object.values(TxType).map(type => (
                               <div
                                 key={type}
+                                role="option"
+                                aria-selected={formState.type === type}
                                 className={cn(
                                   "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
                                   formState.type === type &&
@@ -1509,6 +1527,11 @@ export function ManualTransactionDialog({
                       </Label>
                       <div className="relative" ref={productTypeDropdownRef}>
                         <div
+                          id="transaction-product"
+                          role="combobox"
+                          tabIndex={0}
+                          aria-haspopup="listbox"
+                          aria-expanded={productTypeDropdownOpen}
                           className={cn(
                             "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
                             "focus-within:ring-2 focus-within:ring-ring",
@@ -1518,6 +1541,15 @@ export function ManualTransactionDialog({
                           onClick={() => {
                             if (!isSubmitting)
                               setProductTypeDropdownOpen(prev => !prev)
+                          }}
+                          onKeyDown={e => {
+                            if (isSubmitting) return
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              setProductTypeDropdownOpen(prev => !prev)
+                            } else if (e.key === "Escape") {
+                              setProductTypeDropdownOpen(false)
+                            }
                           }}
                         >
                           <span className="flex items-center gap-2">
@@ -1536,10 +1568,15 @@ export function ManualTransactionDialog({
                           />
                         </div>
                         {productTypeDropdownOpen && !isSubmitting && (
-                          <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                          <div
+                            role="listbox"
+                            className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                          >
                             {SUPPORTED_PRODUCT_TYPES.map(type => (
                               <div
                                 key={type}
+                                role="option"
+                                aria-selected={formState.productType === type}
                                 className={cn(
                                   "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
                                   formState.productType === type &&

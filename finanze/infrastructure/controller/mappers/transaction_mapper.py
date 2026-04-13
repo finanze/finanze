@@ -34,9 +34,11 @@ def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> Base
         fees=Dezimal(body.get("fees", 0)),
         retentions=Dezimal(body.get("retentions", 0)),
         interest_rate=Dezimal(body["interest_rate"])
-        if body.get("interest_rate")
+        if body.get("interest_rate") is not None
         else None,
-        avg_balance=Dezimal(body["avg_balance"]) if body.get("avg_balance") else None,
+        avg_balance=Dezimal(body["avg_balance"])
+        if body.get("avg_balance") is not None
+        else None,
         net_amount=None,
         **base_kwargs,
     )
@@ -60,7 +62,9 @@ def _build_stock(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx
         price=Dezimal(body["price"]),
         net_amount=None,
         fees=Dezimal(body["fees"]),
-        retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
+        retentions=Dezimal(body["retentions"])
+        if body.get("retentions") is not None
+        else None,
         order_date=order_date,
         linked_tx=body.get("linked_tx"),
         equity_type=body.get("equity_type"),
@@ -79,7 +83,9 @@ def _build_fund(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
         price=Dezimal(body["price"]),
         net_amount=None,
         fees=Dezimal(body["fees"]),
-        retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
+        retentions=Dezimal(body["retentions"])
+        if body.get("retentions") is not None
+        else None,
         order_date=order_date,
         fund_type=body.get("fund_type"),
         **base_kwargs,
@@ -129,7 +135,9 @@ def _build_crypto(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseT
         price=Dezimal(body["price"]),
         fees=Dezimal(body.get("fees", 0)),
         net_amount=None,
-        retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
+        retentions=Dezimal(body["retentions"])
+        if body.get("retentions") is not None
+        else None,
         order_date=order_date,
         contract_address=body.get("contract_address"),
         **base_kwargs,
