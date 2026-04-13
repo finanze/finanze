@@ -112,6 +112,43 @@ function isMostlyWhiteLogo(image: HTMLImageElement): boolean {
   return whitePixels / opaquePixels >= 0.9
 }
 
+function isMostlyBlackLogo(image: HTMLImageElement): boolean {
+  const sampleSize = 32
+  const canvas = document.createElement("canvas")
+  canvas.width = sampleSize
+  canvas.height = sampleSize
+
+  const context = canvas.getContext("2d", { willReadFrequently: true })
+  if (!context) return false
+
+  context.clearRect(0, 0, sampleSize, sampleSize)
+  context.drawImage(image, 0, 0, sampleSize, sampleSize)
+
+  const { data } = context.getImageData(0, 0, sampleSize, sampleSize)
+  let opaquePixels = 0
+  let blackPixels = 0
+
+  for (let index = 0; index < data.length; index += 4) {
+    const alpha = data[index + 3]
+    if (alpha < 32) continue
+
+    opaquePixels += 1
+
+    const red = data[index]
+    const green = data[index + 1]
+    const blue = data[index + 2]
+    const maxChannel = Math.max(red, green, blue)
+
+    if (maxChannel <= 20) {
+      blackPixels += 1
+    }
+  }
+
+  if (opaquePixels === 0) return false
+
+  return blackPixels / opaquePixels >= 0.9
+}
+
 function StockPositionLogo({
   position,
   className: externalClassName,
@@ -185,22 +222,21 @@ function StockPositionLogo({
   )
 
   useEffect(() => {
-    if (isDarkMode) {
-      setShouldInvert(false)
-      return
-    }
-
     if (!isStock) {
+      setShouldInvert(false)
       return
     }
 
     const image = imageRef.current
     if (!image || !image.complete || image.naturalWidth === 0) {
+      setShouldInvert(false)
       return
     }
 
     try {
-      setShouldInvert(isMostlyWhiteLogo(image))
+      setShouldInvert(
+        isDarkMode ? isMostlyBlackLogo(image) : isMostlyWhiteLogo(image),
+      )
     } catch {
       setShouldInvert(false)
     }
@@ -227,9 +263,11 @@ function StockPositionLogo({
             }
             setLoaded(true)
             imageRef.current = img
-            if (isStock && !isDarkMode) {
+            if (isStock) {
               try {
-                setShouldInvert(isMostlyWhiteLogo(img))
+                setShouldInvert(
+                  isDarkMode ? isMostlyBlackLogo(img) : isMostlyWhiteLogo(img),
+                )
               } catch {
                 setShouldInvert(false)
               }
@@ -256,9 +294,7 @@ function StockPositionLogo({
       className={cn(
         sizeClasses,
         "object-contain shrink-0 self-center",
-        isStock
-          ? cn("rounded-none", !isDarkMode && shouldInvert && "invert")
-          : "rounded-md",
+        isStock ? cn("rounded-sm", shouldInvert && "invert") : "rounded-md",
         externalClassName,
       )}
       onError={() => {
