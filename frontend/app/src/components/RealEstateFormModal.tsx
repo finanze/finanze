@@ -30,6 +30,7 @@ import {
   Receipt,
   Zap,
   Home,
+  Landmark,
   Calculator,
   Percent,
   Info,
@@ -45,7 +46,7 @@ import {
 } from "@/components/ui/tooltip"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import RealEstateStats from "@/components/real-estate/RealEstateStats"
-import { getCurrencySymbol } from "@/lib/utils"
+import { getCurrencySymbol, cn } from "@/lib/utils"
 import {
   RealEstate,
   CreateRealEstateRequest,
@@ -2644,25 +2645,49 @@ export function RealEstateFormModal({
                                   <Label>
                                     {t.realEstate.loans.loanTypeLabel}
                                   </Label>
-                                  <select
-                                    value={loanPayload.type || "MORTGAGE"}
-                                    onChange={e =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "type",
-                                        e.target.value,
+                                  <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                                    {[
+                                      {
+                                        value: "MORTGAGE",
+                                        label: t.realEstate.loans.mortgage,
+                                        icon: <Home className="h-3 w-3" />,
+                                      },
+                                      {
+                                        value: "STANDARD",
+                                        label: t.realEstate.loans.standard,
+                                        icon: <Landmark className="h-3 w-3" />,
+                                      },
+                                    ].map(option => {
+                                      const isActive =
+                                        (loanPayload.type || "MORTGAGE") ===
+                                        option.value
+                                      return (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          disabled={isLinked}
+                                          onClick={() =>
+                                            updateFlowPayload(
+                                              originalIndex,
+                                              "type",
+                                              option.value,
+                                            )
+                                          }
+                                          className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all inline-flex items-center gap-1.5",
+                                            isActive
+                                              ? "bg-foreground text-background border-foreground"
+                                              : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                                            isLinked &&
+                                              "opacity-60 cursor-not-allowed",
+                                          )}
+                                        >
+                                          {option.icon}
+                                          {option.label}
+                                        </button>
                                       )
-                                    }
-                                    disabled={isLinked}
-                                    className={`w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 ${isLinked ? "opacity-60" : ""}`}
-                                  >
-                                    <option value="STANDARD">
-                                      {t.realEstate.loans.standard}
-                                    </option>
-                                    <option value="MORTGAGE">
-                                      {t.realEstate.loans.mortgage}
-                                    </option>
-                                  </select>
+                                    })}
+                                  </div>
                                 </div>
                                 <div>
                                   <Label className="inline-flex items-center gap-1">
@@ -2890,31 +2915,56 @@ export function RealEstateFormModal({
                                   <Label>
                                     {t.realEstate.loans.interestTypeLabel}
                                   </Label>
-                                  <select
-                                    value={loanPayload.interest_type || "FIXED"}
-                                    onChange={e =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "interest_type",
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={isLinked}
-                                    className={`w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 ${isLinked ? "opacity-60" : ""}`}
-                                  >
-                                    <option value="FIXED">
-                                      {t.realEstate.loans.interestTypes.fixed}
-                                    </option>
-                                    <option value="VARIABLE">
+                                  <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                                    {[
                                       {
-                                        t.realEstate.loans.interestTypes
-                                          .variable
-                                      }
-                                    </option>
-                                    <option value="MIXED">
-                                      {t.realEstate.loans.interestTypes.mixed}
-                                    </option>
-                                  </select>
+                                        value: "FIXED",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .fixed,
+                                      },
+                                      {
+                                        value: "VARIABLE",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .variable,
+                                      },
+                                      {
+                                        value: "MIXED",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .mixed,
+                                      },
+                                    ].map(option => {
+                                      const isActive =
+                                        (loanPayload.interest_type ||
+                                          "FIXED") === option.value
+                                      return (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          disabled={isLinked}
+                                          onClick={() =>
+                                            updateFlowPayload(
+                                              originalIndex,
+                                              "interest_type",
+                                              option.value,
+                                            )
+                                          }
+                                          className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                            isActive
+                                              ? "bg-foreground text-background border-foreground"
+                                              : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                                            isLinked &&
+                                              "opacity-60 cursor-not-allowed",
+                                          )}
+                                        >
+                                          {option.label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                                 <div>
                                   <Label>

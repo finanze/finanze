@@ -15,7 +15,7 @@ a = Analysis(
     ['finanze/__main__.py'],
     pathex=[],
     binaries=numpy_binaries,
-    datas=numpy_datas,
+    datas=numpy_datas + [('finanze/infrastructure/client/instrument/local_etf_client/etfs.pkl', 'infrastructure/client/instrument/local_etf_client/')],
     hiddenimports=numpy_submodules,
     hookspath=[],
     hooksconfig={},

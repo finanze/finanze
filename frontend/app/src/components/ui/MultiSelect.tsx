@@ -195,7 +195,6 @@ export function MultiSelect({
                       "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
                       value.includes(option.value) &&
                         "bg-accent text-accent-foreground",
-                      option.icon && "italic",
                     )}
                     onClick={() => toggleOption(option.value)}
                   >

@@ -137,8 +137,17 @@ export function PortfolioDonutChart({
     loadImages()
   }, [entities])
 
-  const currentDistribution =
-    distributionView === "by-asset" ? assetDistribution : entityDistribution
+  const currentDistribution = useMemo(() => {
+    const items =
+      distributionView === "by-asset" ? assetDistribution : entityDistribution
+    return [...items].sort((a, b) => {
+      const aNeg = a.value < 0 ? 0 : 1
+      const bNeg = b.value < 0 ? 0 : 1
+      if (aNeg !== bNeg) return aNeg - bNeg
+      if (aNeg === 0) return a.value - b.value
+      return b.value - a.value
+    })
+  }, [distributionView, assetDistribution, entityDistribution])
 
   const visibleItems = useMemo(() => {
     if (legendExpanded || currentDistribution.length <= VISIBLE_ITEMS) {
@@ -329,7 +338,12 @@ export function PortfolioDonutChart({
             {label}
           </span>
         </div>
-        <span className="text-xs font-semibold">
+        <span
+          className={cn(
+            "text-xs font-semibold",
+            item.value < 0 && "text-red-400",
+          )}
+        >
           {formatCompactCurrency(item.value, locale, currency)}
         </span>
       </button>

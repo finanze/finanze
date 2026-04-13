@@ -276,6 +276,14 @@
       "INSURED": "Insured",
       "NON_INSURED": "Non-insured"
     },
+    "businessTypes": {
+      "EQUITY": "Equity",
+      "LENDING": "Lending",
+      "RENT": "Rent",
+      "SOLD": "Sale",
+      "RENT_AND_SOLD": "Rent & Sale",
+      "DONATION": "Donation"
+    },
     "historicSection": {
       "heading": "Past investments",
       "showToggle": "Show completed",
@@ -337,6 +345,8 @@
     },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
+    "credentialsSecurityTitle": "Your data is safe",
+    "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",
@@ -956,7 +966,8 @@
     "pendingPaymentsLegendLabel": "Projected pending payments",
     "pendingPaymentsLegend": "Projected pending cash payments of {amount} (future outflows not counted in total assets yet)",
     "negativeCashWarningTitle": "Unfeasible projection",
-    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows."
+    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows.",
+    "includeRealEstateTaxes": "Include real estate taxes"
   },
   "export": {
     "title": "Export & Import",
@@ -1341,6 +1352,7 @@
     "currency": "Currency",
     "symbol": "Symbol",
     "currencyAmount": "Currency Amount",
+    "contractAddress": "Contract Address",
     "addManualTransaction": "Add",
     "previous": "Previous",
     "next": "Next",
@@ -1362,7 +1374,8 @@
         "stocks": "Stocks & ETFs",
         "funds": "Funds",
         "portfolios": "Fund portfolios",
-        "accounts": "Accounts"
+        "accounts": "Accounts",
+        "crypto": "Crypto assets"
       },
       "netAmountLabel": "Net amount",
       "netAmountFormulaIncoming": "amount - fees - retentions",
@@ -1969,7 +1982,7 @@
         "fields": {
           "type": "Account type",
           "total": "Balance",
-          "interest": "Interest rate (%)",
+          "interest": "Interest rate",
           "retained": "Retained amount",
           "pendingTransfers": "Pending transfers",
           "iban": "IBAN"
@@ -2030,7 +2043,7 @@
         "fields": {
           "type": "Loan type",
           "loanAmount": "Original amount",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "currentInstallment": "Current installment",
           "principalOutstanding": "Principal outstanding",
           "principalPaid": "Principal paid",
@@ -2041,7 +2054,7 @@
           "creation": "Start date",
           "maturity": "Maturity",
           "installmentFrequency": "Installment frequency",
-          "fixedInterestRate": "Fixed interest rate (%)",
+          "fixedInterestRate": "Fixed interest rate",
           "trackLoan": "Update loan automatically",
           "trackLoanLabel": "Auto-update",
           "trackLoanInfo": "Automatically recalculates the installment, interests, and outstanding principal over time. Only for fixed interest loans."
@@ -2229,7 +2242,7 @@
         "fields": {
           "amount": "Amount",
           "expectedInterests": "Expected interests",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "creation": "Start date",
           "maturity": "Maturity"
         }
@@ -2250,9 +2263,9 @@
         },
         "fields": {
           "amount": "Amount",
-          "interestRate": "Interest rate (%)",
-          "lateInterestRate": "Late interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "lateInterestRate": "Late interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "type": "Type",
@@ -2276,9 +2289,9 @@
         "fields": {
           "amount": "Amount",
           "pendingAmount": "Pending amount",
-          "interestRate": "Interest rate (%)",
-          "extendedInterestRate": "Extended interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "extendedInterestRate": "Extended interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "extendedMaturity": "Extended maturity",
@@ -2442,7 +2455,7 @@
     "valuation": {
       "estimatedMarketValue": "Estimated market value",
       "valuations": "Valuations",
-      "addValuation": "Add valuation",
+      "addValuation": "Add",
       "date": "Date",
       "amount": "Value",
       "notes": "Notes",
@@ -2481,7 +2494,7 @@
       "loanTypeLabel": "Loan type",
       "totalLoanAmountLabel": "Total loan amount",
       "interestTypeLabel": "Interest type",
-      "interestRateLabel": "Interest rate (%)",
+      "interestRateLabel": "Interest rate",
       "noAssociatedLoans": "No associated loans",
       "paymentDate": "Payment date",
       "principalOutstanding": "Principal outstanding",

@@ -38,7 +38,7 @@ import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
   Search,
-  RotateCcw,
+  Eraser,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -211,7 +211,11 @@ export default function TransactionsPage() {
   const manualEntityOptions = useMemo(() => {
     if (!entities) return []
     return entities
-      .filter(entity => entity.type === EntityType.FINANCIAL_INSTITUTION)
+      .filter(
+        entity =>
+          entity.type === EntityType.FINANCIAL_INSTITUTION ||
+          entity.type === EntityType.CRYPTO_EXCHANGE,
+      )
       .sort((a, b) =>
         a.name.localeCompare(b.name, locale, { sensitivity: "base" }),
       )
@@ -668,7 +672,7 @@ export default function TransactionsPage() {
             {stockTx.isin && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-                {stockTx.isin}
+                <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
             {stockTx.shares && (
@@ -784,7 +788,7 @@ export default function TransactionsPage() {
             {commonFields}
             <div className={detailRowClass}>
               <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-              {fundTx.isin}
+              <span className="font-mono">{fundTx.isin}</span>
             </div>
             <div className={detailRowClass}>
               <span className={detailLabelClass}>{t.transactions.shares}:</span>{" "}
@@ -836,7 +840,7 @@ export default function TransactionsPage() {
             {fpTx.iban && (
               <div className={`${detailRowClass} break-all`}>
                 <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
-                {fpTx.iban}
+                <span className="font-mono">{fpTx.iban}</span>
               </div>
             )}
             {fpTx.portfolio_name && (
@@ -1324,7 +1328,7 @@ export default function TransactionsPage() {
                 size="icon"
                 title={t.transactions.clear}
               >
-                <RotateCcw className="h-4 w-4" />
+                <Eraser className="h-4 w-4" />
               </Button>
             </div>
           </div>

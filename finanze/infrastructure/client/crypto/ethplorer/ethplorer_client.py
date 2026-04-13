@@ -33,7 +33,9 @@ class EthplorerClient(ConnectableIntegration):
 
     @cached(
         ttl=TTL,
-        key_builder=lambda f, self, base_url, address, *args, **kwargs: address,
+        key_builder=lambda f, self, base_url, address, *args, **kwargs: (
+            base_url + address
+        ),
     )
     async def fetch_address_info(
         self,

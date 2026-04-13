@@ -3,9 +3,10 @@ from datetime import date, datetime
 from hashlib import sha1
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
@@ -190,11 +191,25 @@ class WecityFetcher(FinancialEntityFetcher):
         if start_date_field:
             start_date = datetime.strptime(start_date_field, DATE_FORMAT).date()
 
-        maturity = datetime.strptime(
-            ordinary_period.get("fecha_vencimiento")
-            or ordinary_period.get("fecha_fin"),
-            DATE_FORMAT,
-        ).date()
+        raw_originary_period_end = ordinary_period.get(
+            "fecha_vencimiento"
+        ) or ordinary_period.get("fecha_fin")
+        raw_originary_months = ordinary_period.get("plazo")
+
+        if raw_originary_period_end:
+            maturity = datetime.strptime(
+                raw_originary_period_end,
+                DATE_FORMAT,
+            ).date()
+        elif raw_originary_months and start_date:
+            maturity = start_date + relativedelta(months=int(raw_originary_months))
+        else:
+            self._log.warning(
+                "We can't calculate the maturity date for investment %s %s",
+                inv_id,
+                name,
+            )
+            return None
 
         extended_maturity = None
         extended_period = periods.get("prorroga", {})

@@ -78,6 +78,7 @@ class FetchResult:
 
 
 FETCH_BAD_LOGIN_CODES = {
+    LoginResultCode.COOLDOWN: FetchResultCode.COOLDOWN,
     LoginResultCode.INVALID_CODE: FetchResultCode.INVALID_CODE,
     LoginResultCode.INVALID_CREDENTIALS: FetchResultCode.INVALID_CREDENTIALS,
     LoginResultCode.LOGIN_REQUIRED: FetchResultCode.LOGIN_REQUIRED,

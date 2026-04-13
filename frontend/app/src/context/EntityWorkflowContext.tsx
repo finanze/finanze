@@ -346,6 +346,40 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     [resetState, selectedEntity, setView, showToast, t],
   )
 
+  const formatCooldownTime = useCallback((seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      return "0s"
+    }
+
+    const units = [
+      { label: "d", value: 86400 },
+      { label: "h", value: 3600 },
+      { label: "m", value: 60 },
+      { label: "s", value: 1 },
+    ]
+
+    let remaining = Math.floor(seconds)
+    const parts: string[] = []
+
+    for (const unit of units) {
+      if (remaining >= unit.value) {
+        const amount = Math.floor(remaining / unit.value)
+        parts.push(`${amount}${unit.label}`)
+        remaining -= amount * unit.value
+      }
+
+      if (parts.length === 2) {
+        break
+      }
+    }
+
+    if (parts.length === 0) {
+      return `${Math.max(Math.floor(seconds), 0)}s`
+    }
+
+    return parts.join(" ")
+  }, [])
+
   const login = useCallback(
     async (
       credentials: Record<string, string>,
@@ -405,6 +439,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   ),
                   "success",
                 )
+                resetState()
+                setView("entities")
+              } else if (confirmResponse.code === "COOLDOWN") {
+                const waitSeconds = confirmResponse.details?.wait ?? null
+                const cooldownMessage = waitSeconds
+                  ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                      "{time}",
+                      formatCooldownTime(waitSeconds),
+                    ).replace("{entity}", selectedEntity.name)
+                  : t.errors.COOLDOWN.replace("{entity}", selectedEntity.name)
+                showToast(cooldownMessage, "warning")
                 resetState()
                 setView("entities")
               } else {
@@ -486,6 +531,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             resetState()
             setView("entities")
           }
+        } else if (response.code === "COOLDOWN") {
+          const waitSeconds = response.details?.wait ?? null
+          const cooldownMessage = waitSeconds
+            ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                "{time}",
+                formatCooldownTime(waitSeconds),
+              ).replace("{entity}", selectedEntity.name)
+            : t.errors.COOLDOWN.replace("{entity}", selectedEntity.name)
+          showToast(cooldownMessage, "warning")
+          resetState()
+          setView("entities")
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
@@ -525,6 +581,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      formatCooldownTime,
       processId,
       resetState,
       selectedEntity,
@@ -535,40 +592,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       updateEntityStatus,
     ],
   )
-
-  const formatCooldownTime = useCallback((seconds: number): string => {
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      return "0s"
-    }
-
-    const units = [
-      { label: "d", value: 86400 },
-      { label: "h", value: 3600 },
-      { label: "m", value: 60 },
-      { label: "s", value: 1 },
-    ]
-
-    let remaining = Math.floor(seconds)
-    const parts: string[] = []
-
-    for (const unit of units) {
-      if (remaining >= unit.value) {
-        const amount = Math.floor(remaining / unit.value)
-        parts.push(`${amount}${unit.label}`)
-        remaining -= amount * unit.value
-      }
-
-      if (parts.length === 2) {
-        break
-      }
-    }
-
-    if (parts.length === 0) {
-      return `${Math.max(Math.floor(seconds), 0)}s`
-    }
-
-    return parts.join(" ")
-  }, [])
 
   const scrape = useCallback(
     async (
@@ -997,6 +1020,16 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setProcessId(response.processId || null)
               setPinRequired(true)
               setPinLength(selectedEntity.pin?.positions || 4)
+            } else if (response.code === "COOLDOWN") {
+              const waitSeconds = response.details?.wait ?? null
+              const cooldownMessage = waitSeconds
+                ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                    "{time}",
+                    formatCooldownTime(waitSeconds),
+                  ).replace("{entity}", selectedEntity.name)
+                : t.errors.COOLDOWN.replace("{entity}", selectedEntity.name)
+              showToast(cooldownMessage, "warning")
+              resetState()
             } else {
               showToast(
                 t.common.loginErrorEntity.replace(
@@ -1030,6 +1063,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     },
     [
       currentAction,
+      formatCooldownTime,
       storedCredentials,
       selectedEntity,
       selectedFeatures,
@@ -1082,6 +1116,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           } finally {
             setView("entities")
           }
+        } else if (loginResponse.code === LoginResultCode.COOLDOWN) {
+          const waitSeconds = loginResponse.details?.wait ?? null
+          const cooldownMessage = waitSeconds
+            ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                "{time}",
+                formatCooldownTime(waitSeconds),
+              ).replace("{entity}", selectedEntity.name)
+            : t.errors.COOLDOWN.replace("{entity}", selectedEntity.name)
+          showToast(cooldownMessage, "warning")
+          resetState()
+          setView("entities")
         } else if (loginResponse.code === LoginResultCode.CODE_REQUESTED) {
           setProcessId(loginResponse.processId || null)
           setCurrentAction("login")
@@ -1126,6 +1171,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 } finally {
                   setView("entities")
                 }
+              } else if (confirmResponse.code === LoginResultCode.COOLDOWN) {
+                const waitSeconds = confirmResponse.details?.wait ?? null
+                const cooldownMessage = waitSeconds
+                  ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                      "{time}",
+                      formatCooldownTime(waitSeconds),
+                    ).replace("{entity}", selectedEntity.name)
+                  : t.errors.COOLDOWN.replace("{entity}", selectedEntity.name)
+                showToast(cooldownMessage, "warning")
+                resetState()
+                setView("entities")
               } else {
                 showToast(
                   t.errors[confirmResponse.code as keyof typeof t.errors] ||
@@ -1177,6 +1233,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      formatCooldownTime,
       resetState,
       scrape,
       selectedEntity,

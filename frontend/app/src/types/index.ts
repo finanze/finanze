@@ -372,6 +372,9 @@ export enum LoginResultCode {
   CREATED = "CREATED",
   RESUMED = "RESUMED",
 
+  // Cooldown
+  COOLDOWN = "COOLDOWN",
+
   // Flow deferral
   CODE_REQUESTED = "CODE_REQUESTED",
   MANUAL_LOGIN = "MANUAL_LOGIN",
@@ -1042,6 +1045,7 @@ export interface ForecastRequest {
   avg_annual_market_increase?: number | null
   avg_annual_crypto_increase?: number | null
   avg_annual_commodity_increase?: number | null
+  include_real_estate_taxes?: boolean
 }
 
 export interface CashDelta {

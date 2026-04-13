@@ -309,7 +309,7 @@ class ForecastImpl(Forecast):
         return amount
 
     async def _add_real_estate_cash_delta(
-        self, target: date, cash_delta: Dict[str, Dezimal]
+        self, target: date, cash_delta: Dict[str, Dezimal], include_taxes: bool = True
     ) -> None:
         today = date.today()
         months_delta = relativedelta(target, today)
@@ -481,7 +481,11 @@ class ForecastImpl(Forecast):
             # Clamp marginal_rate to non-negative to avoid negative taxes
             if marginal_rate < Dezimal(0):
                 marginal_rate = Dezimal(0)
-            taxes_monthly = taxable_monthly_for_taxes * marginal_rate
+            taxes_monthly = (
+                taxable_monthly_for_taxes * marginal_rate
+                if include_taxes
+                else Dezimal(0)
+            )
             # Final safety: taxes cannot be negative
             if taxes_monthly < Dezimal(0):
                 taxes_monthly = Dezimal(0)
@@ -762,7 +766,12 @@ class ForecastImpl(Forecast):
         recf: RealEstateCFInvestments = gp.products[ProductType.REAL_ESTATE_CF]
         remaining: list = []
         for r in recf.entries:
-            if r.maturity <= target:
+            effective_maturity = (
+                r.extended_maturity
+                if r.extended_maturity and r.extended_maturity > r.maturity
+                else r.maturity
+            )
+            if effective_maturity <= target:
                 rate = (
                     r.profitability if r.profitability is not None else r.interest_rate
                 )
@@ -1135,8 +1144,10 @@ class ForecastImpl(Forecast):
 
         # Cash delta (exclude linked periodic flows)
         cash_delta: Dict[str, Dezimal] = await self._build_cash_delta_from_flows(target)
-        # Add real estate net cash (including taxes)
-        await self._add_real_estate_cash_delta(target, cash_delta)
+        # Add real estate net cash (optionally including taxes)
+        await self._add_real_estate_cash_delta(
+            target, cash_delta, request.include_real_estate_taxes
+        )
 
         # Contributions + revaluation path
         disabled_entities = [

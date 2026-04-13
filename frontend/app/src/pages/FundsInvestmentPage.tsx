@@ -928,7 +928,13 @@ function FundsInvestmentPageContent({
                 const rawPrice = position.price
                 const formattedAvgBuyPrice =
                   rawPrice !== undefined && rawPrice !== null
-                    ? formatCurrency(rawPrice, locale, position.currency)
+                    ? formatCurrency(
+                        rawPrice,
+                        locale,
+                        position.currency,
+                        undefined,
+                        { narrowSymbol: true },
+                      )
                     : null
 
                 const marketPricePerShare =
@@ -945,6 +951,8 @@ function FundsInvestmentPageContent({
                         marketPricePerShare,
                         locale,
                         position.currency,
+                        undefined,
+                        { narrowSymbol: true },
                       )
                     : null
 

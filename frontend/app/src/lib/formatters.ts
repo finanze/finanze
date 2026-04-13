@@ -6,6 +6,7 @@ export const formatCurrency = (
   locale: string,
   defaultCurrency: string,
   currencyCode?: string,
+  options?: { narrowSymbol?: boolean },
 ): string => {
   const displayCurrency = (currencyCode || defaultCurrency)?.toUpperCase()
   const formatCurrencyValue = (currency: string) =>
@@ -13,6 +14,7 @@ export const formatCurrency = (
       style: "currency",
       currency,
       minimumFractionDigits: 2,
+      ...(options?.narrowSymbol && { currencyDisplay: "narrowSymbol" }),
     }).format(value)
 
   try {

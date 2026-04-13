@@ -16,6 +16,7 @@ import { isNativeMobile } from "@/lib/platform"
 import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
+import { Switch } from "@/components/ui/Switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -94,6 +95,7 @@ export default function DashboardPage() {
     useState<string>("")
   const [forecastAnnualCommodityIncrease, setForecastAnnualCommodityIncrease] =
     useState<string>("")
+  const [forecastIncludeRETaxes, setForecastIncludeRETaxes] = useState(true)
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(
     null,
@@ -143,7 +145,7 @@ export default function DashboardPage() {
             const parsed = JSON.parse(raw)
             return {
               ...parsed,
-              includeLoans: parsed.includeLoans !== false,
+              includeLoans: parsed.includeLoans === true,
               compactNumbers: parsed.compactNumbers !== false,
             }
           }
@@ -153,7 +155,7 @@ export default function DashboardPage() {
       }
       return {
         includePending: true,
-        includeLoans: true,
+        includeLoans: false,
         includeCardExpenses: false,
         includeRealEstate: true,
         includeResidences: false,
@@ -587,40 +589,15 @@ export default function DashboardPage() {
     ])
 
   // Base ongoing projects (unfiltered)
-  const ongoingProjectsBase = useMemo(
+  const ongoingProjects = useMemo(
     () =>
       getOngoingProjects(
-        positionsData,
+        effectivePositionsData,
         locale,
         settings.general.defaultCurrency,
       ),
-    [positionsData, locale, settings.general.defaultCurrency],
+    [effectivePositionsData, locale, settings.general.defaultCurrency],
   )
-  // When forecasting, only show projects whose maturity is after the forecast target date
-  const ongoingProjects = useMemo(() => {
-    if (!forecastMode || !forecastResult) return ongoingProjectsBase
-    try {
-      const target = new Date(forecastResult.target_date)
-      return ongoingProjectsBase.filter(p => {
-        const maturity = new Date(p.maturity)
-        const extended = p.extendedMaturity
-          ? new Date(p.extendedMaturity)
-          : null
-        const hasValidExtended = !!extended && !Number.isNaN(extended.getTime())
-        const hasValidMaturity = !Number.isNaN(maturity.getTime())
-        if (!hasValidMaturity && !hasValidExtended) return false
-
-        const effectiveMaturity =
-          hasValidExtended && (!hasValidMaturity || extended! > maturity)
-            ? extended!
-            : maturity
-
-        return effectiveMaturity >= target
-      })
-    } catch {
-      return ongoingProjectsBase
-    }
-  }, [forecastMode, forecastResult, ongoingProjectsBase])
   const stockAndFundPositions = useMemo(
     () =>
       getStockAndFundPositions(
@@ -1390,6 +1367,7 @@ export default function DashboardPage() {
                           setForecastAnnualIncrease("")
                           setForecastAnnualCryptoIncrease("")
                           setForecastAnnualCommodityIncrease("")
+                          setForecastIncludeRETaxes(true)
                         }}
                         className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
                         aria-label={t.forecast.close}
@@ -1477,63 +1455,87 @@ export default function DashboardPage() {
                         />
                       </div>
                     )}
-                    <div className="flex justify-end gap-2">
-                      {forecastMode && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setForecastResult(null)
-                            setForecastTargetDate("")
-                            setForecastAnnualIncrease("")
-                            setForecastAnnualCryptoIncrease("")
-                            setForecastAnnualCommodityIncrease("")
-                          }}
-                          className="text-xs"
-                        >
-                          {t.forecast.reset}
-                        </Button>
+                    <div className="flex items-center justify-between gap-2">
+                      {(realEstateList?.length ?? 0) > 0 && (
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <label className="text-xs text-muted-foreground truncate cursor-pointer">
+                            {t.forecast.includeRealEstateTaxes}
+                          </label>
+                          <Switch
+                            checked={forecastIncludeRETaxes}
+                            onCheckedChange={val =>
+                              setForecastIncludeRETaxes(Boolean(val))
+                            }
+                            className="scale-75 origin-left flex-shrink-0"
+                          />
+                        </div>
                       )}
-                      <Button
-                        size="sm"
-                        disabled={
-                          !forecastTargetDate ||
-                          forecastLoading ||
-                          (!!forecastTargetDate &&
-                            new Date(forecastTargetDate) <= new Date())
-                        }
-                        onClick={async () => {
-                          try {
-                            setForecastLoading(true)
-                            const result = await getForecast({
-                              target_date: forecastTargetDate,
-                              avg_annual_market_increase: forecastAnnualIncrease
-                                ? parseFloat(forecastAnnualIncrease) / 100
-                                : null,
-                              avg_annual_crypto_increase:
-                                forecastAnnualCryptoIncrease
-                                  ? parseFloat(forecastAnnualCryptoIncrease) /
-                                    100
-                                  : null,
-                              avg_annual_commodity_increase:
-                                forecastAnnualCommodityIncrease
-                                  ? parseFloat(
-                                      forecastAnnualCommodityIncrease,
-                                    ) / 100
-                                  : null,
-                            })
-                            setForecastResult(result)
-                            setForecastOpen(false)
-                          } catch (err) {
-                            console.error("Forecast error", err)
-                          } finally {
-                            setForecastLoading(false)
+                      <div className="flex gap-2 flex-shrink-0 ml-auto">
+                        {forecastMode && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setForecastResult(null)
+                              setForecastTargetDate("")
+                              setForecastAnnualIncrease("")
+                              setForecastAnnualCryptoIncrease("")
+                              setForecastAnnualCommodityIncrease("")
+                              setForecastIncludeRETaxes(true)
+                            }}
+                            className="text-xs"
+                          >
+                            {t.forecast.reset}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          disabled={
+                            !forecastTargetDate ||
+                            forecastLoading ||
+                            (!!forecastTargetDate &&
+                              new Date(forecastTargetDate) <= new Date())
                           }
-                        }}
-                        className="text-xs"
-                      >
-                        {forecastLoading ? t.common.loading : t.forecast.run}
-                      </Button>
+                          onClick={async () => {
+                            try {
+                              setForecastLoading(true)
+                              const result = await getForecast({
+                                target_date: forecastTargetDate,
+                                avg_annual_market_increase:
+                                  forecastAnnualIncrease
+                                    ? parseFloat(forecastAnnualIncrease) / 100
+                                    : null,
+                                avg_annual_crypto_increase:
+                                  forecastAnnualCryptoIncrease
+                                    ? parseFloat(forecastAnnualCryptoIncrease) /
+                                      100
+                                    : null,
+                                avg_annual_commodity_increase:
+                                  forecastAnnualCommodityIncrease
+                                    ? parseFloat(
+                                        forecastAnnualCommodityIncrease,
+                                      ) / 100
+                                    : null,
+                                include_real_estate_taxes:
+                                  forecastIncludeRETaxes,
+                              })
+                              setForecastResult(result)
+                              setForecastOpen(false)
+                            } catch (err) {
+                              console.error("Forecast error", err)
+                            } finally {
+                              setForecastLoading(false)
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          {forecastLoading ? (
+                            t.common.loading
+                          ) : (
+                            <ArrowRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
                       {t.forecast.disclaimer}
@@ -1826,7 +1828,7 @@ export default function DashboardPage() {
                   delay={0.4}
                   className="lg:col-span-7"
                 >
-                  <div className="h-full flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
                     <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">
                         <ListCollapse className="h-5 w-5 mr-2 text-primary" />
@@ -2810,7 +2812,7 @@ export default function DashboardPage() {
                   delay={0.5}
                   className="lg:col-span-5"
                 >
-                  <div className="h-full flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
                     <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <div className="flex justify-between items-center">
                         <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">

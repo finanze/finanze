@@ -540,7 +540,7 @@ export const getAssetDistribution = (
           },
           0,
         )
-        if (accountsTotal > 0) {
+        if (accountsTotal !== 0) {
           if (!assetTypes["CASH"]) {
             assetTypes["CASH"] = {
               type: "CASH",

@@ -126,7 +126,11 @@ class TradeRepublicClient:
         elif not code or not process_id:
             if not login_options.avoid_new_login:
                 try:
-                    countdown = await self._initiate_weblogin()
+                    result = await self._initiate_weblogin()
+                    if isinstance(result, EntityLoginResult):
+                        return result
+                    else:
+                        countdown = result
 
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code in (403, 405):
@@ -138,7 +142,7 @@ class TradeRepublicClient:
                         self._log.error("Unexpected error during login", exc_info=e)
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR,
-                        message=f"Got unexpected error {e.response.status_code} during login",
+                        message=f"Got unexpected error {e.response.status_code} during login, {e.response.text}",
                     )
 
                 except ValueError as e:
@@ -172,30 +176,59 @@ class TradeRepublicClient:
         else:
             return True
 
-    async def _initiate_weblogin(self):
+    async def _initiate_weblogin(self) -> int | EntityLoginResult:
         r = await self._tr_api._websession.post(
             f"{self._tr_api._host}/api/v1/auth/web/login",
             json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
         )
-        r.raise_for_status()
 
         j = await r.json()
+
+        errs = j.get("errors")
+        err = {}
+        if errs:
+            err = errs[0]
         try:
-            if j.get("errorCode") == "TOO_MANY_REQUESTS":
-                return int(j.get("meta", {}).get("nextAttemptInSeconds", 30))
-            elif j.get("errorCode"):
-                raise ValueError(j.get("errorMessage"))
+            if (
+                r.status == 429
+                or errs
+                and err
+                and err.get("errorCode") == "TOO_MANY_REQUESTS"
+            ):
+                next_attempt_secs = err.get("meta", {}).get("nextAttemptInSeconds", 60)
+                details = {
+                    "wait": next_attempt_secs,
+                }
+                return EntityLoginResult(
+                    LoginResultCode.COOLDOWN,
+                    message=f"Too many attempts, wait {next_attempt_secs} seconds before retrying",
+                    details=details,
+                )
+
+            elif errs and err and err.get("errorCode"):
+                r.raise_for_status()
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got a unexpected error during login, {err.get('errorMessage')}",
+                )
 
             self._tr_api._process_id = j["processId"]
 
         except KeyError:
-            err = j.get("errors")
-            if err:
-                raise ValueError(str(err))
+            r.raise_for_status()
+            if errs:
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got a unexpected error during login, {errs}",
+                )
             else:
-                raise ValueError("processId not in response")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="processId not in response",
+                )
 
-        return int(j["countdownInSeconds"]) + 1
+        r.raise_for_status()
+        return int(j.get("countdownInSeconds", 0)) + 1
 
     def _export_session(self, waf_token: str) -> dict:
         return {

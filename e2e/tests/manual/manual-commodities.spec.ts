@@ -81,9 +81,8 @@ async function createCommodity(page: Page, name: string) {
     })
 
     await page.locator('#name').fill(name)
-    await page.locator('#type').selectOption('GOLD')
+    // type defaults to GOLD and unit defaults to TROY_OUNCE (chip selectors)
     await page.locator('#amount').fill('1')
-    await page.locator('#unit').selectOption('TROY_OUNCE')
     await page.locator('#initial_investment').fill('2000')
     await page.locator('#currency').selectOption('EUR')
 
