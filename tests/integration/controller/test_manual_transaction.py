@@ -9,7 +9,13 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
-from domain.transactions import AccountTx, StockTx, Transactions, TxType
+from domain.transactions import (
+    AccountTx,
+    CryptoCurrencyTx,
+    StockTx,
+    Transactions,
+    TxType,
+)
 
 ADD_TX_URL = "/api/v1/data/manual/transactions"
 GET_TX_URL = "/api/v1/transactions"
@@ -56,6 +62,24 @@ def _stock_tx_payload(**overrides):
         "shares": "10",
         "price": "100.00",
         "fees": "5.00",
+    }
+    base.update(overrides)
+    return base
+
+
+def _crypto_tx_payload(**overrides):
+    base = {
+        "product_type": "CRYPTO",
+        "entity_id": ENTITY_ID,
+        "date": "2025-03-10T14:00:00",
+        "ref": "TX-CRYPTO-001",
+        "name": "Buy BTC",
+        "amount": "5000.00",
+        "currency": "EUR",
+        "type": "BUY",
+        "symbol": "BTC",
+        "currency_amount": "0.05",
+        "price": "100000.00",
     }
     base.update(overrides)
     return base
@@ -136,7 +160,7 @@ class TestAddManualTransactionValidation:
 
     @pytest.mark.asyncio
     async def test_unsupported_product_type(self, client):
-        payload = _account_tx_payload(product_type="CRYPTO")
+        payload = _account_tx_payload(product_type="UNKNOWN_TYPE")
         response = await client.post(ADD_TX_URL, json=payload)
         assert response.status_code == 400
 
@@ -617,3 +641,105 @@ class TestDeleteManualTransactionAndRead:
         assert len(txs) == 1
         assert txs[0]["name"] == "Remaining"
         assert txs[0]["source"] == "MANUAL"
+
+
+class TestAddCryptoTransaction:
+    @pytest.mark.asyncio
+    async def test_add_crypto_tx_then_read_it(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(ADD_TX_URL, json=_crypto_tx_payload())
+        assert response.status_code == 204
+
+        transaction_port.save.assert_awaited_once()
+        saved_txs = transaction_port.save.await_args[0][0]
+        assert len(saved_txs.investment) == 1
+        saved_tx = saved_txs.investment[0]
+        assert isinstance(saved_tx, CryptoCurrencyTx)
+        assert saved_tx.symbol == "BTC"
+        assert saved_tx.currency_amount == Dezimal("0.05")
+        assert saved_tx.price == Dezimal("100000.00")
+        assert saved_tx.fees == Dezimal("0")
+        assert saved_tx.source == DataSource.MANUAL
+
+        transaction_port.get_by_filters = AsyncMock(return_value=[saved_tx])
+        get_resp = await client.get(GET_TX_URL)
+        assert get_resp.status_code == 200
+        body = await get_resp.get_json()
+
+        txs = body["transactions"]
+        assert len(txs) == 1
+        assert txs[0]["name"] == "Buy BTC"
+        assert txs[0]["symbol"] == "BTC"
+        assert txs[0]["source"] == "MANUAL"
+
+    @pytest.mark.asyncio
+    async def test_add_crypto_tx_with_optional_fields(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = _crypto_tx_payload(
+            fees="2.50",
+            retentions="1.00",
+            order_date="2025-03-10T12:00:00",
+        )
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 204
+
+        saved_txs = transaction_port.save.await_args[0][0]
+        tx = saved_txs.investment[0]
+        assert tx.fees == Dezimal("2.50")
+        assert tx.retentions == Dezimal("1.00")
+        assert tx.order_date is not None
+
+    @pytest.mark.asyncio
+    async def test_crypto_missing_symbol(self, client):
+        payload = _crypto_tx_payload()
+        del payload["symbol"]
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert "Missing fields" in body["message"]
+
+    @pytest.mark.asyncio
+    async def test_crypto_missing_currency_amount(self, client):
+        payload = _crypto_tx_payload()
+        del payload["currency_amount"]
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_update_crypto_tx(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        tx_id = uuid.uuid4()
+        existing_tx = MagicMock()
+        existing_tx.id = tx_id
+        existing_tx.source = DataSource.MANUAL
+        existing_tx.entity = _make_entity()
+        existing_tx.product_type = ProductType.CRYPTO
+        transaction_port.get_by_id = AsyncMock(return_value=existing_tx)
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = _crypto_tx_payload(
+            name="Buy ETH",
+            symbol="ETH",
+            currency_amount="1.5",
+            price="3500.00",
+            fees="3.00",
+        )
+        response = await client.put(f"{ADD_TX_URL}/{tx_id}", json=payload)
+        assert response.status_code == 204
+
+        saved_txs = transaction_port.save.await_args[0][0]
+        tx = saved_txs.investment[0]
+        assert isinstance(tx, CryptoCurrencyTx)
+        assert tx.symbol == "ETH"
+        assert tx.currency_amount == Dezimal("1.5")
+        assert tx.price == Dezimal("3500.00")

@@ -1351,6 +1351,7 @@
     "currency": "Moneda",
     "symbol": "Símbolo",
     "currencyAmount": "Cantidad",
+    "contractAddress": "Dirección del contrato",
     "addManualTransaction": "Añadir",
     "previous": "Anterior",
     "next": "Siguiente",
@@ -1372,7 +1373,8 @@
         "stocks": "Acciones y ETFs",
         "funds": "Fondos",
         "portfolios": "Carteras de fondos",
-        "accounts": "Cuentas asociadas"
+        "accounts": "Cuentas asociadas",
+        "crypto": "Criptoactivos"
       },
       "netAmountLabel": "Importe neto",
       "netAmountFormulaIncoming": "importe - comisiones - retenciones",

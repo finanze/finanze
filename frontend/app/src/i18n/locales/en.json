@@ -1352,6 +1352,7 @@
     "currency": "Currency",
     "symbol": "Symbol",
     "currencyAmount": "Currency Amount",
+    "contractAddress": "Contract Address",
     "addManualTransaction": "Add",
     "previous": "Previous",
     "next": "Next",
@@ -1373,7 +1374,8 @@
         "stocks": "Stocks & ETFs",
         "funds": "Funds",
         "portfolios": "Fund portfolios",
-        "accounts": "Accounts"
+        "accounts": "Accounts",
+        "crypto": "Crypto assets"
       },
       "netAmountLabel": "Net amount",
       "netAmountFormulaIncoming": "amount - fees - retentions",

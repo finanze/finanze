@@ -211,7 +211,11 @@ export default function TransactionsPage() {
   const manualEntityOptions = useMemo(() => {
     if (!entities) return []
     return entities
-      .filter(entity => entity.type === EntityType.FINANCIAL_INSTITUTION)
+      .filter(
+        entity =>
+          entity.type === EntityType.FINANCIAL_INSTITUTION ||
+          entity.type === EntityType.CRYPTO_EXCHANGE,
+      )
       .sort((a, b) =>
         a.name.localeCompare(b.name, locale, { sensitivity: "base" }),
       )

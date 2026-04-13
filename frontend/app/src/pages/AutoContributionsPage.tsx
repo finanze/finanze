@@ -912,7 +912,7 @@ export default function AutoContributionsPage() {
                 suggestions.set(value, {
                   value,
                   label: value,
-                  secondary: asset.name || undefined,
+                  secondary: asset.crypto_asset.name || asset.name || undefined,
                   iconUrls: asset.crypto_asset.icon_urls,
                 })
               }
@@ -1910,7 +1910,7 @@ export default function AutoContributionsPage() {
                                   className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-0"
                                 >
                                   <ListFilter className="h-3 w-3 shrink-0" />
-                                  <span className="hidden sm:inline truncate">
+                                  <span className="truncate">
                                     {
                                       t.management.manualContributions
                                         .suggestions

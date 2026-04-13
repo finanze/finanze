@@ -10,6 +10,7 @@ from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
     BaseTx,
+    CryptoCurrencyTx,
     DepositTx,
     FactoringTx,
     FundPortfolioTx,
@@ -118,11 +119,29 @@ def _build_factoring_like(
     )
 
 
+def _build_crypto(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
+    _require(body, "CRYPTO", ["symbol", "currency_amount", "price"])
+    order_date = _parse_datetime(body["order_date"]) if body.get("order_date") else None
+    return CryptoCurrencyTx(
+        id=tx_id,
+        symbol=body["symbol"],
+        currency_amount=Dezimal(body["currency_amount"]),
+        price=Dezimal(body["price"]),
+        fees=Dezimal(body.get("fees", 0)),
+        net_amount=None,
+        retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
+        order_date=order_date,
+        contract_address=body.get("contract_address"),
+        **base_kwargs,
+    )
+
+
 _DISPATCH = {
     ProductType.ACCOUNT: _build_account,
     ProductType.STOCK_ETF: _build_stock,
     ProductType.FUND: _build_fund,
     ProductType.FUND_PORTFOLIO: _build_fund_portfolio,
+    ProductType.CRYPTO: _build_crypto,
 }
 
 

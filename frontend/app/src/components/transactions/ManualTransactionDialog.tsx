@@ -8,6 +8,7 @@ import {
   ListFilter,
   ChartCandlestick,
   BarChart3,
+  Bitcoin,
 } from "lucide-react"
 import { EntitySelector } from "@/components/EntitySelector"
 import { useI18n } from "@/i18n"
@@ -38,6 +39,7 @@ import {
   type FundInvestments,
   type FundDetail,
   type FundPortfolios,
+  type CryptoCurrencies,
 } from "@/types/position"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -50,6 +52,7 @@ import {
   type ManualFactoringTransactionPayload,
   type ManualRealEstateTransactionPayload,
   type ManualDepositTransactionPayload,
+  type ManualCryptoCurrencyTransactionPayload,
   type FundPortfolioTx,
   TransactionsResult,
   TxType,
@@ -63,6 +66,7 @@ const SUPPORTED_PRODUCT_TYPES = [
   ProductType.FACTORING,
   ProductType.REAL_ESTATE_CF,
   ProductType.DEPOSIT,
+  ProductType.CRYPTO,
 ] as const
 
 export type SupportedManualProductType =
@@ -139,6 +143,7 @@ interface SuggestionOption {
   market?: string
   equityType?: string
   issuer?: string | null
+  iconUrls?: string[] | null
 }
 
 function SuggestionItemIcon({
@@ -169,12 +174,16 @@ function SuggestionItemIcon({
       const issuerPath = getIssuerIconPath(option.issuer ?? null)
       return issuerPath ? [`/${issuerPath}`] : []
     }
+    if (productType === ProductType.CRYPTO) {
+      return (option.iconUrls ?? []).filter((v): v is string => Boolean(v))
+    }
     return []
   }, [
     option.value,
     option.ticker,
     option.equityType,
     option.issuer,
+    option.iconUrls,
     productType,
   ])
 
@@ -203,6 +212,24 @@ function SuggestionItemIcon({
       return (
         <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
           <BarChart3 className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (productType === ProductType.CRYPTO) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <Bitcoin className="h-3 w-3 text-muted-foreground" />
         </div>
       )
     }
@@ -277,6 +304,16 @@ const createExtraDefaults = (
       return {
         fees: "0",
         retentions: "0",
+      }
+    case ProductType.CRYPTO:
+      return {
+        symbol: "",
+        currency_amount: "",
+        price: "",
+        fees: "0",
+        retentions: "0",
+        order_date: "",
+        contract_address: "",
       }
     default:
       return {}
@@ -437,6 +474,55 @@ const getFieldConfigs = (
           type: "number",
           numericType: "nonNegative",
           step: "0.01",
+        },
+      ]
+    case ProductType.CRYPTO:
+      return [
+        {
+          name: "symbol",
+          labelKey: t.transactions.symbol,
+          type: "text",
+          required: true,
+        },
+        {
+          name: "currency_amount",
+          labelKey: t.transactions.currencyAmount,
+          type: "number",
+          required: true,
+          numericType: "positive",
+          step: "0.00000001",
+        },
+        {
+          name: "price",
+          labelKey: t.transactions.price,
+          type: "number",
+          required: true,
+          numericType: "positive",
+          step: "0.0001",
+        },
+        {
+          name: "fees",
+          labelKey: t.transactions.fees,
+          type: "number",
+          numericType: "nonNegative",
+          step: "0.01",
+        },
+        {
+          name: "retentions",
+          labelKey: t.transactions.retentions,
+          type: "number",
+          numericType: "nonNegative",
+          step: "0.01",
+        },
+        {
+          name: "order_date",
+          labelKey: t.transactions.orderDate,
+          type: "date",
+        },
+        {
+          name: "contract_address",
+          labelKey: t.transactions.contractAddress,
+          type: "text",
         },
       ]
     default:
@@ -605,6 +691,33 @@ export function ManualTransactionDialog({
       }
     }
 
+    if (formState.productType === ProductType.CRYPTO) {
+      const seen = new Set<string>()
+      const options: SuggestionOption[] = []
+      entityPositions.forEach(ep => {
+        const cryptoPositions = ep.products[ProductType.CRYPTO] as
+          | CryptoCurrencies
+          | undefined
+        cryptoPositions?.entries?.forEach(wallet => {
+          wallet.assets?.forEach(asset => {
+            if (!asset.symbol || !asset.crypto_asset) return
+            const value = asset.symbol.trim().toUpperCase()
+            if (seen.has(value)) return
+            seen.add(value)
+            options.push({
+              value,
+              label: value,
+              name: asset.crypto_asset.name || asset.name || undefined,
+              iconUrls: asset.crypto_asset.icon_urls,
+            })
+          })
+        })
+      })
+      if (options.length > 0) {
+        suggestions.symbol = options
+      }
+    }
+
     return suggestions
   }, [formState.entityId, formState.productType, positionsData])
 
@@ -714,7 +827,8 @@ export function ManualTransactionDialog({
   useEffect(() => {
     if (
       formState.productType !== ProductType.STOCK_ETF &&
-      formState.productType !== ProductType.FUND
+      formState.productType !== ProductType.FUND &&
+      formState.productType !== ProductType.CRYPTO
     ) {
       return
     }
@@ -726,23 +840,26 @@ export function ManualTransactionDialog({
     setFormState(prev => {
       if (
         prev.productType !== ProductType.STOCK_ETF &&
-        prev.productType !== ProductType.FUND
+        prev.productType !== ProductType.FUND &&
+        prev.productType !== ProductType.CRYPTO
       ) {
         return prev
       }
 
-      const shares = Number.parseFloat(
-        (prev.extra?.shares ?? "").replace(",", "."),
+      const qtyKey =
+        prev.productType === ProductType.CRYPTO ? "currency_amount" : "shares"
+      const qty = Number.parseFloat(
+        (prev.extra?.[qtyKey] ?? "").replace(",", "."),
       )
       const price = Number.parseFloat(
         (prev.extra?.price ?? "").replace(",", "."),
       )
 
-      if (!Number.isFinite(shares) || !Number.isFinite(price)) {
+      if (!Number.isFinite(qty) || !Number.isFinite(price)) {
         return prev
       }
 
-      const computed = (shares * price).toFixed(2)
+      const computed = (qty * price).toFixed(2)
       if (prev.amount === computed) {
         return prev
       }
@@ -755,6 +872,7 @@ export function ManualTransactionDialog({
   }, [
     formState.extra?.shares,
     formState.extra?.price,
+    formState.extra?.currency_amount,
     formState.productType,
     mode,
     setFormState,
@@ -779,6 +897,10 @@ export function ManualTransactionDialog({
 
       if (fieldName === "iban") {
         return suggestions.accounts
+      }
+
+      if (fieldName === "symbol") {
+        return suggestions.crypto
       }
 
       return suggestions.label
@@ -898,6 +1020,22 @@ export function ManualTransactionDialog({
             retentions: `${transaction.retentions ?? 0}`,
           }
           break
+        case ProductType.CRYPTO:
+          nextState.extra = {
+            ...baseExtra,
+            symbol: transaction.symbol ?? "",
+            currency_amount: transaction.currency_amount
+              ? `${transaction.currency_amount}`
+              : "",
+            price: transaction.price ? `${transaction.price}` : "",
+            fees: `${transaction.fees ?? 0}`,
+            retentions: transaction.retentions
+              ? `${transaction.retentions}`
+              : "0",
+            order_date: normalizeDateValue(transaction.order_date) ?? "",
+            contract_address: transaction.contract_address ?? "",
+          }
+          break
         default:
           break
       }
@@ -939,11 +1077,14 @@ export function ManualTransactionDialog({
   }
 
   const handleExtraChange = (name: string, value: string) => {
-    if (name === "shares" || name === "price") {
+    if (name === "shares" || name === "price" || name === "currency_amount") {
       sharesPriceEditedRef.current = true
     }
     const normalizedValue =
-      name === "isin" || name === "ticker" || name === "iban"
+      name === "isin" ||
+      name === "ticker" ||
+      name === "iban" ||
+      name === "symbol"
         ? value.toUpperCase()
         : value
     setFormState(prev => ({
@@ -977,6 +1118,15 @@ export function ManualTransactionDialog({
     }
 
     if (fieldName === "isin" && option.name && !formState.name.trim()) {
+      setFormState(prev => ({ ...prev, name: option.name! }))
+    }
+
+    if (
+      fieldName === "symbol" &&
+      formState.productType === ProductType.CRYPTO &&
+      option.name &&
+      !formState.name.trim()
+    ) {
       setFormState(prev => ({ ...prev, name: option.name! }))
     }
   }
@@ -1143,6 +1293,21 @@ export function ManualTransactionDialog({
           product_type: ProductType.DEPOSIT,
           fees: resolvedFees,
           retentions: parseNumberValue(formState.extra.retentions, 0),
+        }
+        return payload
+      }
+      case ProductType.CRYPTO: {
+        const payload: ManualCryptoCurrencyTransactionPayload = {
+          ...base,
+          product_type: ProductType.CRYPTO,
+          symbol: formState.extra.symbol.trim().toUpperCase(),
+          currency_amount: parseNumberValue(formState.extra.currency_amount),
+          price: parseNumberValue(formState.extra.price),
+          fees: resolvedFees,
+          retentions: parseNumberValue(formState.extra.retentions, 0),
+          order_date: formState.extra.order_date || undefined,
+          contract_address:
+            formState.extra.contract_address.trim() || undefined,
         }
         return payload
       }
@@ -1634,15 +1799,110 @@ export function ManualTransactionDialog({
                           }
 
                           if (
+                            formState.productType === ProductType.CRYPTO &&
+                            field.name === "currency_amount"
+                          ) {
+                            const priceField = fieldConfigs.find(
+                              option => option.name === "price",
+                            )
+                            const priceError = errors["extra.price"]
+
+                            return (
+                              <div
+                                key="currency_amount-price"
+                                className="space-y-2 md:col-span-2"
+                              >
+                                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                  <div className="flex-1 space-y-1.5">
+                                    <Label htmlFor="transaction-currency-amount">
+                                      {field.labelKey}
+                                    </Label>
+                                    <Input
+                                      id="transaction-currency-amount"
+                                      type="number"
+                                      inputMode="decimal"
+                                      step={field.step ?? "0.00000001"}
+                                      value={
+                                        formState.extra.currency_amount ?? ""
+                                      }
+                                      onChange={event =>
+                                        handleExtraChange(
+                                          "currency_amount",
+                                          event.target.value,
+                                        )
+                                      }
+                                      className={error ? "border-red-500" : ""}
+                                    />
+                                    {error && (
+                                      <p className="text-xs text-red-600 dark:text-red-400">
+                                        {error}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="flex items-center justify-center text-sm font-semibold text-muted-foreground md:pb-2">
+                                    ×
+                                  </span>
+                                  <div className="flex-1 space-y-1.5">
+                                    <Label htmlFor="transaction-crypto-price">
+                                      {priceField?.labelKey ??
+                                        t.transactions.price}
+                                    </Label>
+                                    <div className="relative">
+                                      <Input
+                                        id="transaction-crypto-price"
+                                        type="number"
+                                        inputMode="decimal"
+                                        step={priceField?.step ?? "0.0001"}
+                                        value={formState.extra.price ?? ""}
+                                        onChange={event =>
+                                          handleExtraChange(
+                                            "price",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className={cn(
+                                          priceError ? "border-red-500" : "",
+                                          currencySymbol ? "pr-8" : "",
+                                        )}
+                                      />
+                                      {currencySymbol && (
+                                        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground text-sm">
+                                          {currencySymbol}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {priceError && (
+                                      <p className="text-xs text-red-600 dark:text-red-400">
+                                        {priceError}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {t.transactions.form.autoAmountHint &&
+                                  (formState.extra.currency_amount ||
+                                    formState.extra.price) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {t.transactions.form.autoAmountHint}
+                                    </p>
+                                  )}
+                              </div>
+                            )
+                          }
+
+                          if (
                             (formState.productType === ProductType.STOCK_ETF ||
-                              formState.productType === ProductType.FUND) &&
+                              formState.productType === ProductType.FUND ||
+                              formState.productType === ProductType.CRYPTO) &&
                             field.name === "price"
                           ) {
                             return null
                           }
 
                           const isMonoField =
-                            field.name === "isin" || field.name === "iban"
+                            field.name === "isin" ||
+                            field.name === "iban" ||
+                            field.name === "symbol" ||
+                            field.name === "contract_address"
                           const fieldSuffix =
                             field.name === "interest_rate"
                               ? "%"
@@ -1676,7 +1936,7 @@ export function ManualTransactionDialog({
                                         className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-0"
                                       >
                                         <ListFilter className="h-3 w-3 shrink-0" />
-                                        <span className="hidden sm:inline truncate">
+                                        <span className="truncate">
                                           {getSuggestionLabel(field.name)}
                                           {selectedEntityName
                                             ? ` · ${selectedEntityName}`
