@@ -57,7 +57,7 @@ async function connectAndFetchBinance(page: Page) {
             .waitFor({ timeout: 15_000 })
     }
 
-    // Fetch data — re-locate the card after potential reload
+    // Fetch — re-locate the card after potential reload
     const card = page
         .locator('h3')
         .filter({ has: page.locator('span:text-is("Binance")') })
@@ -70,10 +70,11 @@ async function connectAndFetchBinance(page: Page) {
         await expect(
             page.getByText('Select features to fetch from Binance'),
         ).toBeVisible({ timeout: 5_000 })
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        const modalFetch = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch).toBeEnabled({
+            timeout: 5_000,
+        })
+        await modalFetch.click()
         await expect(
             page.getByText('Data successfully fetched from Binance'),
         ).toBeVisible({ timeout: 15_000 })

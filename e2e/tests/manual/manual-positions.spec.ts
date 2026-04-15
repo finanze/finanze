@@ -52,7 +52,7 @@ async function connectAndFetchEntity(
             .waitFor({ timeout: 15_000 })
     }
 
-    // Fetch data
+    // Fetch
     const card = page
         .locator('h3', { hasText: entityName })
         .first()
@@ -63,10 +63,11 @@ async function connectAndFetchEntity(
         await expect(
             page.getByText(`Select features to fetch from ${entityName}`),
         ).toBeVisible({ timeout: 5_000 })
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        const modalFetch = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch).toBeEnabled({
+            timeout: 5_000,
+        })
+        await modalFetch.click()
         await expect(
             page.getByText(`Data successfully fetched from ${entityName}`),
         ).toBeVisible({ timeout: 15_000 })

@@ -485,7 +485,7 @@
     "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
     "unselectAll": "Deseleccionar todas",
-    "fetchSelected": "Actualizar",
+    "fetchSelected": "Obtener",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",

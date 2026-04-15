@@ -487,7 +487,7 @@
     "selectFeatures": "Select features to fetch from",
     "selectAll": "Select all",
     "unselectAll": "Unselect all",
-    "fetchSelected": "Update",
+    "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
     "advancedOptions": "Advanced options",
