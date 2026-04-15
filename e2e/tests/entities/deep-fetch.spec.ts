@@ -65,7 +65,9 @@ test.describe('Deep Fetch / Force Refetch', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        const modalFetch1 = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        const modalFetch1 = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
         await expect(modalFetch1).toBeEnabled({
             timeout: 5_000,
         })
@@ -117,7 +119,9 @@ test.describe('Deep Fetch / Force Refetch', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        const modalFetch2 = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        const modalFetch2 = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
         await expect(modalFetch2).toBeEnabled({
             timeout: 5_000,
         })

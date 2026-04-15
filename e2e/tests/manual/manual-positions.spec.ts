@@ -63,7 +63,9 @@ async function connectAndFetchEntity(
         await expect(
             page.getByText(`Select features to fetch from ${entityName}`),
         ).toBeVisible({ timeout: 5_000 })
-        const modalFetch = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        const modalFetch = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
         await expect(modalFetch).toBeEnabled({
             timeout: 5_000,
         })

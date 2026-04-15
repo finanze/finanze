@@ -226,7 +226,9 @@ test.describe('Feature Selection Verification', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        const modalFetch = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+        const modalFetch = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
         await expect(modalFetch).toBeEnabled({
             timeout: 5_000,
         })

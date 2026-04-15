@@ -69,7 +69,9 @@ async function fetchEntityAllFeatures(page: Page, entityName: string) {
     ).toBeVisible({ timeout: 5_000 })
 
     // Wait for features to be auto-selected (Fetch button becomes enabled)
-    const modalFetch = page.locator('.fixed').getByRole('button', { name: 'Fetch' })
+    const modalFetch = page
+        .locator('.fixed')
+        .getByRole('button', { name: 'Fetch' })
     await expect(modalFetch).toBeEnabled({
         timeout: 5_000,
     })
