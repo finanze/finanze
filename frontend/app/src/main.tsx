@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/context/ThemeContext"
 import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
 import { BackupAlertProvider } from "@/context/BackupAlertContext"
+import { ModalRegistryProvider } from "@/context/ModalRegistryContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
 import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
 import * as mobile from "@/lib/mobile"
@@ -24,15 +25,17 @@ async function bootstrap(): Promise<void> {
     <HashRouter>
       <ThemeProvider>
         <I18nProvider>
-          <AuthProvider>
-            <AppProvider>
-              <CloudProvider>
-                <BackupAlertProvider>
-                  <App />
-                </BackupAlertProvider>
-              </CloudProvider>
-            </AppProvider>
-          </AuthProvider>
+          <ModalRegistryProvider>
+            <AuthProvider>
+              <AppProvider>
+                <CloudProvider>
+                  <BackupAlertProvider>
+                    <App />
+                  </BackupAlertProvider>
+                </CloudProvider>
+              </AppProvider>
+            </AuthProvider>
+          </ModalRegistryProvider>
         </I18nProvider>
       </ThemeProvider>
     </HashRouter>,

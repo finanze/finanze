@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { DataSource, EntityOrigin, type Entity } from "@/types"
@@ -1339,7 +1340,7 @@ export function ManualTransactionDialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center pt-10 px-4 pb-4 z-[18000]"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1348,7 +1349,7 @@ export function ManualTransactionDialog({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-full max-w-3xl"
           >
-            <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
+            <Card className="max-h-[calc(100vh-5rem)] flex flex-col">
               <CardHeader className="flex flex-row items-start justify-between gap-4">
                 <div>
                   <CardTitle className="text-xl">
@@ -1628,13 +1629,11 @@ export function ManualTransactionDialog({
                         {t.transactions.amount}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id="transaction-amount"
-                          type="text"
-                          inputMode="decimal"
                           value={formState.amount}
-                          onChange={event =>
-                            handleBaseChange("amount", event.target.value)
+                          onStringChange={value =>
+                            handleBaseChange("amount", value)
                           }
                           className={cn(
                             "pr-10",
@@ -1854,18 +1853,15 @@ export function ManualTransactionDialog({
                                     <Label htmlFor="transaction-currency-amount">
                                       {field.labelKey}
                                     </Label>
-                                    <Input
+                                    <DecimalInput
                                       id="transaction-currency-amount"
-                                      type="number"
-                                      inputMode="decimal"
-                                      step={field.step ?? "0.00000001"}
                                       value={
                                         formState.extra.currency_amount ?? ""
                                       }
-                                      onChange={event =>
+                                      onStringChange={value =>
                                         handleExtraChange(
                                           "currency_amount",
-                                          event.target.value,
+                                          value,
                                         )
                                       }
                                       className={error ? "border-red-500" : ""}
@@ -1885,17 +1881,11 @@ export function ManualTransactionDialog({
                                         t.transactions.price}
                                     </Label>
                                     <div className="relative">
-                                      <Input
+                                      <DecimalInput
                                         id="transaction-crypto-price"
-                                        type="number"
-                                        inputMode="decimal"
-                                        step={priceField?.step ?? "0.0001"}
                                         value={formState.extra.price ?? ""}
-                                        onChange={event =>
-                                          handleExtraChange(
-                                            "price",
-                                            event.target.value,
-                                          )
+                                        onStringChange={value =>
+                                          handleExtraChange("price", value)
                                         }
                                         className={cn(
                                           priceError ? "border-red-500" : "",
@@ -2050,27 +2040,37 @@ export function ManualTransactionDialog({
                               <div
                                 className={fieldSuffix ? "relative" : undefined}
                               >
-                                <Input
-                                  id={`transaction-${field.name}`}
-                                  type="text"
-                                  inputMode={
-                                    field.type === "number"
-                                      ? "decimal"
-                                      : undefined
-                                  }
-                                  value={formState.extra[field.name] ?? ""}
-                                  onChange={event =>
-                                    handleExtraChange(
-                                      field.name,
-                                      event.target.value,
-                                    )
-                                  }
-                                  className={cn(
-                                    isMonoField && "font-mono",
-                                    fieldSuffix && "pr-10",
-                                    error && "border-red-500",
-                                  )}
-                                />
+                                {field.type === "number" ? (
+                                  <DecimalInput
+                                    id={`transaction-${field.name}`}
+                                    value={formState.extra[field.name] ?? ""}
+                                    onStringChange={value =>
+                                      handleExtraChange(field.name, value)
+                                    }
+                                    className={cn(
+                                      isMonoField && "font-mono",
+                                      fieldSuffix && "pr-10",
+                                      error && "border-red-500",
+                                    )}
+                                  />
+                                ) : (
+                                  <Input
+                                    id={`transaction-${field.name}`}
+                                    type="text"
+                                    value={formState.extra[field.name] ?? ""}
+                                    onChange={event =>
+                                      handleExtraChange(
+                                        field.name,
+                                        event.target.value,
+                                      )
+                                    }
+                                    className={cn(
+                                      isMonoField && "font-mono",
+                                      fieldSuffix && "pr-10",
+                                      error && "border-red-500",
+                                    )}
+                                  />
+                                )}
                                 {fieldSuffix && (
                                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                                     {fieldSuffix}

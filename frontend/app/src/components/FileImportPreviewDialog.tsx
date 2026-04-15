@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { Button } from "@/components/ui/Button"
 import {
   Card,
@@ -123,6 +124,8 @@ export function FileImportPreviewDialog({
   onClose,
   onConfirm,
 }: FileImportPreviewDialogProps) {
+  useModalBackHandler(isOpen, onClose)
+
   if (!isOpen) {
     return null
   }

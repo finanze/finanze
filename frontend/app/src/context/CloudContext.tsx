@@ -27,7 +27,10 @@ import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { useAppContext } from "@/context/AppContext"
 import { isNativeMobile, isElectron } from "@/lib/platform"
-import { signInWithGoogleMobile } from "@/lib/mobile/socialLogin"
+import {
+  signInWithGoogleMobile,
+  signInWithAppleMobile,
+} from "@/lib/mobile/socialLogin"
 import { resetBackupStatusCache } from "@/hooks/useBackupStatus"
 
 interface CloudContextType {
@@ -43,6 +46,7 @@ interface CloudContextType {
   oauthError: string | null
   clearOAuthError: () => void
   signInWithGoogle: () => Promise<void>
+  signInWithApple: () => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
   signUpWithEmail: (
     email: string,
@@ -641,6 +645,61 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     }
   }, [getProvider, t.settings.cloud.oauthErrors])
 
+  const signInWithApple = useCallback(async () => {
+    setOauthError(null)
+    setIsLoading(true)
+    try {
+      const provider = getProvider()
+
+      if (isNativeMobile()) {
+        const result = await signInWithAppleMobile()
+        if (!result.success) {
+          throw new Error(result.error || "Apple sign-in failed")
+        }
+        if (!result.idToken) {
+          throw new Error("No ID token received from Apple")
+        }
+        await provider.signInWithIdToken(
+          "apple",
+          result.idToken,
+          result.rawNonce,
+        )
+        return
+      }
+
+      if (!isElectron()) {
+        throw new Error("Apple sign-in is only available on desktop or mobile")
+      }
+
+      const serverInfo = await getApiServerInfo()
+      const callbackUrl = `${serverInfo.baseUrl}/oauth/callback`
+      await provider.signInWithApple(callbackUrl)
+    } catch (error) {
+      console.error("Apple sign-in error:", error)
+
+      let errorCode = "unknown"
+      if (
+        typeof error === "object" &&
+        error &&
+        "code" in error &&
+        typeof (error as { code?: unknown }).code === "string"
+      ) {
+        errorCode = (error as { code: string }).code
+      }
+
+      const translatedError =
+        t.settings.cloud.oauthErrors[
+          errorCode as keyof typeof t.settings.cloud.oauthErrors
+        ] ?? t.settings.cloud.oauthErrors.unknown
+
+      const message = translatedError.replace("{error}", errorCode)
+
+      setOauthError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [getProvider, t.settings.cloud.oauthErrors])
+
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       setIsLoading(true)
@@ -754,6 +813,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         oauthError,
         clearOAuthError,
         signInWithGoogle,
+        signInWithApple,
         signInWithEmail,
         signUpWithEmail,
         requestPasswordReset,

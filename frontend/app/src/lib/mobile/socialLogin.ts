@@ -57,6 +57,13 @@ export interface MobileGoogleSignInResult {
   error?: string
 }
 
+export interface MobileAppleSignInResult {
+  success: boolean
+  idToken?: string
+  rawNonce?: string
+  error?: string
+}
+
 let socialLoginInitialized = false
 
 async function initializeSocialLogin(): Promise<void> {
@@ -213,6 +220,63 @@ export async function logoutFromGoogleMobile(): Promise<void> {
   try {
     const { SocialLogin } = await import("@capgo/capacitor-social-login")
     await SocialLogin.logout({ provider: "google" })
+  } catch {
+    // Ignore logout errors
+  }
+}
+
+export async function signInWithAppleMobile(): Promise<MobileAppleSignInResult> {
+  if (!__MOBILE__) {
+    return { success: false, error: "Not running on mobile platform" }
+  }
+  if (!isNativeMobile()) {
+    return { success: false, error: "Not running on native mobile" }
+  }
+
+  try {
+    const { SocialLogin } = await import("@capgo/capacitor-social-login")
+
+    const { rawNonce, nonceDigest } = await getNonce()
+
+    const response = await SocialLogin.login({
+      provider: "apple",
+      options: {
+        scopes: ["email", "name"],
+        nonce: nonceDigest,
+      },
+    })
+
+    const appleResponse = response.result as {
+      identityToken?: string
+      authorizationCode?: string
+    }
+
+    if (!appleResponse.identityToken) {
+      return { success: false, error: "Failed to get Apple identity token" }
+    }
+
+    return {
+      success: true,
+      idToken: appleResponse.identityToken,
+      rawNonce,
+    }
+  } catch (error) {
+    console.error("Apple authentication error:", error)
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Apple authentication failed",
+    }
+  }
+}
+
+export async function logoutFromAppleMobile(): Promise<void> {
+  if (!__MOBILE__) return
+  if (!isNativeMobile()) return
+
+  try {
+    const { SocialLogin } = await import("@capgo/capacitor-social-login")
+    await SocialLogin.logout({ provider: "apple" })
   } catch {
     // Ignore logout errors
   }

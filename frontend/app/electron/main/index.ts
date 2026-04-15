@@ -194,7 +194,8 @@ async function createWindow() {
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https:")) shell.openExternal(url)
+    if (url.startsWith("https:") || url.startsWith("mailto:"))
+      shell.openExternal(url)
     return { action: "deny" }
   })
 

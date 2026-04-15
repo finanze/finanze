@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
@@ -75,6 +76,11 @@ export function TransactionsCalendarView({
   const { t, locale } = useI18n()
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [showYearPicker, setShowYearPicker] = useState(false)
+
+  useModalBackHandler(selectedDayIndex !== null, () =>
+    setSelectedDayIndex(null),
+  )
+  useModalBackHandler(showYearPicker, () => setShowYearPicker(false))
 
   const transactionsByDate = useMemo(() => {
     const map = new Map<string, TransactionItem[]>()

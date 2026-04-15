@@ -284,10 +284,10 @@
     },
     "historicSection": {
       "heading": "Inversiones pasadas",
-      "showToggle": "Mostrar completadas",
+      "showToggle": "Ver completadas",
       "hideToggle": "Ocultar completadas",
       "toggleShort": {
-        "show": "Mostrar completadas",
+        "show": "Ver completadas",
         "hide": "Ocultar completadas"
       },
       "empty": "No hay proyectos de {type} completados.",
@@ -485,7 +485,7 @@
     "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
     "unselectAll": "Deseleccionar todas",
-    "fetchSelected": "Obtener datos",
+    "fetchSelected": "Actualizar",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
@@ -572,6 +572,12 @@
       }
     },
     "integrations": "Integraciones",
+    "legal": {
+      "title": "Legal",
+      "description": "Información legal y políticas",
+      "privacyPolicy": "Política de privacidad",
+      "termsOfService": "Términos del servicio"
+    },
     "cloud": {
       "tabTitle": "Cloud",
       "title": "Cloud Sync",
@@ -580,6 +586,7 @@
       "signInTitle": "Iniciar sesión en Cloud",
       "signInDescription": "Accede a funciones extra y sincroniza tus datos entre dispositivos",
       "signInWithGoogle": "Iniciar sesión con Google",
+      "signInWithApple": "Iniciar sesión con Apple",
       "googleDesktopOnly": "Disponible solo en la app de escritorio",
       "signInWithEmail": "Iniciar sesión con Email",
       "signUp": "Crear cuenta",
@@ -599,6 +606,10 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Cerrar sesión",
+      "deleteAccount": "Eliminar cuenta",
+      "requestAccountDeletion": "Solicitar eliminación de cuenta",
+      "deleteAccountEmailSubject": "Solicitud de eliminación de cuenta",
+      "deleteAccountEmailBody": "Hola,\n\nMe gustaría solicitar la eliminación de mi cuenta de Finanze Cloud (la asociada a este correo, {email}).\n\nEntiendo que esta acción es irreversible y eliminará permanentemente mi cuenta y copias de seguridad en la nube. Los datos locales en mis dispositivos no se verán afectados.",
       "loggingIn": "Iniciando sesión...",
       "signingUp": "Creando cuenta...",
       "tooManyRequests": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
@@ -1548,6 +1559,12 @@
     "weightUnitName": {
       "GRAM": "Gramos",
       "TROY_OUNCE": "Onzas Troy"
+    },
+    "realEstateFlowSubtype": {
+      "LOAN": "Préstamo",
+      "SUPPLY": "Suministro",
+      "COST": "Coste",
+      "RENT": "Alquiler"
     }
   },
   "walletForm": {
@@ -1612,7 +1629,7 @@
   },
   "walletManagement": {
     "title": "Gestionar billeteras",
-    "subtitle": "Billeteras conectadas para {{entityName}}",
+    "subtitle": "Billeteras de {{entityName}}",
     "addWallet": "Agregar",
     "noWallets": "No hay billeteras conectadas",
     "noWalletsDescription": "Comienza agregando tu primera billetera a esta entidad cripto",
@@ -1783,6 +1800,7 @@
     "categoryPlaceholder": "Ingresa la categoría",
     "iconLabel": "Icono",
     "frequencyLabel": "Frecuencia",
+    "flowSubtype": "Tipo",
     "since": "Desde",
     "until": "Hasta",
     "date": "Fecha",
@@ -1793,7 +1811,8 @@
     "deleteConfirmTitle": "Eliminar {type}",
     "deleteLinkedWarning": "Nota: Este {type} está asociado a una operación inmobiliaria. Al eliminarlo afectará a la propiedad relacionada.",
     "editLinkedWarning": "Editar este {type} afectará a la propiedad relacionada.",
-    "linkedToLoan": "Vinculado a un préstamo, gestionado desde inmuebles",
+    "linkedToLoan": "Vinculado a un préstamo, gestionado desde préstamos",
+    "linkedToRealEstate": "Vinculado a un inmueble, gestionado desde inmuebles",
     "noEarnings": "No hay ingresos configurados",
     "noExpenses": "No hay gastos configurados",
     "addFirstEarning": "Haz clic en '+' para añadir ingresos recurrentes.",
@@ -2405,8 +2424,8 @@
         "scenario": "Escenario",
         "compare": "Comparar escenarios"
       },
-      "yearlyView": "Vista anual",
-      "periodView": "Vista por periodo",
+      "yearlyView": "Por Año",
+      "periodView": "Por Periodo",
       "retirementModeInfo": "La aportación se calculará según los objetivos de jubilación"
     }
   },
@@ -2443,8 +2462,8 @@
       "name": "Nombre",
       "photo": "Foto",
       "purchaseDate": "Fecha de adquisición",
-      "isResidence": "Marcado como residencia",
-      "isRented": "Vivienda alquilada",
+      "isResidence": "Mi residencia",
+      "isRented": "Alquilada",
       "bathrooms": "Baños",
       "bedrooms": "Habitaciones"
     },

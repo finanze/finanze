@@ -1,6 +1,13 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { HardDrive, LogOut, Mail, User } from "lucide-react"
+import {
+  HardDrive,
+  LogOut,
+  Mail,
+  MoreVertical,
+  Trash2,
+  User,
+} from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import {
   Card,
@@ -16,8 +23,14 @@ import { useI18n } from "@/i18n"
 import { useCloud } from "@/context/CloudContext"
 import { CloudRole } from "@/types"
 import { isNativeMobile } from "@/lib/platform"
+import { isIOS } from "@/lib/platform"
 import { useBackupStatus } from "@/hooks/useBackupStatus"
 import { BackupStatusContent } from "@/components/backup/BackupStatusContent"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 
 const GoogleIcon = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -40,6 +53,15 @@ const GoogleIcon = () => (
   </svg>
 )
 
+const AppleIcon = () => (
+  <svg className="h-5 w-5" viewBox="0 0 24 24">
+    <path
+      fill="currentColor"
+      d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+    />
+  </svg>
+)
+
 export function CloudTab() {
   const { t } = useI18n()
   const {
@@ -51,6 +73,7 @@ export function CloudTab() {
     oauthError,
     clearOAuthError,
     signInWithGoogle,
+    signInWithApple,
     signInWithEmail,
     signUpWithEmail,
     requestPasswordReset,
@@ -75,6 +98,7 @@ export function CloudTab() {
     | "emailSignIn"
     | "emailSignUp"
     | "googleSignIn"
+    | "appleSignIn"
     | "passwordResetRequest"
     | "passwordUpdate"
     | "signOut"
@@ -82,6 +106,7 @@ export function CloudTab() {
 
   const isElectron = Boolean(window.ipcAPI)
   const canUseGoogleSignIn = isElectron || isNativeMobile()
+  const canUseAppleSignIn = isElectron || (isNativeMobile() && isIOS())
   const isSignedIn = !!user
   const canSeeBackup = permissions.includes("backup.info")
 
@@ -399,7 +424,7 @@ export function CloudTab() {
             <div className="space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div
-                  className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/20 p-4 dark:bg-muted/10 flex-1 ${
+                  className={`relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/20 p-4 dark:bg-muted/10 flex-1 ${
                     role === CloudRole.PLUS
                       ? "border-amber-400/60 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
                       : "border-border/50"
@@ -411,7 +436,38 @@ export function CloudTab() {
                     </p>
                     <p className="font-medium">{user.email}</p>
                   </div>
-                  <div className="flex items-center gap-2" />
+                  <div className="absolute top-2 right-2 sm:static">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-auto p-1">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                          onClick={() => {
+                            const subject = encodeURIComponent(
+                              t.settings.cloud.deleteAccountEmailSubject,
+                            )
+                            const body = encodeURIComponent(
+                              t.settings.cloud.deleteAccountEmailBody.replace(
+                                "{email}",
+                                user.email,
+                              ),
+                            )
+                            openExternalUrl(
+                              `mailto:contact@finanze.me?subject=${subject}&body=${body}`,
+                            )
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {t.settings.cloud.requestAccountDeletion}
+                        </button>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
                 <Button
                   variant="ghost"
@@ -567,12 +623,57 @@ export function CloudTab() {
                     {t.settings.cloud.googleDesktopOnly}
                   </span>
                 )}
-                {oauthError && (
-                  <p className="text-sm text-destructive text-center">
-                    {oauthError}
-                  </p>
-                )}
               </div>
+
+              {canUseAppleSignIn && (
+                <div className="flex flex-col items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      setError(null)
+                      setSuccess(null)
+                      clearOAuthError()
+                      setActiveAction("appleSignIn")
+                      try {
+                        await signInWithApple()
+                      } catch (err) {
+                        console.error("Apple sign-in error:", err)
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : t.settings.cloud.loginError,
+                        )
+                      } finally {
+                        setActiveAction(null)
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isLoading && activeAction === "appleSignIn" ? (
+                      <>
+                        <LoadingSpinner size="sm" className="mr-2" />
+                        {t.settings.cloud.loggingIn}
+                      </>
+                    ) : (
+                      <>
+                        <AppleIcon />
+                        <span className="ml-2">
+                          {t.settings.cloud.signInWithApple}
+                        </span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {oauthError && (
+                <p className="text-sm text-destructive text-center">
+                  {oauthError}
+                </p>
+              )}
 
               <p className="text-xs leading-tight text-muted-foreground text-center">
                 {t.settings.cloud.legalNoticePrefix}{" "}

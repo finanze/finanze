@@ -26,6 +26,7 @@ import {
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
@@ -51,6 +52,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 interface CommodityEntry extends Commodity {
   isExpanded: boolean
@@ -99,6 +101,10 @@ export default function CommoditiesInvestmentPage() {
     {},
   )
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
+
+  useModalBackHandler(showAddForm, () => setShowAddForm(false))
+  useModalBackHandler(!!editingCommodityId, () => setEditingCommodityId(null))
+  useModalBackHandler(!!deleteTarget, () => setDeleteTarget(null))
 
   const toggleCardExpanded = useCallback((key: string) => {
     setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
@@ -579,7 +585,7 @@ export default function CommoditiesInvestmentPage() {
               />
             </h2>
           </div>
-          <div className="flex flex-wrap items-center justify-center [@media(min-width:450px)]:justify-end gap-2 w-full [@media(min-width:450px)]:w-auto">
+          <div className="flex items-center gap-2">
             <Button
               variant="default"
               size="sm"
@@ -587,7 +593,7 @@ export default function CommoditiesInvestmentPage() {
               className="flex items-center gap-2"
             >
               <Plus className="h-3.5 w-3.5" />
-              {t.common.add}
+              <span className="hidden sm:inline">{t.common.add}</span>
             </Button>
             {hasChanges && (
               <Button
@@ -759,19 +765,16 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.amount}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id="amount"
-                          type="number"
-                          step="0.0001"
                           className={newEntry.unit ? "pr-10" : undefined}
                           value={newEntry.amount || ""}
-                          onChange={e => {
-                            const value = e.target.value
+                          onValueChange={v =>
                             setNewEntry(p => ({
                               ...p,
-                              amount: value === "" ? 0 : parseFloat(value) || 0,
+                              amount: v ?? 0,
                             }))
-                          }}
+                          }
                           onFocus={e => {
                             if (e.target.value === "0") e.target.select()
                           }}
@@ -815,17 +818,14 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.initialInvestment}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id="initial_investment"
-                          type="number"
-                          step="0.01"
                           className={newEntry.currency ? "pr-10" : undefined}
                           value={newEntry.initial_investment || ""}
-                          onChange={e =>
+                          onValueChange={v =>
                             setNewEntry(p => ({
                               ...p,
-                              initial_investment:
-                                parseFloat(e.target.value) || null,
+                              initial_investment: v,
                             }))
                           }
                         />
@@ -841,17 +841,14 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.averageBuyPrice}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id="average_buy_price"
-                          type="number"
-                          step="0.01"
                           className={newEntry.currency ? "pr-14" : undefined}
                           value={newEntry.average_buy_price || ""}
-                          onChange={e =>
+                          onValueChange={v =>
                             setNewEntry(p => ({
                               ...p,
-                              average_buy_price:
-                                parseFloat(e.target.value) || null,
+                              average_buy_price: v,
                             }))
                           }
                         />
@@ -1275,18 +1272,12 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.amount}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id={`amount-${editingCommodity.id}`}
-                          type="number"
-                          step="0.0001"
                           value={editingDraft.amount || ""}
-                          onChange={e => {
-                            const v = e.target.value
-                            updateDraftField(
-                              "amount",
-                              v === "" ? 0 : parseFloat(v) || 0,
-                            )
-                          }}
+                          onValueChange={v =>
+                            updateDraftField("amount", v ?? 0)
+                          }
                           onFocus={e => {
                             if (e.target.value === "0") e.target.select()
                           }}
@@ -1342,19 +1333,14 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.initialInvestment}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id={`initial-investment-${editingCommodity.id}`}
-                          type="number"
-                          step="0.01"
                           className={
                             editingDraft.currency ? "pr-10" : undefined
                           }
                           value={editingDraft.initial_investment || ""}
-                          onChange={e =>
-                            updateDraftField(
-                              "initial_investment",
-                              parseFloat(e.target.value) || null,
-                            )
+                          onValueChange={v =>
+                            updateDraftField("initial_investment", v)
                           }
                         />
                         {editingDraft.currency && (
@@ -1371,19 +1357,14 @@ export default function CommoditiesInvestmentPage() {
                         {t.commodityManagement.averageBuyPrice}
                       </Label>
                       <div className="relative">
-                        <Input
+                        <DecimalInput
                           id={`average-buy-price-${editingCommodity.id}`}
-                          type="number"
-                          step="0.01"
                           className={
                             editingDraft.currency ? "pr-14" : undefined
                           }
                           value={editingDraft.average_buy_price || ""}
-                          onChange={e =>
-                            updateDraftField(
-                              "average_buy_price",
-                              parseFloat(e.target.value) || null,
-                            )
+                          onValueChange={v =>
+                            updateDraftField("average_buy_price", v)
                           }
                         />
                         {editingDraft.currency && editingDraft.unit && (

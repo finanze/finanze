@@ -113,6 +113,28 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
     }
   }
 
+  async signInWithApple(callbackUrl: string): Promise<void> {
+    const isElectron = typeof window !== "undefined" && !!window.ipcAPI
+
+    if (!isElectron) {
+      throw new Error("Apple sign-in is only available in the desktop app")
+    }
+
+    const { data, error } = await this.getClient().auth.signInWithOAuth({
+      provider: "apple",
+      options: {
+        redirectTo: callbackUrl,
+        skipBrowserRedirect: true,
+      },
+    })
+    if (error) {
+      throw error
+    }
+    if (data?.url) {
+      window.open(data.url, "_blank", "noopener,noreferrer")
+    }
+  }
+
   async signInWithEmail(email: string, password: string): Promise<void> {
     const { error } = await this.getClient().auth.signInWithPassword({
       email,

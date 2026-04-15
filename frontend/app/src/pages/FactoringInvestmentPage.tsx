@@ -902,7 +902,7 @@ function FactoringViewContent({
       className="space-y-6"
     >
       <motion.div variants={fadeListItem} className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -1773,229 +1773,252 @@ function FactoringViewContent({
                       </div>
                     </div>
 
-                    {isExpanded && (
-                      <div className="space-y-4 border-t border-gray-200 dark:border-gray-800 pt-4">
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                            <div className="flex items-center gap-2">
-                              <TrendingUp
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>{t.investments.investment}</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.lastInvestDate}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Clock
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>
-                                {t.investments.historicSection.lastTx}
-                              </span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.lastTxDate}
-                              </span>
-                              {transactions.length > 0 && (
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 gap-1 px-2 text-xs"
-                                      aria-label={
-                                        t.investments.historicSection
-                                          .transactionsSummary
-                                      }
-                                      data-historic-stop
-                                    >
-                                      <Info size={14} />
-                                      {
-                                        t.investments.historicSection
-                                          .transactionsSummaryShort
-                                      }
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    align="start"
-                                    className="w-80 space-y-2"
-                                  >
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                      {
-                                        t.investments.historicSection
-                                          .transactionsSummary
-                                      }
-                                    </p>
-                                    <div className="space-y-1">
-                                      {transactions.map(tx => {
-                                        const amountDisplay = toAmountDisplay(
-                                          tx.net_amount,
-                                          tx.currency,
-                                        )
-                                        const direction =
-                                          getTransactionDisplayType(tx.type)
-                                        const isCharge =
-                                          direction === "out" &&
-                                          (tx.type === "FEE" ||
-                                            tx.type === "INTEREST")
-                                        const amountColor =
-                                          direction === "in"
-                                            ? "text-emerald-600 dark:text-emerald-400"
-                                            : isCharge
-                                              ? "text-red-500 dark:text-red-400"
-                                              : "text-gray-600 dark:text-gray-300"
-                                        const sign =
-                                          direction === "in" ? "+" : "-"
-                                        const formattedAmount =
-                                          amountDisplay.formatted
-                                            ? `${sign} ${amountDisplay.formatted}`
-                                            : notAvailableLabel
-
-                                        return (
-                                          <button
-                                            key={tx.id}
-                                            type="button"
-                                            onClick={handleTransactionRedirect}
-                                            className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
-                                          >
-                                            <div className="flex items-center justify-between gap-3">
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                  {formatSnakeCaseToHuman(
-                                                    tx.type,
-                                                  )}
-                                                </span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                  {formatDate(tx.date, locale)}
-                                                </span>
-                                              </div>
-                                              <span
-                                                className={cn(
-                                                  "text-sm font-semibold",
-                                                  amountColor,
-                                                )}
-                                              >
-                                                {formattedAmount}
-                                              </span>
-                                            </div>
-                                            {amountDisplay.original && (
-                                              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                {amountDisplay.original}
-                                              </span>
-                                            )}
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      className="w-full"
-                                      onClick={handleTransactionRedirect}
-                                    >
-                                      {
-                                        t.investments.historicSection
-                                          .viewTransactions
-                                      }
-                                    </Button>
-                                  </PopoverContent>
-                                </Popover>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>
-                                {t.investments.historicSection.originalMaturity}
-                              </span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.originalMaturity}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 flex flex-col items-start md:items-end gap-3 text-sm">
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {t.investments.profit}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  profitColor(item.profit.amount),
-                                )}
-                              >
-                                {item.profit.formatted ?? notAvailableLabel}
-                              </span>
-                              {item.profit.percentFormatted && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {item.profit.percentFormatted}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {t.investments.historicSection.netProfit}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  profitColor(item.netProfit.amount),
-                                )}
-                              >
-                                {item.netProfit.formatted ?? notAvailableLabel}
-                              </span>
-                              {item.netProfit.percentFormatted && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {item.netProfit.percentFormatted}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                            {baseStats.map(stat => (
-                              <div
-                                key={stat.key}
-                                className="flex items-baseline justify-between gap-3"
-                              >
-                                <span>{stat.label}:</span>
-                                <span className="font-medium text-gray-900 dark:text-gray-100">
-                                  {stat.amount.formatted ?? notAvailableLabel}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          {chargesStats.length > 0 && (
-                            <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                              {chargesStats.map(stat => (
-                                <div
-                                  key={stat.key}
-                                  className="flex items-baseline justify-between gap-3"
-                                >
-                                  <span>{stat.label}:</span>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="historic-expanded"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-4 border-t border-gray-200 dark:border-gray-800 pt-4">
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                                <div className="flex items-center gap-2">
+                                  <TrendingUp
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>{t.investments.investment}</span>
                                   <span className="font-medium text-gray-900 dark:text-gray-100">
-                                    {stat.amount.formatted ?? notAvailableLabel}
+                                    {item.lastInvestDate}
                                   </span>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Clock
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>
+                                    {t.investments.historicSection.lastTx}
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {item.lastTxDate}
+                                  </span>
+                                  {transactions.length > 0 && (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 gap-1 px-2 text-xs"
+                                          aria-label={
+                                            t.investments.historicSection
+                                              .transactionsSummary
+                                          }
+                                          data-historic-stop
+                                        >
+                                          <Info size={14} />
+                                          {
+                                            t.investments.historicSection
+                                              .transactionsSummaryShort
+                                          }
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        align="start"
+                                        className="w-80 space-y-2"
+                                      >
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                          {
+                                            t.investments.historicSection
+                                              .transactionsSummary
+                                          }
+                                        </p>
+                                        <div className="space-y-1">
+                                          {transactions.map(tx => {
+                                            const amountDisplay =
+                                              toAmountDisplay(
+                                                tx.net_amount,
+                                                tx.currency,
+                                              )
+                                            const direction =
+                                              getTransactionDisplayType(tx.type)
+                                            const isCharge =
+                                              direction === "out" &&
+                                              (tx.type === "FEE" ||
+                                                tx.type === "INTEREST")
+                                            const amountColor =
+                                              direction === "in"
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : isCharge
+                                                  ? "text-red-500 dark:text-red-400"
+                                                  : "text-gray-600 dark:text-gray-300"
+                                            const sign =
+                                              direction === "in" ? "+" : "-"
+                                            const formattedAmount =
+                                              amountDisplay.formatted
+                                                ? `${sign} ${amountDisplay.formatted}`
+                                                : notAvailableLabel
 
-                        {transactions.length === 0 && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {t.investments.historicSection.noTransactions}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                                            return (
+                                              <button
+                                                key={tx.id}
+                                                type="button"
+                                                onClick={
+                                                  handleTransactionRedirect
+                                                }
+                                                className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
+                                              >
+                                                <div className="flex items-center justify-between gap-3">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                      {formatSnakeCaseToHuman(
+                                                        tx.type,
+                                                      )}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                      {formatDate(
+                                                        tx.date,
+                                                        locale,
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                  <span
+                                                    className={cn(
+                                                      "text-sm font-semibold",
+                                                      amountColor,
+                                                    )}
+                                                  >
+                                                    {formattedAmount}
+                                                  </span>
+                                                </div>
+                                                {amountDisplay.original && (
+                                                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                    {amountDisplay.original}
+                                                  </span>
+                                                )}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          className="w-full"
+                                          onClick={handleTransactionRedirect}
+                                        >
+                                          {
+                                            t.investments.historicSection
+                                              .viewTransactions
+                                          }
+                                        </Button>
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Calendar
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>
+                                    {
+                                      t.investments.historicSection
+                                        .originalMaturity
+                                    }
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {item.originalMaturity}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 flex flex-col items-start md:items-end gap-3 text-sm">
+                                <div className="flex flex-wrap items-baseline gap-2">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {t.investments.profit}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-sm font-semibold",
+                                      profitColor(item.profit.amount),
+                                    )}
+                                  >
+                                    {item.profit.formatted ?? notAvailableLabel}
+                                  </span>
+                                  {item.profit.percentFormatted && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.profit.percentFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-baseline gap-2">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {t.investments.historicSection.netProfit}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-sm font-semibold",
+                                      profitColor(item.netProfit.amount),
+                                    )}
+                                  >
+                                    {item.netProfit.formatted ??
+                                      notAvailableLabel}
+                                  </span>
+                                  {item.netProfit.percentFormatted && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.netProfit.percentFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                {baseStats.map(stat => (
+                                  <div
+                                    key={stat.key}
+                                    className="flex items-baseline justify-between gap-3"
+                                  >
+                                    <span>{stat.label}:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                      {stat.amount.formatted ??
+                                        notAvailableLabel}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {chargesStats.length > 0 && (
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {chargesStats.map(stat => (
+                                    <div
+                                      key={stat.key}
+                                      className="flex items-baseline justify-between gap-3"
+                                    >
+                                      <span>{stat.label}:</span>
+                                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                                        {stat.amount.formatted ??
+                                          notAvailableLabel}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {transactions.length === 0 && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {t.investments.historicSection.noTransactions}
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}

@@ -450,10 +450,6 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.filesystem.getFileUri", args),
     createDirectory: (...args: any[]) =>
       requestMain("jsBridge.filesystem.createDirectory", args),
-    processAndWriteImage: (...args: any[]) =>
-      requestMain("jsBridge.filesystem.processAndWriteImage", args),
-    isImageFile: (...args: any[]) =>
-      requestMain("jsBridge.filesystem.isImageFile", args),
   }
 
   const yahooFinance = {

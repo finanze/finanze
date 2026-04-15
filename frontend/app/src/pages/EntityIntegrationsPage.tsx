@@ -13,7 +13,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
@@ -47,6 +47,7 @@ import {
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
 import { isNativeMobile } from "@/lib/platform"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export default function EntityIntegrationsPage() {
   const {
@@ -76,6 +77,7 @@ export default function EntityIntegrationsPage() {
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
   const [showManageAccounts, setShowManageAccounts] = useState(false)
+
   // External entity linking state
   const [showAddExternalEntity, setShowAddExternalEntity] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -102,7 +104,22 @@ export default function EntityIntegrationsPage() {
     string | null
   >(null)
 
-  // Helper function to determine if a crypto wallet entity is connected
+  useModalBackHandler(showManageAccounts, () => setShowManageAccounts(false))
+  useModalBackHandler(showAddWallet, () => setShowAddWallet(false))
+  useModalBackHandler(showManageWallets, () => setShowManageWallets(false))
+  useModalBackHandler(showAddExternalEntity, () =>
+    setShowAddExternalEntity(false),
+  )
+  useModalBackHandler(showCompleteExternalModal, () =>
+    setShowCompleteExternalModal(false),
+  )
+  useModalBackHandler(view === "login", () => setView("entities"))
+  useModalBackHandler(view === "external-login", () => setView("entities"))
+  useModalBackHandler(view === "features", () => setView("entities"))
+  useModalBackHandler(!!inAppConfirmation, cancelInAppConfirmation)
+  useModalBackHandler(pinRequired, () => setView("entities"))
+  useModalBackHandler(challengeRequired, () => setView("entities"))
+
   const isCryptoWalletConnected = (entity: any) => {
     return (
       entity.type === EntityType.CRYPTO_WALLET &&
@@ -501,12 +518,14 @@ export default function EntityIntegrationsPage() {
 
   // Scroll to enabled crypto wallets section when URL hash is present
   const { hash } = useLocation()
+  const hasScrolledToCrypto = useRef(false)
   useEffect(() => {
-    if (hash === "#crypto-enabled") {
+    if (hash === "#crypto-enabled" && !hasScrolledToCrypto.current) {
       setTimeout(() => {
         const el = document.getElementById("crypto-enabled")
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "start" })
+          hasScrolledToCrypto.current = true
         }
       }, 80)
     }
@@ -1073,9 +1092,9 @@ export default function EntityIntegrationsPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
+              className="bg-background rounded-lg shadow-2xl border w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
             >
-              <div className="flex-1 overflow-y-auto p-6 min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-6 min-h-0">
                 <ManageWalletsView
                   entityId={selectedEntity.id}
                   onBack={handleBackFromManageWallets}

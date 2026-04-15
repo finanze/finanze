@@ -25,7 +25,7 @@ const config: CapacitorConfig = {
       providers: {
         google: true,
         facebook: false,
-        apple: false,
+        apple: true,
         twitter: false,
       },
     },

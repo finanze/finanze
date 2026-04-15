@@ -7,19 +7,70 @@ import { useAppContext } from "@/context/AppContext"
 import { motion, AnimatePresence } from "framer-motion"
 import { PlatformType } from "@/types"
 import { useI18n } from "@/i18n"
-import { useLocation } from "react-router-dom"
-import { getPlatformType, isNativeMobile } from "@/lib/platform"
+import { useLocation, useNavigate } from "react-router-dom"
+import { getPlatformType, isAndroid, isNativeMobile } from "@/lib/platform"
 import {
   LayoutScrollProvider,
   useLayoutScroll,
 } from "@/context/LayoutScrollContext"
 import { cn } from "@/lib/utils"
+import { SwipeBackGesture } from "./SwipeBackGesture"
+import { useModalRegistry } from "@/context/ModalRegistryContext"
+import { canNavigateBack } from "@/lib/mobile/backNavigation"
 
 interface LayoutProps {
   children: React.ReactNode
 }
 
 const NARROW_BREAKPOINT = 768
+
+function BackButtonHandler() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { dismissTop, hasOpen } = useModalRegistry()
+  const pathnameRef = useRef(location.pathname)
+  pathnameRef.current = location.pathname
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  const dismissTopRef = useRef(dismissTop)
+  dismissTopRef.current = dismissTop
+  const hasOpenRef = useRef(hasOpen)
+  hasOpenRef.current = hasOpen
+
+  useEffect(() => {
+    if (!isAndroid()) return
+
+    let cleanup: (() => void) | undefined
+    let mounted = true
+
+    import("@capacitor/app").then(({ App }) => {
+      if (!mounted) return
+
+      const listener = App.addListener("backButton", () => {
+        if (hasOpenRef.current()) {
+          dismissTopRef.current()
+          return
+        }
+        if (canNavigateBack(pathnameRef.current)) {
+          navigateRef.current(-1)
+          return
+        }
+        App.minimizeApp()
+      })
+
+      cleanup = () => {
+        listener.then(l => l.remove())
+      }
+    })
+
+    return () => {
+      mounted = false
+      cleanup?.()
+    }
+  }, [])
+
+  return null
+}
 
 function LayoutContent({ children }: LayoutProps) {
   const { toast, hideToast } = useAppContext()
@@ -55,6 +106,7 @@ function LayoutContent({ children }: LayoutProps) {
 
   return (
     <>
+      <BackButtonHandler />
       <div className="flex h-screen h-[100svh] min-h-0 overflow-hidden bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
         {!isNarrowView && <Sidebar />}
         <main
@@ -67,21 +119,23 @@ function LayoutContent({ children }: LayoutProps) {
           )}
           onScroll={isNarrowView ? handleScroll : undefined}
         >
-          <motion.div
-            key={location.pathname}
-            initial={isRouteChange ? { opacity: 0, y: 10 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className={cn(
-              "min-h-full",
-              isMobilePlatform ? "px-6" : "p-6",
-              isNarrowView
-                ? "pb-[calc(64px+max(12px,var(--safe-area-inset-bottom,0px)))] sm:pb-[calc(64px+max(16px,var(--safe-area-inset-bottom,0px)))]"
-                : "pb-[max(1.5rem,var(--safe-area-inset-bottom,0px))]",
-            )}
-          >
-            {children}
-          </motion.div>
+          <SwipeBackGesture>
+            <motion.div
+              key={location.pathname}
+              initial={isRouteChange ? { opacity: 0, y: 10 } : false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={cn(
+                "min-h-full",
+                isMobilePlatform ? "px-6" : "p-6",
+                isNarrowView
+                  ? "pb-[calc(64px+max(12px,var(--safe-area-inset-bottom,0px)))] sm:pb-[calc(64px+max(16px,var(--safe-area-inset-bottom,0px)))]"
+                  : "pb-[max(1.5rem,var(--safe-area-inset-bottom,0px))]",
+              )}
+            >
+              {children}
+            </motion.div>
+          </SwipeBackGesture>
         </main>
         {isNarrowView && <FloatingBottomNav />}
       </div>

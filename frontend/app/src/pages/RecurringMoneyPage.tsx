@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/Button"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -26,6 +27,7 @@ import {
   BanknoteArrowUp,
   CalendarDays,
   Check,
+  ChevronDown,
   Clock,
   Edit,
   Eye,
@@ -62,6 +64,7 @@ import {
   updatePeriodicFlow,
   deletePeriodicFlow,
 } from "@/services/api"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
@@ -77,7 +80,13 @@ export default function RecurringMoneyPage() {
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
-  const [groupByCategory, setGroupByCategory] = useState(false)
+  const [groupByCategory, setGroupByCategory] = useState(() => {
+    try {
+      return sessionStorage.getItem("recurringGroupByCategory") === "true"
+    } catch {
+      return false
+    }
+  })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PeriodicFlow | null>(null)
@@ -87,6 +96,17 @@ export default function RecurringMoneyPage() {
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [showContributions, setShowContributions] = useState(true)
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
+  const [expandedFlows, setExpandedFlows] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
+
+  const toggleFlowExpanded = useCallback((id: string) => {
+    setExpandedFlows(prev => ({ ...prev, [id]: !prev[id] }))
+  }, [])
+
   // When category filter is active we suppress contributions per requirement
   const effectiveShowContributions =
     showContributions && categoryFilter.length === 0
@@ -481,6 +501,41 @@ export default function RecurringMoneyPage() {
     return map
   }, [flowDistribution, singleCategoryFiltered])
 
+  const flowBorderColorMap = useMemo(() => {
+    const bgToColor: Record<string, string> = {
+      "bg-green-700": "#15803d",
+      "bg-green-600": "#16a34a",
+      "bg-green-500": "#22c55e",
+      "bg-green-400": "#4ade80",
+      "bg-green-300": "#86efac",
+      "bg-green-200": "#bbf7d0",
+      "bg-green-100": "#dcfce7",
+      "bg-red-700": "#b91c1c",
+      "bg-red-600": "#dc2626",
+      "bg-red-500": "#ef4444",
+      "bg-red-400": "#f87171",
+      "bg-red-300": "#fca5a5",
+      "bg-red-200": "#fecaca",
+      "bg-red-100": "#fee2e2",
+    }
+    const map: Record<string, string> = {}
+    flowDistribution.earnings.forEach(entry => {
+      entry.flows.forEach(flow => {
+        if (flow.id) {
+          map[String(flow.id)] = bgToColor[entry.color] || "#16a34a"
+        }
+      })
+    })
+    flowDistribution.expenses.forEach(entry => {
+      entry.flows.forEach(flow => {
+        if (flow.id) {
+          map[String(flow.id)] = bgToColor[entry.color] || "#dc2626"
+        }
+      })
+    })
+    return map
+  }, [flowDistribution])
+
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
       prev.includes(category)
@@ -622,6 +677,17 @@ export default function RecurringMoneyPage() {
   useEffect(() => {
     refreshFlowsIfStale()
   }, [refreshFlowsIfStale])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        "recurringGroupByCategory",
+        String(groupByCategory),
+      )
+    } catch {
+      // ignore
+    }
+  }, [groupByCategory])
 
   useEffect(() => {
     // Extract unique categories for suggestions
@@ -851,7 +917,7 @@ export default function RecurringMoneyPage() {
             variants={fadeListContainer}
             initial={initialVariant}
             animate="show"
-            className="space-y-2"
+            className="space-y-3"
           >
             {(() => {
               const renderFlowCard = (flow: PeriodicFlow) => {
@@ -866,179 +932,321 @@ export default function RecurringMoneyPage() {
                 const highlightColor = flow.id
                   ? flowHighlightMap[String(flow.id)]
                   : undefined
+                const flowKey = String(flow.id)
+                const isExpanded = expandedFlows[flowKey] ?? false
+                const borderColor = flow.id
+                  ? flowBorderColorMap[String(flow.id)]
+                  : undefined
+                const fallbackBorder =
+                  flowType === FlowType.EARNING ? "#16a34a" : "#dc2626"
+
+                const shortNextDate = flow.next_date
+                  ? (() => {
+                      const d = new Date(flow.next_date)
+                      if (Number.isNaN(d.getTime())) return null
+                      return new Intl.DateTimeFormat(locale, {
+                        month: "short",
+                        day: "numeric",
+                      }).format(d)
+                    })()
+                  : null
 
                 return (
                   <motion.div
                     key={flow.id}
-                    className={cn(
-                      "relative flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
-                      !flow.enabled
-                        ? "opacity-50 bg-gray-50 dark:bg-black"
-                        : "bg-card shadow-sm",
-                    )}
                     variants={fadeListItem}
                     initial={initialVariant}
                     animate="show"
                   >
-                    {highlightColor && (
+                    <Card
+                      className={cn(
+                        "border-l-4 transition-all overflow-hidden",
+                        !flow.enabled && "opacity-50",
+                        highlightColor && "ring-2 ring-offset-0 ring-primary",
+                      )}
+                      style={{
+                        borderLeftColor: borderColor || fallbackBorder,
+                      }}
+                    >
                       <div
-                        className={cn(
-                          "pointer-events-none absolute left-0 top-0 h-full w-1 rounded-l-lg",
-                          highlightColor,
-                        )}
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                        className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                        onClick={e => {
+                          if (
+                            (e.target as HTMLElement).closest(
+                              "[data-no-expand]",
+                            )
+                          )
+                            return
+                          toggleFlowExpanded(flowKey)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            toggleFlowExpanded(flowKey)
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                      >
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <h3 className="flex items-center gap-2 text-base sm:text-lg font-semibold leading-tight flex-wrap">
                             {flow.icon && (
                               <Icon
                                 name={flow.icon as IconName}
-                                className="w-5 h-5"
+                                className="w-5 h-5 shrink-0"
                               />
                             )}
-                            <h3 className="font-medium">{flow.name}</h3>
-                          </div>
-                          {flow.linked &&
-                            (flow.real_estate_flow?.linked_loan_hash ? (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <span className="inline-flex text-blue-500 cursor-pointer">
-                                    <Link2
-                                      size={18}
-                                      strokeWidth={2.5}
-                                      style={{ transform: "rotate(155deg)" }}
-                                    />
-                                  </span>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                  side="top"
-                                  className="w-auto text-xs px-3 py-2"
-                                >
-                                  {(t.management as any).linkedToLoan}
-                                </PopoverContent>
-                              </Popover>
-                            ) : (
+                            <span>{flow.name}</span>
+                            {flow.linked && (
                               <Link2
-                                size={18}
+                                size={16}
                                 strokeWidth={2.5}
+                                className={cn(
+                                  "shrink-0 hidden sm:block",
+                                  flow.real_estate_flow?.linked_loan_hash
+                                    ? "text-blue-500"
+                                    : "text-muted-foreground",
+                                )}
                                 style={{ transform: "rotate(155deg)" }}
                               />
-                            ))}
-                          {!groupByCategory && flow.category && (
-                            <Badge
-                              variant="secondary"
-                              onClick={() =>
-                                toggleCategoryFilter(flow.category!)
-                              }
-                              className={cn(
-                                "flex items-center gap-1 cursor-pointer",
-                                getColorForName(flow.category),
-                              )}
-                            >
-                              <Tag size={12} />
-                              {flow.category}
-                            </Badge>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1"
-                          >
-                            <Clock size={12} />
-                            {getFrequencyLabel(flow.frequency)}
-                          </Badge>
-
-                          {nextDateInfo && (
-                            <Badge
-                              variant={
-                                nextDateInfo.urgencyLevel === "urgent"
-                                  ? "destructive"
-                                  : nextDateInfo.urgencyLevel === "soon"
-                                    ? "default"
-                                    : "secondary"
-                              }
-                              className={cn(
-                                "flex items-center gap-1 font-medium",
-                                nextDateInfo.urgencyLevel === "urgent" &&
-                                  "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-                                nextDateInfo.urgencyLevel === "soon" &&
-                                  "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-                                nextDateInfo.urgencyLevel === "normal" &&
-                                  "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-                              )}
-                              title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
-                            >
-                              <CalendarDays size={12} />
-                              {nextDateInfo.timeText}
-                            </Badge>
-                          )}
-                          {!flow.enabled && (
-                            <span className="text-sm text-gray-500">
-                              {t.management.disabled}
+                            )}
+                            {!flow.enabled && (
+                              <span className="text-[0.65rem] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                                {t.management.disabled}
+                              </span>
+                            )}
+                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="hidden sm:inline-flex text-[0.7rem] items-center gap-1 rounded-full px-2 py-0.5 font-medium bg-secondary text-secondary-foreground">
+                              <Clock size={10} />
+                              {getFrequencyLabel(flow.frequency)}
                             </span>
-                          )}
+                            {nextDateInfo && (
+                              <span
+                                className={cn(
+                                  "text-[0.7rem] inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium",
+                                  nextDateInfo.urgencyLevel === "urgent" &&
+                                    "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                                  nextDateInfo.urgencyLevel === "soon" &&
+                                    "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                                  nextDateInfo.urgencyLevel === "normal" &&
+                                    "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                                )}
+                                title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
+                              >
+                                <CalendarDays size={10} />
+                                {nextDateInfo.urgencyLevel !== "normal"
+                                  ? nextDateInfo.timeText
+                                  : shortNextDate || nextDateInfo.timeText}
+                              </span>
+                            )}
+                            {!groupByCategory && flow.category && (
+                              <button
+                                type="button"
+                                data-no-expand
+                                onClick={() =>
+                                  toggleCategoryFilter(flow.category!)
+                                }
+                                className={cn(
+                                  "text-[0.7rem] inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                                  getColorForName(flow.category),
+                                )}
+                              >
+                                <Tag size={10} />
+                                {flow.category}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {t.management.since}: {formatDate(flow.since, locale)}
-                        {flow.until &&
-                          ` • ${t.management.until}: ${formatDate(flow.until, locale)}`}
-                      </div>
-                    </div>
 
-                    <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
-                      <span className="font-mono font-semibold">
-                        {formatCurrency(
-                          convertedAmount,
-                          locale,
-                          defaultCurrency,
-                        )}
-                      </span>
-                      {showOriginalCurrency && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatCurrency(flow.amount, locale, flow.currency)}
-                        </span>
-                      )}
-                    </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right space-y-0.5">
+                            <div className="text-base sm:text-lg font-semibold leading-tight font-mono">
+                              {formatCurrency(
+                                convertedAmount,
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </div>
+                            {showOriginalCurrency && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(
+                                  flow.amount,
+                                  locale,
+                                  flow.currency,
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              "hidden sm:block h-4 w-4 text-muted-foreground transition-transform duration-200",
+                              isExpanded && "rotate-180",
+                            )}
+                          />
+                        </div>
 
-                    <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(flow)}
-                      >
-                        <Edit size={16} />
-                      </Button>
-                      {flow.real_estate_flow?.linked_loan_hash ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 opacity-50 cursor-not-allowed"
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            side="top"
-                            className="w-auto text-xs px-3 py-2"
+                        <ChevronDown
+                          className={cn(
+                            "sm:hidden absolute bottom-2 right-3 h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            key="expanded"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="overflow-hidden"
                           >
-                            {(t.management as any).linkedToLoan}
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openDeleteDialog(flow)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      )}
-                    </div>
+                            <div className="px-4 pb-4">
+                              <div className="border-t border-border/50 pt-3 space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                                  <div className="sm:hidden">
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                      <Clock size={11} />
+                                      {t.management.frequencyLabel}
+                                    </div>
+                                    <div className="text-foreground">
+                                      {getFrequencyLabel(flow.frequency)}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                      <CalendarDays size={11} />
+                                      {t.management.since}
+                                    </div>
+                                    <div className="text-foreground">
+                                      {formatDate(flow.since, locale)}
+                                    </div>
+                                  </div>
+                                  {flow.until && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                        <CalendarDays size={11} />
+                                        {t.management.until}
+                                      </div>
+                                      <div className="text-foreground">
+                                        {formatDate(flow.until, locale)}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {flow.category && groupByCategory && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                        <Tag size={11} />
+                                        {t.management.category}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <span
+                                          className={cn(
+                                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                                            getColorForName(flow.category),
+                                          )}
+                                        >
+                                          <Tag size={10} />
+                                          {flow.category}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {nextDateInfo && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                        <CalendarDays size={11} />
+                                        {t.management.nextPayment}
+                                      </div>
+                                      <div className="text-foreground">
+                                        {nextDateInfo.formattedDate}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {flow.linked && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                        <Link2
+                                          size={11}
+                                          strokeWidth={2.5}
+                                          style={{
+                                            transform: "rotate(155deg)",
+                                          }}
+                                        />
+                                        {flow.real_estate_flow?.linked_loan_hash
+                                          ? (t.management as any).linkedToLoan
+                                          : (t.management as any)
+                                              .linkedToRealEstate}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {flow.real_estate_flow?.flow_subtype && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5 flex items-center gap-1">
+                                        <Tag size={11} />
+                                        {(t.management as any).flowSubtype}
+                                      </div>
+                                      <div className="text-foreground">
+                                        {(
+                                          t.enums?.realEstateFlowSubtype as any
+                                        )?.[
+                                          flow.real_estate_flow.flow_subtype
+                                        ] || flow.real_estate_flow.flow_subtype}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div
+                                  className="flex items-center justify-end gap-2 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditDialog(flow)}
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  {flow.real_estate_flow?.linked_loan_hash ? (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-red-500 opacity-50 cursor-not-allowed"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        side="top"
+                                        className="w-auto text-xs px-3 py-2"
+                                      >
+                                        {(t.management as any).linkedToLoan}
+                                      </PopoverContent>
+                                    </Popover>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-500 hover:text-red-600"
+                                      onClick={() => openDeleteDialog(flow)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Card>
                   </motion.div>
                 )
               }
@@ -1064,7 +1272,7 @@ export default function RecurringMoneyPage() {
               })
 
               return sortedKeys.map(key => (
-                <div key={key} className="space-y-2">
+                <div key={key} className="space-y-3">
                   <div className="flex items-center gap-2 pt-2">
                     <Badge
                       variant="secondary"
@@ -1079,7 +1287,7 @@ export default function RecurringMoneyPage() {
                         : key}
                     </Badge>
                   </div>
-                  <div className="space-y-2 pl-2 border-l-2 border-muted">
+                  <div className="space-y-3 pl-2 border-l-2 border-muted">
                     {groups[key].map(renderFlowCard)}
                   </div>
                 </div>
@@ -1741,9 +1949,6 @@ export default function RecurringMoneyPage() {
               <h2 className="text-lg font-semibold">
                 {t.management.loanSuggestions.title}
               </h2>
-              <span className="text-xs text-muted-foreground">
-                ({loanSuggestions.length} {t.management.loanSuggestions.found})
-              </span>
             </div>
             <motion.div
               variants={fadeListContainer}
@@ -1767,36 +1972,34 @@ export default function RecurringMoneyPage() {
                       variants={fadeListItem}
                       initial={runEntranceAnimation ? "hidden" : false}
                       animate="show"
-                      className={`flex items-start justify-between p-4 border rounded-lg ${
+                      className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 border rounded-lg ${
                         isDismissed
                           ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 opacity-70"
                           : "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800"
                       }`}
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-4 flex-wrap">
-                            <h3 className="font-medium">
-                              {t.management.loanSuggestions.loanPayment.replace(
-                                "{loanName}",
-                                suggestion.name,
-                              )}
-                            </h3>
-                            <Badge
-                              variant="secondary"
-                              className="flex items-center gap-1"
-                            >
-                              <Tag size={12} />
-                              {t.management.loanSuggestions.loanCategory}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className="flex items-center gap-1"
-                            >
-                              <Clock size={12} />
-                              {t.management.frequency.MONTHLY}
-                            </Badge>
-                          </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <h3 className="font-medium">
+                            {t.management.loanSuggestions.loanPayment.replace(
+                              "{loanName}",
+                              suggestion.name,
+                            )}
+                          </h3>
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            <Tag size={12} />
+                            {t.management.loanSuggestions.loanCategory}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1"
+                          >
+                            <Clock size={12} />
+                            {t.management.frequency.MONTHLY}
+                          </Badge>
                         </div>
                         <div className="text-sm text-gray-500 mt-1">
                           {suggestion.sinceDate && (
@@ -1810,7 +2013,7 @@ export default function RecurringMoneyPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 mr-4 self-center">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-2 sm:shrink-0">
                         <span className="font-mono font-semibold">
                           {formatCurrency(
                             suggestion.amount,
@@ -1818,42 +2021,44 @@ export default function RecurringMoneyPage() {
                             suggestion.currency,
                           )}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-2 self-center">
-                        {isDismissed ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              handleRestoreSuggestion(suggestion.id)
-                            }
-                            className="h-8 px-3"
-                          >
-                            <Check size={14} className="mr-1" />
-                            {t.management.loanSuggestions.add}
-                          </Button>
-                        ) : (
-                          <>
+                        <div className="flex items-center gap-2">
+                          {isDismissed ? (
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                handleDismissSuggestion(suggestion.id)
+                                handleRestoreSuggestion(suggestion.id)
                               }
-                              className="h-8 w-8 p-0"
-                            >
-                              <X size={14} />
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAcceptSuggestion(suggestion)}
                               className="h-8 px-3"
                             >
                               <Check size={14} className="mr-1" />
                               {t.management.loanSuggestions.add}
                             </Button>
-                          </>
-                        )}
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  handleDismissSuggestion(suggestion.id)
+                                }
+                                className="h-8 w-8 p-0"
+                              >
+                                <X size={14} />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleAcceptSuggestion(suggestion)
+                                }
+                                className="h-8 px-3"
+                              >
+                                <Check size={14} className="mr-1" />
+                                {t.management.loanSuggestions.add}
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   )
@@ -2027,14 +2232,12 @@ export default function RecurringMoneyPage() {
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
                         {getCurrencySymbol(formData.currency)}
                       </span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.amount}
-                        onChange={e =>
+                      <DecimalInput
+                        value={formData.amount || ""}
+                        onValueChange={v =>
                           setFormData(prev => ({
                             ...prev,
-                            amount: parseFloat(e.target.value),
+                            amount: v ?? 0,
                           }))
                         }
                         placeholder={t.management.amountPlaceholder}

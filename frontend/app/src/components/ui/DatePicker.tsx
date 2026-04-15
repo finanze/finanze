@@ -167,7 +167,8 @@ function DatePicker({
                 day_button: "cell h-9 w-9",
                 selected:
                   "rounded-md bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                today: "font-bold",
+                today:
+                  "[&>button]:font-bold [&>button]:underline [&>button]:underline-offset-2",
                 outside: "text-muted-foreground opacity-50",
                 disabled: "text-muted-foreground opacity-50",
               }}
