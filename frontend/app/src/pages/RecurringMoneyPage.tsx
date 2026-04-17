@@ -75,6 +75,8 @@ export default function RecurringMoneyPage() {
     refreshFlowsIfStale,
     positionsData,
     contributions,
+    ensureContributions,
+    ensurePeriodicFlows,
   } = useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
@@ -676,7 +678,9 @@ export default function RecurringMoneyPage() {
 
   useEffect(() => {
     refreshFlowsIfStale()
-  }, [refreshFlowsIfStale])
+    ensureContributions()
+    ensurePeriodicFlows()
+  }, [refreshFlowsIfStale, ensureContributions, ensurePeriodicFlows])
 
   useEffect(() => {
     try {

@@ -125,8 +125,13 @@ export function RealEstateFormModal({
 }: RealEstateFormModalProps) {
   const { t, locale } = useI18n()
   const { settings, showToast } = useAppContext()
-  const { periodicFlows, positionsData, refreshFlows, refreshRealEstate } =
-    useFinancialData()
+  const {
+    periodicFlows,
+    positionsData,
+    refreshFlows,
+    refreshRealEstate,
+    ensurePeriodicFlows,
+  } = useFinancialData()
 
   const initialFormData: FormData = {
     currency: settings.general.defaultCurrency,
@@ -273,6 +278,12 @@ export function RealEstateFormModal({
     "generic-internet": "utilities",
     "generic-rent": "rent",
   }
+
+  useEffect(() => {
+    if (isOpen) {
+      ensurePeriodicFlows()
+    }
+  }, [isOpen, ensurePeriodicFlows])
 
   useEffect(() => {
     const getLoanSuggestionsFromPositions = (): PeriodicFlow[] => {

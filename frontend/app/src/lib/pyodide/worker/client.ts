@@ -129,6 +129,14 @@ export class PyodideWorkerClient {
     await this.postRequest("installDeferredRequirements")
   }
 
+  async loadLazyModules(): Promise<void> {
+    await this.postRequest("loadLazyModules")
+  }
+
+  async installLazyRequirements(): Promise<void> {
+    await this.postRequest("installLazyRequirements")
+  }
+
   async callPythonFunction(
     modulePath: string,
     functionName: string,

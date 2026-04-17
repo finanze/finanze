@@ -40,7 +40,6 @@ class DeferredComponents:
 
         import domain.native_entities
         from domain.backup import BackupFileType
-        from domain.export import FileFormat
         from domain.external_integration import ExternalIntegrationId
         from infrastructure.cloud.capacitor_cloud_data_register import (
             CapacitorCloudDataRegister,
@@ -48,7 +47,6 @@ class DeferredComponents:
         from infrastructure.config.capacitor_config_adapter import (
             CapacitorConfigAdapter,
         )
-        from infrastructure.file_storage.mobile_file_storage import MobileFileStorage
         from infrastructure.file_storage.preference_exchange_storage import (
             PreferenceExchangeRateStorage,
         )
@@ -58,61 +56,8 @@ class DeferredComponents:
         from infrastructure.client.rates.crypto.preference_coingecko_strategy import (
             PreferenceCoinGeckoCacheStrategy,
         )
-        from infrastructure.client.crypto.etherscan.etherscan_client import (
-            EtherscanClient,
-        )
-        from infrastructure.client.crypto.ethplorer.ethplorer_client import (
-            EthplorerClient,
-        )
-        from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import (
-            BitcoinFetcher,
-        )
-        from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
-        from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
-            EthereumFetcher,
-        )
-        from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
-            LitecoinFetcher,
-        )
-        from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
-        from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
-            CajamarFetcher,
-        )
-        from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
-        from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
-            IndexaCapitalFetcher,
-        )
-        from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
-        from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
-        from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
-            UrbanitaeFetcher,
-        )
-        from infrastructure.client.entity.financial.unicaja.unicaja_fetcher import (
-            UnicajaFetcher,
-        )
-        from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
-            TradeRepublicFetcher,
-        )
-        from infrastructure.client.entity.financial.ing.ing_fetcher import (
-            INGFetcher,
-        )
-        from infrastructure.client.entity.financial.mintos.mintos_fetcher import (
-            MintosFetcher,
-        )
-        from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import (
-            IBKRFetcher,
-        )
-        from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
-            WecityFetcher,
-        )
-        from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
-            BinanceFetcher,
-        )
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
-        )
-        from infrastructure.crypto.public_key_derivation_adapter import (
-            PublicKeyDerivationAdapter,
         )
         from infrastructure.client.rates.crypto.crypto_price_client import (
             CryptoAssetInfoClient,
@@ -120,9 +65,6 @@ class DeferredComponents:
         from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
         from infrastructure.client.rates.metal.metal_price_client import (
             MetalPriceClient,
-        )
-        from infrastructure.cloud.backup.capacitor_backup_processor import (
-            CapacitorBackupProcessorAdapter,
         )
         from infrastructure.client.cloud.backup.capacitor_file_transfer_strategy import (
             CapacitorFileTransferStrategy,
@@ -133,9 +75,6 @@ class DeferredComponents:
         )
         from infrastructure.repository.entity.entity_repository import (
             EntitySQLRepository as EntityRepository,
-        )
-        from infrastructure.repository.historic.historic_repository import (
-            HistoricSQLRepository as HistoricRepository,
         )
         from infrastructure.repository.position.position_repository import (
             PositionSQLRepository as PositionRepository,
@@ -148,9 +87,6 @@ class DeferredComponents:
         )
         from infrastructure.repository.entity_account.entity_account_repository import (
             EntityAccountRepository,
-        )
-        from infrastructure.repository.crypto.crypto_asset_repository import (
-            CryptoAssetRegistryRepository,
         )
         from infrastructure.repository.crypto.crypto_wallet_repository import (
             CryptoWalletRepository,
@@ -177,67 +113,11 @@ class DeferredComponents:
         from infrastructure.repository.real_estate.real_estate_repository import (
             RealEstateRepository,
         )
-        from infrastructure.repository.sessions.sessions_repository import (
-            SessionsRepository,
-        )
-        from infrastructure.repository.templates.template_repository import (
-            TemplateRepository,
-        )
-        from infrastructure.repository.keychain.public_keychain_repository import (
-            PublicKeychainRepository,
-        )
-        from infrastructure.client.keychain.public_keychain_client import (
-            PublicKeychainClient,
-        )
-        from infrastructure.keychain.public_keychain_adapter import (
-            PublicKeychainAdapter,
-        )
         from infrastructure.repository.virtual.virtual_import_repository import (
             VirtualImportRepository,
         )
-        from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
-        from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
-        from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
-        from infrastructure.templating.templated_data_generator import (
-            TemplatedDataGenerator,
-        )
-        from infrastructure.templating.templated_data_parser import TemplateDataParser
         from infrastructure.client.http.httpx_patch import apply_httpx_patch
         from infrastructure.calculations.loan_calculator import LoanCalculator
-        from application.use_cases.add_entity_credentials import (
-            AddEntityCredentialsImpl,
-        )
-        from application.use_cases.add_manual_transaction import (
-            AddManualTransactionImpl,
-        )
-        from application.use_cases.calculate_loan import CalculateLoanImpl
-        from application.use_cases.calculate_savings import CalculateSavingsImpl
-        from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
-        from application.use_cases.derive_crypto_addresses import (
-            DeriveCryptoAddressesImpl,
-        )
-        from application.use_cases.connect_external_integration import (
-            ConnectExternalIntegrationImpl,
-        )
-        from application.use_cases.create_real_estate import CreateRealEstateImpl
-        from application.use_cases.create_template import CreateTemplateImpl
-        from application.use_cases.delete_crypto_wallet import (
-            DeleteCryptoWalletConnectionImpl,
-        )
-        from application.use_cases.delete_manual_transaction import (
-            DeleteManualTransactionImpl,
-        )
-        from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
-        from application.use_cases.delete_real_estate import DeleteRealEstateImpl
-        from application.use_cases.delete_template import DeleteTemplateImpl
-        from application.use_cases.disconnect_entity import DisconnectEntityImpl
-        from application.use_cases.disconnect_external_integration import (
-            DisconnectExternalIntegrationImpl,
-        )
-        from application.use_cases.export_file import ExportFileImpl
-        from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
-        from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
-        from application.use_cases.forecast import ForecastImpl
         from application.use_cases.get_available_entities import (
             GetAvailableEntitiesImpl,
         )
@@ -249,48 +129,20 @@ class DeferredComponents:
         from application.use_cases.get_external_integrations import (
             GetExternalIntegrationsImpl,
         )
-        from application.use_cases.get_historic import GetHistoricImpl
-        from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
-        from application.use_cases.get_instruments import GetInstrumentsImpl
         from application.use_cases.get_money_events import GetMoneyEventsImpl
         from application.use_cases.get_pending_flows import GetPendingFlowsImpl
         from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
         from application.use_cases.get_position import GetPositionImpl
-        from application.use_cases.get_template_fields import GetTemplateFieldsImpl
-        from application.use_cases.get_templates import GetTemplatesImpl
         from application.use_cases.get_transactions import GetTransactionsImpl
         from application.use_cases.get_settings import GetSettingsImpl
         from application.use_cases.handle_cloud_auth import HandleCloudAuthImpl
-        from application.use_cases.import_backup import ImportBackupImpl
-        from application.use_cases.import_file import ImportFileImpl
         from application.use_cases.list_real_estate import ListRealEstateImpl
         from application.use_cases.register_user import RegisterUserImpl
-        from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
-        from application.use_cases.save_commodities import SaveCommoditiesImpl
-        from application.use_cases.save_pending_flows import SavePendingFlowsImpl
-        from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
-        from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
         from application.use_cases.user_login import UserLoginImpl
-        from application.use_cases.get_crypto_asset_details import (
-            GetCryptoAssetDetailsImpl,
-        )
         from application.use_cases.change_user_password import ChangeUserPasswordImpl
-        from application.use_cases.update_settings import UpdateSettingsImpl
         from application.use_cases.user_logout import UserLogoutImpl
-        from application.use_cases.update_contributions import UpdateContributionsImpl
-        from application.use_cases.update_crypto_wallet import (
-            UpdateCryptoWalletConnectionImpl,
-        )
-        from application.use_cases.update_manual_transaction import (
-            UpdateManualTransactionImpl,
-        )
-        from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
-        from application.use_cases.update_position import UpdatePositionImpl
-        from application.use_cases.update_real_estate import UpdateRealEstateImpl
-        from application.use_cases.update_template import UpdateTemplateImpl
         from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
         from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
-        from application.use_cases.upload_backup import UploadBackupImpl
 
         core = self._core
 
@@ -325,327 +177,126 @@ class DeferredComponents:
             self.sheets_initiator,
             self.cloud_register,
         )
-        self.update_settings = UpdateSettingsImpl(self.config_loader)
 
-        etherscan_client = EtherscanClient()
-        ethplorer_client = EthplorerClient()
-
-        crypto_entity_fetchers = {
-            domain.native_entities.BITCOIN: BitcoinFetcher(),
-            domain.native_entities.ETHEREUM: EthereumFetcher(
-                etherscan_client, ethplorer_client
-            ),
-            domain.native_entities.LITECOIN: LitecoinFetcher(),
-            domain.native_entities.TRON: TronFetcher(),
-            domain.native_entities.BSC: BSCFetcher(etherscan_client, ethplorer_client),
-        }
-        financial_entity_fetchers = {
-            domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
-            domain.native_entities.URBANITAE: UrbanitaeFetcher(),
-            domain.native_entities.WECITY: WecityFetcher(),
-            domain.native_entities.SEGO: SegoFetcher(),
-            domain.native_entities.MINTOS: MintosFetcher(),
-            domain.native_entities.F24: F24Fetcher(),
-            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
-            domain.native_entities.ING: INGFetcher(),
-            domain.native_entities.CAJAMAR: CajamarFetcher(),
-            domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
-            domain.native_entities.IBKR: IBKRFetcher(),
-            domain.native_entities.BINANCE: BinanceFetcher(),
+        financial_entity_fetcher_stubs = {
+            entity_id: True
+            for entity_id in [
+                domain.native_entities.MY_INVESTOR.id,
+                domain.native_entities.TRADE_REPUBLIC.id,
+                domain.native_entities.URBANITAE.id,
+                domain.native_entities.WECITY.id,
+                domain.native_entities.SEGO.id,
+                domain.native_entities.MINTOS.id,
+                domain.native_entities.F24.id,
+                domain.native_entities.INDEXA_CAPITAL.id,
+                domain.native_entities.ING.id,
+                domain.native_entities.CAJAMAR.id,
+                domain.native_entities.UNICAJA.id,
+                domain.native_entities.IBKR.id,
+                domain.native_entities.BINANCE.id,
+            ]
         }
         external_integrations = {
-            ExternalIntegrationId.ETHERSCAN: etherscan_client,
-            ExternalIntegrationId.ETHPLORER: ethplorer_client,
+            ExternalIntegrationId.ETHERSCAN: True,
+            ExternalIntegrationId.ETHPLORER: True,
         }
 
-        csv_tsv_adapter = CSVFileTableAdapter()
-        table_rw_adapter = TableRWDispatcher(
-            {
-                FileFormat.CSV: csv_tsv_adapter,
-                FileFormat.TSV: csv_tsv_adapter,
-                FileFormat.XLSX: XLSXFileTableAdapter(),
-            }
-        )
-
-        position_repo = PositionRepository(client=db_client)
-        manual_repo = ManualPositionDataSQLRepository(client=db_client)
-        auto_repo = AutoContributionsRepository(client=db_client)
-        tx_repo = TransactionRepository(client=db_client)
-        historic_repo = HistoricRepository(client=db_client)
-        entity_repo = EntityRepository(client=db_client)
-        sessions_repo = SessionsRepository(client=db_client)
-        virtual_repo = VirtualImportRepository(client=db_client)
-        wallet_repo = CryptoWalletRepository(client=db_client)
-        crypto_asset_repo = CryptoAssetRegistryRepository(client=db_client)
-        last_fetches_repo = LastFetchesRepository(client=db_client)
-        ext_int_repo = ExternalIntegrationRepository(client=db_client)
-        period_repo = PeriodicFlowRepository(client=db_client)
-        pending_repo = PendingFlowRepository(client=db_client)
-        re_repo = RealEstateRepository(client=db_client)
+        self.position_repo = PositionRepository(client=db_client)
+        self.manual_repo = ManualPositionDataSQLRepository(client=db_client)
+        self.auto_repo = AutoContributionsRepository(client=db_client)
+        self.tx_repo = TransactionRepository(client=db_client)
+        self.entity_repo = EntityRepository(client=db_client)
+        self.virtual_repo = VirtualImportRepository(client=db_client)
+        self.wallet_repo = CryptoWalletRepository(client=db_client)
+        self.last_fetches_repo = LastFetchesRepository(client=db_client)
+        self.ext_int_repo = ExternalIntegrationRepository(client=db_client)
+        self.period_repo = PeriodicFlowRepository(client=db_client)
+        self.pending_repo = PendingFlowRepository(client=db_client)
+        self.re_repo = RealEstateRepository(client=db_client)
         ext_ent_repo = ExternalEntityRepository(client=db_client)
-        temp_repo = TemplateRepository(client=db_client)
-        creds_repo = CredentialsRepository(client=db_client)
-        entity_account_repo = EntityAccountRepository(client=db_client)
-
-        public_keychain_data_repo = PublicKeychainRepository(client=db_client)
-        public_keychain_fetcher = PublicKeychainClient()
-        public_keychain = PublicKeychainAdapter(
-            data_port=public_keychain_data_repo,
-            fetcher_port=public_keychain_fetcher,
-        )
-
-        file_storage = MobileFileStorage()
+        self.creds_repo = CredentialsRepository(client=db_client)
+        self.entity_account_repo = EntityAccountRepository(client=db_client)
         ex_storage = PreferenceExchangeRateStorage()
 
-        ex_client = ExchangeRateClient()
-        crypto_info = CryptoAssetInfoClient(
+        self.ex_client = ExchangeRateClient()
+        self.crypto_info = CryptoAssetInfoClient(
             coingecko_strategy=PreferenceCoinGeckoCacheStrategy()
         )
-        metal_client = MetalPriceClient()
-        inst_provider = InstrumentProviderAdapter(
+        self.metal_client = MetalPriceClient()
+        self.inst_provider = InstrumentProviderAdapter(
             enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
         )
-        public_key_derivation = PublicKeyDerivationAdapter()
 
-        tx_handler = TransactionHandler(client=db_client)
+        self.tx_handler = TransactionHandler(client=db_client)
 
-        template_gen = TemplatedDataGenerator()
-        template_parser = TemplateDataParser()
-
-        backup_processor = CapacitorBackupProcessorAdapter()
         file_transfer_strategy = CapacitorFileTransferStrategy()
-        backup_repository = BackupClient(file_transfer_strategy)
+        self.backup_repository = BackupClient(file_transfer_strategy)
+
+        self.loan_calculator = LoanCalculator()
 
         self.get_avail_sources = GetAvailableEntitiesImpl(
-            entity_repo,
+            self.entity_repo,
             ext_ent_repo,
-            creds_repo,
-            wallet_repo,
-            last_fetches_repo,
-            virtual_repo,
-            financial_entity_fetchers,
+            self.creds_repo,
+            self.wallet_repo,
+            self.last_fetches_repo,
+            self.virtual_repo,
+            financial_entity_fetcher_stubs,
             {},
-            entity_account_repo,
-        )
-        self.add_entity_creds = AddEntityCredentialsImpl(
-            financial_entity_fetchers,
-            creds_repo,
-            sessions_repo,
-            tx_handler,
-            public_keychain,
-            entity_account_repo,
-        )
-        self.disconnect_entity = DisconnectEntityImpl(
-            creds_repo,
-            sessions_repo,
-            tx_handler,
-            entity_account_repo,
-            tx_repo,
-            auto_repo,
-            historic_repo,
+            self.entity_account_repo,
         )
 
-        loan_calculator = LoanCalculator()
-
-        self.fetch_financial = FetchFinancialDataImpl(
-            position_repo,
-            auto_repo,
-            tx_repo,
-            historic_repo,
-            financial_entity_fetchers,
-            self.config_loader,
-            creds_repo,
-            sessions_repo,
-            last_fetches_repo,
-            crypto_asset_repo,
-            crypto_info,
-            tx_handler,
-            public_keychain,
-            entity_account_repo,
-            loan_calculator,
-            re_repo,
-        )
-        self.fetch_crypto = FetchCryptoDataImpl(
-            position_repo,
-            crypto_entity_fetchers,
-            wallet_repo,
-            crypto_asset_repo,
-            crypto_info,
-            last_fetches_repo,
-            ext_int_repo,
-            tx_handler,
-            public_key_derivation,
-        )
-        self.import_file = ImportFileImpl(
-            position_repo,
-            tx_repo,
-            table_rw_adapter,
-            entity_repo,
-            virtual_repo,
-            temp_repo,
-            template_parser,
-            tx_handler,
-        )
-        self.export_file = ExportFileImpl(
-            position_repo,
-            auto_repo,
-            tx_repo,
-            historic_repo,
-            entity_repo,
-            temp_repo,
-            template_gen,
-            table_rw_adapter,
-        )
-
-        self.get_pos = GetPositionImpl(position_repo, entity_repo)
-        self.get_contrib = GetContributionsImpl(auto_repo, entity_repo)
-        self.get_tx = GetTransactionsImpl(tx_repo, entity_repo)
+        self.get_pos = GetPositionImpl(self.position_repo, self.entity_repo)
+        self.get_contrib = GetContributionsImpl(self.auto_repo, self.entity_repo)
+        self.get_tx = GetTransactionsImpl(self.tx_repo, self.entity_repo)
         self.get_ex_rates = GetExchangeRatesImpl(
-            ex_client,
-            crypto_info,
-            metal_client,
+            self.ex_client,
+            self.crypto_info,
+            self.metal_client,
             ex_storage,
-            position_repo,
+            self.position_repo,
             port_call_runner=_pyodide_port_call_runner,
             job_scheduler=_pyodide_job_scheduler,
         )
         self.get_events = GetMoneyEventsImpl(
             self.get_contrib,
-            GetPeriodicFlowsImpl(period_repo),
-            GetPendingFlowsImpl(pending_repo),
-            entity_repo,
-            position_repo,
-        )
-
-        self.conn_crypto = ConnectCryptoWalletImpl(
-            wallet_repo,
-            crypto_entity_fetchers,
-            ext_int_repo,
-            public_key_derivation,
-            tx_handler,
-        )
-        self.derive_crypto = DeriveCryptoAddressesImpl(
-            public_key_derivation, entity_repo
-        )
-        self.up_crypto = UpdateCryptoWalletConnectionImpl(wallet_repo)
-        self.del_crypto = DeleteCryptoWalletConnectionImpl(wallet_repo)
-
-        self.save_commodities = SaveCommoditiesImpl(
-            position_repo, ex_client, metal_client, last_fetches_repo, tx_handler
+            GetPeriodicFlowsImpl(self.period_repo),
+            GetPendingFlowsImpl(self.pending_repo),
+            self.entity_repo,
+            self.position_repo,
         )
 
         self.get_integrations = GetExternalIntegrationsImpl(
-            ext_int_repo, external_integrations
-        )
-        self.conn_integration = ConnectExternalIntegrationImpl(
-            ext_int_repo, external_integrations
-        )
-        self.disconn_integration = DisconnectExternalIntegrationImpl(ext_int_repo)
-
-        self.save_periodic = SavePeriodicFlowImpl(period_repo)
-        self.up_periodic = UpdatePeriodicFlowImpl(period_repo)
-        self.del_periodic = DeletePeriodicFlowImpl(period_repo)
-        self.get_periodic = GetPeriodicFlowsImpl(period_repo)
-        self.save_pending = SavePendingFlowsImpl(pending_repo, tx_handler)
-        self.get_pending = GetPendingFlowsImpl(pending_repo)
-
-        self.list_re = ListRealEstateImpl(re_repo, position_repo)
-        self.create_re = CreateRealEstateImpl(
-            re_repo, period_repo, tx_handler, file_storage
-        )
-        self.up_re = UpdateRealEstateImpl(
-            re_repo, period_repo, tx_handler, file_storage
-        )
-        self.del_re = DeleteRealEstateImpl(
-            re_repo, period_repo, tx_handler, file_storage
+            self.ext_int_repo, external_integrations
         )
 
-        self.calc_loan = CalculateLoanImpl(loan_calculator)
+        self.get_periodic = GetPeriodicFlowsImpl(self.period_repo)
+        self.get_pending = GetPendingFlowsImpl(self.pending_repo)
 
-        from infrastructure.client.interests.ecb_client import ECBClient
-        from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
+        self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
 
-        self.get_euribor = GetEuriborRatesImpl(ECBClient())
-
-        self.forecast = ForecastImpl(
-            position_repo, auto_repo, period_repo, pending_repo, re_repo, entity_repo
-        )
-
-        self.up_contrib = UpdateContributionsImpl(
-            entity_repo, auto_repo, virtual_repo, tx_handler
-        )
-        self.up_pos = UpdatePositionImpl(
-            entity_repo,
-            position_repo,
-            manual_repo,
-            virtual_repo,
-            crypto_asset_repo,
-            crypto_info,
-            tx_handler,
-            re_repo,
-            loan_calculator,
-        )
-        self.add_manual_tx = AddManualTransactionImpl(
-            entity_repo, tx_repo, virtual_repo, tx_handler
-        )
-        self.up_manual_tx = UpdateManualTransactionImpl(
-            entity_repo, tx_repo, virtual_repo, tx_handler
-        )
-        self.del_manual_tx = DeleteManualTransactionImpl(
-            tx_repo, virtual_repo, tx_handler
-        )
-
-        self.get_historic = GetHistoricImpl(historic_repo, entity_repo)
-        self.get_instruments = GetInstrumentsImpl(inst_provider)
-        self.get_inst_info = GetInstrumentInfoImpl(inst_provider)
-        self.search_crypto = SearchCryptoAssetsImpl(crypto_info)
-        self.get_crypto_details = GetCryptoAssetDetailsImpl(crypto_info, entity_repo)
         self.up_tracked = UpdateTrackedQuotesImpl(
-            position_repo, manual_repo, inst_provider, ex_client
+            self.position_repo, self.manual_repo, self.inst_provider, self.ex_client
         )
         self.up_tracked_loans = UpdateTrackedLoansImpl(
-            position_repo, manual_repo, loan_calculator, re_repo
+            self.position_repo, self.manual_repo, self.loan_calculator, self.re_repo
         )
 
-        self.get_tmpl = GetTemplatesImpl(temp_repo)
-        self.create_tmpl = CreateTemplateImpl(temp_repo)
-        self.up_tmpl = UpdateTemplateImpl(temp_repo)
-        self.del_tmpl = DeleteTemplateImpl(temp_repo)
-        self.get_tmpl_fields = GetTemplateFieldsImpl()
-
-        self.calc_savings = CalculateSavingsImpl()
         backupable_ports = {
             BackupFileType.DATA: core.db_manager,
             BackupFileType.CONFIG: self.config_loader,
         }
-        self.upload_backup = UploadBackupImpl(
-            core.db_manager,
-            backupable_ports,
-            backup_processor,
-            backup_repository,
-            self.cloud_register,
-            self.cloud_register,
-        )
-        self.import_backup = ImportBackupImpl(
-            core.db_manager,
-            backupable_ports,
-            backup_processor,
-            backup_repository,
-            self.cloud_register,
-            self.cloud_register,
-        )
+        self.backupable_ports = backupable_ports
         self.get_backups = GetBackupsImpl(
             backupable_ports,
-            backup_repository,
+            self.backup_repository,
             self.cloud_register,
             self.cloud_register,
         )
         self.handle_cloud = HandleCloudAuthImpl(self.cloud_register)
         self.get_cloud = GetCloudAuthImpl(self.cloud_register)
         self.get_bkp_settings = GetBackupSettingsImpl(self.cloud_register)
-        self.save_bkp_settings = SaveBackupSettingsImpl(self.cloud_register)
 
         await ex_storage.initialize()
-        await crypto_info.initialize()
+        await self.crypto_info.initialize()
         await self.get_ex_rates.execute(initial_load=True)

@@ -38,6 +38,26 @@ class CryptoWalletQueries(str, Enum):
                 hdw.xpub, hdw.script_type, hdw.coin
     """
 
+    GET_BY_ENTITY_IDS = """
+       SELECT cw.id,
+              cw.entity_id,
+              cw.name,
+              cw.address_source,
+              cw.created_at,
+              hdw.xpub,
+              hdw.script_type,
+              hdw.coin,
+              json_group_array(
+                      cwa.address
+              ) as addresses
+       FROM crypto_wallets cw
+                LEFT JOIN crypto_wallet_addresses cwa ON cw.id = cwa.wallet_id
+                LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
+       WHERE cw.entity_id IN ({placeholders})
+       GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
+                hdw.xpub, hdw.script_type, hdw.coin
+    """
+
     GET_HD_ADDRESSES_BY_WALLET_ID = """
         SELECT 
             address,

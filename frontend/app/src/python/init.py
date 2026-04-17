@@ -11,3 +11,7 @@ async def initialize(operative_system: str | None = None):
 
 async def initialize_deferred():
     await app.initialize_deferred()
+
+
+async def initialize_lazy():
+    await app.initialize_lazy()

@@ -240,7 +240,7 @@ export function IntegrationsTab() {
           integrationName,
         )
         showToast(successMessage, "success")
-        await fetchExternalIntegrations()
+        await fetchExternalIntegrations(true)
       } catch (error) {
         console.error(error)
         const code = (error as any)?.code
@@ -287,7 +287,7 @@ export function IntegrationsTab() {
           integrationName,
         )
         showToast(successMessage, "success")
-        await fetchExternalIntegrations()
+        await fetchExternalIntegrations(true)
       } catch (error) {
         console.error(error)
         const code = (error as any)?.code

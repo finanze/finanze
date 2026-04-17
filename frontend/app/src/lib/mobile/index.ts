@@ -39,6 +39,24 @@ export function triggerDeferredInit() {
   })
 }
 
+export function triggerLazyInit() {
+  if (!__MOBILE__) return
+  if (!isNativeMobile()) return
+
+  import("@/lib/pyodide/init").then(({ triggerLazyInit }) => {
+    triggerLazyInit()
+  })
+}
+
+export function waitForLazyInit(): Promise<void> {
+  if (!__MOBILE__) return Promise.resolve()
+  if (!isNativeMobile()) return Promise.resolve()
+
+  return import("@/lib/pyodide/init").then(({ waitForLazyInit }) =>
+    waitForLazyInit(),
+  )
+}
+
 export function hideSplashScreen() {
   if (!__MOBILE__) return
   if (!isNativeMobile()) return

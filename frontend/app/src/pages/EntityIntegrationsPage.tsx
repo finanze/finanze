@@ -56,6 +56,7 @@ export default function EntityIntegrationsPage() {
     fetchEntities,
     showToast,
     externalIntegrations,
+    fetchExternalIntegrations,
   } = useAppContext()
   const {
     isLoggingIn,
@@ -119,6 +120,10 @@ export default function EntityIntegrationsPage() {
   useModalBackHandler(!!inAppConfirmation, cancelInAppConfirmation)
   useModalBackHandler(pinRequired, () => setView("entities"))
   useModalBackHandler(challengeRequired, () => setView("entities"))
+
+  useEffect(() => {
+    fetchExternalIntegrations()
+  }, [fetchExternalIntegrations])
 
   const isCryptoWalletConnected = (entity: any) => {
     return (

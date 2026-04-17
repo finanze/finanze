@@ -54,3 +54,19 @@ async def install_deferred() -> None:
     except Exception:
         traceback.print_exc()
         raise
+
+
+async def install_lazy() -> None:
+    print("Installing lazy mobile requirements...")
+    print("Installing LAZY packages from local Pyodide + local wheels (offline)...")
+
+    try:
+        from wheels_manifest import LOCAL_WHEELS_LAZY, PYODIDE_PACKAGES_LAZY
+
+        micropip = await _ensure_micropip()
+        await micropip.install(PYODIDE_PACKAGES_LAZY, keep_going=False)
+        await micropip.install(LOCAL_WHEELS_LAZY, deps=False, keep_going=False)
+        print("Lazy packages installed.")
+    except Exception:
+        traceback.print_exc()
+        raise

@@ -406,6 +406,25 @@ async function loadDeferredModules(): Promise<void> {
   await loadModulesFromManifest("/python/manifest_deferred.json")
 }
 
+async function installLazyRequirements(): Promise<void> {
+  if (!pyodide) throw new Error("Pyodide not initialized")
+
+  await pyodide.loadPackage("micropip")
+
+  await pyodide.runPythonAsync(
+    [
+      "from mobile_requirements import install_lazy",
+      "await install_lazy()",
+    ].join("\n"),
+  )
+}
+
+async function loadLazyModules(): Promise<void> {
+  if (!pyodide) throw new Error("Pyodide not initialized")
+
+  await loadModulesFromManifest("/python/manifest_lazy.json")
+}
+
 function registerWorkerBridge(): void {
   ;(self as any).window = self
 
@@ -565,6 +584,18 @@ result
 
     if (action === "installDeferredRequirements") {
       await installDeferredRequirements()
+      postResponse(id, true, { ok: true })
+      return
+    }
+
+    if (action === "installLazyRequirements") {
+      await installLazyRequirements()
+      postResponse(id, true, { ok: true })
+      return
+    }
+
+    if (action === "loadLazyModules") {
+      await loadLazyModules()
       postResponse(id, true, { ok: true })
       return
     }

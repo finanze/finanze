@@ -106,3 +106,23 @@ export async function installDeferredRequirements(): Promise<void> {
   await workerClient.installDeferredRequirements()
   appConsole.info("[Pyodide] Deferred requirements installed.")
 }
+
+export async function loadLazyModules(): Promise<void> {
+  if (!workerClient || !workerInitPromise) {
+    throw new Error("Pyodide not initialized. Call initPyodide() first.")
+  }
+  await workerInitPromise
+  appConsole.info("[Pyodide] Loading lazy app modules...")
+  await workerClient.loadLazyModules()
+  appConsole.info("[Pyodide] Loaded lazy app modules.")
+}
+
+export async function installLazyRequirements(): Promise<void> {
+  if (!workerClient || !workerInitPromise) {
+    throw new Error("Pyodide not initialized. Call initPyodide() first.")
+  }
+  await workerInitPromise
+  appConsole.info("[Pyodide] Installing lazy requirements...")
+  await workerClient.installLazyRequirements()
+  appConsole.info("[Pyodide] Lazy requirements installed.")
+}

@@ -336,6 +336,7 @@ export default function ExportPage() {
     fetchEntities,
     entities,
     externalIntegrations,
+    fetchExternalIntegrations,
     saveSettings,
     fetchSettings,
   } = useAppContext()
@@ -475,6 +476,10 @@ export default function ExportPage() {
     setFileExportNumberFormat(defaultNumberFormat)
     setFileImportNumberFormat(defaultNumberFormat)
   }, [defaultNumberFormat])
+
+  useEffect(() => {
+    fetchExternalIntegrations()
+  }, [fetchExternalIntegrations])
 
   const renderFileExportFeatureSelector = () => {
     return (

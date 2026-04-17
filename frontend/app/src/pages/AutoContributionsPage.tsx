@@ -259,7 +259,8 @@ function SuggestionIcon({
 export default function AutoContributionsPage() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
-  const { contributions, positionsData, refreshData } = useFinancialData()
+  const { contributions, positionsData, refreshData, ensureContributions } =
+    useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -506,6 +507,10 @@ export default function AutoContributionsPage() {
     () => getCurrencySymbol(modalForm?.currency || defaultCurrency),
     [modalForm?.currency, defaultCurrency],
   )
+
+  useEffect(() => {
+    ensureContributions()
+  }, [ensureContributions])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

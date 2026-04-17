@@ -27,6 +27,7 @@ import {
   updateQuotesManualPositions,
   updateTrackedLoans,
 } from "@/services/api"
+import { waitForLazyInit } from "@/lib/mobile"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
@@ -97,7 +98,7 @@ interface AppContextType {
     options?: { silent?: boolean },
   ) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
-  fetchExternalIntegrations: () => Promise<void>
+  fetchExternalIntegrations: (force?: boolean) => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -225,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   >([])
   const [externalIntegrationsLoading, setExternalIntegrationsLoading] =
     useState(false)
+  const externalIntegrationsLoaded = useRef(false)
   const [exportState, setExportState] = useState<ExportState>({
     isExporting: false,
     lastExportTime: null,
@@ -307,7 +309,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         startExchangeRatesTimer()
       }
 
-      fetchExchangeRatesSilently()
+      waitForLazyInit().then(() => fetchExchangeRatesSilently())
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
       setExchangeRatesError(t.common.fetchError)
@@ -445,11 +447,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const fetchExternalIntegrations = useCallback(async () => {
+  const fetchExternalIntegrations = useCallback(async (force?: boolean) => {
+    if (!force && externalIntegrationsLoaded.current) return
     try {
       setExternalIntegrationsLoading(true)
       const data = await getExternalIntegrations()
       setExternalIntegrations(data.integrations)
+      externalIntegrationsLoaded.current = true
     } catch (error) {
       console.error("Error fetching external integrations:", error)
     } finally {
@@ -499,18 +503,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
-      fetchExternalIntegrations()
-      updateQuotesIfNeeded()
-      updateLoansIfNeeded()
+      waitForLazyInit().then(() => {
+        updateQuotesIfNeeded()
+        updateLoansIfNeeded()
+      })
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
       setEntitiesLoaded(false)
+      externalIntegrationsLoaded.current = false
       initialFetchDone.current = false
     }
   }, [
     fetchEntities,
-    fetchExternalIntegrations,
     fetchSettings,
     isAuthenticated,
     stopExchangeRatesTimer,
