@@ -1,6 +1,8 @@
 name: Mobile E2E Tests
 
 on:
+  pull_request:
+    branches: [ "main", "develop" ]
   workflow_dispatch:
     inputs:
       platform:
@@ -24,7 +26,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
-
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14.2
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
@@ -41,6 +46,9 @@ jobs:
         working-directory: frontend/app
         run: pnpm install --frozen-lockfile
 
+      - name: Install Python build deps
+        run: pip install python-minifier
+
       - name: Install Pyodide runtime
         working-directory: frontend/app
         run: pnpm install:pyodide
@@ -50,12 +58,12 @@ jobs:
         run: pnpm build:mobile
 
       - name: Sync Capacitor iOS
-        if: inputs.platform == 'both' || inputs.platform == 'ios'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
         working-directory: frontend/app
         run: pnpm exec cap sync ios
 
       - name: Build iOS app for simulator
-        if: inputs.platform == 'both' || inputs.platform == 'ios'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
         working-directory: frontend/app/ios/App
         run: |
           SIMULATOR=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
@@ -71,7 +79,7 @@ jobs:
             | tail -20
 
       - name: Upload iOS app
-        if: inputs.platform == 'both' || inputs.platform == 'ios'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
         uses: actions/upload-artifact@v6
         with:
           name: ios-app
@@ -79,24 +87,24 @@ jobs:
           retention-days: 1
 
       - name: Setup Java
-        if: inputs.platform == 'both' || inputs.platform == 'android'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
       - name: Sync Capacitor Android
-        if: inputs.platform == 'both' || inputs.platform == 'android'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
         working-directory: frontend/app
         run: pnpm exec cap sync android
 
       - name: Build Android APK
-        if: inputs.platform == 'both' || inputs.platform == 'android'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
         working-directory: frontend/app/android
         run: ./gradlew assembleDebug
 
       - name: Upload Android APK
-        if: inputs.platform == 'both' || inputs.platform == 'android'
+        if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
         uses: actions/upload-artifact@v6
         with:
           name: android-apk
@@ -106,7 +114,7 @@ jobs:
   test-ios:
     name: iOS Tests
     needs: build-mobile
-    if: inputs.platform == 'both' || inputs.platform == 'ios'
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
     runs-on: macos-latest
     steps:
       - name: Checkout Code
@@ -164,7 +172,7 @@ jobs:
   test-android:
     name: Android Tests
     needs: build-mobile
-    if: inputs.platform == 'both' || inputs.platform == 'android'
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
