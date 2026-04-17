@@ -110,15 +110,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install E2E dependencies
-        working-directory: e2e
+        working-directory: e2e/standard
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        working-directory: e2e
+        working-directory: e2e/standard
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        working-directory: e2e
+        working-directory: e2e/standard
         run: pnpm test
 
       - name: Upload test results
@@ -126,6 +126,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: playwright-report
-          path: e2e/test-results/
+          path: e2e/standard/test-results/
           retention-days: 7
 
