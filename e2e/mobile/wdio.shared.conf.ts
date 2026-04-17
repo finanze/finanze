@@ -2,11 +2,6 @@ import type { Options } from '@wdio/types'
 
 export const sharedConfig: Partial<Options.Testrunner> = {
     runner: 'local',
-    autoCompileOpts: {
-        tsNodeOpts: {
-            project: './tsconfig.json',
-        },
-    },
     specs: ['./test/specs/**/*.spec.ts'],
     maxInstances: 1,
     logLevel: 'info',

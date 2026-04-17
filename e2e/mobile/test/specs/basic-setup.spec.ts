@@ -4,7 +4,7 @@ import { TEST_USER, TEST_PASSWORD } from '../helpers/constants.js'
 const HEADING_XPATH = (text: string) =>
     `//*[self::h1 or self::h2 or self::h3 or self::h4][contains(text(),"${text}")]`
 
-describe('Login', () => {
+describe('Basic Setup', () => {
     before(async () => {
         await switchToWebView()
 
