@@ -239,7 +239,7 @@ jobs:
 
       - name: Install Appium drivers
         working-directory: e2e/mobile
-        run: pnpm exec appium driver install xcuitest
+        run: pnpm exec appium driver install xcuitest || true
 
       - name: Boot iOS Simulator
         run: |
@@ -309,7 +309,7 @@ jobs:
 
       - name: Install Appium drivers
         working-directory: e2e/mobile
-        run: pnpm exec appium driver install uiautomator2
+        run: pnpm exec appium driver install uiautomator2 || true
 
       - name: Run Android tests
         uses: reactivecircus/android-emulator-runner@v2
