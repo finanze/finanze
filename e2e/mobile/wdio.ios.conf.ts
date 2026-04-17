@@ -48,6 +48,7 @@ const APP_PATH =
 
 export const config: Options.Testrunner = {
     ...sharedConfig,
+    connectionRetryTimeout: 600_000,
     services: [
         [
             'appium',
@@ -72,9 +73,11 @@ export const config: Options.Testrunner = {
             'appium:app': APP_PATH,
             'appium:fullReset': false,
             'appium:noReset': false,
+            'appium:usePrebuiltWDA': true,
+            'appium:showXcodeLog': true,
             'appium:webviewConnectTimeout': 30_000,
             'appium:includeSafariInWebviews': false,
-            'appium:wdaLaunchTimeout': 120_000,
+            'appium:wdaLaunchTimeout': 300_000,
             'appium:simulatorStartupTimeout': 180_000,
             'appium:newCommandTimeout': 120,
         } as WebdriverIO.Capabilities,

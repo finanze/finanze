@@ -260,9 +260,27 @@ jobs:
           DEVICE_ID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | head -1 | grep -oE '[0-9A-F-]{36}')
           echo "Booting: $DEVICE_NAME ($DEVICE_ID)"
           xcrun simctl boot "$DEVICE_ID" || true
+          open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
           echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
           echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
+
+      - name: Pre-build WebDriverAgent
+        env:
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+        run: |
+          WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
+          WDA_DERIVED=$(dirname "$(dirname "$WDA_PROJECT")")
+          echo "Building WDA from: $WDA_PROJECT"
+          echo "Derived data path: $WDA_DERIVED"
+          xcodebuild build-for-testing \
+            -project "$WDA_PROJECT" \
+            -scheme WebDriverAgentRunner \
+            -destination "id=$IOS_DEVICE_UDID" \
+            -derivedDataPath "$WDA_DERIVED" \
+            GCC_TREAT_WARNINGS_AS_ERRORS=0 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | tail -30
 
       - name: Run iOS tests
         working-directory: e2e/mobile
