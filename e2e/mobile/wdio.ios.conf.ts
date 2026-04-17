@@ -1,9 +1,21 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execSync } from 'node:child_process'
 import { sharedConfig } from './wdio.shared.conf.js'
 import type { Options } from '@wdio/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+
+function getIOSSDKVersion(): string {
+    try {
+        return execSync(
+            'xcodebuild -version -sdk iphonesimulator SDKVersion',
+            { encoding: 'utf-8' },
+        ).trim()
+    } catch {
+        return '18.0'
+    }
+}
 
 const APP_PATH =
     process.env.IOS_APP_PATH ||
@@ -42,17 +54,16 @@ export const config: Options.Testrunner = {
             platformName: 'iOS',
             'appium:automationName': 'XCUITest',
             'appium:deviceName': process.env.IOS_DEVICE_NAME || 'iPhone 17 Pro',
-            ...(process.env.IOS_PLATFORM_VERSION && {
-                'appium:platformVersion': process.env.IOS_PLATFORM_VERSION,
-            }),
+            'appium:platformVersion':
+                process.env.IOS_PLATFORM_VERSION || getIOSSDKVersion(),
             ...(process.env.IOS_DEVICE_UDID && {
                 'appium:udid': process.env.IOS_DEVICE_UDID,
             }),
             'appium:app': APP_PATH,
             'appium:fullReset': false,
             'appium:noReset': false,
-            'appium:usePrebuiltWDA': true,
-            'appium:showXcodeLog': true,
+            'appium:usePrebuiltWDA': !!process.env.CI,
+            'appium:showXcodeLog': !!process.env.CI,
             'appium:webviewConnectTimeout': 30_000,
             'appium:includeSafariInWebviews': false,
             'appium:wdaLaunchTimeout': 300_000,
