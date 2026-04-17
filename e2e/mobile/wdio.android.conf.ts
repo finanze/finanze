@@ -31,6 +31,7 @@ export const config: Options.Testrunner = {
                 args: {
                     relaxedSecurity: true,
                 },
+                startupTimeout: 120_000,
             },
         ],
     ],

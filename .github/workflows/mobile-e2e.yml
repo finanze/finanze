@@ -233,6 +233,20 @@ jobs:
           name: ios-app
           path: ios-app
 
+      - name: Verify iOS app
+        run: |
+          echo "Contents of ios-app/:"
+          ls -la ios-app/ || echo "ios-app/ not found"
+          echo "---"
+          find ios-app/ -maxdepth 2 -type d | head -20
+          echo "---"
+          if [ -d "ios-app/App.app" ]; then
+            echo "App.app found as directory"
+          elif [ -d "ios-app" ]; then
+            echo "ios-app exists but App.app not inside, checking for Info.plist:"
+            find ios-app/ -name "Info.plist" -maxdepth 2 | head -5
+          fi
+
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
@@ -317,9 +331,7 @@ jobs:
           api-level: 34
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: |
-            cd e2e/mobile
-            ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
 
       - name: Upload test results
         if: ${{ !cancelled() }}
