@@ -129,3 +129,202 @@ jobs:
           path: e2e/standard/test-results/
           retention-days: 7
 
+  build-mobile:
+    name: Build Mobile App
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Pyodide runtime
+        working-directory: frontend/app
+        run: pnpm install:pyodide
+
+      - name: Build mobile web assets
+        working-directory: frontend/app
+        run: pnpm build:mobile
+
+      - name: Sync Capacitor iOS
+        working-directory: frontend/app
+        run: pnpm exec cap sync ios
+
+      - name: Build iOS app for simulator
+        working-directory: frontend/app/ios/App
+        run: |
+          SIMULATOR=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
+          echo "Building for simulator: $SIMULATOR"
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=$SIMULATOR" \
+            -derivedDataPath ../../build/ios \
+            build \
+            | tail -20
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-app
+          path: frontend/app/build/ios/Build/Products/Debug-iphonesimulator/App.app
+          retention-days: 1
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Sync Capacitor Android
+        working-directory: frontend/app
+        run: pnpm exec cap sync android
+
+      - name: Build Android APK
+        working-directory: frontend/app/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-apk
+          path: frontend/app/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+
+  mobile-e2e-ios:
+    name: Mobile E2E - iOS
+    needs: build-mobile
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: e2e/mobile/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: e2e/mobile/pnpm-lock.yaml
+
+      - name: Download iOS app
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-app
+          path: ios-app
+
+      - name: Install test dependencies
+        working-directory: e2e/mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver install xcuitest
+
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
+          DEVICE_ID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "Booting: $DEVICE_NAME ($DEVICE_ID)"
+          xcrun simctl boot "$DEVICE_ID" || true
+          echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
+
+      - name: Run iOS tests
+        working-directory: e2e/mobile
+        env:
+          IOS_APP_PATH: ${{ github.workspace }}/ios-app/App.app
+          IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
+        run: pnpm test:ios
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-test-results
+          path: e2e/mobile/wdio-logs/
+          retention-days: 7
+
+  mobile-e2e-android:
+    name: Mobile E2E - Android
+    needs: build-mobile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: e2e/mobile/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: e2e/mobile/pnpm-lock.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v6
+        with:
+          name: android-apk
+          path: android-apk
+
+      - name: Install test dependencies
+        working-directory: e2e/mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver install uiautomator2
+
+      - name: Run Android tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            cd e2e/mobile
+            ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-test-results
+          path: e2e/mobile/wdio-logs/
+          retention-days: 7
+
