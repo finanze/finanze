@@ -66,12 +66,16 @@ export const config: Options.Testrunner = {
             'appium:deviceName': process.env.IOS_DEVICE_NAME || 'iPhone 17 Pro',
             'appium:platformVersion':
                 process.env.IOS_PLATFORM_VERSION || getLatestIOSVersion(),
+            ...(process.env.IOS_DEVICE_UDID && {
+                'appium:udid': process.env.IOS_DEVICE_UDID,
+            }),
             'appium:app': APP_PATH,
-            'appium:fullReset': true,
+            'appium:fullReset': false,
             'appium:noReset': false,
             'appium:webviewConnectTimeout': 30_000,
             'appium:includeSafariInWebviews': false,
             'appium:wdaLaunchTimeout': 120_000,
+            'appium:simulatorStartupTimeout': 180_000,
             'appium:newCommandTimeout': 120,
         } as WebdriverIO.Capabilities,
     ],

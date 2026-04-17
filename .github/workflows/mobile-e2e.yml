@@ -260,13 +260,16 @@ jobs:
           DEVICE_ID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | head -1 | grep -oE '[0-9A-F-]{36}')
           echo "Booting: $DEVICE_NAME ($DEVICE_ID)"
           xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
           echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
+          echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
 
       - name: Run iOS tests
         working-directory: e2e/mobile
         env:
           IOS_APP_PATH: ${{ github.workspace }}/ios-app/App.app
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
         run: pnpm test:ios
 
       - name: Upload test results
