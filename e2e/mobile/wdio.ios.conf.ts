@@ -1,32 +1,9 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { execSync } from 'node:child_process'
 import { sharedConfig } from './wdio.shared.conf.js'
 import type { Options } from '@wdio/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-
-function getLatestIOSVersion(): string {
-    try {
-        const output = execSync('xcrun simctl list runtimes -j', {
-            encoding: 'utf-8',
-        })
-        const data = JSON.parse(output)
-        const iosRuntimes = data.runtimes
-            .filter(
-                (r: { platform: string; isAvailable: boolean }) =>
-                    r.platform === 'iOS' && r.isAvailable,
-            )
-            .sort((a: { version: string }, b: { version: string }) =>
-                b.version.localeCompare(a.version, undefined, {
-                    numeric: true,
-                }),
-            )
-        return iosRuntimes[0]?.version || '18.0'
-    } catch {
-        return '18.0'
-    }
-}
 
 const APP_PATH =
     process.env.IOS_APP_PATH ||
@@ -65,8 +42,9 @@ export const config: Options.Testrunner = {
             platformName: 'iOS',
             'appium:automationName': 'XCUITest',
             'appium:deviceName': process.env.IOS_DEVICE_NAME || 'iPhone 17 Pro',
-            'appium:platformVersion':
-                process.env.IOS_PLATFORM_VERSION || getLatestIOSVersion(),
+            ...(process.env.IOS_PLATFORM_VERSION && {
+                'appium:platformVersion': process.env.IOS_PLATFORM_VERSION,
+            }),
             ...(process.env.IOS_DEVICE_UDID && {
                 'appium:udid': process.env.IOS_DEVICE_UDID,
             }),
