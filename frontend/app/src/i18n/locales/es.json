@@ -1973,6 +1973,7 @@
         "validation": {
           "required": "Este campo es obligatorio",
           "number": "Introduce un número válido",
+          "invalidDate": "Introduce una fecha válida",
           "entity": "Selecciona una entidad",
           "entityName": "Introduce un nombre de entidad",
           "entityNameExists": "Ya existe una entidad con este nombre"

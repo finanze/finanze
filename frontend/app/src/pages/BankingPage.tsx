@@ -2532,7 +2532,7 @@ function BankLoansSection({
           />
           <HandCoins className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
-            {(t.banking as any).loansAndCredits || t.banking.loans}
+            {t.banking.loansAndCredits}
             <span className="ml-2 text-sm text-muted-foreground">
               ({totalSectionCount})
             </span>
@@ -2587,7 +2587,7 @@ function BankLoansSection({
                   }}
                 >
                   <Shield className="h-4 w-4" />
-                  {(t.enums as any)?.productType?.CREDIT ?? "Credit"}
+                  {t.enums.productType.CREDIT}
                 </button>
               </PopoverContent>
             </Popover>
@@ -2969,7 +2969,7 @@ function BankLoansSection({
                       variant="secondary"
                       className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     >
-                      {(t.enums as any)?.productType?.CREDIT ?? "Credit"}
+                      {t.enums.productType.CREDIT}
                     </Badge>
                     <div className="flex items-center gap-2">
                       <SourceBadge
@@ -2996,7 +2996,7 @@ function BankLoansSection({
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
                       <span className="block text-sm text-muted-foreground">
-                        {(t.banking as any).creditDrawn ?? "Drawn Amount"}
+                        {t.banking.creditDrawn}
                       </span>
                       <span className="text-xl font-semibold text-red-500">
                         {formatCurrency(
@@ -3008,7 +3008,7 @@ function BankLoansSection({
                     </div>
                     <div>
                       <span className="block text-sm text-muted-foreground">
-                        {(t.banking as any).creditLimit ?? "Credit Limit"}
+                        {t.banking.creditLimit}
                       </span>
                       <span className="text-lg font-semibold">
                         {formatCurrency(
@@ -3035,7 +3035,7 @@ function BankLoansSection({
                   <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
                     <div>
                       <span className="block text-sm text-muted-foreground">
-                        {(t.banking as any).availableCredit ?? "Available"}
+                        {t.banking.availableCredit}
                       </span>
                       <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(available, locale, defaultCurrency)}
@@ -3099,9 +3099,7 @@ function BankLoansSection({
                   {credit.currency !== defaultCurrency && (
                     <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
                       <div>
-                        <span className="block">
-                          {(t.banking as any).creditDrawn ?? "Drawn Amount"}:
-                        </span>
+                        <span className="block">{t.banking.creditDrawn}:</span>
                         <span>
                           {formatCurrency(
                             credit.drawn_amount ?? 0,
@@ -3111,9 +3109,7 @@ function BankLoansSection({
                         </span>
                       </div>
                       <div>
-                        <span className="block">
-                          {(t.banking as any).creditLimit ?? "Credit Limit"}:
-                        </span>
+                        <span className="block">{t.banking.creditLimit}:</span>
                         <span>
                           {formatCurrency(
                             credit.credit_limit ?? 0,

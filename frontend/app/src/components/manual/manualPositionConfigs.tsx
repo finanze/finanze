@@ -471,6 +471,10 @@ const numberFieldError = <FormState extends ManualPositionFormBase>(
   t: ManualFormFieldRenderProps<FormState>["t"],
 ): string => t("management.manualPositions.shared.validation.number")
 
+const invalidDateError = <FormState extends ManualPositionFormBase>(
+  t: ManualFormFieldRenderProps<FormState>["t"],
+): string => t("management.manualPositions.shared.validation.invalidDate")
+
 const isManualSource = (entry: { source?: DataSource | null }) =>
   entry.source === DataSource.MANUAL
 
@@ -3996,7 +4000,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         if (pledged === null) errors.pledged_amount = numberFieldError(t)
       }
       if (form.creation.trim() && !normalizeDateInput(form.creation)) {
-        errors.creation = requiredField(t)
+        errors.creation = invalidDateError(t)
       }
       return errors
     },
