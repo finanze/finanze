@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { motion, AnimatePresence } from "framer-motion"
 import { createPortal } from "react-dom"
 import type { Entity, EntityAccountInfo } from "@/types"
@@ -35,6 +36,8 @@ export function ManageAccountsDialog({
   const [disconnectingAccountId, setDisconnectingAccountId] = useState<
     string | null
   >(null)
+
+  useModalBackHandler(isOpen, onClose)
 
   const accounts = entity.accounts ?? []
   const { fetchingEntityIds } = fetchingEntityState

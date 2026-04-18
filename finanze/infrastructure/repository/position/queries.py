@@ -190,23 +190,6 @@ class PositionQueries(str, Enum):
             JOIN entities e ON gp.entity_id = e.id
     """
 
-    GET_ACCOUNTS_BY_GLOBAL_POSITION_ID = """
-        SELECT *
-        FROM account_positions
-        WHERE global_position_id = ?
-    """
-
-    GET_CARDS_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM card_positions WHERE global_position_id = ?"
-    )
-
-    GET_LOANS_BY_GLOBAL_POSITION_ID = (
-        "SELECT lp.*, mpd.track_ticker, mpd.tracker_key, mpd.track_loan "
-        "FROM loan_positions lp "
-        "LEFT JOIN manual_position_data mpd ON mpd.entry_id = lp.id "
-        "WHERE lp.global_position_id = ?"
-    )
-
     GET_LOANS_BY_HASHES = (
         "WITH latest_per_entity AS ("
         "  SELECT entity_id, COALESCE(entity_account_id, '') as ea_key, MAX(date) as latest_date"
@@ -233,18 +216,37 @@ class PositionQueries(str, Enum):
         WHERE id = ?
     """
 
-    GET_STOCKS_BY_GLOBAL_POSITION_ID = "SELECT * FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id = ?"
+    GET_ACCOUNTS_BY_GLOBAL_POSITION_IDS = """
+        SELECT *
+        FROM account_positions
+        WHERE global_position_id IN ({placeholders})
+    """
 
-    GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_ID = """
+    GET_CARDS_BY_GLOBAL_POSITION_IDS = (
+        "SELECT * FROM card_positions WHERE global_position_id IN ({placeholders})"
+    )
+
+    GET_LOANS_BY_GLOBAL_POSITION_IDS = (
+        "SELECT lp.*, mpd.track_ticker, mpd.tracker_key, mpd.track_loan "
+        "FROM loan_positions lp "
+        "LEFT JOIN manual_position_data mpd ON mpd.entry_id = lp.id "
+        "WHERE lp.global_position_id IN ({placeholders})"
+    )
+
+    GET_STOCKS_BY_GLOBAL_POSITION_IDS = "SELECT s.*, mpd.track_ticker, mpd.tracker_key, mpd.track_loan FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id IN ({placeholders})"
+
+    GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_IDS = """
         SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban
         FROM fund_portfolios fp
             LEFT JOIN account_positions ap ON fp.account_id = ap.id
-        WHERE fp.global_position_id = ?
+        WHERE fp.global_position_id IN ({placeholders})
     """
 
-    GET_FUNDS_BY_GLOBAL_POSITION_ID = """
+    GET_FUNDS_BY_GLOBAL_POSITION_IDS = """
         SELECT f.*,
-               mpd.*,
+               mpd.track_ticker,
+               mpd.tracker_key,
+               mpd.track_loan,
                p.id                 AS portfolio_id,
                p.name               AS portfolio_name,
                p.currency           AS portfolio_currency,
@@ -253,27 +255,24 @@ class PositionQueries(str, Enum):
         FROM fund_positions f
             LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
             LEFT JOIN manual_position_data mpd ON mpd.entry_id = f.id
-        WHERE f.global_position_id = ?
+        WHERE f.global_position_id IN ({placeholders})
     """
 
-    GET_FACTORING_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM factoring_positions WHERE global_position_id = ?"
+    GET_FACTORING_BY_GLOBAL_POSITION_IDS = (
+        "SELECT * FROM factoring_positions WHERE global_position_id IN ({placeholders})"
     )
 
-    GET_REAL_ESTATE_CF_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM real_estate_cf_positions WHERE global_position_id = ?"
+    GET_REAL_ESTATE_CF_BY_GLOBAL_POSITION_IDS = "SELECT * FROM real_estate_cf_positions WHERE global_position_id IN ({placeholders})"
+
+    GET_DEPOSITS_BY_GLOBAL_POSITION_IDS = (
+        "SELECT * FROM deposit_positions WHERE global_position_id IN ({placeholders})"
     )
 
-    GET_DEPOSITS_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM deposit_positions WHERE global_position_id = ?"
-    )
+    GET_CROWDLENDING_BY_GLOBAL_POSITION_IDS = "SELECT * FROM crowdlending_positions WHERE global_position_id IN ({placeholders})"
 
-    GET_CROWDLENDING_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM crowdlending_positions WHERE global_position_id = ?"
-    )
-
-    GET_CRYPTO_BY_GLOBAL_POSITION_ID = """
+    GET_CRYPTO_BY_GLOBAL_POSITION_IDS = """
         SELECT p.id        AS position_id,
+               p.global_position_id AS global_position_id,
                p.wallet_id AS wallet_id,
                p.crypto_asset_id AS crypto_asset_id,
                p.symbol    AS symbol,
@@ -294,16 +293,14 @@ class PositionQueries(str, Enum):
         FROM crypto_currency_positions p
             LEFT JOIN crypto_currency_initial_investments i ON p.id = i.crypto_currency_position
             LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
-        WHERE global_position_id = ?
+        WHERE p.global_position_id IN ({placeholders})
     """
 
-    GET_COMMODITIES_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM commodity_positions WHERE global_position_id = ?"
+    GET_COMMODITIES_BY_GLOBAL_POSITION_IDS = (
+        "SELECT * FROM commodity_positions WHERE global_position_id IN ({placeholders})"
     )
 
-    GET_DERIVATIVES_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM derivative_positions WHERE global_position_id = ?"
-    )
+    GET_DERIVATIVES_BY_GLOBAL_POSITION_IDS = "SELECT * FROM derivative_positions WHERE global_position_id IN ({placeholders})"
 
     GET_ENTITY_ID_FROM_GLOBAL_POSITION_ID = (
         "SELECT entity_id FROM global_positions WHERE id = ?"

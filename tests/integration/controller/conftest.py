@@ -51,6 +51,32 @@ from infrastructure.controller.routes.list_real_estate import (
 from infrastructure.controller.routes.delete_real_estate import (
     delete_real_estate as delete_real_estate_route,
 )
+from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
+from infrastructure.controller.routes.update_periodic_flow import update_periodic_flow
+from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
+from infrastructure.controller.routes.get_periodic_flows import (
+    get_periodic_flows as get_periodic_flows_route,
+)
+from infrastructure.controller.routes.save_pending_flows import save_pending_flows
+from infrastructure.controller.routes.get_pending_flows import (
+    get_pending_flows as get_pending_flows_route,
+)
+from infrastructure.controller.routes.get_money_events import (
+    get_money_events as get_money_events_route,
+)
+from infrastructure.controller.routes.update_tracked_loans import (
+    update_tracked_loans as update_tracked_loans_route,
+)
+from infrastructure.repository.earnings_expenses.periodic_flow_repository import (
+    PeriodicFlowRepository,
+)
+from infrastructure.repository.earnings_expenses.pending_flow_repository import (
+    PendingFlowRepository,
+)
+from infrastructure.repository.real_estate.real_estate_repository import (
+    RealEstateRepository,
+)
+from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.controller.exception_handler import register_exception_handlers
 
 from infrastructure.repository.db.client import DBClient
@@ -90,8 +116,7 @@ from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from application.ports.real_estate_port import RealEstatePort
-from application.ports.periodic_flow_port import PeriodicFlowPort
+from application.ports.pending_flow_port import PendingFlowPort
 from application.ports.file_storage_port import FileStoragePort
 from domain.public_keychain import PublicKeychain
 
@@ -124,6 +149,15 @@ from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
+from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
+from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
+from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
+from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+from application.use_cases.get_money_events import GetMoneyEventsImpl
+from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
+from infrastructure.calculations.loan_calculator import LoanCalculator
 
 from domain.entity import Entity
 from domain.backup import BackupFileType
@@ -170,7 +204,9 @@ async def app(tmp_path):
     position_port = AsyncMock(spec=PositionPort)
     position_port.get_account_iban_index = AsyncMock(return_value={})
     position_port.get_portfolio_name_index = AsyncMock(return_value={})
+    position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
     auto_contr_port = AsyncMock(spec=AutoContributionsPort)
+    auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
     transaction_port = AsyncMock(spec=TransactionPort)
     historic_port = AsyncMock(spec=HistoricPort)
     last_fetches_port = AsyncMock(spec=LastFetchesPort)
@@ -209,10 +245,14 @@ async def app(tmp_path):
     external_entity_port = AsyncMock(spec=ExternalEntityPort)
     external_entity_fetchers = {}
 
-    real_estate_port = AsyncMock(spec=RealEstatePort)
-    periodic_flow_port = AsyncMock(spec=PeriodicFlowPort)
+    pending_flow_port = AsyncMock(spec=PendingFlowPort)
     file_storage_port = AsyncMock(spec=FileStoragePort)
     file_storage_port.get_url = MagicMock(return_value="/static/real_estate/test.jpg")
+
+    periodic_flow_repo = PeriodicFlowRepository(client=db_client)
+    pending_flow_repo = PendingFlowRepository(client=db_client)
+    real_estate_repo = RealEstateRepository(client=db_client)
+    transaction_handler = TransactionHandler(client=db_client)
 
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
@@ -253,7 +293,7 @@ async def app(tmp_path):
         keychain_loader,
         entity_account_port,
         loan_calculator,
-        real_estate_port,
+        real_estate_repo,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -305,7 +345,7 @@ async def app(tmp_path):
         crypto_asset_registry_port=crypto_asset_registry_port,
         crypto_asset_info_provider=crypto_asset_info_provider,
         transaction_handler_port=transaction_handler_port,
-        real_estate_port=real_estate_port,
+        real_estate_port=real_estate_repo,
         loan_calculator=loan_calculator,
     )
     add_manual_transaction_uc = AddManualTransactionImpl(
@@ -346,24 +386,47 @@ async def app(tmp_path):
         entity_account_port,
     )
     create_real_estate_uc = CreateRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
     update_real_estate_uc = UpdateRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
     delete_real_estate_uc = DeleteRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
-    list_real_estate_uc = ListRealEstateImpl(real_estate_port, position_port)
+    list_real_estate_uc = ListRealEstateImpl(real_estate_repo, position_port)
+
+    save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo)
+    update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
+    delete_periodic_flow_uc = DeletePeriodicFlowImpl(periodic_flow_repo)
+    get_periodic_flows_uc = GetPeriodicFlowsImpl(periodic_flow_repo)
+    save_pending_flows_uc = SavePendingFlowsImpl(
+        pending_flow_repo, transaction_handler_port
+    )
+    get_pending_flows_uc = GetPendingFlowsImpl(pending_flow_repo)
+    get_money_events_uc = GetMoneyEventsImpl(
+        get_contributions_uc,
+        get_periodic_flows_uc,
+        get_pending_flows_uc,
+        entity_port,
+        position_port,
+    )
+    loan_calc = LoanCalculator()
+    update_tracked_loans_uc = UpdateTrackedLoansImpl(
+        position_port=position_port,
+        manual_position_data_port=manual_position_data_port,
+        loan_calculator=loan_calc,
+        real_estate_port=real_estate_repo,
+    )
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -487,6 +550,38 @@ async def app(tmp_path):
     async def delete_re_route(real_estate_id: str):
         return await delete_real_estate_route(delete_real_estate_uc, real_estate_id)
 
+    @test_app.route("/api/v1/flows/periodic", methods=["POST"])
+    async def save_periodic_flow_route():
+        return await save_periodic_flow(save_periodic_flow_uc)
+
+    @test_app.route("/api/v1/flows/periodic", methods=["PUT"])
+    async def update_periodic_flow_route():
+        return await update_periodic_flow(update_periodic_flow_uc)
+
+    @test_app.route("/api/v1/flows/periodic/<flow_id>", methods=["DELETE"])
+    async def delete_periodic_flow_route(flow_id: str):
+        return await delete_periodic_flow(delete_periodic_flow_uc, flow_id)
+
+    @test_app.route("/api/v1/flows/periodic", methods=["GET"])
+    async def get_periodic_flows_route_handler():
+        return await get_periodic_flows_route(get_periodic_flows_uc)
+
+    @test_app.route("/api/v1/flows/pending", methods=["POST"])
+    async def save_pending_flows_route():
+        return await save_pending_flows(save_pending_flows_uc)
+
+    @test_app.route("/api/v1/flows/pending", methods=["GET"])
+    async def get_pending_flows_route_handler():
+        return await get_pending_flows_route(get_pending_flows_uc)
+
+    @test_app.route("/api/v1/events", methods=["GET"])
+    async def get_money_events_route_handler():
+        return await get_money_events_route(get_money_events_uc)
+
+    @test_app.route("/api/v1/data/manual/positions/update-loans", methods=["POST"])
+    async def update_tracked_loans_route_handler():
+        return await update_tracked_loans_route(update_tracked_loans_uc)
+
     yield (
         test_app,
         db_client,
@@ -515,8 +610,9 @@ async def app(tmp_path):
         auto_contr_port,
         external_entity_port,
         loan_calculator,
-        real_estate_port,
-        periodic_flow_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        pending_flow_port,
         file_storage_port,
     )
 
@@ -666,10 +762,15 @@ async def real_estate_port(app):
 
 
 @pytest_asyncio.fixture
-async def periodic_flow_port(app):
+async def periodic_flow_repo(app):
     return app[28]
 
 
 @pytest_asyncio.fixture
-async def file_storage_port(app):
+async def pending_flow_port(app):
     return app[29]
+
+
+@pytest_asyncio.fixture
+async def file_storage_port(app):
+    return app[30]

@@ -46,7 +46,6 @@ from domain.global_position import (
     MarginType,
     PositionDirection,
     PositionQueryRequest,
-    ProductPositions,
     ProductType,
     RealEstateCFDetail,
     RealEstateCFInvestments,
@@ -466,20 +465,6 @@ async def _save_product_positions(cursor, position: GlobalPosition):
     await _save_position(cursor, position, ProductType.DERIVATIVE, _save_derivatives)
 
 
-async def _store_position(
-    positions: ProductPositions,
-    global_position: GlobalPosition,
-    product_type: ProductType,
-    products: list[ProductType] | None,
-    get_fc: Callable,
-):
-    if products and product_type not in products:
-        return
-    position = await get_fc(global_position)
-    if position:
-        positions[product_type] = position
-
-
 def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
     aggregated_position = None
 
@@ -614,6 +599,7 @@ class PositionSQLRepository(PositionPort):
 
         entities: dict[UUID, Entity] = {}
         result: dict[Entity, list[GlobalPosition]] = {}
+        all_positions: list[GlobalPosition] = []
 
         for row in rows:
             ent_id = UUID(row["entity_id"])
@@ -640,13 +626,16 @@ class PositionSQLRepository(PositionPort):
                 source=source,
                 entity_account_id=entity_account_id,
             )
-            position.products = await self._get_product_positions(position, products)
+            position.products = {}
+            all_positions.append(position)
 
             lst = result.get(entity)
             if lst is None:
                 result[entity] = [position]
             else:
                 lst.append(position)
+
+        await self._batch_load_all_products(all_positions, products)
 
         return result
 
@@ -672,172 +661,180 @@ class PositionSQLRepository(PositionPort):
 
             return await self._map_position_rows(cursor, products=products)
 
-    async def _get_accounts(
-        self, global_position: GlobalPosition
-    ) -> Optional[Accounts]:
+    async def _get_all_accounts(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Accounts]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
         async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_ACCOUNTS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
+            sql = PositionQueries.GET_ACCOUNTS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
             )
-
-            accounts = [
-                Account(
-                    id=UUID(row["id"]),
-                    total=Dezimal(row["total"]),
-                    currency=row["currency"],
-                    type=AccountType(row["type"]),
-                    name=row["name"],
-                    iban=row["iban"],
-                    interest=Dezimal(row["interest"]) if row["interest"] else None,
-                    retained=Dezimal(row["retained"]) if row["retained"] else None,
-                    pending_transfers=(
-                        Dezimal(row["pending_transfers"])
-                        if row["pending_transfers"]
-                        else None
-                    ),
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not accounts:
-                return None
-
-            return Accounts(accounts)
-
-    async def _get_cards(self, global_position: GlobalPosition) -> Optional[Cards]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_CARDS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            cards = [
-                Card(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    currency=row["currency"],
-                    ending=row["ending"],
-                    type=CardType(row["type"]),
-                    limit=Dezimal(row["card_limit"]) if row["card_limit"] else None,
-                    used=Dezimal(row["used"]),
-                    active=bool(row["active"]),
-                    related_account=row["related_account"],
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not cards:
-                return None
-
-            return Cards(cards)
-
-    async def _get_loans(self, global_position: GlobalPosition) -> Optional[Loans]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_LOANS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            loans = [
-                Loan(
-                    id=UUID(row["id"]),
-                    type=LoanType(row["type"]),
-                    currency=row["currency"],
-                    name=row["name"],
-                    current_installment=Dezimal(row["current_installment"]),
-                    interest_rate=Dezimal(row["interest_rate"]),
-                    interest_type=InterestType(row["interest_type"]),
-                    installment_frequency=InstallmentFrequency(
-                        row["installment_frequency"]
-                    ),
-                    installment_interests=(
-                        Dezimal(row["installment_interests"])
-                        if row["installment_interests"]
-                        else None
-                    ),
-                    fixed_interest_rate=(
-                        Dezimal(row["fixed_interest_rate"])
-                        if row["fixed_interest_rate"]
-                        else None
-                    ),
-                    loan_amount=Dezimal(row["loan_amount"]),
-                    next_payment_date=(
-                        datetime.fromisoformat(row["next_payment_date"]).date()
-                        if row["next_payment_date"]
-                        else None
-                    ),
-                    principal_outstanding=Dezimal(row["principal_outstanding"]),
-                    euribor_rate=(
-                        Dezimal(row["euribor_rate"]) if row["euribor_rate"] else None
-                    ),
-                    fixed_years=int(row["fixed_years"]) if row["fixed_years"] else None,
-                    creation=datetime.fromisoformat(row["creation"]).date(),
-                    maturity=datetime.fromisoformat(row["maturity"]).date(),
-                    unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
-                    hash=row["hash"] or "",
-                    manual_data=_map_manual_entry_data(row),
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not loans:
-                return None
-
-            return Loans(loans)
-
-    async def _get_stocks(
-        self, global_position: GlobalPosition
-    ) -> Optional[StockInvestments]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_STOCKS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            details = [
-                StockDetail(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    ticker=row["ticker"],
-                    isin=row["isin"],
-                    market=row["market"],
-                    shares=Dezimal(row["shares"]),
-                    initial_investment=Dezimal(row["initial_investment"]),
-                    average_buy_price=Dezimal(row["average_buy_price"]),
-                    market_value=Dezimal(row["market_value"]),
-                    currency=row["currency"],
-                    type=EquityType(row["type"]),
-                    subtype=row["subtype"],
-                    info_sheet_url=row["info_sheet_url"],
-                    issuer=row["issuer"],
-                    source=global_position.source,
-                    manual_data=_map_manual_entry_data(row),
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return StockInvestments(details)
-
-    async def _get_fund_portfolios(
-        self, global_position: GlobalPosition
-    ) -> Optional[FundPortfolios]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            portfolios = []
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[Account]] = {}
             for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    Account(
+                        id=UUID(row["id"]),
+                        total=Dezimal(row["total"]),
+                        currency=row["currency"],
+                        type=AccountType(row["type"]),
+                        name=row["name"],
+                        iban=row["iban"],
+                        interest=Dezimal(row["interest"]) if row["interest"] else None,
+                        retained=Dezimal(row["retained"]) if row["retained"] else None,
+                        pending_transfers=(
+                            Dezimal(row["pending_transfers"])
+                            if row["pending_transfers"]
+                            else None
+                        ),
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): Accounts(v) for k, v in grouped.items()}
+
+    async def _get_all_cards(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Cards]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_CARDS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[Card]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    Card(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        currency=row["currency"],
+                        ending=row["ending"],
+                        type=CardType(row["type"]),
+                        limit=Dezimal(row["card_limit"]) if row["card_limit"] else None,
+                        used=Dezimal(row["used"]),
+                        active=bool(row["active"]),
+                        related_account=row["related_account"],
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): Cards(v) for k, v in grouped.items()}
+
+    async def _get_all_loans(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Loans]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_LOANS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[Loan]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    Loan(
+                        id=UUID(row["id"]),
+                        type=LoanType(row["type"]),
+                        currency=row["currency"],
+                        name=row["name"],
+                        current_installment=Dezimal(row["current_installment"]),
+                        interest_rate=Dezimal(row["interest_rate"]),
+                        interest_type=InterestType(row["interest_type"]),
+                        installment_frequency=InstallmentFrequency(
+                            row["installment_frequency"]
+                        ),
+                        installment_interests=(
+                            Dezimal(row["installment_interests"])
+                            if row["installment_interests"]
+                            else None
+                        ),
+                        fixed_interest_rate=(
+                            Dezimal(row["fixed_interest_rate"])
+                            if row["fixed_interest_rate"]
+                            else None
+                        ),
+                        loan_amount=Dezimal(row["loan_amount"]),
+                        next_payment_date=(
+                            datetime.fromisoformat(row["next_payment_date"]).date()
+                            if row["next_payment_date"]
+                            else None
+                        ),
+                        principal_outstanding=Dezimal(row["principal_outstanding"]),
+                        euribor_rate=(
+                            Dezimal(row["euribor_rate"])
+                            if row["euribor_rate"]
+                            else None
+                        ),
+                        fixed_years=int(row["fixed_years"])
+                        if row["fixed_years"]
+                        else None,
+                        creation=datetime.fromisoformat(row["creation"]).date(),
+                        maturity=datetime.fromisoformat(row["maturity"]).date(),
+                        unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
+                        hash=row["hash"] or "",
+                        manual_data=_map_manual_entry_data(row),
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): Loans(v) for k, v in grouped.items()}
+
+    async def _get_all_stocks(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, StockInvestments]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_STOCKS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[StockDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    StockDetail(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        ticker=row["ticker"],
+                        isin=row["isin"],
+                        market=row["market"],
+                        shares=Dezimal(row["shares"]),
+                        initial_investment=Dezimal(row["initial_investment"]),
+                        average_buy_price=Dezimal(row["average_buy_price"]),
+                        market_value=Dezimal(row["market_value"]),
+                        currency=row["currency"],
+                        type=EquityType(row["type"]),
+                        subtype=row["subtype"],
+                        info_sheet_url=row["info_sheet_url"],
+                        issuer=row["issuer"],
+                        source=source_map[gp_id],
+                        manual_data=_map_manual_entry_data(row),
+                    )
+                )
+            return {UUID(k): StockInvestments(v) for k, v in grouped.items()}
+
+    async def _get_all_fund_portfolios(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, FundPortfolios]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = (
+                PositionQueries.GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_IDS.value.format(
+                    placeholders=",".join("?" for _ in gp_ids)
+                )
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[FundPortfolio]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
                 currency = row["currency"]
-                portfolios.append(
+                grouped.setdefault(gp_id, []).append(
                     FundPortfolio(
                         id=UUID(row["id"]),
                         name=row["name"],
@@ -864,224 +861,227 @@ class PositionSQLRepository(PositionPort):
                             if row["account_id"]
                             else None
                         ),
-                        source=global_position.source,
+                        source=source_map[gp_id],
                     )
                 )
+            return {UUID(k): FundPortfolios(v) for k, v in grouped.items()}
 
-            if not portfolios:
-                return None
-
-            return FundPortfolios(portfolios)
-
-    async def _get_funds(
-        self, global_position: GlobalPosition
-    ) -> Optional[FundInvestments]:
+    async def _get_all_funds(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, FundInvestments]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
         async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_FUNDS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
+            sql = PositionQueries.GET_FUNDS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
             )
-
-            details = [
-                FundDetail(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    isin=row["isin"],
-                    market=row["market"] if row["market"] else None,
-                    shares=Dezimal(row["shares"]),
-                    initial_investment=Dezimal(row["initial_investment"]),
-                    average_buy_price=Dezimal(row["average_buy_price"]),
-                    market_value=Dezimal(row["market_value"]),
-                    type=FundType(row["type"]),
-                    asset_type=(
-                        AssetType(row["asset_type"]) if row["asset_type"] else None
-                    ),
-                    currency=row["currency"],
-                    portfolio=(
-                        FundPortfolio(
-                            id=UUID(row["portfolio_id"]),
-                            name=row["portfolio_name"],
-                            currency=(
-                                row["portfolio_currency"]
-                                if row["portfolio_currency"]
-                                else None
-                            ),
-                            initial_investment=(
-                                Dezimal(row["portfolio_investment"])
-                                if row["portfolio_investment"]
-                                else None
-                            ),
-                            market_value=(
-                                Dezimal(row["portfolio_value"])
-                                if row["portfolio_value"]
-                                else None
-                            ),
-                            source=global_position.source,
-                        )
-                        if row["portfolio_id"]
-                        else None
-                    ),
-                    source=global_position.source,
-                    info_sheet_url=row["info_sheet_url"],
-                    issuer=row["issuer"],
-                    manual_data=_map_manual_entry_data(row),
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return FundInvestments(details)
-
-    async def _get_factoring(
-        self, global_position: GlobalPosition
-    ) -> Optional[FactoringInvestments]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_FACTORING_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            details = [
-                FactoringDetail(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    amount=Dezimal(row["amount"]),
-                    currency=row["currency"],
-                    interest_rate=Dezimal(row["interest_rate"]),
-                    gross_interest_rate=Dezimal(row["gross_interest_rate"]),
-                    late_interest_rate=(
-                        Dezimal(row["late_interest_rate"])
-                        if row["late_interest_rate"]
-                        else None
-                    ),
-                    gross_late_interest_rate=(
-                        Dezimal(row["gross_late_interest_rate"])
-                        if row["gross_late_interest_rate"]
-                        else None
-                    ),
-                    last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
-                    start=datetime.fromisoformat(row["start"]),
-                    maturity=datetime.fromisoformat(row["maturity"]).date(),
-                    type=row["type"],
-                    state=row["state"],
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return FactoringInvestments(details)
-
-    async def _get_real_estate_cf(
-        self, global_position: GlobalPosition
-    ) -> Optional[RealEstateCFInvestments]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_REAL_ESTATE_CF_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            details = [
-                RealEstateCFDetail(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    amount=Dezimal(row["amount"]),
-                    pending_amount=Dezimal(row["pending_amount"]),
-                    currency=row["currency"],
-                    interest_rate=Dezimal(row["interest_rate"]),
-                    last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
-                    start=datetime.fromisoformat(row["start"]),
-                    maturity=datetime.fromisoformat(row["maturity"]).date(),
-                    type=row["type"],
-                    business_type=row["business_type"],
-                    state=row["state"],
-                    extended_maturity=(
-                        datetime.fromisoformat(row["extended_maturity"]).date()
-                        if row["extended_maturity"]
-                        else None
-                    ),
-                    extended_interest_rate=(
-                        Dezimal(row["extended_interest_rate"])
-                        if row["extended_interest_rate"]
-                        else None
-                    ),
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return RealEstateCFInvestments(details)
-
-    async def _get_deposits(
-        self, global_position: GlobalPosition
-    ) -> Optional[Deposits]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_DEPOSITS_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            details = [
-                Deposit(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    amount=Dezimal(row["amount"]),
-                    currency=row["currency"],
-                    expected_interests=Dezimal(row["expected_interests"]),
-                    interest_rate=Dezimal(row["interest_rate"]),
-                    creation=datetime.fromisoformat(row["creation"]),
-                    maturity=datetime.fromisoformat(row["maturity"]).date(),
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return Deposits(details)
-
-    async def _get_crowdlending(
-        self, global_position: GlobalPosition
-    ) -> Optional[Crowdlending]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_CROWDLENDING_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-            row = await cursor.fetchone()
-            if not row:
-                return None
-
-            return Crowdlending(
-                id=UUID(row["id"]),
-                total=Dezimal(row["total"]),
-                weighted_interest_rate=Dezimal(row["weighted_interest_rate"]),
-                currency=row["currency"],
-                distribution=(
-                    json.loads(row["distribution"]) if row["distribution"] else None
-                ),
-                entries=[],
-            )
-
-    async def _get_cryptocurrency(
-        self, global_position: GlobalPosition
-    ) -> Optional[CryptoCurrencies]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_CRYPTO_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            wallet_positions: dict[Optional[UUID], list[CryptoCurrencyPosition]] = {}
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[FundDetail]] = {}
             for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    FundDetail(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        isin=row["isin"],
+                        market=row["market"] if row["market"] else None,
+                        shares=Dezimal(row["shares"]),
+                        initial_investment=Dezimal(row["initial_investment"]),
+                        average_buy_price=Dezimal(row["average_buy_price"]),
+                        market_value=Dezimal(row["market_value"]),
+                        type=FundType(row["type"]),
+                        asset_type=(
+                            AssetType(row["asset_type"]) if row["asset_type"] else None
+                        ),
+                        currency=row["currency"],
+                        portfolio=(
+                            FundPortfolio(
+                                id=UUID(row["portfolio_id"]),
+                                name=row["portfolio_name"],
+                                currency=(
+                                    row["portfolio_currency"]
+                                    if row["portfolio_currency"]
+                                    else None
+                                ),
+                                initial_investment=(
+                                    Dezimal(row["portfolio_investment"])
+                                    if row["portfolio_investment"]
+                                    else None
+                                ),
+                                market_value=(
+                                    Dezimal(row["portfolio_value"])
+                                    if row["portfolio_value"]
+                                    else None
+                                ),
+                                source=source_map[gp_id],
+                            )
+                            if row["portfolio_id"]
+                            else None
+                        ),
+                        source=source_map[gp_id],
+                        info_sheet_url=row["info_sheet_url"],
+                        issuer=row["issuer"],
+                        manual_data=_map_manual_entry_data(row),
+                    )
+                )
+            return {UUID(k): FundInvestments(v) for k, v in grouped.items()}
+
+    async def _get_all_factoring(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, FactoringInvestments]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_FACTORING_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[FactoringDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    FactoringDetail(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        amount=Dezimal(row["amount"]),
+                        currency=row["currency"],
+                        interest_rate=Dezimal(row["interest_rate"]),
+                        gross_interest_rate=Dezimal(row["gross_interest_rate"]),
+                        late_interest_rate=(
+                            Dezimal(row["late_interest_rate"])
+                            if row["late_interest_rate"]
+                            else None
+                        ),
+                        gross_late_interest_rate=(
+                            Dezimal(row["gross_late_interest_rate"])
+                            if row["gross_late_interest_rate"]
+                            else None
+                        ),
+                        last_invest_date=datetime.fromisoformat(
+                            row["last_invest_date"]
+                        ),
+                        start=datetime.fromisoformat(row["start"]),
+                        maturity=datetime.fromisoformat(row["maturity"]).date(),
+                        type=row["type"],
+                        state=row["state"],
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): FactoringInvestments(v) for k, v in grouped.items()}
+
+    async def _get_all_real_estate_cf(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, RealEstateCFInvestments]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = (
+                PositionQueries.GET_REAL_ESTATE_CF_BY_GLOBAL_POSITION_IDS.value.format(
+                    placeholders=",".join("?" for _ in gp_ids)
+                )
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[RealEstateCFDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    RealEstateCFDetail(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        amount=Dezimal(row["amount"]),
+                        pending_amount=Dezimal(row["pending_amount"]),
+                        currency=row["currency"],
+                        interest_rate=Dezimal(row["interest_rate"]),
+                        last_invest_date=datetime.fromisoformat(
+                            row["last_invest_date"]
+                        ),
+                        start=datetime.fromisoformat(row["start"]),
+                        maturity=datetime.fromisoformat(row["maturity"]).date(),
+                        type=row["type"],
+                        business_type=row["business_type"],
+                        state=row["state"],
+                        extended_maturity=(
+                            datetime.fromisoformat(row["extended_maturity"]).date()
+                            if row["extended_maturity"]
+                            else None
+                        ),
+                        extended_interest_rate=(
+                            Dezimal(row["extended_interest_rate"])
+                            if row["extended_interest_rate"]
+                            else None
+                        ),
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): RealEstateCFInvestments(v) for k, v in grouped.items()}
+
+    async def _get_all_deposits(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Deposits]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_DEPOSITS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[Deposit]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    Deposit(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        amount=Dezimal(row["amount"]),
+                        currency=row["currency"],
+                        expected_interests=Dezimal(row["expected_interests"]),
+                        interest_rate=Dezimal(row["interest_rate"]),
+                        creation=datetime.fromisoformat(row["creation"]),
+                        maturity=datetime.fromisoformat(row["maturity"]).date(),
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): Deposits(v) for k, v in grouped.items()}
+
+    async def _get_all_crowdlending(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Crowdlending]:
+        gp_ids = [str(p.id) for p in positions]
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_CROWDLENDING_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            result: dict[UUID, Crowdlending] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                result[UUID(gp_id)] = Crowdlending(
+                    id=UUID(row["id"]),
+                    total=Dezimal(row["total"]),
+                    weighted_interest_rate=Dezimal(row["weighted_interest_rate"]),
+                    currency=row["currency"],
+                    distribution=(
+                        json.loads(row["distribution"]) if row["distribution"] else None
+                    ),
+                    entries=[],
+                )
+            return result
+
+    async def _get_all_cryptocurrency(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, CryptoCurrencies]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        entity_map = {str(p.id): p.entity for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_CRYPTO_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+
+            per_gp: dict[str, dict[UUID | None, list[CryptoCurrencyPosition]]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
                 raw_wallet_id = row["wallet_id"]
                 wallet_id = UUID(raw_wallet_id) if raw_wallet_id else None
 
@@ -1093,14 +1093,12 @@ class PositionSQLRepository(PositionPort):
                             icon_urls = json.loads(row["asset_icon_urls"]) or []
                         except Exception:
                             icon_urls = []
-
                     external_ids = {}
                     if row["asset_external_ids"]:
                         try:
                             external_ids = json.loads(row["asset_external_ids"]) or {}
                         except Exception:
                             external_ids = {}
-
                     crypto_asset = CryptoAsset(
                         id=UUID(row["asset_id"]),
                         name=row["asset_name"],
@@ -1136,210 +1134,183 @@ class PositionSQLRepository(PositionPort):
                         if row["investment_currency"]
                         else None
                     ),
-                    source=global_position.source,
+                    source=source_map[gp_id],
                 )
-                wallet_positions.setdefault(wallet_id, []).append(crypto_pos)
+                per_gp.setdefault(gp_id, {}).setdefault(wallet_id, []).append(
+                    crypto_pos
+                )
 
-            if not wallet_positions:
-                return None
+            if not per_gp:
+                return {}
 
-            wallet_ids_to_fetch = {wid for wid in wallet_positions if wid is not None}
+            all_entity_ids = set()
+            for gp_id, wallet_positions in per_gp.items():
+                for wid in wallet_positions:
+                    if wid is not None:
+                        all_entity_ids.add(str(entity_map[gp_id].id))
+
             wallets_by_id: dict[UUID, CryptoWallet] = {}
-            if wallet_ids_to_fetch:
-                await cursor.execute(
-                    CryptoWalletQueries.GET_BY_ENTITY_ID,
-                    (str(global_position.entity.id),),
+            if all_entity_ids:
+                entity_id_list = list(all_entity_ids)
+                sql_w = CryptoWalletQueries.GET_BY_ENTITY_IDS.value.format(
+                    placeholders=",".join("?" for _ in entity_id_list)
                 )
+                await cursor.execute(sql_w, tuple(entity_id_list))
                 crypto_wallets = await CryptoWalletRepository._map_crypto_rows(
                     cursor, await cursor.fetchall(), False
                 )
                 wallets_by_id = {w.id: w for w in crypto_wallets}
 
-            result_wallets = []
-            for wallet_id, positions in wallet_positions.items():
-                if wallet_id is not None and wallet_id in wallets_by_id:
-                    w = wallets_by_id[wallet_id]
-                    wallet = CryptoCurrencyWallet(
-                        id=w.id,
-                        name=w.name,
-                        address_source=w.address_source,
-                        addresses=w.addresses,
-                        assets=positions,
-                        hd_wallet=w.hd_wallet,
+            result: dict[UUID, CryptoCurrencies] = {}
+            for gp_id, wallet_positions in per_gp.items():
+                result_wallets = []
+                for wallet_id, crypto_positions in wallet_positions.items():
+                    if wallet_id is not None and wallet_id in wallets_by_id:
+                        w = wallets_by_id[wallet_id]
+                        wallet = CryptoCurrencyWallet(
+                            id=w.id,
+                            name=w.name,
+                            address_source=w.address_source,
+                            addresses=w.addresses,
+                            assets=crypto_positions,
+                            hd_wallet=w.hd_wallet,
+                        )
+                    else:
+                        wallet = CryptoCurrencyWallet(assets=crypto_positions)
+                    result_wallets.append(wallet)
+                result[UUID(gp_id)] = CryptoCurrencies(result_wallets)
+            return result
+
+    async def _get_all_commodities(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Commodities]:
+        gp_ids = [str(p.id) for p in positions]
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_COMMODITIES_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[Commodity]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    Commodity(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        type=CommodityType(row["type"]),
+                        amount=Dezimal(row["amount"]),
+                        unit=WeightUnit(row["unit"]),
+                        market_value=Dezimal(row["market_value"]),
+                        currency=row["currency"],
+                        initial_investment=(
+                            Dezimal(row["initial_investment"])
+                            if row["initial_investment"]
+                            else None
+                        ),
+                        average_buy_price=(
+                            Dezimal(row["average_buy_price"])
+                            if row["average_buy_price"]
+                            else None
+                        ),
                     )
-                else:
-                    wallet = CryptoCurrencyWallet(assets=positions)
-                result_wallets.append(wallet)
+                )
+            return {UUID(k): Commodities(v) for k, v in grouped.items()}
 
-            return CryptoCurrencies(result_wallets)
-
-    async def _get_commodities(
-        self, global_position: GlobalPosition
-    ) -> Optional[Commodities]:
+    async def _get_all_derivatives(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, DerivativePositions]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
         async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_COMMODITIES_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
+            sql = PositionQueries.GET_DERIVATIVES_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
             )
-
-            commodities = [
-                Commodity(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    type=CommodityType(row["type"]),
-                    amount=Dezimal(row["amount"]),
-                    unit=WeightUnit(row["unit"]),
-                    market_value=Dezimal(row["market_value"]),
-                    currency=row["currency"],
-                    initial_investment=(
-                        Dezimal(row["initial_investment"])
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[DerivativeDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    DerivativeDetail(
+                        id=UUID(row["id"]),
+                        symbol=row["symbol"],
+                        underlying_asset=ProductType(row["underlying_asset"]),
+                        contract_type=DerivativeContractType(row["contract_type"]),
+                        direction=PositionDirection(row["direction"]),
+                        size=Dezimal(row["size"]),
+                        entry_price=Dezimal(row["entry_price"]),
+                        currency=row["currency"],
+                        mark_price=Dezimal(row["mark_price"])
+                        if row["mark_price"]
+                        else None,
+                        market_value=Dezimal(row["market_value"])
+                        if row["market_value"]
+                        else None,
+                        unrealized_pnl=Dezimal(row["unrealized_pnl"])
+                        if row["unrealized_pnl"]
+                        else None,
+                        leverage=Dezimal(row["leverage"]) if row["leverage"] else None,
+                        margin=Dezimal(row["margin"]) if row["margin"] else None,
+                        margin_type=MarginType(row["margin_type"])
+                        if row["margin_type"]
+                        else None,
+                        liquidation_price=Dezimal(row["liquidation_price"])
+                        if row["liquidation_price"]
+                        else None,
+                        isin=row["isin"],
+                        strike_price=Dezimal(row["strike_price"])
+                        if row["strike_price"]
+                        else None,
+                        knock_out_price=Dezimal(row["knock_out_price"])
+                        if row["knock_out_price"]
+                        else None,
+                        ratio=Dezimal(row["ratio"]) if row["ratio"] else None,
+                        issuer=row["issuer"],
+                        underlying_symbol=row["underlying_symbol"],
+                        underlying_isin=row["underlying_isin"],
+                        expiry=date.fromisoformat(row["expiry"])
+                        if row["expiry"]
+                        else None,
+                        name=row["name"],
+                        initial_investment=Dezimal(row["initial_investment"])
                         if row["initial_investment"]
-                        else None
-                    ),
-                    average_buy_price=(
-                        Dezimal(row["average_buy_price"])
-                        if row["average_buy_price"]
-                        else None
-                    ),
+                        else None,
+                        source=source_map[gp_id],
+                    )
                 )
-                for row in cursor
-            ]
+            return {UUID(k): DerivativePositions(v) for k, v in grouped.items()}
 
-            if not commodities:
-                return None
+    async def _batch_load_all_products(
+        self,
+        positions: list[GlobalPosition],
+        products: list[ProductType] | None = None,
+    ) -> None:
+        if not positions:
+            return
 
-            return Commodities(commodities)
+        batch_loaders: list[tuple[ProductType, Callable]] = [
+            (ProductType.ACCOUNT, self._get_all_accounts),
+            (ProductType.CARD, self._get_all_cards),
+            (ProductType.LOAN, self._get_all_loans),
+            (ProductType.STOCK_ETF, self._get_all_stocks),
+            (ProductType.FUND, self._get_all_funds),
+            (ProductType.FUND_PORTFOLIO, self._get_all_fund_portfolios),
+            (ProductType.FACTORING, self._get_all_factoring),
+            (ProductType.REAL_ESTATE_CF, self._get_all_real_estate_cf),
+            (ProductType.DEPOSIT, self._get_all_deposits),
+            (ProductType.CROWDLENDING, self._get_all_crowdlending),
+            (ProductType.CRYPTO, self._get_all_cryptocurrency),
+            (ProductType.COMMODITY, self._get_all_commodities),
+            (ProductType.DERIVATIVE, self._get_all_derivatives),
+        ]
 
-    async def _get_derivatives(
-        self, global_position: GlobalPosition
-    ) -> Optional[DerivativePositions]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                PositionQueries.GET_DERIVATIVES_BY_GLOBAL_POSITION_ID,
-                (str(global_position.id),),
-            )
-
-            details = [
-                DerivativeDetail(
-                    id=UUID(row["id"]),
-                    symbol=row["symbol"],
-                    underlying_asset=ProductType(row["underlying_asset"]),
-                    contract_type=DerivativeContractType(row["contract_type"]),
-                    direction=PositionDirection(row["direction"]),
-                    size=Dezimal(row["size"]),
-                    entry_price=Dezimal(row["entry_price"]),
-                    currency=row["currency"],
-                    mark_price=Dezimal(row["mark_price"])
-                    if row["mark_price"]
-                    else None,
-                    market_value=Dezimal(row["market_value"])
-                    if row["market_value"]
-                    else None,
-                    unrealized_pnl=Dezimal(row["unrealized_pnl"])
-                    if row["unrealized_pnl"]
-                    else None,
-                    leverage=Dezimal(row["leverage"]) if row["leverage"] else None,
-                    margin=Dezimal(row["margin"]) if row["margin"] else None,
-                    margin_type=MarginType(row["margin_type"])
-                    if row["margin_type"]
-                    else None,
-                    liquidation_price=Dezimal(row["liquidation_price"])
-                    if row["liquidation_price"]
-                    else None,
-                    isin=row["isin"],
-                    strike_price=Dezimal(row["strike_price"])
-                    if row["strike_price"]
-                    else None,
-                    knock_out_price=Dezimal(row["knock_out_price"])
-                    if row["knock_out_price"]
-                    else None,
-                    ratio=Dezimal(row["ratio"]) if row["ratio"] else None,
-                    issuer=row["issuer"],
-                    underlying_symbol=row["underlying_symbol"],
-                    underlying_isin=row["underlying_isin"],
-                    expiry=date.fromisoformat(row["expiry"]) if row["expiry"] else None,
-                    name=row["name"],
-                    initial_investment=Dezimal(row["initial_investment"])
-                    if row["initial_investment"]
-                    else None,
-                    source=global_position.source,
-                )
-                for row in cursor
-            ]
-
-            if not details:
-                return None
-
-            return DerivativePositions(details)
-
-    async def _get_product_positions(
-        self, g_position: GlobalPosition, products: list[ProductType] = None
-    ) -> ProductPositions:
-        positions = {}
-        await _store_position(
-            positions, g_position, ProductType.ACCOUNT, products, self._get_accounts
-        )
-        await _store_position(
-            positions, g_position, ProductType.CARD, products, self._get_cards
-        )
-        await _store_position(
-            positions, g_position, ProductType.LOAN, products, self._get_loans
-        )
-        await _store_position(
-            positions, g_position, ProductType.STOCK_ETF, products, self._get_stocks
-        )
-        await _store_position(
-            positions, g_position, ProductType.FUND, products, self._get_funds
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.FUND_PORTFOLIO,
-            products,
-            self._get_fund_portfolios,
-        )
-        await _store_position(
-            positions, g_position, ProductType.FACTORING, products, self._get_factoring
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.REAL_ESTATE_CF,
-            products,
-            self._get_real_estate_cf,
-        )
-        await _store_position(
-            positions, g_position, ProductType.DEPOSIT, products, self._get_deposits
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.CROWDLENDING,
-            products,
-            self._get_crowdlending,
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.CRYPTO,
-            products,
-            self._get_cryptocurrency,
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.COMMODITY,
-            products,
-            self._get_commodities,
-        )
-        await _store_position(
-            positions,
-            g_position,
-            ProductType.DERIVATIVE,
-            products,
-            self._get_derivatives,
-        )
-        return positions
+        for product_type, loader in batch_loaders:
+            if products and product_type not in products:
+                continue
+            results = await loader(positions)
+            for pos in positions:
+                product = results.get(pos.id)
+                if product:
+                    pos.products[product_type] = product
 
     async def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
         async with self._db_client.read() as cursor:
@@ -1387,7 +1358,8 @@ class PositionSQLRepository(PositionPort):
                 if row["entity_account_id"]
                 else None,
             )
-            position.products = await self._get_product_positions(position)
+            position.products = {}
+            await self._batch_load_all_products([position])
             return position
 
     async def delete_by_id(self, position_id: UUID):

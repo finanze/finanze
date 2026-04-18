@@ -9,6 +9,7 @@ import { BaseCalendar, CalendarDay } from "@/components/ui/BaseCalendar"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { X, CalendarSync, HandCoins, PiggyBank, Landmark } from "lucide-react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 type EventTypeFilter = {
   [key in MoneyEventType]: boolean
@@ -33,6 +34,8 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
   const [loading, setLoading] = useState(false)
   const [selectedDay, setSelectedDay] =
     useState<CalendarDay<MoneyEvent> | null>(null)
+
+  useModalBackHandler(selectedDay !== null, () => setSelectedDay(null))
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>({
     [MoneyEventType.CONTRIBUTION]: false,
     [MoneyEventType.PERIODIC_FLOW]: false,

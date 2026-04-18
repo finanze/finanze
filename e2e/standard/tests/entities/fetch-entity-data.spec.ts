@@ -55,7 +55,7 @@ async function connectEntityIfNeeded(
 
 /**
  * Helper: fetch all features for an entity from Integrations page.
- * Waits for features to be selected, clicks Fetch data, waits for success, then closes overlay.
+ * Waits for features to be selected, clicks Fetch, waits for success, then closes overlay.
  */
 async function fetchEntityAllFeatures(page: Page, entityName: string) {
     const entityCard = page
@@ -68,12 +68,15 @@ async function fetchEntityAllFeatures(page: Page, entityName: string) {
         page.getByText(`Select features to fetch from ${entityName}`),
     ).toBeVisible({ timeout: 5_000 })
 
-    // Wait for features to be auto-selected (Fetch data button becomes enabled)
-    await expect(page.getByRole('button', { name: 'Fetch data' })).toBeEnabled({
+    // Wait for features to be auto-selected (Fetch button becomes enabled)
+    const modalFetch = page
+        .locator('.fixed')
+        .getByRole('button', { name: 'Fetch' })
+    await expect(modalFetch).toBeEnabled({
         timeout: 5_000,
     })
 
-    await page.getByRole('button', { name: 'Fetch data' }).click()
+    await modalFetch.click()
 
     await expect(
         page.getByText(`Data successfully fetched from ${entityName}`),

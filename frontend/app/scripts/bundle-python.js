@@ -65,12 +65,126 @@ const CORE_PATTERNS = [
   "finanze/infrastructure/user_files/user_data_manager.py",
   "finanze/infrastructure/config/capacitor_server_details_adapter.py",
   "finanze/infrastructure/client/features/",
-  "finanze/infrastructure/file_storage/",
+  "finanze/infrastructure/file_storage/preference_exchange_storage.py",
 ]
 
-function isCoreFile(relativePath) {
+const LAZY_PATTERNS = [
+  "finanze/app_lazy.py",
+  // Infrastructure - entity fetchers & crypto
+  "finanze/infrastructure/client/entity/crypto/",
+  "finanze/infrastructure/client/entity/financial/",
+  "finanze/infrastructure/client/entity/exchange/",
+  "finanze/infrastructure/client/crypto/",
+  "finanze/infrastructure/crypto/",
+  // Infrastructure - table, templating, interests, keychain, backup processor, file storage (mobile)
+  "finanze/infrastructure/table/xlsx_file_table_adapter.py",
+  "finanze/infrastructure/templating/",
+  "finanze/infrastructure/client/interests/",
+  "finanze/infrastructure/client/keychain/",
+  "finanze/infrastructure/keychain/",
+  "finanze/infrastructure/cloud/backup/capacitor_backup_processor.py",
+  "finanze/infrastructure/file_storage/mobile_file_storage.py",
+  // Infrastructure - repositories (lazy-only)
+  "finanze/infrastructure/repository/keychain/",
+  "finanze/infrastructure/repository/historic/",
+  "finanze/infrastructure/repository/sessions/",
+  "finanze/infrastructure/repository/crypto/crypto_asset_repository.py",
+  "finanze/infrastructure/repository/templates/",
+  // Use cases (original 9)
+  "finanze/application/use_cases/add_entity_credentials.py",
+  "finanze/application/use_cases/connect_crypto_wallet.py",
+  "finanze/application/use_cases/derive_crypto_addresses.py",
+  "finanze/application/use_cases/export_file.py",
+  "finanze/application/use_cases/fetch_crypto_data.py",
+  "finanze/application/use_cases/fetch_financial_data.py",
+  "finanze/application/use_cases/import_file.py",
+  "finanze/application/use_cases/import_backup.py",
+  "finanze/application/use_cases/upload_backup.py",
+  // Use cases (expanded lazy)
+  "finanze/application/use_cases/update_settings.py",
+  "finanze/application/use_cases/disconnect_entity.py",
+  "finanze/application/use_cases/update_crypto_wallet.py",
+  "finanze/application/use_cases/delete_crypto_wallet.py",
+  "finanze/application/use_cases/save_commodities.py",
+  "finanze/application/use_cases/connect_external_integration.py",
+  "finanze/application/use_cases/disconnect_external_integration.py",
+  "finanze/application/use_cases/save_periodic_flow.py",
+  "finanze/application/use_cases/update_periodic_flow.py",
+  "finanze/application/use_cases/delete_periodic_flow.py",
+  "finanze/application/use_cases/save_pending_flows.py",
+  "finanze/application/use_cases/create_real_estate.py",
+  "finanze/application/use_cases/update_real_estate.py",
+  "finanze/application/use_cases/delete_real_estate.py",
+  "finanze/application/use_cases/calculate_loan.py",
+  "finanze/application/use_cases/calculate_savings.py",
+  "finanze/application/use_cases/get_euribor_rates.py",
+  "finanze/application/use_cases/forecast.py",
+  "finanze/application/use_cases/update_contributions.py",
+  "finanze/application/use_cases/update_position.py",
+  "finanze/application/use_cases/add_manual_transaction.py",
+  "finanze/application/use_cases/update_manual_transaction.py",
+  "finanze/application/use_cases/delete_manual_transaction.py",
+  "finanze/application/use_cases/get_historic.py",
+  "finanze/application/use_cases/get_instruments.py",
+  "finanze/application/use_cases/get_instrument_info.py",
+  "finanze/application/use_cases/search_crypto_assets.py",
+  "finanze/application/use_cases/get_crypto_asset_details.py",
+  "finanze/application/use_cases/get_templates.py",
+  "finanze/application/use_cases/create_template.py",
+  "finanze/application/use_cases/update_template.py",
+  "finanze/application/use_cases/delete_template.py",
+  "finanze/application/use_cases/get_template_fields.py",
+  "finanze/application/use_cases/save_backup_settings.py",
+  // Route handlers (original 9)
+  "finanze/infrastructure/controller/routes/add_entity_login.py",
+  "finanze/infrastructure/controller/routes/fetch_financial_data.py",
+  "finanze/infrastructure/controller/routes/fetch_crypto_data.py",
+  "finanze/infrastructure/controller/routes/import_file.py",
+  "finanze/infrastructure/controller/routes/export_file.py",
+  "finanze/infrastructure/controller/routes/connect_crypto_wallet.py",
+  "finanze/infrastructure/controller/routes/derive_crypto_addresses.py",
+  "finanze/infrastructure/controller/routes/upload_backup.py",
+  "finanze/infrastructure/controller/routes/import_backup.py",
+  // Route handlers (expanded lazy)
+  "finanze/infrastructure/controller/routes/update_settings.py",
+  "finanze/infrastructure/controller/routes/disconnect_entity.py",
+  "finanze/infrastructure/controller/routes/update_crypto_wallet.py",
+  "finanze/infrastructure/controller/routes/delete_crypto_wallet.py",
+  "finanze/infrastructure/controller/routes/save_commodities.py",
+  "finanze/infrastructure/controller/routes/connect_external_integration.py",
+  "finanze/infrastructure/controller/routes/disconnect_external_integration.py",
+  "finanze/infrastructure/controller/routes/save_periodic_flow.py",
+  "finanze/infrastructure/controller/routes/update_periodic_flow.py",
+  "finanze/infrastructure/controller/routes/delete_periodic_flow.py",
+  "finanze/infrastructure/controller/routes/save_pending_flows.py",
+  "finanze/infrastructure/controller/routes/create_real_estate.py",
+  "finanze/infrastructure/controller/routes/update_real_estate.py",
+  "finanze/infrastructure/controller/routes/delete_real_estate.py",
+  "finanze/infrastructure/controller/routes/calculate_loan.py",
+  "finanze/infrastructure/controller/routes/calculate_savings.py",
+  "finanze/infrastructure/controller/routes/get_euribor_rates.py",
+  "finanze/infrastructure/controller/routes/forecast.py",
+  "finanze/infrastructure/controller/routes/update_contributions.py",
+  "finanze/infrastructure/controller/routes/update_position.py",
+  "finanze/infrastructure/controller/routes/add_manual_transaction.py",
+  "finanze/infrastructure/controller/routes/update_manual_transaction.py",
+  "finanze/infrastructure/controller/routes/delete_manual_transaction.py",
+  "finanze/infrastructure/controller/routes/historic.py",
+  "finanze/infrastructure/controller/routes/instruments.py",
+  "finanze/infrastructure/controller/routes/instrument_details.py",
+  "finanze/infrastructure/controller/routes/search_crypto_assets.py",
+  "finanze/infrastructure/controller/routes/get_crypto_asset_details.py",
+  "finanze/infrastructure/controller/routes/get_templates.py",
+  "finanze/infrastructure/controller/routes/create_template.py",
+  "finanze/infrastructure/controller/routes/update_template.py",
+  "finanze/infrastructure/controller/routes/delete_template.py",
+  "finanze/infrastructure/controller/routes/get_template_fields_route.py",
+  "finanze/infrastructure/controller/routes/save_backup_settings.py",
+]
+
+function matchesPatterns(relativePath, patterns) {
   const normalized = relativePath.replace(/\\/g, "/")
-  for (const pattern of CORE_PATTERNS) {
+  for (const pattern of patterns) {
     if (pattern.endsWith("/")) {
       if (
         normalized.startsWith(pattern) ||
@@ -89,6 +203,14 @@ function isCoreFile(relativePath) {
     }
   }
   return false
+}
+
+function isCoreFile(relativePath) {
+  return matchesPatterns(relativePath, CORE_PATTERNS)
+}
+
+function isLazyFile(relativePath) {
+  return matchesPatterns(relativePath, LAZY_PATTERNS)
 }
 
 // Ensure destination exists
@@ -156,6 +278,7 @@ function isExcludedFile(filePath) {
 // Collect files
 const coreFileList = []
 const deferredFileList = []
+const lazyFileList = []
 
 function copyRecursive(source, dest, rootPath, isCustom = false) {
   if (!fs.existsSync(source)) return
@@ -206,6 +329,8 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
     const relativeToDest = path.relative(DEST_ROOT, dest)
     if (isCoreFile(relativeToDest)) {
       coreFileList.push(relativeToDest)
+    } else if (isLazyFile(relativeToDest)) {
+      lazyFileList.push(relativeToDest)
     } else {
       deferredFileList.push(relativeToDest)
     }
@@ -286,11 +411,17 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
   const deferredWheelsReqs = readRequirementsFile(
     path.resolve(__dirname, "../requirements-deferred.txt"),
   )
+  const lazyWheelsReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-lazy.txt"),
+  )
   const corePyodideReqs = readRequirementsFile(
     path.resolve(__dirname, "../requirements-pyodide-core.txt"),
   )
   const deferredPyodideReqs = readRequirementsFile(
     path.resolve(__dirname, "../requirements-pyodide-deferred.txt"),
+  )
+  const lazyPyodideReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-pyodide-lazy.txt"),
   )
 
   function extractPackageName(req) {
@@ -307,6 +438,7 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
   const deferredWheels = allWheels.filter(w =>
     wheelMatchesReqs(w, deferredWheelsReqs),
   )
+  const lazyWheels = allWheels.filter(w => wheelMatchesReqs(w, lazyWheelsReqs))
 
   const lines = []
   lines.push("# Generated by scripts/bundle-python.js. DO NOT EDIT.")
@@ -326,6 +458,13 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
   lines.push("]")
   lines.push("")
 
+  lines.push("LOCAL_WHEELS_LAZY = [")
+  for (const f of lazyWheels) {
+    lines.push(`    "/python/wheels/${f}",`)
+  }
+  lines.push("]")
+  lines.push("")
+
   lines.push("PYODIDE_PACKAGES_CORE = [")
   for (const req of corePyodideReqs) {
     lines.push(`    ${JSON.stringify(req)},`)
@@ -335,6 +474,13 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
 
   lines.push("PYODIDE_PACKAGES_DEFERRED = [")
   for (const req of deferredPyodideReqs) {
+    lines.push(`    ${JSON.stringify(req)},`)
+  }
+  lines.push("]")
+  lines.push("")
+
+  lines.push("PYODIDE_PACKAGES_LAZY = [")
+  for (const req of lazyPyodideReqs) {
     lines.push(`    ${JSON.stringify(req)},`)
   }
   lines.push("]")
@@ -384,6 +530,10 @@ const manifestDeferred = {
   files: deferredFileList,
 }
 
+const manifestLazy = {
+  files: lazyFileList,
+}
+
 fs.writeFileSync(
   path.join(DEST_ROOT, "manifest_core.json"),
   JSON.stringify(manifestCore, null, 2),
@@ -394,9 +544,15 @@ fs.writeFileSync(
   JSON.stringify(manifestDeferred, null, 2),
 )
 
-const totalFiles = coreFileList.length + deferredFileList.length
+fs.writeFileSync(
+  path.join(DEST_ROOT, "manifest_lazy.json"),
+  JSON.stringify(manifestLazy, null, 2),
+)
+
+const totalFiles =
+  coreFileList.length + deferredFileList.length + lazyFileList.length
 console.log(
-  `Bundle complete. ${totalFiles} files copied (${coreFileList.length} core, ${deferredFileList.length} deferred).`,
+  `Bundle complete. ${totalFiles} files copied (${coreFileList.length} core, ${deferredFileList.length} deferred, ${lazyFileList.length} lazy).`,
 )
 console.log(
   `Manifests written to ${path.join(DEST_ROOT, "manifest_core.json")} and manifest_deferred.json`,

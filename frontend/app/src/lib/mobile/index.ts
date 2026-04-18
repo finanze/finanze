@@ -39,6 +39,24 @@ export function triggerDeferredInit() {
   })
 }
 
+export function triggerLazyInit() {
+  if (!__MOBILE__) return
+  if (!isNativeMobile()) return
+
+  import("@/lib/pyodide/init").then(({ triggerLazyInit }) => {
+    triggerLazyInit()
+  })
+}
+
+export function waitForLazyInit(): Promise<void> {
+  if (!__MOBILE__) return Promise.resolve()
+  if (!isNativeMobile()) return Promise.resolve()
+
+  return import("@/lib/pyodide/init").then(({ waitForLazyInit }) =>
+    waitForLazyInit(),
+  )
+}
+
 export function hideSplashScreen() {
   if (!__MOBILE__) return
   if (!isNativeMobile()) return
@@ -63,6 +81,37 @@ async function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(blob)
   })
+}
+
+export async function compressImageForUpload(file: File): Promise<File> {
+  if (!__MOBILE__) return file
+  if (!isNativeMobile()) return file
+
+  try {
+    const { ImageProcessor } = await import("@/lib/capacitor/plugins")
+    const buffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    let binary = ""
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    const base64Data = btoa(binary)
+    const result = await ImageProcessor.processImage({
+      data: base64Data,
+      filename: file.name,
+      contentType: file.type || "image/jpeg",
+    })
+    const binaryStr = atob(result.data)
+    const resultBytes = new Uint8Array(binaryStr.length)
+    for (let i = 0; i < binaryStr.length; i++) {
+      resultBytes[i] = binaryStr.charCodeAt(i)
+    }
+    return new File([resultBytes], result.filename, {
+      type: result.contentType,
+    })
+  } catch {
+    return file
+  }
 }
 
 function isTextFile(

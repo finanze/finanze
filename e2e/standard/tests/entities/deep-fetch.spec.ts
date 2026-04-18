@@ -65,11 +65,14 @@ test.describe('Deep Fetch / Force Refetch', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
+        const modalFetch1 = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch1).toBeEnabled({
+            timeout: 5_000,
+        })
 
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        await modalFetch1.click()
         await expect(
             page.getByText('Data successfully fetched from Urbanitae'),
         ).toBeVisible({ timeout: 30_000 })
@@ -116,9 +119,12 @@ test.describe('Deep Fetch / Force Refetch', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
+        const modalFetch2 = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch2).toBeEnabled({
+            timeout: 5_000,
+        })
 
         // Click "Advanced options" to show deep scrape toggle
         await page.getByText('Advanced options').click()
@@ -130,8 +136,8 @@ test.describe('Deep Fetch / Force Refetch', () => {
         await page.getByText('Advanced options').click()
         await page.waitForTimeout(300)
 
-        // Fetch data with deep mode
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        // Fetch with deep mode
+        await modalFetch2.click()
         await expect(
             page.getByText('Data successfully fetched from Urbanitae'),
         ).toBeVisible({ timeout: 30_000 })

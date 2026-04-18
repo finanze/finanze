@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "nodenext",
+        "types": ["node", "mocha", "@wdio/globals/types"],
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "outDir": "dist",
+        "rootDir": "."
+    },
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

@@ -94,6 +94,7 @@ import {
   FileImportPreviewDialog,
   type FileImportPreviewStrings,
 } from "@/components/FileImportPreviewDialog"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 const EXPORT_SECTIONS = [
   "position",
@@ -335,6 +336,7 @@ export default function ExportPage() {
     fetchEntities,
     entities,
     externalIntegrations,
+    fetchExternalIntegrations,
     saveSettings,
     fetchSettings,
   } = useAppContext()
@@ -453,10 +455,31 @@ export default function ExportPage() {
     useState<ImportedData | null>(null)
   const [showImportPreviewDialog, setShowImportPreviewDialog] = useState(false)
 
+  useModalBackHandler(isTemplateDialogOpen, () =>
+    setIsTemplateDialogOpen(false),
+  )
+  useModalBackHandler(showImportPreviewDialog, () =>
+    setShowImportPreviewDialog(false),
+  )
+  useModalBackHandler(showImportConfirm, () => setShowImportConfirm(false))
+  useModalBackHandler(showErrorDetails, () => setShowErrorDetails(false))
+  useModalBackHandler(showExportConfig, () => setShowExportConfig(false))
+  useModalBackHandler(showImportConfig, () => setShowImportConfig(false))
+  useModalBackHandler(isFileExportDialogOpen, () =>
+    setIsFileExportDialogOpen(false),
+  )
+  useModalBackHandler(isFileImportDialogOpen, () =>
+    setIsFileImportDialogOpen(false),
+  )
+
   useEffect(() => {
     setFileExportNumberFormat(defaultNumberFormat)
     setFileImportNumberFormat(defaultNumberFormat)
   }, [defaultNumberFormat])
+
+  useEffect(() => {
+    fetchExternalIntegrations()
+  }, [fetchExternalIntegrations])
 
   const renderFileExportFeatureSelector = () => {
     return (

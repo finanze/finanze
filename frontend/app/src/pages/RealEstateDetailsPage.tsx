@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/Popover"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { FlowFrequency } from "@/types"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 export default function RealEstateDetailsPage() {
   const { t, locale } = useI18n()
   const { showToast } = useAppContext()
@@ -53,6 +54,9 @@ export default function RealEstateDetailsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [property, setProperty] = useState<RealEstate | null>(null)
+
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
+  useModalBackHandler(isEditModalOpen, () => setIsEditModalOpen(false))
 
   const frequencyLabel = (freq?: FlowFrequency | string) => {
     if (!freq) return ""
@@ -215,7 +219,7 @@ export default function RealEstateDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <Button
             variant="ghost"
@@ -240,19 +244,21 @@ export default function RealEstateDetailsPage() {
             )}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap md:flex-nowrap md:justify-end">
+        <div className="flex gap-2 shrink-0">
           <Button
             onClick={handleEdit}
-            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black px-3 py-2 h-auto text-sm"
+            size="icon"
+            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black h-8 w-8"
           >
-            <Edit className="w-4 h-4 mr-1" /> {t.common.edit}
+            <Edit className="w-4 h-4" />
           </Button>
           <Button
             variant="outline"
+            size="icon"
             onClick={() => setIsDeleteDialogOpen(true)}
-            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 px-3 py-2 h-auto text-sm"
+            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 h-8 w-8"
           >
-            <Trash2 className="w-4 h-4 mr-1" /> {t.common.delete}
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -262,19 +268,22 @@ export default function RealEstateDetailsPage() {
           <img
             src={imageUrl}
             alt={property.basic_info.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover select-none"
+            style={{ WebkitTouchCallout: "none" }}
+            draggable={false}
+            onContextMenu={e => e.preventDefault()}
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-            <Home className="w-16 h-16 text-gray-500" />
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <Home className="w-16 h-16 text-muted-foreground" />
           </div>
         )}
       </div>
 
       <div
-        className={`grid grid-cols-1 ${property.basic_info.is_rented ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}
+        className={`grid grid-cols-1 ${property.basic_info.is_rented ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4 -mx-6 md:mx-0`}
       >
-        <Card className="p-4">
+        <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t.realEstate.basicInfo.purchaseDate}
           </div>
@@ -283,7 +292,7 @@ export default function RealEstateDetailsPage() {
             {formatDate(property.purchase_info.date, locale)}
           </div>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t.realEstate.purchase.price}
           </div>
@@ -297,7 +306,7 @@ export default function RealEstateDetailsPage() {
         </Card>
         {property.basic_info.is_rented && (
           <>
-            <Card className="p-4">
+            <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {t.realEstate.analysis.monthlyCashflow}
               </div>
@@ -314,9 +323,9 @@ export default function RealEstateDetailsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start -mx-6 md:mx-0">
+        <div className="xl:col-span-2 space-y-6">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Building2 className="w-5 h-5" /> {t.realEstate.sections.basic}
             </h3>
@@ -356,7 +365,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />{" "}
               {t.realEstate.sections.purchase}
@@ -466,7 +475,7 @@ export default function RealEstateDetailsPage() {
           </Card>
 
           {/* Valuation moved right after Purchase */}
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />{" "}
               {t.realEstate.sections.valuation}
@@ -548,7 +557,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <CreditCard className="w-5 h-5" /> {t.realEstate.sections.loans}
             </h3>
@@ -765,7 +774,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Receipt className="w-5 h-5" /> {t.realEstate.sections.costs}
             </h3>
@@ -825,7 +834,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Zap className="w-5 h-5" /> {t.realEstate.sections.utilities}
             </h3>
@@ -886,7 +895,7 @@ export default function RealEstateDetailsPage() {
           </Card>
 
           {property.basic_info.is_rented && (
-            <Card className="p-4">
+            <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
               <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
                 <DollarSign className="w-5 h-5" /> {t.realEstate.sections.rent}
               </h3>
@@ -965,7 +974,7 @@ export default function RealEstateDetailsPage() {
 
           {property.basic_info.is_rented &&
             (property.rental_data?.amortizations?.length || 0) > 0 && (
-              <Card className="p-4">
+              <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
                   <Calculator className="w-5 h-5" />{" "}
                   {t.realEstate.amortizations.title}
@@ -1021,7 +1030,7 @@ export default function RealEstateDetailsPage() {
             )}
         </div>
 
-        <div className="lg:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6">
           <RealEstateStats
             currency={property.currency}
             isRented={property.basic_info.is_rented}
@@ -1038,7 +1047,7 @@ export default function RealEstateDetailsPage() {
               property.rental_data?.amortizations || []
             ).map(a => ({ amount: a.amount }))}
             vacancyRate={property.rental_data?.vacancy_rate ?? undefined}
-            cardClassName="p-4 border border-gray-800 bg-gray-900 text-white dark:bg-gray-900 dark:border-gray-800"
+            cardClassName="p-4 rounded-none md:rounded-lg border-x-0 md:border-x"
           />
         </div>
       </div>

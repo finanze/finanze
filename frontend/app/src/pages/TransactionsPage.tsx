@@ -64,6 +64,7 @@ import {
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { TransactionsCalendarView } from "@/components/transactions/TransactionsCalendarView"
 import { useLocation, useNavigate } from "react-router-dom"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 type ViewMode = "list" | "calendar"
 
@@ -138,6 +139,9 @@ export default function TransactionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TransactionItem | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletingTransaction, setIsDeletingTransaction] = useState(false)
+
+  useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
   const [historicEntryName, setHistoricEntryName] = useState<string | null>(
     initialHistoricEntryNameRef.current,
   )

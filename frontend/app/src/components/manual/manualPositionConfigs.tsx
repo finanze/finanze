@@ -9,6 +9,7 @@ import {
 import { createPortal } from "react-dom"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -209,53 +210,76 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     suffix?: string
     inputClassName?: string
     autoUpperCase?: boolean
+    allowNegative?: boolean
   },
-) => (
-  <div className="space-y-1.5">
-    <Label htmlFor={String(field)}>{label}</Label>
-    <div className={options?.suffix ? "relative" : undefined}>
-      <Input
-        id={String(field)}
-        type={options?.type === "number" ? "text" : (options?.type ?? "text")}
-        inputMode={
-          options?.type === "number"
-            ? (options?.inputMode ?? "decimal")
-            : options?.inputMode
-        }
-        placeholder={options?.placeholder}
-        className={cn(
-          options?.suffix ? "pr-10" : undefined,
-          options?.inputClassName,
+) => {
+  const isNumeric = options?.type === "number"
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={String(field)}>{label}</Label>
+      <div className={options?.suffix ? "relative" : undefined}>
+        {isNumeric ? (
+          <DecimalInput
+            id={String(field)}
+            placeholder={options?.placeholder}
+            className={cn(
+              options?.suffix ? "pr-10" : undefined,
+              options?.inputClassName,
+            )}
+            value={(props.form[field] as string) ?? ""}
+            disabled={options?.disabled}
+            allowNegative={options?.allowNegative}
+            onStringChange={value => {
+              props.updateField(field, value)
+              props.clearError(field)
+              if (options?.onValueChange) {
+                options.onValueChange(value, props)
+              }
+            }}
+          />
+        ) : (
+          <Input
+            id={String(field)}
+            type={options?.type ?? "text"}
+            inputMode={options?.inputMode}
+            placeholder={options?.placeholder}
+            className={cn(
+              options?.suffix ? "pr-10" : undefined,
+              options?.inputClassName,
+            )}
+            value={(props.form[field] as string) ?? ""}
+            disabled={options?.disabled}
+            onChange={event => {
+              const value = options?.autoUpperCase
+                ? event.target.value.toUpperCase()
+                : event.target.value
+              props.updateField(field, value)
+              props.clearError(field)
+              if (options?.onValueChange) {
+                options.onValueChange(value, props)
+              }
+            }}
+          />
         )}
-        value={(props.form[field] as string) ?? ""}
-        disabled={options?.disabled}
-        onChange={event => {
-          const value = options?.autoUpperCase
-            ? event.target.value.toUpperCase()
-            : event.target.value
-          props.updateField(field, value)
-          props.clearError(field)
-          if (options?.onValueChange) {
-            options.onValueChange(value, props)
-          }
-        }}
-      />
-      {options?.suffix && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
-          {options.suffix}
-        </span>
+        {options?.suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+            {options.suffix}
+          </span>
+        )}
+      </div>
+      {props.errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors[field]}
+        </p>
+      )}
+      {options?.helperText && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {options.helperText}
+        </p>
       )}
     </div>
-    {props.errors[field] && (
-      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-        {props.errors[field]}
-      </p>
-    )}
-    {options?.helperText && (
-      <p className="text-xs text-muted-foreground mt-1">{options.helperText}</p>
-    )}
-  </div>
-)
+  )
+}
 
 const renderSelectInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
@@ -572,13 +596,11 @@ function EuriborSuggestField(
         {props.t("management.manualPositions.bankLoans.fields.euriborRate")}
       </Label>
       <div className="relative">
-        <Input
+        <DecimalInput
           id="euribor_rate"
-          type="text"
-          inputMode="decimal"
           value={props.form.euribor_rate ?? ""}
-          onChange={event => {
-            props.updateField("euribor_rate", event.target.value)
+          onStringChange={value => {
+            props.updateField("euribor_rate", value)
             props.clearError("euribor_rate")
           }}
           className="pr-9"
@@ -2763,13 +2785,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
           <Label htmlFor="amount">
             {t("management.manualPositions.crypto.fields.amount")}
           </Label>
-          <Input
+          <DecimalInput
             id="amount"
-            type="text"
-            inputMode="decimal"
             value={form.amount}
-            onChange={e => {
-              updateField("amount", e.target.value)
+            onStringChange={value => {
+              updateField("amount", value)
               clearError("amount" as keyof CryptoFormState)
             }}
           />
@@ -2807,14 +2827,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
             </span>
           </Label>
           <div className="relative">
-            <Input
+            <DecimalInput
               id="initial_investment"
-              type="text"
-              inputMode="decimal"
               className={investmentCurrencySymbol ? "pr-10" : undefined}
               value={form.initial_investment}
-              onChange={e => {
-                const nextInitial = e.target.value
+              onStringChange={nextInitial => {
                 updateField("initial_investment", nextInitial)
 
                 const amount = parseNumberInput(form.amount)
@@ -2851,14 +2868,11 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
             </span>
           </Label>
           <div className="relative">
-            <Input
+            <DecimalInput
               id="average_buy_price"
-              type="text"
-              inputMode="decimal"
               className={investmentCurrencySymbol ? "pr-10" : undefined}
               value={form.average_buy_price}
-              onChange={e => {
-                const nextAverage = e.target.value
+              onStringChange={nextAverage => {
                 updateField("average_buy_price", nextAverage)
 
                 const amount = parseNumberInput(form.amount)
@@ -4571,13 +4585,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </Label>
             <div className="relative">
-              <Input
+              <DecimalInput
                 value={props.form.initial_investment}
-                type="text"
-                inputMode="decimal"
                 className={props.form.currency ? "pr-10" : undefined}
-                onChange={event => {
-                  props.updateField("initial_investment", event.target.value)
+                onStringChange={value => {
+                  props.updateField("initial_investment", value)
                   props.updateField("_last_investment_field", "initial" as any)
                   props.clearError("initial_investment")
                   props.clearError("average_buy_price")
@@ -4602,13 +4614,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </Label>
             <div className="relative">
-              <Input
+              <DecimalInput
                 value={props.form.average_buy_price}
-                type="text"
-                inputMode="decimal"
                 className={props.form.currency ? "pr-10" : undefined}
-                onChange={event => {
-                  props.updateField("average_buy_price", event.target.value)
+                onStringChange={value => {
+                  props.updateField("average_buy_price", value)
                   props.updateField("_last_investment_field", "average" as any)
                   props.clearError("average_buy_price")
                   props.clearError("initial_investment")
@@ -4646,15 +4656,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   )}
                 </Label>
                 <div className="relative">
-                  <Input
+                  <DecimalInput
                     id="market_value"
-                    type="text"
-                    inputMode="decimal"
                     className={props.form.currency ? "pr-10" : undefined}
                     value={props.form.market_value ?? ""}
                     disabled={isTrackingActive}
-                    onChange={event => {
-                      const value = event.target.value
+                    onStringChange={value => {
                       props.updateField("market_value", value)
                       props.clearError("market_value")
                       if (props.form._suggested_market_price) {
@@ -5277,13 +5284,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </Label>
             <div className="relative">
-              <Input
+              <DecimalInput
                 value={props.form.initial_investment}
-                type="text"
-                inputMode="decimal"
                 className={props.form.currency ? "pr-10" : undefined}
-                onChange={event => {
-                  props.updateField("initial_investment", event.target.value)
+                onStringChange={value => {
+                  props.updateField("initial_investment", value)
                   props.updateField("_last_investment_field", "initial" as any)
                   props.clearError("initial_investment")
                   props.clearError("average_buy_price")
@@ -5308,13 +5313,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </Label>
             <div className="relative">
-              <Input
+              <DecimalInput
                 value={props.form.average_buy_price}
-                type="text"
-                inputMode="decimal"
                 className={props.form.currency ? "pr-10" : undefined}
-                onChange={event => {
-                  props.updateField("average_buy_price", event.target.value)
+                onStringChange={value => {
+                  props.updateField("average_buy_price", value)
                   props.updateField("_last_investment_field", "average" as any)
                   props.clearError("average_buy_price")
                   props.clearError("initial_investment")
@@ -5352,15 +5355,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   )}
                 </Label>
                 <div className="relative">
-                  <Input
+                  <DecimalInput
                     id="market_value"
-                    type="text"
-                    inputMode="decimal"
                     className={props.form.currency ? "pr-10" : undefined}
                     value={props.form.market_value ?? ""}
                     disabled={isTrackingActive}
-                    onChange={event => {
-                      const value = event.target.value
+                    onStringChange={value => {
                       props.updateField("market_value", value)
                       props.clearError("market_value")
                       if (props.form._suggested_market_price) {

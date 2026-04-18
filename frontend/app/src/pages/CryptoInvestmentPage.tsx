@@ -80,6 +80,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { cn } from "@/lib/utils"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
 const normalizeDerivativeCurrency = (currency: string) =>
@@ -474,8 +475,12 @@ function CryptoInvestmentContent({
   const [deleteWalletEntityId, setDeleteWalletEntityId] = useState<
     string | null
   >(null)
+
+  useModalBackHandler(showEditDialog, () => setShowEditDialog(false))
+  useModalBackHandler(showDeleteConfirm, () => setShowDeleteConfirm(false))
   const [selectedDerivative, setSelectedDerivative] =
     useState<DerivativeDetail | null>(null)
+  useModalBackHandler(!!selectedDerivative, () => setSelectedDerivative(null))
   const registerAssetRef = useCallback(
     (identifier: string, element: HTMLDivElement | null) => {
       if (!identifier) return
@@ -2615,7 +2620,7 @@ function CryptoInvestmentContent({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -2633,7 +2638,7 @@ function CryptoInvestmentContent({
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 self-start sm:self-auto sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <ManualPositionsControls className="justify-center sm:justify-end" />
           <Button
             variant="default"
@@ -2644,7 +2649,8 @@ function CryptoInvestmentContent({
               navigate("/entities#crypto-enabled")
             }}
           >
-            <Wallet className="h-4 w-4 mr-2" /> {t.entities.connect}
+            <Wallet className="h-4 w-4 sm:mr-2" />{" "}
+            <span className="hidden sm:inline">{t.entities.connect}</span>
           </Button>
         </div>
       </div>

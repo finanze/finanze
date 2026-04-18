@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/Button"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -37,6 +38,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { FlowType, PendingFlow, CreatePendingFlowRequest } from "@/types"
 import { savePendingFlows } from "@/services/api"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 type PendingFlowFormState = CreatePendingFlowRequest & { icon?: IconName }
 
@@ -49,13 +51,22 @@ export default function PendingMoneyPage() {
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
-  const [groupByCategory, setGroupByCategory] = useState(false)
+  const [groupByCategory, setGroupByCategory] = useState(() => {
+    try {
+      return sessionStorage.getItem("pendingGroupByCategory") === "true"
+    } catch {
+      return false
+    }
+  })
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PendingFlow | null>(null)
   const [deletingFlow, setDeletingFlow] = useState<PendingFlow | null>(null)
+
+  useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
   const [formData, setFormData] = useState<PendingFlowFormState>({
     name: "",
     amount: 0,
@@ -65,6 +76,14 @@ export default function PendingMoneyPage() {
     date: "",
     currency: defaultCurrency,
   })
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("pendingGroupByCategory", String(groupByCategory))
+    } catch {
+      // ignore
+    }
+  }, [groupByCategory])
 
   useEffect(() => {
     const categories = pendingFlows
@@ -509,23 +528,55 @@ export default function PendingMoneyPage() {
                   variants={fadeListItem}
                   initial={initialVariant}
                   animate="show"
-                  className={`${
+                  className={cn(
+                    "p-4 border rounded-lg",
                     !flow.enabled
                       ? "opacity-50 bg-gray-50 dark:bg-black"
-                      : "bg-card shadow-sm"
-                  } flex items-start justify-between gap-4 p-4 border rounded-lg`}
+                      : "bg-card shadow-sm",
+                  )}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                      <div className="flex items-center gap-2">
-                        {(flow as any).icon && (
-                          <Icon
-                            name={(flow as any).icon as IconName}
-                            className="w-5 h-5"
-                          />
-                        )}
-                        <h3 className="font-medium">{flow.name}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {(flow as any).icon && (
+                        <Icon
+                          name={(flow as any).icon as IconName}
+                          className="w-5 h-5 shrink-0"
+                        />
+                      )}
+                      <h3 className="font-medium">{flow.name}</h3>
+                      {!flow.enabled && (
+                        <span className="text-[0.65rem] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                          {t.management.disabled}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(flow.amount, locale, flow.currency)}
+                      </span>
+                      <div className="hidden sm:flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(flow)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openDeleteDialog(flow)}
+                          className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
                       </div>
+                    </div>
+                  </div>
+
+                  {((!groupByCategory && flow.category) || flow.date) && (
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
                       {!groupByCategory && flow.category && (
                         <Badge
                           variant="secondary"
@@ -572,20 +623,10 @@ export default function PendingMoneyPage() {
                           )
                         }
                       })()}
-                      {!flow.enabled && (
-                        <span className="text-sm text-gray-500">
-                          {t.management.disabled}
-                        </span>
-                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold">
-                        {formatCurrency(flow.amount, locale, flow.currency)}
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex sm:hidden justify-end gap-1 mt-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1065,14 +1106,12 @@ export default function PendingMoneyPage() {
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
                         {getCurrencySymbol(formData.currency)}
                       </span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.amount}
-                        onChange={e =>
+                      <DecimalInput
+                        value={formData.amount || ""}
+                        onValueChange={v =>
                           setFormData(prev => ({
                             ...prev,
-                            amount: parseFloat(e.target.value),
+                            amount: v ?? 0,
                           }))
                         }
                         placeholder={t.management.amountPlaceholder}

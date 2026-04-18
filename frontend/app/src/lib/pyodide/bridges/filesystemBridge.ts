@@ -1,67 +1,11 @@
 import { Capacitor } from "@capacitor/core"
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem"
-import { ImageProcessor } from "@/lib/capacitor/plugins"
 
 const UPLOADS_DIR = "finanze_uploads"
-
-const IMAGE_EXTENSIONS = new Set([
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".webp",
-  ".gif",
-  ".tif",
-  ".tiff",
-  ".bmp",
-])
 
 function isNativeMobile(): boolean {
   const platform = Capacitor.getPlatform()
   return platform === "ios" || platform === "android"
-}
-
-function isImageFile(filename: string, contentType?: string): boolean {
-  if (contentType?.toLowerCase().startsWith("image/")) {
-    return true
-  }
-  const ext = filename.toLowerCase().slice(filename.lastIndexOf("."))
-  return IMAGE_EXTENSIONS.has(ext)
-}
-
-async function processAndWriteImage(
-  folder: string,
-  data: string,
-  filename: string,
-  contentType: string,
-): Promise<{ path: string; filename: string }> {
-  if (!isNativeMobile()) {
-    const path = `${folder}/${filename}`
-    const fullPath = `${UPLOADS_DIR}/${path}`
-    await Filesystem.writeFile({
-      path: fullPath,
-      data,
-      directory: Directory.Documents,
-      recursive: true,
-    })
-    return { path, filename }
-  }
-
-  const processed = await ImageProcessor.processImage({
-    data,
-    filename,
-    contentType,
-  })
-
-  const path = `${folder}/${processed.filename}`
-  const fullPath = `${UPLOADS_DIR}/${path}`
-  await Filesystem.writeFile({
-    path: fullPath,
-    data: processed.data,
-    directory: Directory.Documents,
-    recursive: true,
-  })
-
-  return { path, filename: processed.filename }
 }
 
 async function writeFile(
@@ -185,6 +129,4 @@ export const filesystemBridge = {
   fileExists,
   getFileUri,
   createDirectory,
-  processAndWriteImage,
-  isImageFile,
 }

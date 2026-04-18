@@ -17,6 +17,7 @@ import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -1400,15 +1401,11 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualIncrease}
-                          onChange={e =>
-                            setForecastAnnualIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
@@ -1421,15 +1418,11 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualCryptoIncrease}
-                          onChange={e =>
-                            setForecastAnnualCryptoIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualCryptoIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
@@ -1442,15 +1435,11 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualCommodityIncrease}
-                          onChange={e =>
-                            setForecastAnnualCommodityIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualCommodityIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
@@ -1503,17 +1492,29 @@ export default function DashboardPage() {
                                 target_date: forecastTargetDate,
                                 avg_annual_market_increase:
                                   forecastAnnualIncrease
-                                    ? parseFloat(forecastAnnualIncrease) / 100
+                                    ? parseFloat(
+                                        forecastAnnualIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
+                                      ) / 100
                                     : null,
                                 avg_annual_crypto_increase:
                                   forecastAnnualCryptoIncrease
-                                    ? parseFloat(forecastAnnualCryptoIncrease) /
-                                      100
+                                    ? parseFloat(
+                                        forecastAnnualCryptoIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
+                                      ) / 100
                                     : null,
                                 avg_annual_commodity_increase:
                                   forecastAnnualCommodityIncrease
                                     ? parseFloat(
-                                        forecastAnnualCommodityIncrease,
+                                        forecastAnnualCommodityIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
                                       ) / 100
                                     : null,
                                 include_real_estate_taxes:

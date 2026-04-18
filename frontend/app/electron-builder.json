@@ -49,11 +49,11 @@
   },
   "win": {
     "target": "nsis",
-    "icon": "./dist/finanze.png"
+    "icon": "./dist/finanze-app.png"
   },
   "linux": {
     "target": "AppImage",
     "category": "Finance",
-    "icon": "./dist/finanze.png"
+    "icon": "./dist/finanze-app.png"
   }
 }

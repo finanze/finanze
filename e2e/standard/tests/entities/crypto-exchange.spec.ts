@@ -147,10 +147,13 @@ test.describe('Crypto Exchange - Binance Multi-Account', () => {
         await expect(
             page.getByText('Select features to fetch from Binance'),
         ).toBeVisible({ timeout: 5_000 })
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        const modalFetch = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch).toBeEnabled({
+            timeout: 5_000,
+        })
+        await modalFetch.click()
         await expect(
             page.getByText('Data successfully fetched from Binance'),
         ).toBeVisible({ timeout: 30_000 })

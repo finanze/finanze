@@ -34,6 +34,7 @@ import {
   type Entity,
   type Feature,
 } from "@/types"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 const MANUAL_POSITION_ASSETS = Object.keys(
   manualPositionConfigs,
@@ -1286,6 +1287,14 @@ export function ManualPositionsManager({
     setDrafts(initialDrafts)
   }, [hasLocalChanges, initialDrafts])
 
+  useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
+  useModalBackHandler(showDiscardFormConfirm, () =>
+    setShowDiscardFormConfirm(false),
+  )
+  useModalBackHandler(deleteTarget !== null, () => setDeleteTarget(null))
+  useModalBackHandler(formState !== null, handleCloseForm)
+  useModalBackHandler(isEditMode && !formState, handleCancelEdit)
+
   const assetTitle = translate(`${assetPath}.title`)
   const assetDescription = translate(`${assetPath}.description`)
 
@@ -2019,7 +2028,7 @@ export function ManualPositionsManager({
                           <Button
                             type="button"
                             size="sm"
-                            variant={isTrackingActive ? "secondary" : "outline"}
+                            variant={isTrackingActive ? "default" : "outline"}
                             onClick={handleToggleTrack}
                             disabled={!isTrackingAvailable}
                             aria-pressed={isTrackingActive}
@@ -2130,14 +2139,14 @@ export function ManualPositionsControls({ className }: { className?: string }) {
       )}
     >
       <Button
-        variant="outline"
+        variant="default"
         size="sm"
         onClick={() => beginCreate()}
         disabled={manualEntities.length === 0}
         className="flex items-center gap-2"
       >
         <Plus className="h-3.5 w-3.5" />
-        {addLabel}
+        <span className="hidden sm:inline">{addLabel}</span>
       </Button>
       {isEditMode ? (
         <>
@@ -2159,7 +2168,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
             className="flex items-center gap-2"
           >
             <Save className="h-3.5 w-3.5" />
-            {saveLabel}
+            <span className="hidden sm:inline">{saveLabel}</span>
           </Button>
         </>
       ) : (
@@ -2170,7 +2179,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
           className="flex items-center gap-2"
         >
           <Pencil className="h-3.5 w-3.5" />
-          {editLabel}
+          <span className="hidden sm:inline">{editLabel}</span>
         </Button>
       )}
     </div>

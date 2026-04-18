@@ -38,6 +38,7 @@ export interface CloudAuthProvider {
   initialize(): Promise<void>
   handleAuthCallbackUrl(url: string): Promise<void>
   signInWithGoogle(callbackUrl: string): Promise<void>
+  signInWithApple(callbackUrl: string): Promise<void>
   signInWithIdToken(
     provider: "google" | "apple",
     idToken: string,

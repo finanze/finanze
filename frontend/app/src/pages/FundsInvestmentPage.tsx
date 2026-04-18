@@ -622,9 +622,17 @@ function FundsInvestmentPageContent({
     [displayItems, sortBy, sortOrder],
   )
 
-  const showDraftList =
-    portfolioManual.isEditMode &&
-    (manualPortfolioDrafts.length > 0 || readOnlyFundPortfolios.length > 0)
+  const showDraftList = portfolioManual.isEditMode
+
+  const handleAddPortfolioDraft = useCallback(() => {
+    if (!portfolioManual.isEditMode) {
+      portfolioManual.enterEditMode()
+    }
+    if (!manual.isEditMode) {
+      manual.enterEditMode()
+    }
+    portfolioManual.beginCreate()
+  }, [manual, portfolioManual])
 
   if (isLoading) {
     return (
@@ -647,7 +655,7 @@ function FundsInvestmentPageContent({
       className="space-y-6"
     >
       <motion.div variants={fadeListItem} className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -725,6 +733,8 @@ function FundsInvestmentPageContent({
             readOnlyPortfolios={readOnlyFundPortfolios}
             context={portfolioManual}
             isEditMode={portfolioManual.isEditMode}
+            onAddPortfolio={handleAddPortfolioDraft}
+            canAddPortfolio={portfolioManual.manualEntities.length > 0}
           />
         </motion.div>
       ) : null}
@@ -1401,16 +1411,6 @@ function FundsCombinedControls({
     }
   }, [fundsContext, portfolioContext])
 
-  const handleAddPortfolioDraft = useCallback(() => {
-    if (!portfolioContext.isEditMode) {
-      portfolioContext.enterEditMode()
-    }
-    if (!fundsContext.isEditMode) {
-      fundsContext.enterEditMode()
-    }
-    portfolioContext.beginCreate()
-  }, [fundsContext, portfolioContext])
-
   const handleAddFundDraft = useCallback(() => {
     if (!fundsContext.isEditMode) {
       fundsContext.enterEditMode()
@@ -1656,24 +1656,14 @@ function FundsCombinedControls({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Button
-        variant="outline"
-        size="sm"
-        onClick={handleAddPortfolioDraft}
-        disabled={portfolioContext.manualEntities.length === 0}
-        className="flex items-center gap-2"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {portfolioContext.addLabel}
-      </Button>
-      <Button
-        variant="outline"
+        variant="default"
         size="sm"
         onClick={handleAddFundDraft}
         disabled={fundsContext.manualEntities.length === 0}
         className="flex items-center gap-2"
       >
         <Plus className="h-3.5 w-3.5" />
-        {fundsContext.addLabel}
+        <span className="hidden sm:inline">{fundsContext.addLabel}</span>
       </Button>
       {combinedIsEditMode ? (
         <>
@@ -1694,7 +1684,7 @@ function FundsCombinedControls({
             className="flex items-center gap-2"
           >
             <Save className="h-3.5 w-3.5" />
-            {fundsContext.saveLabel}
+            <span className="hidden sm:inline">{fundsContext.saveLabel}</span>
           </Button>
         </>
       ) : (
@@ -1705,7 +1695,7 @@ function FundsCombinedControls({
           className="flex items-center gap-2"
         >
           <Pencil className="h-3.5 w-3.5" />
-          {fundsContext.editLabel}
+          <span className="hidden sm:inline">{fundsContext.editLabel}</span>
         </Button>
       )}
     </div>
@@ -1740,14 +1730,19 @@ function FundPortfolioDraftList({
   readOnlyPortfolios,
   context,
   isEditMode,
+  onAddPortfolio,
+  canAddPortfolio,
 }: {
   manualDrafts: ManualPositionDraft<FundPortfolio>[]
   readOnlyPortfolios: ReadOnlyFundPortfolioItem[]
   context: ManualPositionsContextValue
   isEditMode: boolean
+  onAddPortfolio: () => void
+  canAddPortfolio: boolean
 }) {
   const translate = context.translate
   const manualEntities = context.manualEntities
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const manualItems = useMemo(
     () =>
@@ -1768,8 +1763,9 @@ function FundPortfolioDraftList({
 
   const hasManual = manualItems.length > 0
   const hasReadOnly = readOnlyPortfolios.length > 0
+  const totalCount = manualItems.length + readOnlyPortfolios.length
 
-  if (!isEditMode || (!hasManual && !hasReadOnly)) {
+  if (!isEditMode) {
     return null
   }
 
@@ -1787,170 +1783,227 @@ function FundPortfolioDraftList({
   }
 
   return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-4 dark:border-primary/40 dark:bg-primary/10">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-primary dark:text-primary-200">
-          {translate(
-            "management.manualPositions.fundPortfolios.quickDrafts.title",
+    <div className="rounded-md border border-primary/30 bg-primary/5 dark:border-primary/40 dark:bg-primary/10">
+      <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setIsExpanded(prev => !prev)}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setIsExpanded(prev => !prev)
+            }
+          }}
+          className="flex items-center gap-2 min-w-0 cursor-pointer"
+        >
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-primary transition-transform duration-200",
+              isExpanded && "rotate-180",
+            )}
+          />
+          <span className="text-sm font-semibold text-primary truncate">
+            {translate(
+              "management.manualPositions.fundPortfolios.quickDrafts.title",
+            )}
+          </span>
+          {totalCount > 0 && (
+            <Badge variant="secondary" className="shrink-0 text-xs">
+              {totalCount}
+            </Badge>
           )}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {translate(
-            "management.manualPositions.fundPortfolios.quickDrafts.description",
-          )}
-        </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={e => {
+            e.stopPropagation()
+            onAddPortfolio()
+            setIsExpanded(true)
+          }}
+          disabled={!canAddPortfolio}
+          className="flex items-center gap-2 shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{translate("common.add")}</span>
+        </Button>
       </div>
-      <div className="mt-3 space-y-2">
-        {manualItems.map(draft => {
-          const name = draft.name?.trim() || translate("common.notAvailable")
-          const currencyCode = draft.currency?.toUpperCase()
-          const currencySymbol = currencyCode
-            ? getCurrencySymbol(currencyCode)
-            : null
-          const source = draft.source ?? DataSource.MANUAL
-          const isNew = !draft.originalId
-          const isDirty =
-            draft.originalId != null && context.isDraftDirty(draft)
-          const entityInfo = manualEntities.find(
-            item => item.id === draft.entityId,
-          )
-          const entityName =
-            entityInfo?.name ||
-            draft.entityName?.trim() ||
-            translate("common.notAvailable")
+      <AnimatePresence initial={false}>
+        {isExpanded && (hasManual || hasReadOnly) && (
+          <motion.div
+            key="portfolio-list"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-2">
+              {manualItems.map(draft => {
+                const name =
+                  draft.name?.trim() || translate("common.notAvailable")
+                const currencyCode = draft.currency?.toUpperCase()
+                const currencySymbol = currencyCode
+                  ? getCurrencySymbol(currencyCode)
+                  : null
+                const source = draft.source ?? DataSource.MANUAL
+                const isNew = !draft.originalId
+                const isDirty =
+                  draft.originalId != null && context.isDraftDirty(draft)
+                const entityInfo = manualEntities.find(
+                  item => item.id === draft.entityId,
+                )
+                const entityName =
+                  entityInfo?.name ||
+                  draft.entityName?.trim() ||
+                  translate("common.notAvailable")
 
-          return (
-            <div
-              key={draft.localId}
-              className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/80 px-3 py-2 text-sm dark:border-border/40 dark:bg-background/40"
-            >
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-foreground truncate">
-                    {name}
-                  </span>
-                  {isNew && (
-                    <Badge variant="secondary" className="shrink-0">
-                      {translate(
-                        "management.manualPositions.shared.status.new",
-                      )}
-                    </Badge>
-                  )}
-                  {currencySymbol && (
-                    <Badge variant="outline" className="shrink-0 text-xs">
-                      {currencySymbol}
-                    </Badge>
-                  )}
-                  {!isNew && isDirty && (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 border-blue-300 text-blue-600 dark:border-blue-500/40 dark:text-blue-300"
-                    >
-                      {translate(
-                        "management.manualPositions.shared.status.updated",
-                      )}
-                    </Badge>
-                  )}
-                  {renderSourceBadge(source)}
+                return (
+                  <div
+                    key={draft.localId}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/80 px-3 py-2 text-sm dark:border-border/40 dark:bg-background/40"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-foreground truncate">
+                          {name}
+                        </span>
+                        {isNew && (
+                          <Badge variant="secondary" className="shrink-0">
+                            {translate(
+                              "management.manualPositions.shared.status.new",
+                            )}
+                          </Badge>
+                        )}
+                        {currencySymbol && (
+                          <Badge variant="outline" className="shrink-0 text-xs">
+                            {currencySymbol}
+                          </Badge>
+                        )}
+                        {!isNew && isDirty && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-blue-300 text-blue-600 dark:border-blue-500/40 dark:text-blue-300"
+                          >
+                            {translate(
+                              "management.manualPositions.shared.status.updated",
+                            )}
+                          </Badge>
+                        )}
+                        {renderSourceBadge(source)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {translate(
+                            "management.manualPositions.shared.entity",
+                          )}
+                          :
+                        </span>
+                        <EntityBadge
+                          name={entityName}
+                          origin={entityInfo?.origin}
+                          className="shrink-0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => context.editByLocalId(draft.localId)}
+                        aria-label={translate(
+                          "management.manualPositions.fundPortfolios.quickDrafts.actions.edit",
+                        )}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => context.deleteByLocalId(draft.localId)}
+                        aria-label={translate(
+                          "management.manualPositions.fundPortfolios.quickDrafts.actions.delete",
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+              {hasReadOnly && (
+                <div className="space-y-2 border-t border-border/60 pt-3 dark:border-border/30">
+                  {readOnlyPortfolios.map(portfolio => {
+                    const name =
+                      portfolio.name?.trim() || translate("common.notAvailable")
+                    const currencyCode = portfolio.currency?.toUpperCase()
+                    const currencySymbol = currencyCode
+                      ? getCurrencySymbol(currencyCode)
+                      : null
+                    const source = portfolio.source ?? DataSource.REAL
+                    const entityInfo = manualEntities.find(
+                      item => item.id === portfolio.entityId,
+                    )
+                    const entityName =
+                      entityInfo?.name ||
+                      portfolio.entityName?.trim() ||
+                      translate("common.notAvailable")
+
+                    return (
+                      <div
+                        key={portfolio.id}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-border/30 dark:bg-muted/20"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-foreground truncate">
+                              {name}
+                            </span>
+                            {currencySymbol && (
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 text-xs"
+                              >
+                                {currencySymbol}
+                              </Badge>
+                            )}
+                            {renderSourceBadge(source)}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>
+                              {translate(
+                                "management.manualPositions.shared.entity",
+                              )}
+                              :
+                            </span>
+                            <EntityBadge
+                              name={entityName}
+                              origin={entityInfo?.origin}
+                              className="shrink-0"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Lock className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">
+                            {translate(
+                              "management.manualPositions.fundPortfolios.quickDrafts.readOnly",
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {translate("management.manualPositions.shared.entity")}:
-                  </span>
-                  <EntityBadge
-                    name={entityName}
-                    origin={entityInfo?.origin}
-                    className="shrink-0"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => context.editByLocalId(draft.localId)}
-                  aria-label={translate(
-                    "management.manualPositions.fundPortfolios.quickDrafts.actions.edit",
-                  )}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={() => context.deleteByLocalId(draft.localId)}
-                  aria-label={translate(
-                    "management.manualPositions.fundPortfolios.quickDrafts.actions.delete",
-                  )}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              )}
             </div>
-          )
-        })}
-        {hasReadOnly && (
-          <div className="space-y-2 border-t border-border/60 pt-3 dark:border-border/30">
-            {readOnlyPortfolios.map(portfolio => {
-              const name =
-                portfolio.name?.trim() || translate("common.notAvailable")
-              const currencyCode = portfolio.currency?.toUpperCase()
-              const currencySymbol = currencyCode
-                ? getCurrencySymbol(currencyCode)
-                : null
-              const source = portfolio.source ?? DataSource.REAL
-              const entityInfo = manualEntities.find(
-                item => item.id === portfolio.entityId,
-              )
-              const entityName =
-                entityInfo?.name ||
-                portfolio.entityName?.trim() ||
-                translate("common.notAvailable")
-
-              return (
-                <div
-                  key={portfolio.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-border/30 dark:bg-muted/20"
-                >
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-foreground truncate">
-                        {name}
-                      </span>
-                      {currencySymbol && (
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          {currencySymbol}
-                        </Badge>
-                      )}
-                      {renderSourceBadge(source)}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {translate("management.manualPositions.shared.entity")}:
-                      </span>
-                      <EntityBadge
-                        name={entityName}
-                        origin={entityInfo?.origin}
-                        className="shrink-0"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Lock className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">
-                      {translate(
-                        "management.manualPositions.fundPortfolios.quickDrafts.readOnly",
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   )
 }

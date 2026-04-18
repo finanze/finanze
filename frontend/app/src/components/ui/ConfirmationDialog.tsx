@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/Button"
 import { AlertTriangle } from "lucide-react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import {
   Card,
   CardHeader,
@@ -38,6 +39,8 @@ export function ConfirmationDialog({
   warning,
 }: ConfirmationDialogProps) {
   const { t } = useI18n()
+
+  useModalBackHandler(isOpen, onCancel)
 
   const dialogContent = (
     <AnimatePresence>

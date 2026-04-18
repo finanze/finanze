@@ -19,6 +19,7 @@ from application.use_cases.get_status import GetStatusImpl
 
 if TYPE_CHECKING:
     from finanze.app_deferred import DeferredComponents
+    from finanze.app_lazy import LazyComponents
 
 
 class MobileAppCore:
@@ -29,6 +30,9 @@ class MobileAppCore:
         self._deferred: "DeferredComponents | None" = None
         self._deferred_ready = asyncio.Event()
         self._deferred_loading = False
+        self._lazy: "LazyComponents | None" = None
+        self._lazy_ready = asyncio.Event()
+        self._lazy_loading = False
 
         self.db_client: CapacitorDBClient | None = None
         self.db_manager: CapacitorDBManager | None = None
@@ -45,12 +49,23 @@ class MobileAppCore:
     def deferred(self) -> "DeferredComponents | None":
         return self._deferred
 
+    @property
+    def lazy(self) -> "LazyComponents | None":
+        return self._lazy
+
     def is_deferred_ready(self) -> bool:
         return self._deferred_ready.is_set()
+
+    def is_lazy_ready(self) -> bool:
+        return self._lazy_ready.is_set()
 
     async def wait_deferred(self) -> "DeferredComponents":
         await self._deferred_ready.wait()
         return self._deferred
+
+    async def wait_lazy(self) -> "LazyComponents":
+        await self._lazy_ready.wait()
+        return self._lazy
 
     async def initialize(self, operative_system: str | None = None):
         self.operative_system = (
@@ -90,12 +105,6 @@ class MobileAppCore:
 
         self._deferred_loading = True
 
-        from infrastructure.client.entity.financial.tr.tr_websocket_patch import (
-            apply_traderepublic_websocket_patch,
-        )
-
-        apply_traderepublic_websocket_patch()
-
         from finanze.app_deferred import DeferredComponents
 
         self._deferred = DeferredComponents(self)
@@ -111,3 +120,30 @@ class MobileAppCore:
         from finanze.mobile_routes import setup_deferred_routes
 
         setup_deferred_routes(self.router, self._deferred)
+
+    async def initialize_lazy(self):
+        if self._lazy_loading:
+            await self._lazy_ready.wait()
+            return
+
+        self._lazy_loading = True
+
+        from infrastructure.client.entity.financial.tr.tr_websocket_patch import (
+            apply_traderepublic_websocket_patch,
+        )
+
+        apply_traderepublic_websocket_patch()
+
+        from finanze.app_lazy import LazyComponents
+
+        self._lazy = LazyComponents(self, self._deferred)
+        await self._lazy.initialize()
+        self._setup_lazy_routes()
+
+        self._lazy_ready.set()
+        print("MobileApp Lazy Components Initialized")
+
+    def _setup_lazy_routes(self):
+        from finanze.mobile_routes import setup_lazy_routes
+
+        setup_lazy_routes(self.router, self._lazy)

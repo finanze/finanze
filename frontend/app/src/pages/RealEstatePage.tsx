@@ -31,6 +31,7 @@ import { deleteRealEstate, getImageUrl } from "@/services/api"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export default function RealEstatePage() {
   const { t, locale } = useI18n()
@@ -48,6 +49,12 @@ export default function RealEstatePage() {
     null,
   )
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+
+  useModalBackHandler(isFormModalOpen, () => {
+    setIsFormModalOpen(false)
+    setEditingProperty(null)
+  })
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
   const [imageCacheKeys, setImageCacheKeys] = useState<Record<string, string>>(
     {},
   )
@@ -261,10 +268,11 @@ export default function RealEstatePage() {
         </div>
         <Button
           onClick={handleAddProperty}
+          size="sm"
           className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
         >
-          <Plus className="w-4 h-4" />
-          {t.realEstate.addProperty}
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{t.realEstate.addProperty}</span>
         </Button>
       </motion.div>
 
@@ -311,7 +319,10 @@ export default function RealEstatePage() {
                       <img
                         src={imageUrls[property.basic_info.photo_url]}
                         alt={property.basic_info.name}
-                        className="w-full h-48 object-cover"
+                        className="w-full h-48 object-cover select-none"
+                        style={{ WebkitTouchCallout: "none" }}
+                        draggable={false}
+                        onContextMenu={e => e.preventDefault()}
                         onError={e => {
                           const target = e.target as HTMLImageElement
                           target.style.display = "none"

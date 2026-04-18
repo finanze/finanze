@@ -15,22 +15,6 @@ class MobileFileStorage(FileStoragePort):
     def __init__(self):
         pass
 
-    def _is_image(self, file: FileUpload) -> bool:
-        content_type = (file.content_type or "").lower()
-        if content_type.startswith("image/"):
-            return True
-        ext = Path(file.filename or "").suffix.lower()
-        return ext in {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp",
-            ".gif",
-            ".tif",
-            ".tiff",
-            ".bmp",
-        }
-
     async def save(
         self,
         file: FileUpload,
@@ -55,12 +39,6 @@ class MobileFileStorage(FileStoragePort):
         data = file.data.read()
         data_b64 = base64.b64encode(data).decode("ascii")
 
-        if self._is_image(file):
-            result = await js.jsBridge.filesystem.processAndWriteImage(
-                folder, data_b64, unique_filename, file.content_type or "image/jpeg"
-            )
-            result_dict = dict(result.to_py()) if hasattr(result, "to_py") else result
-            return result_dict.get("path", f"{folder}/{unique_filename}")
         file_path = f"{folder}/{unique_filename}"
         await js.jsBridge.filesystem.writeFile(file_path, data_b64, True)
         return file_path

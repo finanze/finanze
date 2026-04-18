@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/Popover"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -85,6 +86,7 @@ import {
 } from "@/types/position"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { saveManualContributions } from "@/services/api"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 interface ManualContributionDraft extends ManualPeriodicContribution {
   localId: string
@@ -257,7 +259,8 @@ function SuggestionIcon({
 export default function AutoContributionsPage() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
-  const { contributions, positionsData, refreshData } = useFinancialData()
+  const { contributions, positionsData, refreshData, ensureContributions } =
+    useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -489,6 +492,12 @@ export default function AutoContributionsPage() {
   const subtypeDropdownRef = useRef<HTMLDivElement>(null)
   const [suggestionPopoverOpen, setSuggestionPopoverOpen] = useState(false)
 
+  useModalBackHandler(isModalOpen, () => setIsModalOpen(false))
+  useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
+  useModalBackHandler(showModalDiscardConfirm, () =>
+    setShowModalDiscardConfirm(false),
+  )
+
   const selectedModalEntityName = useMemo(() => {
     if (!modalForm?.entity_id) return ""
     return financialEntities.find(e => e.id === modalForm.entity_id)?.name || ""
@@ -498,6 +507,10 @@ export default function AutoContributionsPage() {
     () => getCurrencySymbol(modalForm?.currency || defaultCurrency),
     [modalForm?.currency, defaultCurrency],
   )
+
+  useEffect(() => {
+    ensureContributions()
+  }, [ensureContributions])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1688,7 +1701,7 @@ export default function AutoContributionsPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center pt-16 px-4 pb-4 z-[10002]"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1697,7 +1710,7 @@ export default function AutoContributionsPage() {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="w-full max-w-3xl"
             >
-              <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
+              <Card className="max-h-[calc(100vh-5rem)] flex flex-col">
                 <CardHeader className="pb-4 shrink-0">
                   <div className="flex items-start justify-between">
                     <div>
@@ -1816,6 +1829,11 @@ export default function AutoContributionsPage() {
                           return (
                             <div className="relative" ref={subtypeDropdownRef}>
                               <div
+                                id="targetSubtype"
+                                role="combobox"
+                                tabIndex={0}
+                                aria-haspopup="listbox"
+                                aria-expanded={subtypeDropdownOpen}
                                 className={cn(
                                   "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
                                   "focus-within:ring-2 focus-within:ring-ring",
@@ -1826,6 +1844,15 @@ export default function AutoContributionsPage() {
                                 onClick={() => {
                                   if (!isCryptoOnly)
                                     setSubtypeDropdownOpen(prev => !prev)
+                                }}
+                                onKeyDown={e => {
+                                  if (isCryptoOnly) return
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault()
+                                    setSubtypeDropdownOpen(prev => !prev)
+                                  } else if (e.key === "Escape") {
+                                    setSubtypeDropdownOpen(false)
+                                  }
                                 }}
                               >
                                 <span className="flex items-center gap-2">
@@ -1845,10 +1872,17 @@ export default function AutoContributionsPage() {
                                 />
                               </div>
                               {subtypeDropdownOpen && !isCryptoOnly && (
-                                <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+                                <div
+                                  role="listbox"
+                                  className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                                >
                                   {filteredOptions.map(option => (
                                     <div
                                       key={option.value}
+                                      role="option"
+                                      aria-selected={
+                                        currentValue === option.value
+                                      }
                                       className={cn(
                                         "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
                                         currentValue === option.value &&
@@ -2095,17 +2129,15 @@ export default function AutoContributionsPage() {
                       <div className="space-y-1.5">
                         <Label htmlFor="amount">{t.management.amount}</Label>
                         <div className="relative">
-                          <Input
+                          <DecimalInput
                             id="amount"
-                            type="text"
-                            inputMode="decimal"
                             value={modalForm.amount}
-                            onChange={event => {
+                            onStringChange={value => {
                               setModalForm(prev =>
                                 prev
                                   ? {
                                       ...prev,
-                                      amount: event.target.value,
+                                      amount: value,
                                     }
                                   : prev,
                               )

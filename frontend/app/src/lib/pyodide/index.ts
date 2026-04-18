@@ -9,6 +9,8 @@ export {
   loadAppModules,
   loadDeferredModules,
   installDeferredRequirements,
+  loadLazyModules,
+  installLazyRequirements,
 } from "./runtime"
 
 export type { PyodideRuntimeOptions } from "./runtime"

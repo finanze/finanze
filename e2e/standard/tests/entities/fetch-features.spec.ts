@@ -196,12 +196,10 @@ test.describe('Feature Selection Verification', () => {
                     .catch(() => false)
             ) {
                 await otherDisconnect.click()
-                await expect(
-                    page.getByText('Confirm Disconnect'),
-                ).toBeVisible({ timeout: 5_000 })
-                await page
-                    .getByRole('button', { name: 'Disconnect' })
-                    .click()
+                await expect(page.getByText('Confirm Disconnect')).toBeVisible({
+                    timeout: 5_000,
+                })
+                await page.getByRole('button', { name: 'Disconnect' }).click()
                 await expect(
                     page.getByText('Entity disconnected successfully'),
                 ).toBeVisible({ timeout: 10_000 })
@@ -228,15 +226,18 @@ test.describe('Feature Selection Verification', () => {
         ).toBeVisible({ timeout: 5_000 })
 
         // Wait for features to be auto-selected
-        await expect(
-            page.getByRole('button', { name: 'Fetch data' }),
-        ).toBeEnabled({ timeout: 5_000 })
+        const modalFetch = page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+        await expect(modalFetch).toBeEnabled({
+            timeout: 5_000,
+        })
 
         // Deselect Transactions — click the h-24 feature toggle button
         await page.locator('button.h-24', { hasText: 'Transactions' }).click()
 
         // Fetch with only POSITION and AUTO_CONTRIBUTIONS
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        await modalFetch.click()
         await expect(
             page.getByText('Data successfully fetched from MyInvestor'),
         ).toBeVisible({ timeout: 30_000 })

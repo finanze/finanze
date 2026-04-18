@@ -101,7 +101,10 @@ test.describe('Fetch Entity Data - Simple (Urbanitae)', () => {
             page.getByText('Select features to fetch from Urbanitae'),
         ).toBeVisible({ timeout: 5_000 })
 
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        await page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+            .click()
 
         await expect(
             page.getByText('Data successfully fetched from Urbanitae'),
@@ -204,7 +207,10 @@ test.describe('Fetch Entity Data - 2FA (Wecity)', () => {
             page.getByText('Select features to fetch from Wecity'),
         ).toBeVisible({ timeout: 5_000 })
 
-        await page.getByRole('button', { name: 'Fetch data' }).click()
+        await page
+            .locator('.fixed')
+            .getByRole('button', { name: 'Fetch' })
+            .click()
 
         await expect(page.getByText(/Enter \d+-digit code for/)).toBeVisible({
             timeout: 10_000,

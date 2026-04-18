@@ -39,7 +39,7 @@ async function isEntityConnected(
 }
 
 /**
- * Helper: click Fetch on an entity card, select all features, and click "Fetch data".
+ * Helper: click Fetch on an entity card, select all features, and click "Fetch".
  */
 async function fetchEntity(
     page: import('@playwright/test').Page,
@@ -55,7 +55,7 @@ async function fetchEntity(
         page.getByText(`Select features to fetch from ${entityName}`),
     ).toBeVisible({ timeout: 5_000 })
 
-    await page.getByRole('button', { name: 'Fetch data' }).click()
+    await page.locator('.fixed').getByRole('button', { name: 'Fetch' }).click()
 }
 
 test.describe('External Login - Trade Republic (partial creds + form)', () => {

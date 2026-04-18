@@ -52,6 +52,7 @@ import {
   BiometricType,
 } from "@/lib/mobile/biometric"
 import type { BiometricAvailability } from "@/lib/mobile/biometric"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -64,6 +65,10 @@ export default function LoginPage() {
   const [isSignupMode, setIsSignupMode] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [isDesktopApp, setIsDesktopApp] = useState(false)
+
+  useModalBackHandler(showAdvancedSettings, () =>
+    setShowAdvancedSettings(false),
+  )
   const [versionMismatch, setVersionMismatch] =
     useState<VersionMismatchInfo | null>(null)
   const [biometricAvailability, setBiometricAvailability] =

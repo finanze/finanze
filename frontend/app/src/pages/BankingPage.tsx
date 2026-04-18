@@ -444,7 +444,7 @@ function BankingManualControls({
             ) : (
               <Save className="h-3.5 w-3.5" />
             )}
-            {t.common.save}
+            <span className="hidden sm:inline">{t.common.save}</span>
           </Button>
         </div>
       )}
@@ -1336,7 +1336,7 @@ function BankAccountsSection({
               onClick={onToggleAccountNumbers}
             >
               <Binary className="h-3.5 w-3.5" />
-              Iban
+              <span className="hidden sm:inline">Iban</span>
             </Button>
             {!isEditMode && (
               <Button
