@@ -41,6 +41,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   CRYPTO: "#f97316", // Equivalent to text-orange-500
   COMMODITY: "#eab308", // Equivalent to text-yellow-500
   PENDING_FLOWS: "#14b8a6", // Equivalent to text-teal-500
+  CREDIT: "#f43f5e", // Equivalent to text-rose-500
 }
 
 export function getPieSliceColorForAssetType(type: string): string {
@@ -150,6 +151,13 @@ export function getIconForAssetType(
           style={iconStyle}
         />
       )
+    case "CREDIT":
+      return (
+        <HandCoins
+          className={getIconClass("text-rose-500")}
+          style={iconStyle}
+        />
+      )
     case "CARD":
       return (
         <CreditCard
@@ -237,6 +245,8 @@ export const getProductTypeColor = (type: ProductType): string => {
       return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
     case ProductType.DERIVATIVE:
       return "bg-brown-100 text-brown-800 dark:bg-brown-900 dark:text-brown-100"
+    case ProductType.CREDIT:
+      return "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100"
     case ProductType.CARD:
       return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
     case ProductType.LOAN:

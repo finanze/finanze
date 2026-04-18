@@ -42,6 +42,7 @@ class ProductType(str, Enum):
     CRYPTO = "CRYPTO"
     COMMODITY = "COMMODITY"
     BOND = "BOND"
+    CREDIT = "CREDIT"
     DERIVATIVE = "DERIVATIVE"
 
 
@@ -473,6 +474,23 @@ class DerivativeDetail(BaseData):
 
 
 @dataclass
+class CreditDetail(BaseData):
+    id: Optional[UUID]
+    currency: str
+    credit_limit: Dezimal
+    drawn_amount: Dezimal
+    interest_rate: Dezimal
+    name: Optional[str] = None
+    pledged_amount: Optional[Dezimal] = None
+    creation: Optional[date] = None
+    source: DataSource = DataSource.REAL
+
+    @property
+    def available_amount(self) -> Dezimal:
+        return self.credit_limit - self.drawn_amount
+
+
+@dataclass
 class Commodity(BaseData, CommodityRegister):
     id: UUID = field(default_factory=UUID)
 
@@ -543,6 +561,11 @@ class Commodities:
 
 
 @dataclass
+class Credits:
+    entries: List[CreditDetail]
+
+
+@dataclass
 class DerivativePositions:
     entries: List[DerivativeDetail]
 
@@ -560,6 +583,7 @@ ProductPosition = Union[
     Crowdlending,
     CryptoCurrencies,
     Commodities,
+    Credits,
     DerivativePositions,
 ]
 

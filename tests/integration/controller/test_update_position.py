@@ -1054,3 +1054,108 @@ class TestLoanPositionSaveAndRead:
 
         # manual_data with track=True should trigger manual_position_data_port.save
         manual_position_data_port.save.assert_awaited_once()
+
+
+class TestCreateCreditPositionAndRead:
+    @pytest.mark.asyncio
+    async def test_saves_credit_position_then_reads_it(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "CREDIT": [
+                        {
+                            "currency": "EUR",
+                            "credit_limit": "10000",
+                            "drawn_amount": "6407",
+                            "interest_rate": "0.0325",
+                            "name": "Cuenta CREDITO 4895",
+                            "pledged_amount": "20000",
+                            "creation": "2026-01-11",
+                        },
+                    ],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        position_port.save.assert_awaited_once()
+        saved_position = position_port.save.await_args[0][0]
+        assert saved_position.source == DataSource.MANUAL
+
+        credits = saved_position.products[ProductType.CREDIT]
+        assert len(credits.entries) == 1
+        credit = credits.entries[0]
+        assert credit.credit_limit == Dezimal("10000")
+        assert credit.drawn_amount == Dezimal("6407")
+        assert credit.interest_rate == Dezimal("0.0325")
+        assert credit.name == "Cuenta CREDITO 4895"
+        assert credit.pledged_amount == Dezimal("20000")
+
+        position_port.get_last_by_entity_broken_down = AsyncMock(
+            return_value={entity: [saved_position]}
+        )
+        get_resp = await client.get(GET_POSITIONS_URL)
+        assert get_resp.status_code == 200
+        body = await get_resp.get_json()
+
+        pos = body["positions"][ENTITY_ID][0]
+        credit_entries = pos["products"]["CREDIT"]["entries"]
+        assert len(credit_entries) == 1
+        c = credit_entries[0]
+        assert c["credit_limit"] == 10000.0
+        assert c["drawn_amount"] == 6407.0
+        assert c["interest_rate"] == 0.0325
+        assert c["name"] == "Cuenta CREDITO 4895"
+        assert c["pledged_amount"] == 20000.0
+
+    @pytest.mark.asyncio
+    async def test_saves_non_pledged_credit(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "CREDIT": [
+                        {
+                            "currency": "EUR",
+                            "credit_limit": "5000",
+                            "drawn_amount": "1000",
+                            "interest_rate": "0.04",
+                        },
+                    ],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        saved_position = position_port.save.await_args[0][0]
+        credit = saved_position.products[ProductType.CREDIT].entries[0]
+        assert credit.pledged_amount is None
+        assert credit.name is None
+        assert credit.creation is None

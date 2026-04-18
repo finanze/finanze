@@ -6,6 +6,7 @@ export type ManualPositionAsset =
   | "bankAccounts"
   | "bankCards"
   | "bankLoans"
+  | "bankCredits"
   | "fundPortfolios"
   | "funds"
   | "stocks"

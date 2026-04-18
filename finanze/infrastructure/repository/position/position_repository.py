@@ -19,6 +19,8 @@ from domain.global_position import (
     CardType,
     Commodities,
     Commodity,
+    CreditDetail,
+    Credits,
     Crowdlending,
     CryptoCurrencies,
     CryptoCurrencyPosition,
@@ -226,6 +228,26 @@ async def _save_derivatives(
                 str(detail.initial_investment)
                 if detail.initial_investment is not None
                 else None,
+            ),
+        )
+
+
+async def _save_credits(cursor, position: GlobalPosition, credits: Credits):
+    for credit in credits.entries:
+        await cursor.execute(
+            PositionWriteQueries.INSERT_CREDIT_POSITION,
+            (
+                str(credit.id),
+                str(position.id),
+                credit.currency,
+                str(credit.credit_limit),
+                str(credit.drawn_amount),
+                str(credit.interest_rate),
+                credit.name,
+                str(credit.pledged_amount)
+                if credit.pledged_amount is not None
+                else None,
+                credit.creation.isoformat() if credit.creation else None,
             ),
         )
 
@@ -463,6 +485,7 @@ async def _save_product_positions(cursor, position: GlobalPosition):
     await _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
     await _save_position(cursor, position, ProductType.COMMODITY, _save_commodities)
     await _save_position(cursor, position, ProductType.DERIVATIVE, _save_derivatives)
+    await _save_position(cursor, position, ProductType.CREDIT, _save_credits)
 
 
 def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
@@ -1279,6 +1302,38 @@ class PositionSQLRepository(PositionPort):
                 )
             return {UUID(k): DerivativePositions(v) for k, v in grouped.items()}
 
+    async def _get_all_credits(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, Credits]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_CREDITS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[CreditDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    CreditDetail(
+                        id=UUID(row["id"]),
+                        currency=row["currency"],
+                        credit_limit=Dezimal(row["credit_limit"]),
+                        drawn_amount=Dezimal(row["drawn_amount"]),
+                        interest_rate=Dezimal(row["interest_rate"]),
+                        name=row["name"],
+                        pledged_amount=Dezimal(row["pledged_amount"])
+                        if row["pledged_amount"]
+                        else None,
+                        creation=datetime.fromisoformat(row["creation"]).date()
+                        if row["creation"]
+                        else None,
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): Credits(v) for k, v in grouped.items()}
+
     async def _batch_load_all_products(
         self,
         positions: list[GlobalPosition],
@@ -1301,6 +1356,7 @@ class PositionSQLRepository(PositionPort):
             (ProductType.CRYPTO, self._get_all_cryptocurrency),
             (ProductType.COMMODITY, self._get_all_commodities),
             (ProductType.DERIVATIVE, self._get_all_derivatives),
+            (ProductType.CREDIT, self._get_all_credits),
         ]
 
         for product_type, loader in batch_loaders:

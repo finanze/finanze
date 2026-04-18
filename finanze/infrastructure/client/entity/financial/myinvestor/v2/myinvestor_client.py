@@ -105,6 +105,7 @@ class MyInvestorAPIV2Client:
 
         self._headers = {}
         self._headers["Content-Type"] = "application/json"
+        self._headers["Accept"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
         self._headers["Origin"] = self.BASE_URL
         self._headers["User-Agent"] = (
@@ -447,6 +448,12 @@ class MyInvestorAPIV2Client:
     @cached(cache=Cache.MEMORY, ttl=3600)
     async def get_stock_details(self, stock_id: str):
         return (await self._get_request(f"/broker/v2/stock-etfs/{stock_id}/extended"))[
+            "payload"
+        ]["data"]
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_credit_accounts(self):
+        return (await self._get_request("/loan/api/v1/credit-accounts/self"))[
             "payload"
         ]["data"]
 

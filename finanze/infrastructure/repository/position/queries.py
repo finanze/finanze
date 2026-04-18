@@ -133,6 +133,12 @@ class PositionWriteQueries(str, Enum):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
+    INSERT_CREDIT_POSITION = """
+        INSERT INTO credit_positions (id, global_position_id, currency, credit_limit, drawn_amount,
+                                      interest_rate, name, pledged_amount, creation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
 
 class PositionQueries(str, Enum):
     INSERT_GLOBAL_POSITION = "INSERT INTO global_positions (id, date, entity_id, source, entity_account_id) VALUES (?, ?, ?, ?, ?)"
@@ -301,6 +307,10 @@ class PositionQueries(str, Enum):
     )
 
     GET_DERIVATIVES_BY_GLOBAL_POSITION_IDS = "SELECT * FROM derivative_positions WHERE global_position_id IN ({placeholders})"
+
+    GET_CREDITS_BY_GLOBAL_POSITION_IDS = (
+        "SELECT * FROM credit_positions WHERE global_position_id IN ({placeholders})"
+    )
 
     GET_ENTITY_ID_FROM_GLOBAL_POSITION_ID = (
         "SELECT entity_id FROM global_positions WHERE id = ?"

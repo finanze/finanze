@@ -10,6 +10,7 @@ import {
   CryptoCurrencyType,
   DerivativeDetail,
   DerivativePositions,
+  Credits,
   Loan,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
@@ -3128,6 +3129,33 @@ export const getTotalCardUsed = (
   return total
 }
 
+export const getTotalCreditDrawn = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions)
+    .flat()
+    .forEach((entityPosition: any) => {
+      const creditsProduct = entityPosition.products?.[ProductType.CREDIT] as
+        | Credits
+        | undefined
+      if (creditsProduct?.entries) {
+        creditsProduct.entries.forEach((credit: any) => {
+          total += convertCurrency(
+            credit.drawn_amount || 0,
+            credit.currency,
+            targetCurrency,
+            exchangeRates,
+          )
+        })
+      }
+    })
+  return total
+}
+
 // Sum of all account balances (CHECKING/SAVINGS/etc.) across entities
 export const getTotalCash = (
   positionsData: EntitiesPosition | null,
@@ -3271,9 +3299,13 @@ export const computeAdjustedKpis = (
         exchangeRates,
       )
     : 0
+  const creditDrawn = options.includeLoans
+    ? getTotalCreditDrawn(positionsData, targetCurrency, exchangeRates)
+    : 0
 
   return {
-    adjustedTotalAssets: baseTotalAssets + equity - cardUsed - loansOutstanding,
+    adjustedTotalAssets:
+      baseTotalAssets + equity - cardUsed - loansOutstanding - creditDrawn,
     adjustedInvestedAmount:
       baseInvestedAmount + realEstateInitialInvestment - cardUsed,
   }

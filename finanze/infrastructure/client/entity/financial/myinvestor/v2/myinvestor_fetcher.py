@@ -28,6 +28,8 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    CreditDetail,
+    Credits,
     Deposit,
     Deposits,
     EquityType,
@@ -658,6 +660,49 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return Deposits(deposit_list)
 
+    async def fetch_credits(self) -> Credits:
+        try:
+            credit_accounts_raw = await self._client.get_credit_accounts()
+        except Exception as e:
+            self._log.exception(f"Error fetching credit accounts: {e}")
+            return Credits([])
+
+        credit_list = []
+        for credit in credit_accounts_raw:
+            if not credit.get("enabled"):
+                continue
+
+            lending_request = credit.get("lendingRequest", {})
+            interest_rate = Dezimal(lending_request.get("tin", 0)) / 100
+
+            guarantees = lending_request.get("guarantees", [])
+            pledged_amount = None
+            if guarantees:
+                pledged_amount = sum(
+                    (Dezimal(g.get("currentAmount", 0)) for g in guarantees),
+                    Dezimal(0),
+                )
+
+            creation = None
+            raw_create_date = lending_request.get("createDate")
+            if raw_create_date:
+                creation = datetime.fromisoformat(raw_create_date).date()
+
+            credit_list.append(
+                CreditDetail(
+                    id=uuid4(),
+                    currency="EUR",
+                    credit_limit=Dezimal(credit.get("creditLimit", 0)),
+                    drawn_amount=Dezimal(credit.get("currentAmount", 0)),
+                    interest_rate=round(interest_rate, 6),
+                    name=credit.get("alias"),
+                    pledged_amount=pledged_amount,
+                    creation=creation,
+                )
+            )
+
+        return Credits(credit_list)
+
     async def fetch_investments(self, account_entries: list[tuple]) -> ProductPositions:
         deposits = await self.fetch_deposits()
 
@@ -756,6 +801,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             ProductType.FUND: FundInvestments(funds),
             ProductType.FUND_PORTFOLIO: FundPortfolios(portfolio_cash_accounts),
             ProductType.DEPOSIT: deposits,
+            ProductType.CREDIT: await self.fetch_credits(),
         }
 
     async def _get_pension_fund_investment(
