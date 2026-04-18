@@ -17,9 +17,21 @@ from domain.fetch_record import DataSource
 
 CONTRIBUTIONS_URL = "/api/v1/data/manual/contributions"
 GET_CONTRIBUTIONS_URL = "/api/v1/contributions"
+EVENTS_URL = "/api/v1/events"
+SIGNUP_URL = "/api/v1/signup"
 ENTITY_ID = "e0000000-0000-0000-0000-000000000001"
 ENTITY_ID_2 = "e0000000-0000-0000-0000-000000000002"
 REAL_ENTITY_ID = "e0000000-0000-0000-0000-000000000099"
+
+USERNAME = "testuser"
+PASSWORD = "securePass123"
+
+
+async def _signup(client):
+    response = await client.post(
+        SIGNUP_URL, json={"username": USERNAME, "password": PASSWORD}
+    )
+    assert response.status_code == 204
 
 
 def _make_entity(entity_id=ENTITY_ID, name="Test Entity", origin=EntityOrigin.MANUAL):
@@ -516,3 +528,274 @@ class TestSameDayUpdate:
         assert response.status_code == 204
 
         virtual_import_registry.delete_by_import_and_feature.assert_awaited_once()
+
+
+class TestContributionEventsIntegration:
+    @pytest.mark.asyncio
+    async def test_contribution_appears_as_event(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entry = _contribution_entry(since="2026-01-01", frequency="MONTHLY")
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-04-01&to_date=2027-04-01"
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert len(contrib_events) > 0
+        assert contrib_events[0]["name"] == "Monthly ACME"
+        assert contrib_events[0]["frequency"] == "MONTHLY"
+        assert float(contrib_events[0]["amount"]) == 200.0
+        assert contrib_events[0]["currency"] == "EUR"
+
+    @pytest.mark.asyncio
+    async def test_contribution_event_contains_details(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entry = _contribution_entry(
+            since="2026-01-01",
+            frequency="MONTHLY",
+            target_type="STOCK_ETF",
+            target_subtype="ETF",
+            target="ACME",
+            target_name="ACME Corp",
+        )
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-04-01&to_date=2027-04-01"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert len(contrib_events) > 0
+        details = contrib_events[0]["details"]
+        assert details is not None
+        assert details["target_type"] == "STOCK_ETF"
+        assert details["target_subtype"] == "ETF"
+        assert details["target"] == "ACME"
+        assert details["target_name"] == "ACME Corp"
+
+    @pytest.mark.asyncio
+    async def test_contribution_generates_multiple_monthly_events(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entry = _contribution_entry(since="2026-01-01", frequency="MONTHLY")
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-05-01&to_date=2026-12-31"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert len(contrib_events) >= 7
+        dates = [e["date"] for e in contrib_events]
+        assert len(set(dates)) == len(dates)
+
+    @pytest.mark.asyncio
+    async def test_contribution_with_until_limits_events(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entry = _contribution_entry(
+            since="2026-01-01", until="2026-06-30", frequency="MONTHLY"
+        )
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-01-01&to_date=2026-12-31"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        for event in contrib_events:
+            assert event["date"] <= "2026-06-30"
+
+    @pytest.mark.asyncio
+    async def test_cleared_contributions_no_events(
+        self,
+        client,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": []})
+        assert response.status_code == 204
+
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-01-01&to_date=2026-12-31"
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert len(contrib_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_updated_contributions_reflected_in_events(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entry = _contribution_entry(
+            name="Monthly ACME", since="2026-01-01", frequency="MONTHLY"
+        )
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-04-01&to_date=2027-04-01"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert all(e["name"] == "Monthly ACME" for e in contrib_events)
+
+        auto_contr_port.reset_mock()
+        entry_updated = _contribution_entry(
+            name="Updated DCA",
+            amount="500.00",
+            target="BETA",
+            target_name="Beta Corp",
+            since="2026-01-01",
+            frequency="QUARTERLY",
+        )
+        response = await client.post(
+            CONTRIBUTIONS_URL, json={"entries": [entry_updated]}
+        )
+        assert response.status_code == 204
+
+        saved_updated = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_updated}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-04-01&to_date=2027-04-01"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        assert len(contrib_events) > 0
+        assert all(e["name"] == "Updated DCA" for e in contrib_events)
+        assert all(float(e["amount"]) == 500.0 for e in contrib_events)
+        assert all(e["frequency"] == "QUARTERLY" for e in contrib_events)
+
+    @pytest.mark.asyncio
+    async def test_multiple_contributions_generate_separate_events(
+        self,
+        client,
+        entity_port,
+        auto_contr_port,
+        virtual_import_registry,
+    ):
+        await _signup(client)
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        entries = [
+            _contribution_entry(
+                name="DCA ACME", target="ACME", since="2026-01-01", frequency="MONTHLY"
+            ),
+            _contribution_entry(
+                name="DCA BETA",
+                target="BETA",
+                target_name="Beta Corp",
+                amount="300.00",
+                since="2026-01-01",
+                frequency="MONTHLY",
+            ),
+        ]
+        response = await client.post(CONTRIBUTIONS_URL, json={"entries": entries})
+        assert response.status_code == 204
+
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={entity: saved_contribs}
+        )
+
+        response = await client.get(
+            f"{EVENTS_URL}?from_date=2026-05-01&to_date=2026-07-31"
+        )
+        body = await response.get_json()
+        contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
+        names = {e["name"] for e in contrib_events}
+        assert "DCA ACME" in names
+        assert "DCA BETA" in names
+        acme_events = [e for e in contrib_events if e["name"] == "DCA ACME"]
+        beta_events = [e for e in contrib_events if e["name"] == "DCA BETA"]
+        assert len(acme_events) >= 2
+        assert len(beta_events) >= 2

@@ -64,12 +64,19 @@ from infrastructure.controller.routes.get_pending_flows import (
 from infrastructure.controller.routes.get_money_events import (
     get_money_events as get_money_events_route,
 )
+from infrastructure.controller.routes.update_tracked_loans import (
+    update_tracked_loans as update_tracked_loans_route,
+)
 from infrastructure.repository.earnings_expenses.periodic_flow_repository import (
     PeriodicFlowRepository,
 )
 from infrastructure.repository.earnings_expenses.pending_flow_repository import (
     PendingFlowRepository,
 )
+from infrastructure.repository.real_estate.real_estate_repository import (
+    RealEstateRepository,
+)
+from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.controller.exception_handler import register_exception_handlers
 
 from infrastructure.repository.db.client import DBClient
@@ -109,8 +116,6 @@ from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from application.ports.real_estate_port import RealEstatePort
-from application.ports.periodic_flow_port import PeriodicFlowPort
 from application.ports.pending_flow_port import PendingFlowPort
 from application.ports.file_storage_port import FileStoragePort
 from domain.public_keychain import PublicKeychain
@@ -151,6 +156,8 @@ from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
+from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
+from infrastructure.calculations.loan_calculator import LoanCalculator
 
 from domain.entity import Entity
 from domain.backup import BackupFileType
@@ -238,14 +245,14 @@ async def app(tmp_path):
     external_entity_port = AsyncMock(spec=ExternalEntityPort)
     external_entity_fetchers = {}
 
-    real_estate_port = AsyncMock(spec=RealEstatePort)
-    periodic_flow_port = AsyncMock(spec=PeriodicFlowPort)
     pending_flow_port = AsyncMock(spec=PendingFlowPort)
     file_storage_port = AsyncMock(spec=FileStoragePort)
     file_storage_port.get_url = MagicMock(return_value="/static/real_estate/test.jpg")
 
     periodic_flow_repo = PeriodicFlowRepository(client=db_client)
     pending_flow_repo = PendingFlowRepository(client=db_client)
+    real_estate_repo = RealEstateRepository(client=db_client)
+    transaction_handler = TransactionHandler(client=db_client)
 
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
@@ -286,7 +293,7 @@ async def app(tmp_path):
         keychain_loader,
         entity_account_port,
         loan_calculator,
-        real_estate_port,
+        real_estate_repo,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -338,7 +345,7 @@ async def app(tmp_path):
         crypto_asset_registry_port=crypto_asset_registry_port,
         crypto_asset_info_provider=crypto_asset_info_provider,
         transaction_handler_port=transaction_handler_port,
-        real_estate_port=real_estate_port,
+        real_estate_port=real_estate_repo,
         loan_calculator=loan_calculator,
     )
     add_manual_transaction_uc = AddManualTransactionImpl(
@@ -379,24 +386,24 @@ async def app(tmp_path):
         entity_account_port,
     )
     create_real_estate_uc = CreateRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
     update_real_estate_uc = UpdateRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
     delete_real_estate_uc = DeleteRealEstateImpl(
-        real_estate_port,
-        periodic_flow_port,
-        transaction_handler_port,
+        real_estate_repo,
+        periodic_flow_repo,
+        transaction_handler,
         file_storage_port,
     )
-    list_real_estate_uc = ListRealEstateImpl(real_estate_port, position_port)
+    list_real_estate_uc = ListRealEstateImpl(real_estate_repo, position_port)
 
     save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo)
     update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
@@ -412,6 +419,13 @@ async def app(tmp_path):
         get_pending_flows_uc,
         entity_port,
         position_port,
+    )
+    loan_calc = LoanCalculator()
+    update_tracked_loans_uc = UpdateTrackedLoansImpl(
+        position_port=position_port,
+        manual_position_data_port=manual_position_data_port,
+        loan_calculator=loan_calc,
+        real_estate_port=real_estate_repo,
     )
 
     static_dir = tmp_path / "static"
@@ -564,6 +578,10 @@ async def app(tmp_path):
     async def get_money_events_route_handler():
         return await get_money_events_route(get_money_events_uc)
 
+    @test_app.route("/api/v1/data/manual/positions/update-loans", methods=["POST"])
+    async def update_tracked_loans_route_handler():
+        return await update_tracked_loans_route(update_tracked_loans_uc)
+
     yield (
         test_app,
         db_client,
@@ -592,8 +610,8 @@ async def app(tmp_path):
         auto_contr_port,
         external_entity_port,
         loan_calculator,
-        real_estate_port,
-        periodic_flow_port,
+        real_estate_repo,
+        periodic_flow_repo,
         pending_flow_port,
         file_storage_port,
     )
@@ -744,7 +762,7 @@ async def real_estate_port(app):
 
 
 @pytest_asyncio.fixture
-async def periodic_flow_port(app):
+async def periodic_flow_repo(app):
     return app[28]
 
 
