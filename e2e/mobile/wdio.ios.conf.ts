@@ -8,10 +8,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 function getIOSSDKVersion(): string {
     try {
-        return execSync(
-            'xcodebuild -version -sdk iphonesimulator SDKVersion',
-            { encoding: 'utf-8' },
-        ).trim()
+        return execSync('xcodebuild -version -sdk iphonesimulator SDKVersion', {
+            encoding: 'utf-8',
+        }).trim()
     } catch {
         return '18.0'
     }
