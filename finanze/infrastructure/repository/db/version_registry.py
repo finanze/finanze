@@ -142,6 +142,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_12_ibkr_credentials impor
 from infrastructure.repository.db.versions.v0.v08.v080_13_improved_loans import (
     V0813ImprovedLoans,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_14_credits import (
+    V0814Credits,
+)
 
 versions = [
     V0Genesis(),
@@ -202,4 +205,5 @@ versions = [
     V0811Derivatives(),
     V0812IBKRCredentials(),
     V0813ImprovedLoans(),
+    V0814Credits(),
 ]

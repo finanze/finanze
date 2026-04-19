@@ -949,8 +949,8 @@
     "noInvestments": "No tienes inversiones",
     "includePendingMoney": "Incluir dinero pendiente",
     "includePendingMoneyInfo": "Con esta opción activada se tendrá en cuenta el dinero pendiente (gastos o ingresos) definido en la sección de Dinero Pendiente al calcular el patrimonio neto.",
-    "includeLoans": "Incluir préstamos",
-    "includeLoansInfo": "Esta opción hace que se tenga en cuenta el capital pendiente de los préstamos al calcular el patrimonio neto. Los préstamos asociados a un inmueble no se considerarán, ya que ya están calculados en el patrimonio inmobiliario (ver opción abajo).",
+    "includeLoans": "Incluir préstamos y créditos",
+    "includeLoansInfo": "Esta opción hace que se tenga en cuenta el capital pendiente de los préstamos y el importe dispuesto de las líneas de crédito al calcular el patrimonio neto. Los préstamos asociados a un inmueble no se considerarán, ya que ya están calculados en el patrimonio inmobiliario (ver opción abajo).",
     "includeCardExpenses": "Descontar gastos de tarjetas",
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
     "includeRealEstateEquityInfo": "Activar esta opción hace que se tenga en cuenta el patrimonio inmobiliario al calcular el patrimonio neto. El patrimonio inmobiliario se define como la valoración del inmueble menos el capital pendiente de los préstamos asociados. Si también quieres incluir las residencias, marca la opción de abajo.",
@@ -1115,7 +1115,7 @@
         "confirm": "Importar datos"
       }
     },
-    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente.",
+    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente. Si quieres borrar los datos importados, simplemente borra la hoja o su contenido y vuelve a importar.",
     "tabs": {
       "export": "Exportar",
       "import": "Importar"
@@ -1488,7 +1488,8 @@
       "COMMODITY": "Materia Prima",
       "PENDING_FLOWS": "Pendiente",
       "BOND": "Bonos",
-      "DERIVATIVE": "Derivados"
+      "DERIVATIVE": "Derivados",
+      "CREDIT": "Crédito"
     },
     "assetType": {
       "EQUITY": "Renta Variable",
@@ -1736,6 +1737,11 @@
     "accounts": "Cuentas",
     "cards": "Tarjetas",
     "loans": "Préstamos",
+    "loansAndCredits": "Préstamos y Créditos",
+    "credit": "crédito",
+    "creditDrawn": "Importe dispuesto",
+    "creditLimit": "Límite de crédito",
+    "availableCredit": "Disponible",
     "card": "tarjeta",
     "loan": "préstamo",
     "available": "Disponible",
@@ -1967,6 +1973,7 @@
         "validation": {
           "required": "Este campo es obligatorio",
           "number": "Introduce un número válido",
+          "invalidDate": "Introduce una fecha válida",
           "entity": "Selecciona una entidad",
           "entityName": "Introduce un nombre de entidad",
           "entityNameExists": "Ya existe una entidad con este nombre"
@@ -2062,8 +2069,8 @@
         "description": "Mantén datos de préstamos que no se sincronizan mediante integraciones.",
         "add": "Añadir",
         "empty": {
-          "title": "No hay préstamos manuales",
-          "description": "Añade un préstamo manual para seguir sus pagos y saldos."
+          "title": "No hay préstamos ni créditos",
+          "description": "Añade un préstamo o crédito para seguir sus saldos."
         },
         "form": {
           "createTitle": "Añadir préstamo manual",
@@ -2100,6 +2107,31 @@
           "calculationFailed": "No pudimos calcular la sugerencia del préstamo. Inténtalo de nuevo.",
           "euriborUnavailable": "Las tasas Euríbor no están disponibles temporalmente.",
           "fixedRateDuration": "Tipo fijo: {{years}} años"
+        },
+        "summary": {
+          "interest": "{{rate}}% de interés"
+        }
+      },
+      "bankCredits": {
+        "title": "Créditos manuales",
+        "description": "Mantén datos de líneas de crédito que no se sincronizan mediante integraciones.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay créditos",
+          "description": "Añade una línea de crédito para seguir importes dispuestos y límites."
+        },
+        "form": {
+          "createTitle": "Añadir línea de crédito",
+          "createDescription": "Introduce los datos de la línea de crédito para gestionarla manualmente.",
+          "editTitle": "Editar crédito manual",
+          "editDescription": "Actualiza la línea de crédito manual seleccionada."
+        },
+        "fields": {
+          "creditLimit": "Límite de crédito",
+          "drawnAmount": "Importe dispuesto",
+          "interestRate": "Tipo de interés",
+          "pledgedAmount": "Valor garantías pignoradas",
+          "creation": "Fecha de inicio"
         },
         "summary": {
           "interest": "{{rate}}% de interés"

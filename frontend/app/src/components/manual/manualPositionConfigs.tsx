@@ -40,6 +40,7 @@ import {
   CryptoCurrencyPosition,
   CryptoCurrencyType,
   CryptoAsset,
+  CreditDetail,
 } from "@/types/position"
 import {
   DataSource,
@@ -62,6 +63,7 @@ import {
   ManualPositionDraft,
   ManualPositionFormBase,
   ManualPositionConfigMap,
+  RenderSummaryHelpers,
 } from "./manualPositionTypes"
 import {
   parseNumberInput,
@@ -469,6 +471,10 @@ const numberFieldError = <FormState extends ManualPositionFormBase>(
   t: ManualFormFieldRenderProps<FormState>["t"],
 ): string => t("management.manualPositions.shared.validation.number")
 
+const invalidDateError = <FormState extends ManualPositionFormBase>(
+  t: ManualFormFieldRenderProps<FormState>["t"],
+): string => t("management.manualPositions.shared.validation.invalidDate")
+
 const isManualSource = (entry: { source?: DataSource | null }) =>
   entry.source === DataSource.MANUAL
 
@@ -488,6 +494,16 @@ export interface BankLoanFormState extends ManualPositionFormBase {
   creation: string
   maturity: string
   track_loan: string
+}
+
+export interface CreditFormState extends ManualPositionFormBase {
+  currency: string
+  credit_limit: string
+  drawn_amount: string
+  interest_rate: string
+  name: string
+  pledged_amount: string
+  creation: string
 }
 
 function EuriborSuggestField(
@@ -3864,6 +3880,247 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         draft.manual_data?.track && draft.interest_type === InterestType.FIXED
           ? { track: true }
           : null,
+    }),
+  },
+  bankCredits: {
+    assetKey: "bankCredits",
+    productType: ProductType.CREDIT,
+    buildDraftsFromPositions: ({ positionsData, manualEntities }) => {
+      if (!positionsData?.positions) return []
+      const result: ManualPositionDraft<CreditDetail>[] = []
+      manualEntities.forEach(entity => {
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CREDIT] as
+            | { entries?: CreditDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(credit => {
+            if (!isManualSource(credit)) return
+            result.push({
+              ...credit,
+              localId: credit.id || `${entity.id}-credit-${credit.name}`,
+              originalId: credit.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
+          })
+        })
+      })
+      return result
+    },
+    createEmptyForm: ({ defaultCurrency }): CreditFormState => ({
+      entity_id: "",
+      entity_mode: "select" as const,
+      new_entity_name: "",
+      currency: defaultCurrency,
+      credit_limit: "",
+      drawn_amount: "",
+      interest_rate: "",
+      name: "",
+      pledged_amount: "",
+      creation: "",
+    }),
+    draftToForm: (
+      draft: ManualPositionDraft<CreditDetail>,
+    ): CreditFormState => ({
+      entity_id: draft.isNewEntity ? "" : draft.entityId,
+      entity_mode: draft.isNewEntity ? "new" : "select",
+      new_entity_name: draft.isNewEntity
+        ? (draft.newEntityName ?? draft.entityName ?? "")
+        : "",
+      currency: draft.currency,
+      credit_limit: formatNumberInput(draft.credit_limit ?? 0),
+      drawn_amount: formatNumberInput(draft.drawn_amount ?? 0),
+      interest_rate:
+        draft.interest_rate != null
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
+          : "",
+      name: draft.name ?? "",
+      pledged_amount:
+        draft.pledged_amount != null
+          ? formatNumberInput(draft.pledged_amount)
+          : "",
+      creation: draft.creation ?? "",
+    }),
+    buildEntryFromForm: (
+      form: CreditFormState,
+      { previous }: { previous?: ManualPositionDraft<CreditDetail> },
+    ) => {
+      const creditLimit = parseNumberInput(form.credit_limit)
+      const drawnAmount = parseNumberInput(form.drawn_amount)
+      const interestRatePercent = parseNumberInput(form.interest_rate)
+
+      if (
+        creditLimit === null ||
+        drawnAmount === null ||
+        interestRatePercent === null
+      ) {
+        return null
+      }
+
+      const pledgedAmount = form.pledged_amount.trim()
+        ? parseNumberInput(form.pledged_amount)
+        : null
+      const creationDate = form.creation.trim()
+        ? normalizeDateInput(form.creation)
+        : null
+
+      const entry: CreditDetail = {
+        id: previous?.id || previous?.originalId || "",
+        currency: form.currency,
+        credit_limit: creditLimit,
+        drawn_amount: drawnAmount,
+        interest_rate: interestRatePercent / 100,
+        name: form.name.trim() || null,
+        pledged_amount: pledgedAmount,
+        creation: creationDate,
+        source: DataSource.MANUAL,
+      }
+
+      if (!entry.id) {
+        delete (entry as any).id
+      }
+      return entry
+    },
+    validateForm: (form: CreditFormState, { t }) => {
+      const errors: ManualFormErrors<typeof form> = {}
+      if (!form.currency) errors.currency = requiredField(t)
+      const creditLimit = parseNumberInput(form.credit_limit)
+      if (creditLimit === null || creditLimit <= 0)
+        errors.credit_limit = numberFieldError(t)
+      const drawnAmount = parseNumberInput(form.drawn_amount)
+      if (drawnAmount === null) errors.drawn_amount = numberFieldError(t)
+      const interestRate = parseNumberInput(form.interest_rate)
+      if (interestRate === null) errors.interest_rate = numberFieldError(t)
+      if (form.pledged_amount.trim()) {
+        const pledged = parseNumberInput(form.pledged_amount)
+        if (pledged === null) errors.pledged_amount = numberFieldError(t)
+      }
+      if (form.creation.trim() && !normalizeDateInput(form.creation)) {
+        errors.creation = invalidDateError(t)
+      }
+      return errors
+    },
+    renderFormFields: (props: ManualFormFieldRenderProps<CreditFormState>) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {renderEntityField(props)}
+        {renderTextInput(
+          "name",
+          props.t("management.manualPositions.shared.name"),
+          props,
+        )}
+        {renderSelectInput(
+          "currency",
+          props.t("management.manualPositions.shared.currency"),
+          props,
+          props.currencyOptions.map(value => ({ value, label: value })),
+        )}
+        {renderTextInput(
+          "credit_limit",
+          props.t("management.manualPositions.bankCredits.fields.creditLimit"),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderTextInput(
+          "drawn_amount",
+          props.t("management.manualPositions.bankCredits.fields.drawnAmount"),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderTextInput(
+          "interest_rate",
+          props.t("management.manualPositions.bankCredits.fields.interestRate"),
+          props,
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+        )}
+        {renderTextInput(
+          "pledged_amount",
+          props.t(
+            "management.manualPositions.bankCredits.fields.pledgedAmount",
+          ),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderDateInput(
+          "creation",
+          props.t("management.manualPositions.bankCredits.fields.creation"),
+          props,
+        )}
+      </div>
+    ),
+    getDisplayName: (draft: ManualPositionDraft<CreditDetail>) =>
+      draft.name ?? draft.entityName,
+    renderDraftSummary: (
+      draft: ManualPositionDraft<CreditDetail>,
+      helpers: RenderSummaryHelpers,
+    ) => (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-base">{draft.name || "—"}</span>
+          <Badge
+            variant="secondary"
+            className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+          >
+            {helpers.t("enums.productType.CREDIT")}
+          </Badge>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {helpers.formatCurrency(draft.drawn_amount, draft.currency)} /{" "}
+          {helpers.formatCurrency(draft.credit_limit, draft.currency)}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {draft.interest_rate != null
+            ? helpers.t(
+                "management.manualPositions.bankCredits.summary.interest",
+                { rate: (draft.interest_rate * 100).toFixed(2) },
+              )
+            : ""}
+        </div>
+      </div>
+    ),
+    normalizeDraftForCompare: (draft: ManualPositionDraft<CreditDetail>) => ({
+      entityId: draft.entityId,
+      currency: draft.currency,
+      credit_limit: draft.credit_limit,
+      drawn_amount: draft.drawn_amount,
+      interest_rate: draft.interest_rate,
+      name: draft.name ?? "",
+      pledged_amount: draft.pledged_amount ?? null,
+      creation: draft.creation ?? "",
+    }),
+    toPayloadEntry: (draft: ManualPositionDraft<CreditDetail>) => ({
+      id: draft.id || draft.originalId,
+      currency: draft.currency,
+      credit_limit: draft.credit_limit,
+      drawn_amount: draft.drawn_amount,
+      interest_rate: draft.interest_rate,
+      name: draft.name ?? null,
+      pledged_amount: draft.pledged_amount ?? null,
+      creation: draft.creation ?? null,
     }),
   },
   fundPortfolios: {

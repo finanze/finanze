@@ -20,6 +20,7 @@ export enum ProductType {
   CRYPTO = "CRYPTO",
   COMMODITY = "COMMODITY",
   BOND = "BOND",
+  CREDIT = "CREDIT",
   DERIVATIVE = "DERIVATIVE",
 }
 
@@ -416,6 +417,22 @@ export interface DerivativePositions {
   entries: DerivativeDetail[]
 }
 
+export interface CreditDetail {
+  id: string
+  currency: string
+  credit_limit: number
+  drawn_amount: number
+  interest_rate: number
+  name?: string | null
+  pledged_amount?: number | null
+  creation?: string | null
+  source: DataSource
+}
+
+export interface Credits {
+  entries: CreditDetail[]
+}
+
 export type ProductPosition =
   | Accounts
   | Cards
@@ -429,6 +446,7 @@ export type ProductPosition =
   | Crowdlending
   | CryptoCurrencies
   | Commodities
+  | Credits
   | DerivativePositions
 
 export type ProductPositions = Record<ProductType, ProductPosition>

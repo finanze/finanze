@@ -37,6 +37,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import {
   ArrowLeft,
   Wallet,
   CreditCard,
@@ -65,6 +70,7 @@ import {
   type Account,
   type Card as CardModel,
   type Loan,
+  type CreditDetail,
   type PartialProductPositions,
   type UpdatePositionRequest,
 } from "@/types/position"
@@ -97,6 +103,13 @@ interface LoanPosition extends Loan {
   entityOrigin: EntityOrigin | null
 }
 
+interface CreditPosition extends CreditDetail {
+  entityId: string
+  entityName: string
+  entryId: string
+  entityOrigin: EntityOrigin | null
+}
+
 interface AccountsSummary {
   totalBalance: number
   weightedInterest: number
@@ -111,6 +124,13 @@ interface CardsSummary {
 interface LoansSummary {
   totalDebt: number
   totalMonthlyPayments: number
+  weightedInterest: number
+  count: number
+}
+
+interface CreditsSummary {
+  totalDrawn: number
+  totalLimit: number
   weightedInterest: number
   count: number
 }
@@ -132,6 +152,7 @@ const isFiniteNumber = (value: number | null | undefined): value is number =>
 type AccountDraft = ManualPositionDraft<Account>
 type CardDraft = ManualPositionDraft<CardModel>
 type LoanDraft = ManualPositionDraft<Loan>
+type CreditDraft = ManualPositionDraft<CreditDetail>
 
 type AccountDisplay = AccountPosition & {
   convertedTotal: number
@@ -151,10 +172,26 @@ type LoanDisplay = LoanPosition & {
   convertedPrincipalPaid: number
 }
 
+type CreditDisplay = CreditPosition & {
+  convertedDrawnAmount: number
+  convertedCreditLimit: number
+}
+
+type CreditDisplayItem = ManualDisplayItem<CreditDisplay, CreditDraft>
+
+interface CreditEditHandlers {
+  editByOriginalId: (id: string) => void
+  editByLocalId: (id: string) => void
+  deleteByOriginalId: (id: string) => void
+  deleteByLocalId: (id: string) => void
+  isEditMode: boolean
+}
+
 const MANUAL_ASSETS_ORDER: ManualPositionAsset[] = [
   "bankAccounts",
   "bankCards",
   "bankLoans",
+  "bankCredits",
 ]
 
 interface ManualSectionController {
@@ -188,12 +225,16 @@ function BankingManualControls({
   t,
   showToast,
   refreshEntity,
+  fetchEntities,
+  refreshData,
   className,
 }: {
   controllers: ManualSectionController[]
   t: Translations
   showToast: (message: string, type: "success" | "error" | "warning") => void
   refreshEntity: (entityId: string) => Promise<void>
+  fetchEntities: () => Promise<void>
+  refreshData: () => Promise<void>
   className?: string
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -386,11 +427,20 @@ function BankingManualControls({
         return
       }
 
+      let createdNewEntity = false
       for (const { payload } of requests) {
         await saveManualPositions(payload)
         if (payload.entity_id) {
           await refreshEntity(payload.entity_id)
         }
+        if (payload.new_entity_name) {
+          createdNewEntity = true
+        }
+      }
+
+      if (createdNewEntity) {
+        await fetchEntities()
+        await refreshData()
       }
 
       controllers.forEach(controller => controller.handleSaveSuccess())
@@ -417,7 +467,16 @@ function BankingManualControls({
       controllers.forEach(controller => controller.setSavingState(false))
       setIsSaving(false)
     }
-  }, [controllers, hasAnyChanges, isAnySaving, refreshEntity, showToast, t])
+  }, [
+    controllers,
+    hasAnyChanges,
+    isAnySaving,
+    refreshEntity,
+    fetchEntities,
+    refreshData,
+    showToast,
+    t,
+  ])
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -469,8 +528,10 @@ function BankingManualControls({
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
-  const { positionsData, isLoading, refreshEntity } = useFinancialData()
-  const { settings, exchangeRates, entities, showToast } = useAppContext()
+  const { positionsData, isLoading, refreshEntity, refreshData } =
+    useFinancialData()
+  const { settings, exchangeRates, entities, showToast, fetchEntities } =
+    useAppContext()
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
@@ -510,6 +571,17 @@ export default function BankingPage() {
     weightedInterest: 0,
     count: 0,
   })
+  const [creditsSummary, setCreditsSummary] = useState<CreditsSummary>({
+    totalDrawn: 0,
+    totalLimit: 0,
+    weightedInterest: 0,
+    count: 0,
+  })
+  const [creditDisplayItems, setCreditDisplayItems] = useState<
+    CreditDisplayItem[]
+  >([])
+  const [creditEditHandlers, setCreditEditHandlers] =
+    useState<CreditEditHandlers | null>(null)
 
   const [manualControllersMap, setManualControllersMap] = useState<
     Partial<Record<ManualPositionAsset, ManualSectionController>>
@@ -665,6 +737,41 @@ export default function BankingPage() {
       })
   }, [positionsData, entities])
 
+  const creditPositions = useMemo<CreditPosition[]>(() => {
+    if (!positionsData?.positions) return []
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
+
+        const product = entityPosition.products[ProductType.CREDIT] as
+          | { entries?: CreditDetail[] }
+          | undefined
+        if (!product?.entries?.length) return []
+
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
+
+        return product.entries.map(credit => ({
+          ...credit,
+          entityId,
+          entityName,
+          entryId: credit.id,
+          entityOrigin,
+        }))
+      })
+  }, [positionsData, entities])
+
   const filteredAccounts = useMemo(() => {
     if (selectedEntities.length === 0) return accountPositions
     return accountPositions.filter(account =>
@@ -686,11 +793,19 @@ export default function BankingPage() {
     )
   }, [loanPositions, selectedEntities])
 
+  const filteredCredits = useMemo(() => {
+    if (selectedEntities.length === 0) return creditPositions
+    return creditPositions.filter(credit =>
+      selectedEntities.includes(credit.entityId),
+    )
+  }, [creditPositions, selectedEntities])
+
   const bankingEntities = useMemo(() => {
     const ids = new Set<string>()
     accountPositions.forEach(position => ids.add(position.entityId))
     cardPositions.forEach(position => ids.add(position.entityId))
     loanPositions.forEach(position => ids.add(position.entityId))
+    creditPositions.forEach(position => ids.add(position.entityId))
 
     return (
       entities?.filter(entity => {
@@ -769,10 +884,30 @@ export default function BankingPage() {
     )
   }, [])
 
+  const updateCreditsSummary = useCallback((summary: CreditsSummary) => {
+    setCreditsSummary(prev =>
+      prev.totalDrawn === summary.totalDrawn &&
+      prev.totalLimit === summary.totalLimit &&
+      prev.weightedInterest === summary.weightedInterest &&
+      prev.count === summary.count
+        ? prev
+        : summary,
+    )
+  }, [])
+
   const totalAccountBalance = accountsSummary.totalBalance
   const totalCardUsed = cardsSummary.totalUsed
-  const totalLoanDebt = loansSummary.totalDebt
+  const totalLoanDebt = loansSummary.totalDebt + creditsSummary.totalDrawn
   const totalMonthlyPayments = loansSummary.totalMonthlyPayments
+  const combinedDebtCount = loansSummary.count + creditsSummary.count
+
+  const combinedWeightedInterest = useMemo(() => {
+    const loanWeight = loansSummary.weightedInterest * loansSummary.totalDebt
+    const creditWeight =
+      creditsSummary.weightedInterest * creditsSummary.totalDrawn
+    const totalBase = loansSummary.totalDebt + creditsSummary.totalDrawn
+    return totalBase > 0 ? (loanWeight + creditWeight) / totalBase : 0
+  }, [loansSummary, creditsSummary])
 
   if (isLoading) {
     return (
@@ -816,6 +951,8 @@ export default function BankingPage() {
                   t={t}
                   showToast={showToast}
                   refreshEntity={refreshEntity}
+                  fetchEntities={fetchEntities}
+                  refreshData={refreshData}
                   className="items-center [@media(min-width:450px)]:items-end"
                 />
               )}
@@ -881,7 +1018,7 @@ export default function BankingPage() {
             </Card>
           )}
 
-          {loansSummary.count > 0 && (
+          {combinedDebtCount > 0 && (
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <HandCoins className="h-5 w-5 text-red-500" />
@@ -896,13 +1033,10 @@ export default function BankingPage() {
                   settings.general.defaultCurrency,
                 )}
               </div>
-              {loansSummary.weightedInterest > 0 && (
+              {combinedWeightedInterest > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                   <Percent className="h-3 w-3" />
-                  {formatPercentage(
-                    loansSummary.weightedInterest * 100,
-                    locale,
-                  )}
+                  {formatPercentage(combinedWeightedInterest * 100, locale)}
                   <span>{t.banking.avgInterest}</span>
                 </div>
               )}
@@ -975,9 +1109,11 @@ export default function BankingPage() {
           t={t}
           locale={locale}
           positions={filteredLoans}
+          creditDisplayItems={creditDisplayItems}
+          creditEditHandlers={creditEditHandlers}
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
-          onSummaryChange={updateLoansSummary}
+          onLoansSummaryChange={updateLoansSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
           entityOrigins={entityOrigins}
@@ -985,6 +1121,26 @@ export default function BankingPage() {
           onEnterGlobalEditMode={enterGlobalEditMode}
           collapsed={!!collapsedSections.loans}
           onToggleCollapsed={() => toggleSection("loans")}
+          onBeginCreditCreate={(entityId?: string) => {
+            enterGlobalEditMode()
+            const creditCtrl = manualControllersMap["bankCredits"]
+            if (creditCtrl) {
+              creditCtrl.beginCreate(entityId ? { entityId } : undefined)
+            }
+          }}
+        />
+      </ManualPositionsManager>
+      <ManualPositionsManager asset="bankCredits">
+        <BankCreditsBridge
+          onRegisterController={registerManualController}
+          onCreditsSummaryChange={updateCreditsSummary}
+          selectedEntities={selectedEntities}
+          entityOrigins={entityOrigins}
+          defaultCurrency={settings.general.defaultCurrency}
+          exchangeRates={exchangeRates}
+          creditPositions={filteredCredits}
+          onCreditDisplayItemsChange={setCreditDisplayItems}
+          onCreditEditHandlersChange={setCreditEditHandlers}
         />
       </ManualPositionsManager>
     </motion.div>
@@ -2117,16 +2273,21 @@ function BankCardsSection({
 
 interface BankLoansSectionProps extends SectionCommonProps {
   positions: LoanPosition[]
-  onSummaryChange: (summary: LoansSummary) => void
+  creditDisplayItems: CreditDisplayItem[]
+  creditEditHandlers: CreditEditHandlers | null
+  onLoansSummaryChange: (summary: LoansSummary) => void
+  onBeginCreditCreate: (entityId?: string) => void
 }
 
 function BankLoansSection({
   t,
   locale,
   positions,
+  creditDisplayItems,
+  creditEditHandlers,
   defaultCurrency,
   exchangeRates,
-  onSummaryChange,
+  onLoansSummaryChange,
   onFocusEntity,
   selectedEntities,
   entityOrigins,
@@ -2134,6 +2295,7 @@ function BankLoansSection({
   onEnterGlobalEditMode,
   collapsed,
   onToggleCollapsed,
+  onBeginCreditCreate,
 }: BankLoansSectionProps) {
   const {
     asset,
@@ -2215,6 +2377,7 @@ function BankLoansSection({
   const defaultEntityId =
     selectedEntities.length === 1 ? selectedEntities[0] : undefined
   const canCreate = manualEntities.length > 0
+  const [addPopoverOpen, setAddPopoverOpen] = useState(false)
 
   const loanDrafts = drafts as LoanDraft[]
 
@@ -2369,8 +2532,10 @@ function BankLoansSection({
   }, [displayItems, isEntryDeleted])
 
   useEffect(() => {
-    onSummaryChange(summary)
-  }, [summary, onSummaryChange])
+    onLoansSummaryChange(summary)
+  }, [summary, onLoansSummaryChange])
+
+  const totalSectionCount = summary.count + creditDisplayItems.length
 
   const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
   const manualEmptyDescription = manualTranslate(
@@ -2393,9 +2558,9 @@ function BankLoansSection({
           />
           <HandCoins className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
-            {t.banking.loans}
+            {t.banking.loansAndCredits}
             <span className="ml-2 text-sm text-muted-foreground">
-              ({summary.count})
+              ({totalSectionCount})
             </span>
           </h2>
         </button>
@@ -2411,26 +2576,53 @@ function BankLoansSection({
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
             )}
-            <Button
-              variant="default"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => {
-                onEnterGlobalEditMode()
-                beginCreate(
-                  defaultEntityId ? { entityId: defaultEntityId } : undefined,
-                )
-              }}
-              disabled={!canCreate}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
+            <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!canCreate}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-44 p-1">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => {
+                    setAddPopoverOpen(false)
+                    onEnterGlobalEditMode()
+                    beginCreate(
+                      defaultEntityId
+                        ? { entityId: defaultEntityId }
+                        : undefined,
+                    )
+                  }}
+                >
+                  <HandCoins className="h-4 w-4" />
+                  {t.enums.productType.LOAN}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => {
+                    setAddPopoverOpen(false)
+                    onBeginCreditCreate(defaultEntityId ?? undefined)
+                  }}
+                >
+                  <Shield className="h-4 w-4" />
+                  {t.enums.productType.CREDIT}
+                </button>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
       </div>
 
       {!collapsed &&
-        (summary.count === 0 ? (
+        (totalSectionCount === 0 ? (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <div className="text-red-500 dark:text-red-400">
               <HandCoins className="mx-auto h-12 w-12" />
@@ -2769,8 +2961,497 @@ function BankLoansSection({
                 </Card>
               )
             })}
+            {creditDisplayItems.map(item => {
+              const {
+                position: credit,
+                manualDraft: creditDraft,
+                isManual: creditIsManual,
+                isDirty: creditIsDirty,
+                originalId: creditOriginalId,
+              } = item
+              const available =
+                credit.convertedCreditLimit - credit.convertedDrawnAmount
+              const utilization =
+                credit.convertedCreditLimit > 0
+                  ? (credit.convertedDrawnAmount /
+                      credit.convertedCreditLimit) *
+                    100
+                  : 0
+              const showCreditActions =
+                creditEditHandlers?.isEditMode && creditIsManual
+              const creditHighlightClass = creditIsDirty
+                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                : ""
+              return (
+                <Card
+                  key={item.key}
+                  className={cn(
+                    "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                    creditHighlightClass,
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <Badge
+                      variant="secondary"
+                      className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    >
+                      {t.enums.productType.CREDIT}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <SourceBadge
+                        source={credit.source}
+                        onClick={
+                          credit.source === DataSource.MANUAL
+                            ? onEnterGlobalEditMode
+                            : undefined
+                        }
+                      />
+                      <EntityBadge
+                        name={credit.entityName}
+                        origin={credit.entityOrigin}
+                        onClick={() => onFocusEntity(credit.entityId)}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {credit.name && (
+                    <h3 className="text-lg font-semibold">{credit.name}</h3>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.creditDrawn}
+                      </span>
+                      <span className="text-xl font-semibold text-red-500">
+                        {formatCurrency(
+                          credit.convertedDrawnAmount,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.creditLimit}
+                      </span>
+                      <span className="text-lg font-semibold">
+                        {formatCurrency(
+                          credit.convertedCreditLimit,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.interestRate}
+                      </span>
+                      <span className="flex items-center gap-1 text-sm font-medium">
+                        <Percent className="h-3 w-3" />
+                        {formatPercentage(
+                          (credit.interest_rate ?? 0) * 100,
+                          locale,
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.availableCredit}
+                      </span>
+                      <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(available, locale, defaultCurrency)}
+                      </span>
+                    </div>
+                    {credit.pledged_amount != null &&
+                      credit.pledged_amount > 0 && (
+                        <div>
+                          <span className="block text-sm text-muted-foreground">
+                            {manualTranslate(
+                              "management.manualPositions.bankCredits.fields.pledgedAmount",
+                            )}
+                          </span>
+                          <span className="text-sm">
+                            {formatCurrency(
+                              convertCurrency(
+                                credit.pledged_amount,
+                                credit.currency,
+                                defaultCurrency,
+                                exchangeRates,
+                              ),
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </span>
+                        </div>
+                      )}
+                  </div>
+
+                  {credit.creation && (
+                    <div className="border-t border-border pt-4">
+                      <span className="block text-sm text-muted-foreground">
+                        {manualTranslate(
+                          "management.manualPositions.bankCredits.fields.creation",
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        {formatDate(credit.creation, locale)}
+                      </span>
+                    </div>
+                  )}
+
+                  {credit.convertedCreditLimit > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{t.banking.utilization}</span>
+                        <span>
+                          {formatPercentage(Math.min(utilization, 100), locale)}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-rose-500"
+                          style={{ width: `${Math.min(utilization, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {credit.currency !== defaultCurrency && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                      <div>
+                        <span className="block">{t.banking.creditDrawn}:</span>
+                        <span>
+                          {formatCurrency(
+                            credit.drawn_amount ?? 0,
+                            locale,
+                            credit.currency,
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block">{t.banking.creditLimit}:</span>
+                        <span>
+                          {formatCurrency(
+                            credit.credit_limit ?? 0,
+                            locale,
+                            credit.currency,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {creditIsDirty && (
+                    <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {manualTranslate("management.unsavedChanges")}
+                    </p>
+                  )}
+
+                  {showCreditActions && creditEditHandlers && (
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (creditDraft?.originalId) {
+                            creditEditHandlers.editByOriginalId(
+                              creditDraft.originalId,
+                            )
+                          } else if (creditDraft) {
+                            creditEditHandlers.editByLocalId(
+                              creditDraft.localId,
+                            )
+                          } else if (creditOriginalId) {
+                            creditEditHandlers.editByOriginalId(
+                              creditOriginalId,
+                            )
+                          }
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t.common.edit}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                        onClick={() => {
+                          if (creditDraft?.originalId) {
+                            creditEditHandlers.deleteByOriginalId(
+                              creditDraft.originalId,
+                            )
+                          } else if (creditDraft) {
+                            creditEditHandlers.deleteByLocalId(
+                              creditDraft.localId,
+                            )
+                          } else if (creditOriginalId) {
+                            creditEditHandlers.deleteByOriginalId(
+                              creditOriginalId,
+                            )
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t.common.delete}
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         ))}
     </motion.div>
   )
+}
+
+function BankCreditsBridge({
+  onRegisterController,
+  onCreditsSummaryChange,
+  onCreditDisplayItemsChange,
+  onCreditEditHandlersChange,
+  selectedEntities,
+  entityOrigins,
+  defaultCurrency,
+  exchangeRates,
+  creditPositions,
+}: {
+  onRegisterController: ManualControllerRegistrar
+  onCreditsSummaryChange: (summary: CreditsSummary) => void
+  onCreditDisplayItemsChange: (items: CreditDisplayItem[]) => void
+  onCreditEditHandlersChange: (handlers: CreditEditHandlers) => void
+  selectedEntities: string[]
+  entityOrigins: Record<string, EntityOrigin | null>
+  defaultCurrency: string
+  exchangeRates: ExchangeRates | null
+  creditPositions: CreditPosition[]
+}) {
+  const {
+    asset,
+    drafts,
+    isEditMode,
+    beginCreate,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    translate: manualTranslate,
+    isEntryDeleted,
+    isDraftDirty: manualIsDraftDirty,
+    manualEntities,
+    hasLocalChanges,
+    isSaving,
+    assetTitle,
+    addLabel,
+    editLabel,
+    cancelLabel,
+    saveLabel,
+    requestSave,
+    requestCancel,
+    enterEditMode,
+    collectSavePayload,
+    setSavingState,
+    handleExternalSaveSuccess,
+  } = useManualPositions()
+
+  const creditController = useMemo<ManualSectionController>(
+    () => ({
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      canCreate: manualEntities.length > 0,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      translate: manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleSaveSuccess: handleExternalSaveSuccess,
+    }),
+    [
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      manualEntities.length,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleExternalSaveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    onRegisterController(asset, creditController)
+    return () => onRegisterController(asset, null)
+  }, [asset, creditController, onRegisterController])
+
+  const creditDrafts = drafts as CreditDraft[]
+
+  const computedPositions = useMemo<CreditDisplay[]>(
+    () =>
+      creditPositions.map(credit => ({
+        ...credit,
+        convertedDrawnAmount: convertCurrency(
+          credit.drawn_amount ?? 0,
+          credit.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        convertedCreditLimit: convertCurrency(
+          credit.credit_limit ?? 0,
+          credit.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+      })),
+    [creditPositions, defaultCurrency, exchangeRates],
+  )
+
+  const buildPositionFromDraft = useCallback(
+    (draft: CreditDraft): CreditDisplay => {
+      const entryId = draft.originalId ?? draft.id ?? draft.localId
+      return {
+        ...draft,
+        id: entryId,
+        entryId,
+        entityId: draft.entityId,
+        entityName: draft.entityName,
+        entityOrigin: entityOrigins[draft.entityId] ?? null,
+        convertedDrawnAmount: convertCurrency(
+          draft.drawn_amount ?? 0,
+          draft.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        convertedCreditLimit: convertCurrency(
+          draft.credit_limit ?? 0,
+          draft.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        source: DataSource.MANUAL,
+      }
+    },
+    [defaultCurrency, exchangeRates, entityOrigins],
+  )
+
+  const displayItems = useMemo(
+    () =>
+      mergeManualDisplayItems<CreditDisplay, CreditDraft>({
+        positions: computedPositions,
+        manualDrafts: creditDrafts,
+        getPositionOriginalId: (pos: CreditDisplay) => pos.entryId,
+        getDraftOriginalId: (draft: CreditDraft) => draft.originalId,
+        getDraftLocalId: (draft: CreditDraft) => draft.localId,
+        getPositionKey: (pos: CreditDisplay) => pos.entryId,
+        buildPositionFromDraft,
+        isManualPosition: (pos: CreditDisplay) =>
+          pos.source === DataSource.MANUAL,
+        isDraftDirty: manualIsDraftDirty,
+        isEntryDeleted,
+        shouldIncludeDraft: (draft: CreditDraft) =>
+          selectedEntities.length === 0 ||
+          selectedEntities.includes(draft.entityId),
+        mergeDraftMetadata: (pos: CreditDisplay, draft: CreditDraft) => ({
+          ...pos,
+          entityId: draft.entityId,
+          entityName: draft.entityName,
+          entityOrigin: entityOrigins[draft.entityId] ?? null,
+        }),
+      }),
+    [
+      computedPositions,
+      creditDrafts,
+      buildPositionFromDraft,
+      manualIsDraftDirty,
+      isEntryDeleted,
+      selectedEntities,
+      entityOrigins,
+    ],
+  )
+
+  const creditsSummary = useMemo<CreditsSummary>(() => {
+    const aggregates = displayItems.reduce(
+      (acc, item) => {
+        if (item.originalId && isEntryDeleted(item.originalId)) return acc
+        const drawn = item.position.convertedDrawnAmount ?? 0
+        acc.drawn += drawn
+        acc.limit += item.position.convertedCreditLimit ?? 0
+        const interest = item.position.interest_rate ?? 0
+        if (drawn > 0 && interest > 0) {
+          acc.weighted += interest * drawn
+        }
+        acc.count += 1
+        return acc
+      },
+      { drawn: 0, limit: 0, weighted: 0, count: 0 },
+    )
+    const weightedInterest =
+      aggregates.drawn > 0 ? aggregates.weighted / aggregates.drawn : 0
+    return {
+      totalDrawn: aggregates.drawn,
+      totalLimit: aggregates.limit,
+      weightedInterest,
+      count: aggregates.count,
+    }
+  }, [displayItems, isEntryDeleted])
+
+  useEffect(() => {
+    onCreditsSummaryChange(creditsSummary)
+  }, [creditsSummary, onCreditsSummaryChange])
+
+  const visibleCreditItems = useMemo(
+    () =>
+      displayItems.filter(
+        item => !(item.originalId && isEntryDeleted(item.originalId)),
+      ),
+    [displayItems, isEntryDeleted],
+  )
+
+  useEffect(() => {
+    onCreditDisplayItemsChange(visibleCreditItems)
+  }, [visibleCreditItems, onCreditDisplayItemsChange])
+
+  useEffect(() => {
+    onCreditEditHandlersChange({
+      editByOriginalId,
+      editByLocalId,
+      deleteByOriginalId,
+      deleteByLocalId,
+      isEditMode,
+    })
+  }, [
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    isEditMode,
+    onCreditEditHandlersChange,
+  ])
+
+  return null
 }

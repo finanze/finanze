@@ -1,5 +1,6 @@
 from domain.dezimal import Dezimal
 from domain.global_position import (
+    Credits,
     Crowdlending,
     CryptoCurrencies,
     Deposits,
@@ -117,6 +118,12 @@ def _add_derivatives(
     )
 
 
+def _add_credits(self: Credits, other: Credits) -> Credits:
+    return Credits(
+        entries=self.entries + other.entries,
+    )
+
+
 def _add_products(self: ProductPositions, other: ProductPositions) -> ProductPositions:
     if not other:
         return self
@@ -160,4 +167,5 @@ def add_extensions():
     Cards.__add__ = _add_cards
     Loans.__add__ = _add_loans
     DerivativePositions.__add__ = _add_derivatives
+    Credits.__add__ = _add_credits
     GlobalPosition.__add__ = _add_position

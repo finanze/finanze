@@ -949,12 +949,12 @@
     "noTransactions": "No transactions found",
     "noInvestments": "You don't have investments",
     "includePendingMoney": "Include pending money",
-    "includePendingMoneyInfo": "With this option enabled we will consider the pending (expenses or earnings) defined in the Pending Money section when calculating the net worth.",
-    "includeLoans": "Include loans",
-    "includeLoansInfo": "This option makes we consider the loans outstanding principal when calculating the net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
+    "includePendingMoneyInfo": "With this option enabled, pending (expenses or earnings) will be considered in the Pending Money section when calculating the net worth.",
+    "includeLoans": "Include loans & credits",
+    "includeLoansInfo": "This option means loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
     "includeCardExpenses": "Subtract card expenses",
     "includeRealEstateEquity": "Include real estate equity",
-    "includeRealEstateEquityInfo": "Enabling this option makes we consider the real estate equity when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
+    "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
     "includeResidences": "Include residences",
     "compactNumbers": "Compact numbers"
   },
@@ -1116,7 +1116,7 @@
         "confirm": "Import data"
       }
     },
-    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data.",
+    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data. If you want to remove the imported data, simply remove the sheet or its content and import again.",
     "tabs": {
       "export": "Export",
       "import": "Import"
@@ -1489,7 +1489,8 @@
       "COMMODITY": "Commodity",
       "PENDING_FLOWS": "Pending",
       "BOND": "Bond",
-      "DERIVATIVE": "Derivative"
+      "DERIVATIVE": "Derivative",
+      "CREDIT": "Credit"
     },
     "assetType": {
       "EQUITY": "Equity",
@@ -1737,6 +1738,11 @@
     "accounts": "Accounts",
     "cards": "Cards",
     "loans": "Loans",
+    "loansAndCredits": "Loans & Credits",
+    "credit": "credit",
+    "creditDrawn": "Drawn Amount",
+    "creditLimit": "Credit Limit",
+    "availableCredit": "Available",
     "card": "card",
     "loan": "loan",
     "available": "Available",
@@ -1968,6 +1974,7 @@
         "validation": {
           "required": "This field is required",
           "number": "Enter a valid number",
+          "invalidDate": "Enter a valid date",
           "entity": "Select an entity",
           "entityName": "Enter an entity name",
           "entityNameExists": "An entity with this name already exists"
@@ -2050,8 +2057,8 @@
         "description": "Maintain loan data that isn't synced through an integration.",
         "add": "Add",
         "empty": {
-          "title": "No loans",
-          "description": "Add a loan to track payments and balances."
+          "title": "No loans or credits",
+          "description": "Add a loan or credit line to track balances."
         },
         "form": {
           "createTitle": "Add a loan",
@@ -2088,6 +2095,31 @@
           "calculationFailed": "We couldn't calculate the loan suggestion. Try again.",
           "euriborUnavailable": "Euribor rates are temporarily unavailable.",
           "fixedRateDuration": "Fixed rate: {{years}} years"
+        },
+        "summary": {
+          "interest": "{{rate}}% interest"
+        }
+      },
+      "bankCredits": {
+        "title": "Manual credits",
+        "description": "Maintain credit line data that isn't synced through an integration.",
+        "add": "Add",
+        "empty": {
+          "title": "No credits",
+          "description": "Add a credit line to track drawn amounts and limits."
+        },
+        "form": {
+          "createTitle": "Add a credit line",
+          "createDescription": "Enter the credit line details to manage it manually.",
+          "editTitle": "Edit manual credit",
+          "editDescription": "Update the selected manual credit line."
+        },
+        "fields": {
+          "creditLimit": "Credit limit",
+          "drawnAmount": "Drawn amount",
+          "interestRate": "Interest rate",
+          "pledgedAmount": "Pledged guarantees value",
+          "creation": "Start date"
         },
         "summary": {
           "interest": "{{rate}}% interest"

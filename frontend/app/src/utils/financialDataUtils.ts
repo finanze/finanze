@@ -10,6 +10,7 @@ import {
   CryptoCurrencyType,
   DerivativeDetail,
   DerivativePositions,
+  Credits,
   Loan,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
@@ -3128,6 +3129,33 @@ export const getTotalCardUsed = (
   return total
 }
 
+export const getTotalCreditDrawn = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions)
+    .flat()
+    .forEach((entityPosition: any) => {
+      const creditsProduct = entityPosition.products?.[ProductType.CREDIT] as
+        | Credits
+        | undefined
+      if (creditsProduct?.entries) {
+        creditsProduct.entries.forEach((credit: any) => {
+          total += convertCurrency(
+            credit.drawn_amount || 0,
+            credit.currency,
+            targetCurrency,
+            exchangeRates,
+          )
+        })
+      }
+    })
+  return total
+}
+
 // Sum of all account balances (CHECKING/SAVINGS/etc.) across entities
 export const getTotalCash = (
   positionsData: EntitiesPosition | null,
@@ -3226,7 +3254,12 @@ export const computeAdjustedKpis = (
   pendingFlows: PendingFlow[],
   realEstateList: RealEstate[] | undefined,
   options: DashboardOptions,
-): { adjustedTotalAssets: number; adjustedInvestedAmount: number } => {
+): {
+  adjustedTotalAssets: number
+  adjustedInvestedAmount: number
+  investmentTotalAssets: number
+  investmentInvestedAmount: number
+} => {
   const baseTotalAssets = getTotalAssets(
     positionsData,
     targetCurrency,
@@ -3271,11 +3304,17 @@ export const computeAdjustedKpis = (
         exchangeRates,
       )
     : 0
+  const creditDrawn = options.includeLoans
+    ? getTotalCreditDrawn(positionsData, targetCurrency, exchangeRates)
+    : 0
 
   return {
-    adjustedTotalAssets: baseTotalAssets + equity - cardUsed - loansOutstanding,
+    adjustedTotalAssets:
+      baseTotalAssets + equity - cardUsed - loansOutstanding - creditDrawn,
     adjustedInvestedAmount:
       baseInvestedAmount + realEstateInitialInvestment - cardUsed,
+    investmentTotalAssets: baseTotalAssets + equity,
+    investmentInvestedAmount: baseInvestedAmount + realEstateInitialInvestment,
   }
 }
 
@@ -3296,6 +3335,8 @@ export const computeForecastKpis = (
 ): {
   projectedTotalAssets: number
   projectedInvestedAmount: number
+  projectedInvestmentTotalAssets: number
+  projectedInvestmentInvestedAmount: number
   currentInvestedBase: number
 } => {
   // Base (today) invested amount using existing helper including optional equity & card adjustments
@@ -3358,6 +3399,9 @@ export const computeForecastKpis = (
         exchangeRates,
       )
     : 0
+  const creditDrawn = options.includeLoans
+    ? getTotalCreditDrawn(currentPositions, targetCurrency, exchangeRates)
+    : 0
 
   // Recalculate invested from forecast snapshot so that automatic contributions reflected in new initial_investment numbers are captured.
   const projectedInvestedRaw = getTotalInvestedAmount(
@@ -3372,11 +3416,18 @@ export const computeForecastKpis = (
     projectedInvestedRaw + realEstateInitialInvestment - cardUsed
 
   const projectedTotalAssets =
-    projectedCoreTotal + projectedEquity - cardUsed - loansOutstanding
+    projectedCoreTotal +
+    projectedEquity -
+    cardUsed -
+    loansOutstanding -
+    creditDrawn
 
   return {
     projectedTotalAssets,
     projectedInvestedAmount,
+    projectedInvestmentTotalAssets: projectedCoreTotal + projectedEquity,
+    projectedInvestmentInvestedAmount:
+      projectedInvestedRaw + realEstateInitialInvestment,
     currentInvestedBase: base.adjustedInvestedAmount,
   }
 }

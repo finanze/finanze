@@ -18,6 +18,8 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    CreditDetail,
+    Credits,
     Crowdlending,
     CryptoCurrencies,
     CryptoCurrencyPosition,
@@ -463,6 +465,28 @@ def _map_crowdlending(entries: list[dict]) -> Crowdlending:
     )
 
 
+def _map_credits(entries: list[dict]) -> Credits:
+    result = []
+    for e in entries:
+        for req in ("currency", "credit_limit", "drawn_amount", "interest_rate"):
+            if req not in e:
+                raise MissingFieldsError([req])
+        result.append(
+            CreditDetail(
+                id=_uuid(e.get("id")),
+                currency=e["currency"],
+                credit_limit=_dez(e["credit_limit"]),
+                drawn_amount=_dez(e["drawn_amount"]),
+                interest_rate=_dez(e["interest_rate"], 6),
+                name=e.get("name"),
+                pledged_amount=_dez(e.get("pledged_amount")),
+                creation=_date(e["creation"]) if e.get("creation") else None,
+                source=DataSource.MANUAL,
+            )
+        )
+    return Credits(result)
+
+
 _MAPPER_DISPATCH = {
     ProductType.ACCOUNT: _map_accounts,
     ProductType.CARD: _map_cards,
@@ -475,6 +499,7 @@ _MAPPER_DISPATCH = {
     ProductType.STOCK_ETF: _map_stocks,
     ProductType.CROWDLENDING: _map_crowdlending,
     ProductType.CRYPTO: _map_crypto,
+    ProductType.CREDIT: _map_credits,
 }
 
 
