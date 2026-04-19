@@ -21,9 +21,6 @@ jobs:
   build-app:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
-    outputs:
-      dev_version: ${{ steps.dev_version.outputs.dev_version }}
-
     strategy:
       matrix:
         os: [ macos-latest, macos-15-intel, ubuntu-latest, windows-latest ]
@@ -227,6 +224,88 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: false
 
+      - name: Update PR comment with build status
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const runId = context.runId;
+            const prNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: runId,
+            });
+
+            const platformMap = {
+              'macos-latest': { label: 'macOS', arch: 'ARM64 (Apple Silicon)', icon: '🍎', type: '.dmg' },
+              'macos-15-intel': { label: 'macOS', arch: 'Intel x64', icon: '🍎', type: '.dmg' },
+              'ubuntu-latest': { label: 'Linux', arch: 'x64', icon: '🐧', type: '.AppImage' },
+              'windows-latest': { label: 'Windows', arch: 'x64', icon: '🪟', type: '.exe' },
+            };
+
+            let rows = '';
+            for (const [osKey, info] of Object.entries(platformMap)) {
+              const artifactName = `finanze-${version}-${osKey}`;
+              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
+              if (artifact) {
+                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | [Download](${downloadUrl}) |\n`;
+              } else {
+                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ⏳ Building... |\n`;
+              }
+            }
+
+            const dockerTag = `pr${prNumber}`;
+
+            const body = [
+              `<!-- finanze-build-artifacts -->`,
+              `## 📦 Build Artifacts`,
+              ``,
+              `**Version:** \`${version}\``,
+              `**Workflow run:** [#${runId}](https://github.com/${owner}/${repo}/actions/runs/${runId})`,
+              ``,
+              `### Desktop Builds`,
+              ``,
+              `| Platform | Architecture | Type | Link |`,
+              `|----------|-------------|------|------|`,
+              rows.trim(),
+              ``,
+              `### 🐳 Docker Images`,
+              ``,
+              `⏳ Building on tag \`${dockerTag}\`...`,
+              ``,
+              `---`,
+              `<sub>🤖 This comment is automatically updated on each build.</sub>`,
+            ].join('\n');
+
+            const marker = '<!-- finanze-build-artifacts -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: prNumber,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
 
   build-docker:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
@@ -360,21 +439,17 @@ jobs:
           buildargs: SELENIUM_SUPPORT=false
           tags: ${{ steps.docker_tag.outputs.docker_tag }},${{ steps.docker_tag.outputs.docker_tag }}-no-selenium
 
-
-  pr-comment:
-    if: ${{ github.event_name == 'pull_request' }}
-    needs: [ build-app, build-docker ]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Post build artifacts comment
+      - name: Update PR comment with Docker status
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
         with:
           script: |
-            const version = '${{ needs.build-app.outputs.dev_version }}';
+            const version = '${{ steps.dev_version.outputs.dev_version }}';
             const runId = context.runId;
             const prNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
+            const dockerTag = `pr${prNumber}`;
+            const jobStatus = '${{ job.status }}';
 
             const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
               owner,
@@ -389,19 +464,30 @@ jobs:
               'windows-latest': { label: 'Windows', arch: 'x64', icon: '🪟', type: '.exe' },
             };
 
-            let rows = '';
+            let desktopRows = '';
             for (const [osKey, info] of Object.entries(platformMap)) {
               const artifactName = `finanze-${version}-${osKey}`;
               const artifact = artifacts.artifacts.find(a => a.name === artifactName);
               if (artifact) {
                 const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
-                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | [Download](${downloadUrl}) |\n`;
+                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | [Download](${downloadUrl}) |\n`;
               } else {
-                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ⚠️ Not found |\n`;
+                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ⏳ Building... |\n`;
               }
             }
 
-            const dockerTag = `pr${prNumber}`;
+            let dockerSection;
+            if (jobStatus === 'success') {
+              dockerSection = [
+                `| Image | Tag | Pull Command |`,
+                `|-------|-----|-------------|`,
+                `| \`finanze/finanze\` | \`${dockerTag}\` | \`docker pull finanze/finanze:${dockerTag}\` |`,
+                `| \`finanze/finanze\` | \`${dockerTag}-selenium\` | \`docker pull finanze/finanze:${dockerTag}-selenium\` |`,
+                `| \`finanze/finanze-frontend\` | \`${dockerTag}\` | \`docker pull finanze/finanze-frontend:${dockerTag}\` |`,
+              ].join('\n');
+            } else {
+              dockerSection = `❌ Docker build failed — check the [workflow run](https://github.com/${owner}/${repo}/actions/runs/${runId}) for details.`;
+            }
 
             const body = [
               `<!-- finanze-build-artifacts -->`,
@@ -414,15 +500,11 @@ jobs:
               ``,
               `| Platform | Architecture | Type | Link |`,
               `|----------|-------------|------|------|`,
-              rows.trim(),
+              desktopRows.trim(),
               ``,
-              `### Docker Images`,
+              `### 🐳 Docker Images`,
               ``,
-              `| Image | Tag | Pull Command |`,
-              `|-------|-----|-------------|`,
-              `| \`finanze/finanze\` | \`${dockerTag}\` | \`docker pull finanze/finanze:${dockerTag}\` |`,
-              `| \`finanze/finanze\` | \`${dockerTag}-selenium\` | \`docker pull finanze/finanze:${dockerTag}-selenium\` |`,
-              `| \`finanze/finanze-frontend\` | \`${dockerTag}\` | \`docker pull finanze/finanze-frontend:${dockerTag}\` |`,
+              dockerSection,
               ``,
               `---`,
               `<sub>🤖 This comment is automatically updated on each build.</sub>`,
@@ -443,7 +525,6 @@ jobs:
                 comment_id: existing.id,
                 body,
               });
-              core.info(`Updated existing comment ${existing.id}`);
             } else {
               await github.rest.issues.createComment({
                 owner,
@@ -451,5 +532,4 @@ jobs:
                 issue_number: prNumber,
                 body,
               });
-              core.info('Created new build artifacts comment');
             }
