@@ -277,9 +277,6 @@ jobs:
               `### 🐳 Docker Images`,
               ``,
               `⏳ Building on tag \`${dockerTag}\`...`,
-              ``,
-              `---`,
-              `<sub>🤖 This comment is automatically updated on each build.</sub>`,
             ].join('\n');
 
             const marker = '<!-- finanze-build-artifacts -->';
@@ -505,9 +502,6 @@ jobs:
               `### 🐳 Docker Images`,
               ``,
               dockerSection,
-              ``,
-              `---`,
-              `<sub>🤖 This comment is automatically updated on each build.</sub>`,
             ].join('\n');
 
             const marker = '<!-- finanze-build-artifacts -->';
