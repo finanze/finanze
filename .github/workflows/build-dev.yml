@@ -247,15 +247,21 @@ jobs:
               'windows-latest': { label: 'Windows', arch: 'x64', icon: '🪟', type: '.exe' },
             };
 
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
             let rows = '';
             for (const [osKey, info] of Object.entries(platformMap)) {
               const artifactName = `finanze-${version}-${osKey}`;
               const artifact = artifacts.artifacts.find(a => a.name === artifactName);
               if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
                 const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
-                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | [Download](${downloadUrl}) |\n`;
+                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
               } else {
-                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ⏳ Building... |\n`;
+                rows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | — | ⏳ Building... |\n`;
               }
             }
 
@@ -270,8 +276,8 @@ jobs:
               ``,
               `### Desktop Builds`,
               ``,
-              `| Platform | Architecture | Type | Link |`,
-              `|----------|-------------|------|------|`,
+              `| Platform | Architecture | Type | Size | Link |`,
+              `|----------|-------------|------|------|------|`,
               rows.trim(),
               ``,
               `### 🐳 Docker Images`,
@@ -461,15 +467,21 @@ jobs:
               'windows-latest': { label: 'Windows', arch: 'x64', icon: '🪟', type: '.exe' },
             };
 
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
             let desktopRows = '';
             for (const [osKey, info] of Object.entries(platformMap)) {
               const artifactName = `finanze-${version}-${osKey}`;
               const artifact = artifacts.artifacts.find(a => a.name === artifactName);
               if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
                 const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
-                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | [Download](${downloadUrl}) |\n`;
+                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
               } else {
-                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ⏳ Building... |\n`;
+                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | — | ⏳ Building... |\n`;
               }
             }
 
@@ -495,8 +507,8 @@ jobs:
               ``,
               `### Desktop Builds`,
               ``,
-              `| Platform | Architecture | Type | Link |`,
-              `|----------|-------------|------|------|`,
+              `| Platform | Architecture | Type | Size | Link |`,
+              `|----------|-------------|------|------|------|`,
               desktopRows.trim(),
               ``,
               `### 🐳 Docker Images`,
