@@ -1115,7 +1115,7 @@
         "confirm": "Importar datos"
       }
     },
-    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente.",
+    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente. Si quieres borrar los datos importados, simplemente borra la hoja o su contenido y vuelve a importar.",
     "tabs": {
       "export": "Exportar",
       "import": "Importar"

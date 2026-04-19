@@ -3254,7 +3254,12 @@ export const computeAdjustedKpis = (
   pendingFlows: PendingFlow[],
   realEstateList: RealEstate[] | undefined,
   options: DashboardOptions,
-): { adjustedTotalAssets: number; adjustedInvestedAmount: number } => {
+): {
+  adjustedTotalAssets: number
+  adjustedInvestedAmount: number
+  investmentTotalAssets: number
+  investmentInvestedAmount: number
+} => {
   const baseTotalAssets = getTotalAssets(
     positionsData,
     targetCurrency,
@@ -3308,6 +3313,8 @@ export const computeAdjustedKpis = (
       baseTotalAssets + equity - cardUsed - loansOutstanding - creditDrawn,
     adjustedInvestedAmount:
       baseInvestedAmount + realEstateInitialInvestment - cardUsed,
+    investmentTotalAssets: baseTotalAssets + equity,
+    investmentInvestedAmount: baseInvestedAmount + realEstateInitialInvestment,
   }
 }
 
@@ -3328,6 +3335,8 @@ export const computeForecastKpis = (
 ): {
   projectedTotalAssets: number
   projectedInvestedAmount: number
+  projectedInvestmentTotalAssets: number
+  projectedInvestmentInvestedAmount: number
   currentInvestedBase: number
 } => {
   // Base (today) invested amount using existing helper including optional equity & card adjustments
@@ -3390,6 +3399,9 @@ export const computeForecastKpis = (
         exchangeRates,
       )
     : 0
+  const creditDrawn = options.includeLoans
+    ? getTotalCreditDrawn(currentPositions, targetCurrency, exchangeRates)
+    : 0
 
   // Recalculate invested from forecast snapshot so that automatic contributions reflected in new initial_investment numbers are captured.
   const projectedInvestedRaw = getTotalInvestedAmount(
@@ -3404,11 +3416,18 @@ export const computeForecastKpis = (
     projectedInvestedRaw + realEstateInitialInvestment - cardUsed
 
   const projectedTotalAssets =
-    projectedCoreTotal + projectedEquity - cardUsed - loansOutstanding
+    projectedCoreTotal +
+    projectedEquity -
+    cardUsed -
+    loansOutstanding -
+    creditDrawn
 
   return {
     projectedTotalAssets,
     projectedInvestedAmount,
+    projectedInvestmentTotalAssets: projectedCoreTotal + projectedEquity,
+    projectedInvestmentInvestedAmount:
+      projectedInvestedRaw + realEstateInitialInvestment,
     currentInvestedBase: base.adjustedInvestedAmount,
   }
 }

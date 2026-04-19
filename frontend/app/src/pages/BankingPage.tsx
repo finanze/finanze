@@ -225,12 +225,16 @@ function BankingManualControls({
   t,
   showToast,
   refreshEntity,
+  fetchEntities,
+  refreshData,
   className,
 }: {
   controllers: ManualSectionController[]
   t: Translations
   showToast: (message: string, type: "success" | "error" | "warning") => void
   refreshEntity: (entityId: string) => Promise<void>
+  fetchEntities: () => Promise<void>
+  refreshData: () => Promise<void>
   className?: string
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -423,11 +427,20 @@ function BankingManualControls({
         return
       }
 
+      let createdNewEntity = false
       for (const { payload } of requests) {
         await saveManualPositions(payload)
         if (payload.entity_id) {
           await refreshEntity(payload.entity_id)
         }
+        if (payload.new_entity_name) {
+          createdNewEntity = true
+        }
+      }
+
+      if (createdNewEntity) {
+        await fetchEntities()
+        await refreshData()
       }
 
       controllers.forEach(controller => controller.handleSaveSuccess())
@@ -454,7 +467,16 @@ function BankingManualControls({
       controllers.forEach(controller => controller.setSavingState(false))
       setIsSaving(false)
     }
-  }, [controllers, hasAnyChanges, isAnySaving, refreshEntity, showToast, t])
+  }, [
+    controllers,
+    hasAnyChanges,
+    isAnySaving,
+    refreshEntity,
+    fetchEntities,
+    refreshData,
+    showToast,
+    t,
+  ])
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -506,8 +528,10 @@ function BankingManualControls({
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
-  const { positionsData, isLoading, refreshEntity } = useFinancialData()
-  const { settings, exchangeRates, entities, showToast } = useAppContext()
+  const { positionsData, isLoading, refreshEntity, refreshData } =
+    useFinancialData()
+  const { settings, exchangeRates, entities, showToast, fetchEntities } =
+    useAppContext()
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
@@ -927,6 +951,8 @@ export default function BankingPage() {
                   t={t}
                   showToast={showToast}
                   refreshEntity={refreshEntity}
+                  fetchEntities={fetchEntities}
+                  refreshData={refreshData}
                   className="items-center [@media(min-width:450px)]:items-end"
                 />
               )}

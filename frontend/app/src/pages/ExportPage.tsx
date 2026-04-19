@@ -340,7 +340,7 @@ export default function ExportPage() {
     saveSettings,
     fetchSettings,
   } = useAppContext()
-  const { refreshData } = useFinancialData()
+  const { refreshData, invalidateTransactionsCache } = useFinancialData()
   const [activeTab, setActiveTab] = useState<"export" | "import">("export")
   const [successAnimation, setSuccessAnimation] = useState(false)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
@@ -844,6 +844,7 @@ export default function ExportPage() {
       setShowImportPreviewDialog(false)
       setImportPreviewData(null)
       resetFileImportForm()
+      invalidateTransactionsCache()
       await Promise.all([fetchEntities(), refreshData()])
     } catch (error) {
       console.error("File import error:", error)
@@ -2118,9 +2119,13 @@ export default function ExportPage() {
 
       if (gotData) {
         setImportSuccessAnimation(true)
-        try {
-          await Promise.all([fetchEntities(), refreshData()])
-        } finally {
+      }
+
+      invalidateTransactionsCache()
+      try {
+        await Promise.all([fetchEntities(), refreshData()])
+      } finally {
+        if (gotData) {
           setTimeout(() => {
             setImportSuccessAnimation(false)
           }, 2000)

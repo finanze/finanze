@@ -518,12 +518,16 @@ export default function DashboardPage() {
           realEstateList,
           dashboardOptions,
         )
-        const invested = currentSnapshot.adjustedInvestedAmount
-        const total = currentSnapshot.adjustedTotalAssets
-        const gain = invested > 0 ? ((total - invested) / invested) * 100 : 0
+        const investmentTotal = currentSnapshot.investmentTotalAssets
+        const investmentInvested = currentSnapshot.investmentInvestedAmount
+        const gain =
+          investmentInvested > 0
+            ? ((investmentTotal - investmentInvested) / investmentInvested) *
+              100
+            : 0
         return {
-          adjustedTotalAssets: total,
-          adjustedInvestedAmount: invested,
+          adjustedTotalAssets: currentSnapshot.adjustedTotalAssets,
+          adjustedInvestedAmount: investmentInvested,
           gainPercentage: gain,
         }
       }
@@ -542,6 +546,7 @@ export default function DashboardPage() {
       )
       // Appreciation deltas (crypto & commodities) not embedded in forecast positions snapshot
       let projectedTotalAssets = forecastKpis.projectedTotalAssets
+      let projectedInvestmentTotal = forecastKpis.projectedInvestmentTotalAssets
       if (forecastResult) {
         const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
         const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
@@ -554,6 +559,7 @@ export default function DashboardPage() {
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCrypto = baseCrypto * cryptoFactor
           projectedTotalAssets += appreciatedCrypto - baseCrypto
+          projectedInvestmentTotal += appreciatedCrypto - baseCrypto
         }
         if (commodityFactor !== 1) {
           const baseCommodity = getCommodityPositions(
@@ -565,14 +571,19 @@ export default function DashboardPage() {
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCommodity = baseCommodity * commodityFactor
           projectedTotalAssets += appreciatedCommodity - baseCommodity
+          projectedInvestmentTotal += appreciatedCommodity - baseCommodity
         }
       }
-      const invested = forecastKpis.projectedInvestedAmount
+      const investmentInvested = forecastKpis.projectedInvestmentInvestedAmount
       const gain =
-        invested > 0 ? ((projectedTotalAssets - invested) / invested) * 100 : 0
+        investmentInvested > 0
+          ? ((projectedInvestmentTotal - investmentInvested) /
+              investmentInvested) *
+            100
+          : 0
       return {
         adjustedTotalAssets: projectedTotalAssets,
-        adjustedInvestedAmount: invested,
+        adjustedInvestedAmount: investmentInvested,
         gainPercentage: gain,
       }
     }, [

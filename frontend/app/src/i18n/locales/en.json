@@ -1116,7 +1116,7 @@
         "confirm": "Import data"
       }
     },
-    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data.",
+    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data. If you want to remove the imported data, simply remove the sheet or its content and import again.",
     "tabs": {
       "export": "Export",
       "import": "Import"
