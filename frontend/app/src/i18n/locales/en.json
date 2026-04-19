@@ -951,10 +951,10 @@
     "includePendingMoney": "Include pending money",
     "includePendingMoneyInfo": "With this option enabled, pending (expenses or earnings) will be considered in the Pending Money section when calculating the net worth.",
     "includeLoans": "Include loans & credits",
-    "includeLoansInfo": "This option makes loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
+    "includeLoansInfo": "This option means loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
     "includeCardExpenses": "Subtract card expenses",
     "includeRealEstateEquity": "Include real estate equity",
-    "includeRealEstateEquityInfo": "Enabling this option makes real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
+    "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
     "includeResidences": "Include residences",
     "compactNumbers": "Compact numbers"
   },
