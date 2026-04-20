@@ -70,7 +70,7 @@ import { deleteCryptoWallet, updateCryptoWallet } from "@/services/api"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -432,6 +432,8 @@ function CryptoInvestmentContent({
     drafts,
     isEntryDeleted,
     isEditMode,
+    hasLocalChanges,
+    requestCancel,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -475,9 +477,11 @@ function CryptoInvestmentContent({
   const [deleteWalletEntityId, setDeleteWalletEntityId] = useState<
     string | null
   >(null)
+  const [showConnectConfirm, setShowConnectConfirm] = useState(false)
 
   useModalBackHandler(showEditDialog, () => setShowEditDialog(false))
   useModalBackHandler(showDeleteConfirm, () => setShowDeleteConfirm(false))
+  useModalBackHandler(showConnectConfirm, () => setShowConnectConfirm(false))
   const [selectedDerivative, setSelectedDerivative] =
     useState<DerivativeDetail | null>(null)
   useModalBackHandler(!!selectedDerivative, () => setSelectedDerivative(null))
@@ -2643,9 +2647,14 @@ function CryptoInvestmentContent({
           <Button
             variant="default"
             size="sm"
-            disabled={isEditMode}
             onClick={() => {
-              if (isEditMode) return
+              if (isEditMode && hasLocalChanges) {
+                setShowConnectConfirm(true)
+                return
+              }
+              if (isEditMode) {
+                requestCancel()
+              }
               navigate("/entities#crypto-enabled")
             }}
           >
@@ -2654,7 +2663,7 @@ function CryptoInvestmentContent({
           </Button>
         </div>
       </div>
-      <ManualPositionsUnsavedNotice />
+      <ManualPositionsEditBanner />
 
       <InvestmentFilters
         filteredEntities={filteredEntities}
@@ -2857,6 +2866,20 @@ function CryptoInvestmentContent({
         }}
         isLoading={isDeletingWallet}
         confirmText={t.common.delete}
+        cancelText={t.common.cancel}
+      />
+
+      <ConfirmationDialog
+        isOpen={showConnectConfirm}
+        title={t.management.manualPositions.shared.discardChangesTitle}
+        message={t.management.manualPositions.shared.discardChangesMessage}
+        onConfirm={() => {
+          setShowConnectConfirm(false)
+          requestCancel()
+          navigate("/entities#crypto-enabled")
+        }}
+        onCancel={() => setShowConnectConfirm(false)}
+        confirmText={t.common.discard}
         cancelText={t.common.cancel}
       />
 

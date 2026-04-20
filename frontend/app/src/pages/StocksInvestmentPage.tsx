@@ -41,7 +41,7 @@ import { useNavigate } from "react-router-dom"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { Entity } from "@/types"
@@ -686,7 +686,7 @@ function StocksViewContent({
           </div>
           <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>

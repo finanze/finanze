@@ -408,6 +408,7 @@ export default function DashboardPage() {
         exchangeRates,
         appliedPendingFlows,
         appliedRealEstateList,
+        { unknownEntity: t.common.unknownEntity },
       ),
     [
       effectivePositionsData,
@@ -415,6 +416,7 @@ export default function DashboardPage() {
       exchangeRates,
       appliedPendingFlows,
       appliedRealEstateList,
+      t,
     ],
   )
   const entityDistribution = useMemo(() => {
@@ -556,6 +558,7 @@ export default function DashboardPage() {
             locale,
             settings.general.defaultCurrency,
             exchangeRates,
+            { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCrypto = baseCrypto * cryptoFactor
           projectedTotalAssets += appreciatedCrypto - baseCrypto
@@ -568,6 +571,7 @@ export default function DashboardPage() {
             settings.general.defaultCurrency,
             exchangeRates,
             settings,
+            { unknown: t.common.unknown },
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCommodity = baseCommodity * commodityFactor
           projectedTotalAssets += appreciatedCommodity - baseCommodity
@@ -607,8 +611,9 @@ export default function DashboardPage() {
         effectivePositionsData,
         locale,
         settings.general.defaultCurrency,
+        { unknown: t.common.unknown },
       ),
-    [effectivePositionsData, locale, settings.general.defaultCurrency],
+    [effectivePositionsData, locale, settings.general.defaultCurrency, t],
   )
   const stockAndFundPositions = useMemo(
     () =>
@@ -632,12 +637,14 @@ export default function DashboardPage() {
         locale,
         settings.general.defaultCurrency,
         exchangeRates,
+        { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
       ),
     [
       effectivePositionsData,
       locale,
       settings.general.defaultCurrency,
       exchangeRates,
+      t,
     ],
   )
   const commodityPositions = useMemo(
@@ -648,6 +655,7 @@ export default function DashboardPage() {
         settings.general.defaultCurrency,
         exchangeRates,
         settings,
+        { unknown: t.common.unknown },
       ),
     [
       effectivePositionsData,
@@ -655,6 +663,7 @@ export default function DashboardPage() {
       settings.general.defaultCurrency,
       exchangeRates,
       settings,
+      t,
     ],
   )
   // Asset presence flags for conditional forecast inputs

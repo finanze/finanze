@@ -15,6 +15,8 @@ import {
   TrendingDown,
   MoreVertical,
   ChevronDown,
+  Pencil,
+  Loader2,
 } from "lucide-react"
 import {
   Card,
@@ -52,6 +54,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 interface CommodityEntry extends Commodity {
@@ -101,10 +104,12 @@ export default function CommoditiesInvestmentPage() {
     {},
   )
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   useModalBackHandler(showAddForm, () => setShowAddForm(false))
   useModalBackHandler(!!editingCommodityId, () => setEditingCommodityId(null))
   useModalBackHandler(!!deleteTarget, () => setDeleteTarget(null))
+  useModalBackHandler(showDiscardConfirm, () => setShowDiscardConfirm(false))
 
   const toggleCardExpanded = useCallback((key: string) => {
     setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
@@ -339,6 +344,12 @@ export default function CommoditiesInvestmentPage() {
     }
   }
 
+  const discardChanges = useCallback(() => {
+    setCommodities(getAllCommodityEntries())
+    setHasChanges(false)
+    setFieldErrors({})
+  }, [positionsData])
+
   const aggregates = useMemo(() => {
     const byCurrency: Record<string, number> = {}
     let totalInitialInvestment = 0
@@ -566,47 +577,85 @@ export default function CommoditiesInvestmentPage() {
   return (
     <>
       <div className="space-y-6 w-full">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8"
-              onClick={() => navigate(-1)}
-            >
-              <ArrowLeft size={20} />
-            </Button>
-            <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
-              {t.commodityManagement.title}
-              <PinAssetButton
-                assetId="commodities"
-                size="icon"
-                className="hidden md:inline-flex"
-              />
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t.common.add}</span>
-            </Button>
-            {hasChanges && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
               <Button
-                data-testid="save-commodities"
+                variant="ghost"
                 size="sm"
-                onClick={saveChanges}
-                disabled={isSaving}
+                className="p-1 h-8 w-8"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={20} />
+              </Button>
+              <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
+                {t.commodityManagement.title}
+                <PinAssetButton
+                  assetId="commodities"
+                  size="icon"
+                  className="hidden md:inline-flex"
+                />
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowAddForm(true)}
                 className="flex items-center gap-2"
               >
-                <Save className="h-3.5 w-3.5" />
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t.common.add}</span>
               </Button>
-            )}
+            </div>
           </div>
+          {hasChanges && (
+            <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+                  {t.common.editing}
+                </span>
+                <span className="text-blue-300 dark:text-blue-600">·</span>
+                <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+                  {t.management.unsavedChanges}
+                </span>
+                <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                <Button
+                  size="sm"
+                  onClick={() => setShowDiscardConfirm(true)}
+                  disabled={isSaving}
+                  className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="hidden sm:inline ml-1">
+                    {t.common.cancel}
+                  </span>
+                </Button>
+                <Button
+                  data-testid="save-commodities"
+                  size="sm"
+                  onClick={saveChanges}
+                  disabled={isSaving}
+                  className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="h-3 w-3" />
+                  )}
+                  <span className="hidden sm:inline ml-1">{t.common.save}</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {commodities.length > 0 && (
@@ -1447,6 +1496,18 @@ export default function CommoditiesInvestmentPage() {
           </Card>
         </div>
       )}
+      <ConfirmationDialog
+        isOpen={showDiscardConfirm}
+        title={t.management.manualPositions.shared.discardChangesTitle}
+        message={t.management.manualPositions.shared.discardChangesMessage}
+        confirmText={t.common.discard}
+        cancelText={t.common.cancel}
+        onConfirm={() => {
+          setShowDiscardConfirm(false)
+          discardChanges()
+        }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </>
   )
 }

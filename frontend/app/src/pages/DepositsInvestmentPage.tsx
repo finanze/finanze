@@ -35,7 +35,7 @@ import { useNavigate } from "react-router-dom"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { Entity } from "@/types"
@@ -107,7 +107,7 @@ export default function DepositsInvestmentPage() {
           "entries" in depositProduct &&
           depositProduct.entries.length > 0
         ) {
-          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityName = entityPosition.entity?.name || t.common.unknown
           const entityId = entityPosition.entity?.id || null
           const entityOrigin = entityPosition.entity?.origin ?? null
 
@@ -488,7 +488,7 @@ function DepositsViewContent({
           </div>
           <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>

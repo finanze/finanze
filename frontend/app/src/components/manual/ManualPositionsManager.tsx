@@ -82,7 +82,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
-import { AlertCircle, Pencil, Plus, Save, X } from "lucide-react"
+import { Loader2, Pencil, Plus, Save, X } from "lucide-react"
 import { saveManualPositions } from "@/services/api"
 import {
   ProductType,
@@ -688,12 +688,11 @@ export function ManualPositionsManager({
   }, [hasLocalChanges, initialDrafts, formState])
 
   useEffect(() => {
-    if (!isEditMode) {
+    if (!isEditMode && !formState) {
       setActiveDraft(null)
-      setFormState(null)
       setFormErrors({})
     }
-  }, [isEditMode])
+  }, [isEditMode, formState])
 
   const openForm = useCallback(
     (
@@ -751,14 +750,9 @@ export function ManualPositionsManager({
 
   const handleAddDraft = useCallback(
     (entityId?: string) => {
-      if (!isEditMode) {
-        setIsEditMode(true)
-        setTimeout(() => openForm("create", undefined, { entityId }), 0)
-      } else {
-        openForm("create", undefined, { entityId })
-      }
+      openForm("create", undefined, { entityId })
     },
-    [isEditMode, openForm],
+    [openForm],
   )
 
   const handleEditDraft = useCallback(
@@ -805,6 +799,9 @@ export function ManualPositionsManager({
 
   const upsertDraft = useCallback(
     (draft: ManualPositionDraft<any>) => {
+      if (!isEditMode) {
+        setIsEditMode(true)
+      }
       setDrafts(prev => {
         const index = prev.findIndex(item => item.localId === draft.localId)
         if (index >= 0) {
@@ -817,7 +814,7 @@ export function ManualPositionsManager({
       setHasLocalChanges(true)
       closeForm()
     },
-    [closeForm],
+    [closeForm, isEditMode],
   )
 
   const handleSubmitForm = useCallback(() => {
@@ -1283,9 +1280,10 @@ export function ManualPositionsManager({
       setShowCancelConfirm(true)
       return
     }
+    closeForm()
     setIsEditMode(false)
     setDrafts(initialDrafts)
-  }, [hasLocalChanges, initialDrafts])
+  }, [hasLocalChanges, initialDrafts, closeForm])
 
   useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
   useModalBackHandler(showDiscardFormConfirm, () =>
@@ -1860,6 +1858,7 @@ export function ManualPositionsManager({
         cancelText={translate("common.cancel")}
         onConfirm={() => {
           setShowCancelConfirm(false)
+          closeForm()
           setIsEditMode(false)
           setHasLocalChanges(false)
           setDrafts(initialDrafts)
@@ -2118,17 +2117,11 @@ export function ManualPositionsManager({
 export function ManualPositionsControls({ className }: { className?: string }) {
   const {
     isEditMode,
-    hasLocalChanges,
-    isSaving,
     manualEntities,
     addLabel,
     editLabel,
-    cancelLabel,
-    saveLabel,
     beginCreate,
     enterEditMode,
-    requestCancel,
-    requestSave,
   } = useManualPositions()
 
   return (
@@ -2148,30 +2141,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
         <Plus className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{addLabel}</span>
       </Button>
-      {isEditMode ? (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={requestCancel}
-            disabled={isSaving}
-            className="flex items-center gap-2"
-          >
-            <X className="h-3.5 w-3.5" />
-            {cancelLabel}
-          </Button>
-          <Button
-            data-testid="save-positions"
-            size="sm"
-            onClick={requestSave}
-            disabled={isSaving || (!hasLocalChanges && !isSaving)}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{saveLabel}</span>
-          </Button>
-        </>
-      ) : (
+      {!isEditMode && (
         <Button
           variant="default"
           size="sm"
@@ -2186,26 +2156,79 @@ export function ManualPositionsControls({ className }: { className?: string }) {
   )
 }
 
-export function ManualPositionsUnsavedNotice({
+export function ManualPositionsEditBanner({
   className,
 }: {
   className?: string
 }) {
-  const { isEditMode, hasLocalChanges, translate } = useManualPositions()
+  const {
+    isEditMode,
+    hasLocalChanges,
+    isSaving,
+    cancelLabel,
+    saveLabel,
+    translate,
+    requestCancel,
+    requestSave,
+  } = useManualPositions()
 
-  if (!isEditMode || !hasLocalChanges) {
+  if (!isEditMode) {
     return null
   }
 
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200",
+        "flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40",
         className,
       )}
     >
-      <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-      <div>{translate("management.unsavedChanges")}</div>
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="relative flex-shrink-0">
+          <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+          {translate("common.editing")}
+        </span>
+        {hasLocalChanges && (
+          <>
+            <span className="text-blue-300 dark:text-blue-600">·</span>
+            <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+              {translate("management.unsavedChanges")}
+            </span>
+            <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={requestCancel}
+          disabled={isSaving}
+          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+        >
+          <X className="h-3 w-3" />
+          <span className="hidden sm:inline ml-1">{cancelLabel}</span>
+        </Button>
+        <Button
+          data-testid="save-positions"
+          size="sm"
+          onClick={requestSave}
+          disabled={isSaving || !hasLocalChanges}
+          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+        >
+          {isSaving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
+          <span className="hidden sm:inline ml-1">{saveLabel}</span>
+        </Button>
+      </div>
     </div>
   )
 }

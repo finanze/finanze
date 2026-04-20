@@ -1320,8 +1320,8 @@ export function RealEstateFormModal({
     const labels: Record<string, string> = {
       DAILY: t.realEstate.frequency.daily,
       WEEKLY: t.realEstate.frequency.weekly,
-      BIWEEKLY: (t.realEstate.frequency as any).biweekly || "Biweekly",
-      SEMIMONTHLY: (t.realEstate.frequency as any).semimonthly || "Semimonthly",
+      BIWEEKLY: t.realEstate.frequency.biweekly,
+      SEMIMONTHLY: t.realEstate.frequency.semimonthly,
       MONTHLY: t.realEstate.frequency.monthly,
       EVERY_TWO_MONTHS: t.realEstate.frequency.bimonthly,
       QUARTERLY: t.realEstate.frequency.quarterly,

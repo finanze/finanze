@@ -55,7 +55,7 @@ import { useHistoricPagination } from "@/hooks/useHistoricPagination"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -201,7 +201,7 @@ export default function RealEstateCFInvestmentPage() {
           "entries" in realEstateProduct &&
           realEstateProduct.entries.length > 0
         ) {
-          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityName = entityPosition.entity?.name || t.common.unknown
 
           realEstateProduct.entries.forEach((realEstate: any) => {
             const investmentType =
@@ -1062,7 +1062,7 @@ function RealEstateViewContent({
           </div>
           <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>

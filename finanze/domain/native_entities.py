@@ -33,6 +33,7 @@ MY_INVESTOR = NativeFinancialEntity(
         ProductType.FUND,
         ProductType.FUND_PORTFOLIO,
         ProductType.DEPOSIT,
+        ProductType.CREDIT,
     ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,

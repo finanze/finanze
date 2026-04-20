@@ -53,7 +53,7 @@ import { EntitySelector } from "@/components/EntitySelector"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -188,7 +188,7 @@ export default function FactoringInvestmentPage() {
           "entries" in factoringProduct &&
           factoringProduct.entries.length > 0
         ) {
-          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityName = entityPosition.entity?.name || t.common.unknown
           const entityOrigin = entityPosition.entity?.origin ?? null
 
           factoringProduct.entries.forEach((factor: any) => {
@@ -922,7 +922,7 @@ function FactoringViewContent({
           </div>
           <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>

@@ -69,6 +69,7 @@
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
+    "editing": "Editando",
     "upload": "Subir",
     "unlock": "Desbloquear",
     "configuredInSettings": "Configurado en Configuración",
@@ -101,7 +102,10 @@
     "officialWebpageUrl": "https://finanze.me",
     "optional": "Opcional",
     "clear": "Limpiar",
-    "notAvailableOnPlatform": "No disponible en esta plataforma"
+    "notAvailableOnPlatform": "No disponible en esta plataforma",
+    "unknown": "Desconocido",
+    "unknownEntity": "Entidad desconocida",
+    "unknownToken": "Token desconocido"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -1608,7 +1612,7 @@
     "submit": "Agregar billetera",
     "derived": {
       "useXpub": "Usar clave pública extendida (xpub)",
-      "manualTab": "Manual",
+      "manualTab": "Dirección",
       "xpubTab": "XPUB",
       "xpubLabel": "Clave Pública Extendida",
       "xpubPlaceholder": "xpub6...",

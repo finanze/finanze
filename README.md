@@ -46,7 +46,7 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 | Financial Entity    | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
 | ------------------- | -------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
 | Urbanitae           | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅       | ✅    | ✅    | ✅             | ✅       | ✅         | ❌                  | -      | -     |                     |
+| MyInvestor          | ✅       | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
 | SEGO                | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
 | Trade Republic      | ✅       | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
 | Unicaja             | ✅       | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |

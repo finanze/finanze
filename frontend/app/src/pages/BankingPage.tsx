@@ -481,44 +481,52 @@ function BankingManualControls({
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       {isAnyEditMode && (
-        <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={isAnySaving}
-            className="flex items-center gap-2"
-          >
-            <X className="h-3.5 w-3.5" />
-            {t.common.cancel}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={isAnySaving || !hasAnyChanges}
-            className="flex items-center gap-2"
-          >
-            {isAnySaving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="relative flex-shrink-0">
+              <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+              {t.common.editing}
+            </span>
+            {unsavedControllers.length > 0 && (
+              <>
+                <span className="text-blue-300 dark:text-blue-600">·</span>
+                <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+                  {unsavedControllers[0].translate("management.unsavedChanges")}
+                </span>
+                <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+              </>
             )}
-            <span className="hidden sm:inline">{t.common.save}</span>
-          </Button>
-        </div>
-      )}
-      {unsavedControllers.length > 0 && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <div className="space-y-1">
-            <div>
-              {unsavedControllers[0].translate("management.unsavedChanges")}
-            </div>
-            <div className="text-xs text-amber-700 dark:text-amber-300">
-              {unsavedControllers
-                .map(controller => controller.assetTitle)
-                .join(", ")}
-            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isAnySaving}
+              className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+            >
+              <X className="h-3 w-3" />
+              <span className="hidden sm:inline ml-1">{t.common.cancel}</span>
+            </Button>
+            <Button
+              data-testid="save-positions"
+              size="sm"
+              onClick={handleSave}
+              disabled={isAnySaving || !hasAnyChanges}
+              className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+            >
+              {isAnySaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
+              <span className="hidden sm:inline ml-1">{t.common.save}</span>
+            </Button>
           </div>
         </div>
       )}
@@ -622,6 +630,19 @@ export default function BankingPage() {
     manualControllers.forEach(controller => {
       controller.enterEditMode()
     })
+  }, [manualControllers])
+
+  useEffect(() => {
+    const anyEditMode = manualControllers.some(
+      controller => controller.isEditMode,
+    )
+    if (anyEditMode) {
+      manualControllers.forEach(controller => {
+        if (!controller.isEditMode) {
+          controller.enterEditMode()
+        }
+      })
+    }
   }, [manualControllers])
 
   const entityOrigins = useMemo<Record<string, EntityOrigin | null>>(() => {
@@ -944,20 +965,17 @@ export default function BankingPage() {
                 />
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 [@media(min-width:500px)]:justify-end">
-              {manualControllers.length > 0 && (
-                <BankingManualControls
-                  controllers={manualControllers}
-                  t={t}
-                  showToast={showToast}
-                  refreshEntity={refreshEntity}
-                  fetchEntities={fetchEntities}
-                  refreshData={refreshData}
-                  className="items-center [@media(min-width:450px)]:items-end"
-                />
-              )}
-            </div>
           </div>
+          {manualControllers.length > 0 && (
+            <BankingManualControls
+              controllers={manualControllers}
+              t={t}
+              showToast={showToast}
+              refreshEntity={refreshEntity}
+              fetchEntities={fetchEntities}
+              refreshData={refreshData}
+            />
+          )}
           <InvestmentFilters
             filteredEntities={bankingEntities}
             selectedEntities={selectedEntities}
@@ -1122,7 +1140,6 @@ export default function BankingPage() {
           collapsed={!!collapsedSections.loans}
           onToggleCollapsed={() => toggleSection("loans")}
           onBeginCreditCreate={(entityId?: string) => {
-            enterGlobalEditMode()
             const creditCtrl = manualControllersMap["bankCredits"]
             if (creditCtrl) {
               creditCtrl.beginCreate(entityId ? { entityId } : undefined)
@@ -1509,7 +1526,6 @@ function BankAccountsSection({
               size="icon"
               className="h-8 w-8"
               onClick={() => {
-                onEnterGlobalEditMode()
                 beginCreate(
                   defaultEntityId ? { entityId: defaultEntityId } : undefined,
                 )
@@ -2047,7 +2063,6 @@ function BankCardsSection({
               size="icon"
               className="h-8 w-8"
               onClick={() => {
-                onEnterGlobalEditMode()
                 beginCreate(
                   defaultEntityId ? { entityId: defaultEntityId } : undefined,
                 )
@@ -2593,7 +2608,6 @@ function BankLoansSection({
                   className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
                   onClick={() => {
                     setAddPopoverOpen(false)
-                    onEnterGlobalEditMode()
                     beginCreate(
                       defaultEntityId
                         ? { entityId: defaultEntityId }

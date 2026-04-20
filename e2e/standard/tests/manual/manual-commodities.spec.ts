@@ -61,7 +61,10 @@ async function navigateToCommodities(page: Page) {
 }
 
 async function saveToServer(page: Page) {
-    await page.getByTestId('save-commodities').click()
+    const saveBtn = page.getByTestId('save-commodities')
+    await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+    await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
+    await saveBtn.click()
     await expect(page.getByText('Commodities saved successfully')).toBeVisible({
         timeout: 10_000,
     })

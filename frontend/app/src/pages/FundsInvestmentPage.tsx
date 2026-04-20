@@ -40,12 +40,12 @@ import {
   Plus,
   Save,
   X,
-  AlertCircle,
   Lock,
   ExternalLink,
   Layers,
   ChevronDown,
   BarChart3,
+  Loader2,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
@@ -254,6 +254,15 @@ function FundsInvestmentPageContent({
       prev.filter(p => portfolioOptions.some(o => o.value === p)),
     )
   }, [portfolioOptions])
+
+  useEffect(() => {
+    if (fundsContext.isEditMode && !portfolioContext.isEditMode) {
+      portfolioContext.enterEditMode()
+    }
+    if (portfolioContext.isEditMode && !fundsContext.isEditMode) {
+      fundsContext.enterEditMode()
+    }
+  }, [fundsContext.isEditMode, portfolioContext.isEditMode])
 
   const fundDrafts = drafts as FundDraft[]
   const manualPortfolioDrafts =
@@ -625,14 +634,8 @@ function FundsInvestmentPageContent({
   const showDraftList = portfolioManual.isEditMode
 
   const handleAddPortfolioDraft = useCallback(() => {
-    if (!portfolioManual.isEditMode) {
-      portfolioManual.enterEditMode()
-    }
-    if (!manual.isEditMode) {
-      manual.enterEditMode()
-    }
     portfolioManual.beginCreate()
-  }, [manual, portfolioManual])
+  }, [portfolioManual])
 
   if (isLoading) {
     return (
@@ -681,7 +684,7 @@ function FundsInvestmentPageContent({
             portfolioContext={portfolioContext}
           />
         </div>
-        <CombinedUnsavedNotice
+        <FundsCombinedEditBanner
           fundsContext={fundsContext}
           portfolioContext={portfolioContext}
         />
@@ -1385,15 +1388,10 @@ function PortfolioContextBridge({
   )
 }
 
-function FundsCombinedControls({
-  className,
-  fundsContext,
-  portfolioContext,
-}: {
-  className?: string
-  fundsContext: ManualPositionsContextValue
-  portfolioContext: ManualPositionsContextValue
-}) {
+function useFundsCombinedActions(
+  fundsContext: ManualPositionsContextValue,
+  portfolioContext: ManualPositionsContextValue,
+) {
   const { refreshEntity } = useFinancialData()
   const { showToast } = useAppContext()
   const combinedIsEditMode =
@@ -1412,14 +1410,8 @@ function FundsCombinedControls({
   }, [fundsContext, portfolioContext])
 
   const handleAddFundDraft = useCallback(() => {
-    if (!fundsContext.isEditMode) {
-      fundsContext.enterEditMode()
-    }
-    if (!portfolioContext.isEditMode) {
-      portfolioContext.enterEditMode()
-    }
     fundsContext.beginCreate()
-  }, [fundsContext, portfolioContext])
+  }, [fundsContext])
 
   const handleCancel = useCallback(() => {
     if (portfolioContext.isEditMode) {
@@ -1653,6 +1645,29 @@ function FundsCombinedControls({
     showToast,
   ])
 
+  return {
+    combinedIsEditMode,
+    combinedHasChanges,
+    combinedIsSaving,
+    handleEnterEdit,
+    handleAddFundDraft,
+    handleCancel,
+    handleSave,
+  }
+}
+
+function FundsCombinedControls({
+  className,
+  fundsContext,
+  portfolioContext,
+}: {
+  className?: string
+  fundsContext: ManualPositionsContextValue
+  portfolioContext: ManualPositionsContextValue
+}) {
+  const { combinedIsEditMode, handleAddFundDraft, handleEnterEdit } =
+    useFundsCombinedActions(fundsContext, portfolioContext)
+
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Button
@@ -1665,29 +1680,7 @@ function FundsCombinedControls({
         <Plus className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{fundsContext.addLabel}</span>
       </Button>
-      {combinedIsEditMode ? (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={combinedIsSaving}
-            className="flex items-center gap-2"
-          >
-            <X className="h-3.5 w-3.5" />
-            {fundsContext.cancelLabel}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={combinedIsSaving || !combinedHasChanges}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{fundsContext.saveLabel}</span>
-          </Button>
-        </>
-      ) : (
+      {!combinedIsEditMode && (
         <Button
           variant="default"
           size="sm"
@@ -1702,25 +1695,77 @@ function FundsCombinedControls({
   )
 }
 
-function CombinedUnsavedNotice({
+function FundsCombinedEditBanner({
   fundsContext,
   portfolioContext,
 }: {
   fundsContext: ManualPositionsContextValue
   portfolioContext: ManualPositionsContextValue
 }) {
-  const shouldShow =
-    (fundsContext.isEditMode || portfolioContext.isEditMode) &&
-    (fundsContext.hasLocalChanges || portfolioContext.hasLocalChanges)
+  const {
+    combinedIsEditMode,
+    combinedHasChanges,
+    combinedIsSaving,
+    handleCancel,
+    handleSave,
+  } = useFundsCombinedActions(fundsContext, portfolioContext)
 
-  if (!shouldShow) {
+  if (!combinedIsEditMode) {
     return null
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-      <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-      <div>{fundsContext.translate("management.unsavedChanges")}</div>
+    <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="relative flex-shrink-0">
+          <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+          {fundsContext.translate("common.editing")}
+        </span>
+        {combinedHasChanges && (
+          <>
+            <span className="text-blue-300 dark:text-blue-600">·</span>
+            <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+              {fundsContext.translate("management.unsavedChanges")}
+            </span>
+            <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCancel}
+          disabled={combinedIsSaving}
+          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+        >
+          <X className="h-3 w-3" />
+          <span className="hidden sm:inline ml-1">
+            {fundsContext.cancelLabel}
+          </span>
+        </Button>
+        <Button
+          data-testid="save-positions"
+          size="sm"
+          onClick={handleSave}
+          disabled={combinedIsSaving || !combinedHasChanges}
+          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+        >
+          {combinedIsSaving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
+          <span className="hidden sm:inline ml-1">
+            {fundsContext.saveLabel}
+          </span>
+        </Button>
+      </div>
     </div>
   )
 }
