@@ -19,6 +19,7 @@ import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
   getEntitiesWithProductType,
@@ -1153,6 +1154,7 @@ function RealEstateViewContent({
                     {
                       icon: <Percent className="h-3 w-3" />,
                       value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                      sensitive: true,
                     },
                     {
                       icon: <TrendingUp className="h-3 w-3" />,
@@ -1161,6 +1163,7 @@ function RealEstateViewContent({
                         locale,
                         defaultCurrency,
                       ),
+                      sensitive: true,
                     },
                   ]}
                   centerContent={{
@@ -1361,7 +1364,9 @@ function RealEstateViewContent({
                               <span>•</span>
                               <Percent size={12} />
                               <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                {(position.interest_rate * 100).toFixed(2)}%
+                                <Sensitive>
+                                  {(position.interest_rate * 100).toFixed(2)}%
+                                </Sensitive>
                               </span>
                             </>
                           )}
@@ -1378,18 +1383,22 @@ function RealEstateViewContent({
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            {position.formattedOriginalPendingAmount ??
-                              position.formattedAmount}
+                            <Sensitive>
+                              {position.formattedOriginalPendingAmount ??
+                                position.formattedAmount}
+                            </Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
-                              {position.formattedPendingAmount ??
-                                position.formattedConvertedAmount}
+                              <Sensitive>
+                                {position.formattedPendingAmount ??
+                                  position.formattedConvertedAmount}
+                              </Sensitive>
                             </div>
                           )}
                           {position.formattedProfit && (
                             <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
-                              {position.formattedProfit}
+                              <Sensitive>{position.formattedProfit}</Sensitive>
                             </div>
                           )}
                         </div>
@@ -1462,19 +1471,22 @@ function RealEstateViewContent({
                                     {t.dashboard.investedAmount}
                                   </div>
                                   <div className="font-medium">
-                                    {position.formattedAmount}
-                                    {position.currency !== defaultCurrency && (
-                                      <span className="ml-1 text-xs text-muted-foreground">
-                                        ({position.formattedConvertedAmount})
-                                      </span>
-                                    )}
-                                    {position.formattedRepaidAmount && (
-                                      <span className="ml-1.5 text-xs text-orange-500 dark:text-orange-400">
-                                        ({position.formattedRepaidAmount}{" "}
-                                        {t.investments.historicSection.repaid.toLowerCase()}
-                                        )
-                                      </span>
-                                    )}
+                                    <Sensitive>
+                                      {position.formattedAmount}
+                                      {position.currency !==
+                                        defaultCurrency && (
+                                        <span className="ml-1 text-xs text-muted-foreground">
+                                          ({position.formattedConvertedAmount})
+                                        </span>
+                                      )}
+                                      {position.formattedRepaidAmount && (
+                                        <span className="ml-1.5 text-xs text-orange-500 dark:text-orange-400">
+                                          ({position.formattedRepaidAmount}{" "}
+                                          {t.investments.historicSection.repaid.toLowerCase()}
+                                          )
+                                        </span>
+                                      )}
+                                    </Sensitive>
                                   </div>
                                 </div>
                                 {position.formattedProfit && (
@@ -1483,12 +1495,18 @@ function RealEstateViewContent({
                                       {t.investments.expectedProfit}
                                     </div>
                                     <div className="font-medium text-emerald-600 dark:text-emerald-400">
-                                      {position.formattedProfit}
+                                      <Sensitive>
+                                        {position.formattedProfit}
+                                      </Sensitive>
                                       {position.profitabilityPct !== null && (
                                         <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                          (
-                                          {position.profitabilityPct.toFixed(2)}
-                                          %)
+                                          <Sensitive>
+                                            (
+                                            {position.profitabilityPct.toFixed(
+                                              2,
+                                            )}
+                                            %)
+                                          </Sensitive>
                                         </span>
                                       )}
                                     </div>
@@ -1502,7 +1520,9 @@ function RealEstateViewContent({
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">
-                                    {percentageOfRealEstate.toFixed(1)}%
+                                    <Sensitive>
+                                      {percentageOfRealEstate.toFixed(1)}%
+                                    </Sensitive>
                                   </div>
                                 </div>
                               </div>

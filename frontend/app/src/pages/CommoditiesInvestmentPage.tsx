@@ -48,6 +48,7 @@ import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
 import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Popover,
@@ -683,6 +684,7 @@ export default function CommoditiesInvestmentPage() {
                   {
                     icon: <Scale className="h-3 w-3" />,
                     value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
+                    sensitive: true,
                   },
                 ]}
                 centerContent={{
@@ -1012,7 +1014,9 @@ export default function CommoditiesInvestmentPage() {
                   </h3>
                   {groupTotal > 0 && (
                     <span className="text-xl font-bold">
-                      {formatCurrency(groupTotal, locale, defaultCurrency)}
+                      <Sensitive>
+                        {formatCurrency(groupTotal, locale, defaultCurrency)}
+                      </Sensitive>
                     </span>
                   )}
                 </div>
@@ -1092,14 +1096,16 @@ export default function CommoditiesInvestmentPage() {
                                 )}
                               </div>
                               <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                                {formatWeight(c.amount, c.unit)}
+                                <Sensitive>
+                                  {formatWeight(c.amount, c.unit)}
+                                </Sensitive>
                               </p>
                             </div>
                             <div className="flex items-start gap-1 flex-shrink-0">
                               <div className="text-right">
                                 {formattedEntryValue && (
                                   <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                    {formattedEntryValue}
+                                    <Sensitive>{formattedEntryValue}</Sensitive>
                                   </p>
                                 )}
                                 {roiPercent !== null && (
@@ -1111,8 +1117,10 @@ export default function CommoditiesInvestmentPage() {
                                         : "text-red-500",
                                     )}
                                   >
-                                    {roiPercent >= 0 ? "+" : ""}
-                                    {roiPercent.toFixed(2)}%
+                                    <Sensitive>
+                                      {roiPercent >= 0 ? "+" : ""}
+                                      {roiPercent.toFixed(2)}%
+                                    </Sensitive>
                                   </p>
                                 )}
                               </div>
@@ -1198,23 +1206,25 @@ export default function CommoditiesInvestmentPage() {
                                           : "text-red-500",
                                       )}
                                     >
-                                      {roiAmount >= 0 ? (
-                                        <TrendingUp size={14} />
-                                      ) : (
-                                        <TrendingDown size={14} />
-                                      )}
-                                      <span>
-                                        {roiAmount >= 0 ? "+" : ""}
-                                        {formatCurrency(
-                                          roiAmount,
-                                          locale,
-                                          defaultCurrency,
+                                      <Sensitive>
+                                        {roiAmount >= 0 ? (
+                                          <TrendingUp size={14} />
+                                        ) : (
+                                          <TrendingDown size={14} />
                                         )}
-                                      </span>
-                                      <span className="text-xs opacity-80">
-                                        ({roiPercent >= 0 ? "+" : ""}
-                                        {roiPercent.toFixed(2)}%)
-                                      </span>
+                                        <span>
+                                          {roiAmount >= 0 ? "+" : ""}
+                                          {formatCurrency(
+                                            roiAmount,
+                                            locale,
+                                            defaultCurrency,
+                                          )}
+                                        </span>
+                                        <span className="text-xs opacity-80">
+                                          ({roiPercent >= 0 ? "+" : ""}
+                                          {roiPercent.toFixed(2)}%)
+                                        </span>
+                                      </Sensitive>
                                     </div>
                                   </div>
                                 )}
@@ -1224,17 +1234,21 @@ export default function CommoditiesInvestmentPage() {
                                       {t.commodityManagement.initialInvestment}
                                     </span>
                                     <span className="text-gray-900 dark:text-gray-100 font-medium">
-                                      {formatCurrency(
-                                        details.convertedInitial,
-                                        locale,
-                                        defaultCurrency,
-                                      )}
+                                      <Sensitive>
+                                        {formatCurrency(
+                                          details.convertedInitial,
+                                          locale,
+                                          defaultCurrency,
+                                        )}
+                                      </Sensitive>
                                     </span>
                                   </div>
                                 )}
                                 <div className="text-sm text-gray-600 dark:text-gray-400">
                                   <span className="font-medium text-blue-600 dark:text-blue-400">
-                                    {percentageOfPortfolio.toFixed(1)}%
+                                    <Sensitive>
+                                      {percentageOfPortfolio.toFixed(1)}%
+                                    </Sensitive>
                                   </span>{" "}
                                   {t.investments.ofInvestmentType.replace(
                                     "{type}",

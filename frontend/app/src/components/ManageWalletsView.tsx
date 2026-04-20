@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
@@ -731,11 +732,13 @@ export function ManageWalletsView({
                           {t.walletManagement.totalValue}
                         </p>
                         <p className="mt-1 text-base sm:text-lg font-semibold">
-                          {formatCurrency(
-                            walletEntry.totalValue,
-                            locale,
-                            settings.general.defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              walletEntry.totalValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                     </div>

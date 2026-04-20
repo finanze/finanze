@@ -26,6 +26,7 @@ import type {
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 import { cn } from "@/lib/utils"
 import { SourceBadge } from "@/components/ui/SourceBadge"
@@ -995,19 +996,23 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalAccountBalance,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalAccountBalance,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               {accountsSummary.weightedInterest > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                   <Percent className="h-3 w-3" />
-                  {formatPercentage(
-                    accountsSummary.weightedInterest * 100,
-                    locale,
-                  )}
+                  <Sensitive className="text-green-600 dark:text-green-400">
+                    {formatPercentage(
+                      accountsSummary.weightedInterest * 100,
+                      locale,
+                    )}
+                  </Sensitive>
                   <span>{t.banking.avgInterest}</span>
                 </div>
               )}
@@ -1023,11 +1028,13 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalCardUsed,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalCardUsed,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {cardsSummary.count}{" "}
@@ -1045,16 +1052,20 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalLoanDebt,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalLoanDebt,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               {combinedWeightedInterest > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                   <Percent className="h-3 w-3" />
-                  {formatPercentage(combinedWeightedInterest * 100, locale)}
+                  <Sensitive className="text-red-500 dark:text-red-400">
+                    {formatPercentage(combinedWeightedInterest * 100, locale)}
+                  </Sensitive>
                   <span>{t.banking.avgInterest}</span>
                 </div>
               )}
@@ -1070,11 +1081,13 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalMonthlyPayments,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalMonthlyPayments,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {loansSummary.count}{" "}
@@ -1654,26 +1667,29 @@ function BankAccountsSection({
                         )}
                         <div className="space-y-1">
                           <div className="text-2xl font-bold">
-                            {formatCurrency(
-                              position.convertedTotal,
-                              locale,
-                              defaultCurrency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                position.convertedTotal,
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </Sensitive>
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {position.currency !== defaultCurrency && (
                               <span>
-                                {formatCurrency(
-                                  position.total ?? 0,
-                                  locale,
-                                  position.currency,
-                                )}
+                                <Sensitive>
+                                  {formatCurrency(
+                                    position.total ?? 0,
+                                    locale,
+                                    position.currency,
+                                  )}
+                                </Sensitive>
                                 <span aria-hidden="true" className="px-1">
                                   •
                                 </span>
                               </span>
                             )}
-                            <span>{t.banking.available}</span>
                           </div>
                         </div>
                       </div>
@@ -1688,10 +1704,12 @@ function BankAccountsSection({
                                   className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
                                 >
                                   <Percent className="h-3 w-3" />
-                                  {formatPercentage(
-                                    (position.interest ?? 0) * 100,
-                                    locale,
-                                  )}
+                                  <Sensitive className="text-green-600 dark:text-green-400">
+                                    {formatPercentage(
+                                      (position.interest ?? 0) * 100,
+                                      locale,
+                                    )}
+                                  </Sensitive>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -1707,11 +1725,13 @@ function BankAccountsSection({
                                   className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
                                 >
                                   <Shield className="h-3 w-3" />
-                                  {formatCurrency(
-                                    position.convertedRetained ?? 0,
-                                    locale,
-                                    defaultCurrency,
-                                  )}
+                                  <Sensitive className="text-orange-500">
+                                    {formatCurrency(
+                                      position.convertedRetained ?? 0,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </Sensitive>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -1727,11 +1747,13 @@ function BankAccountsSection({
                                   className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
                                 >
                                   <AlertCircle className="h-3 w-3" />
-                                  {formatCurrency(
-                                    position.convertedPendingTransfers ?? 0,
-                                    locale,
-                                    defaultCurrency,
-                                  )}
+                                  <Sensitive className="text-blue-500">
+                                    {formatCurrency(
+                                      position.convertedPendingTransfers ?? 0,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </Sensitive>
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent>
@@ -2175,11 +2197,13 @@ function BankCardsSection({
                         {t.banking.used}
                       </span>
                       <span className="font-semibold">
-                        {formatCurrency(
-                          position.convertedUsed,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedUsed,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     {Number(position.convertedLimit || 0) > 0 && (
@@ -2188,11 +2212,13 @@ function BankCardsSection({
                           {t.banking.limit}
                         </span>
                         <span>
-                          {formatCurrency(
-                            position.convertedLimit!,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              position.convertedLimit!,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                     )}
@@ -2201,10 +2227,12 @@ function BankCardsSection({
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>{t.banking.utilization}</span>
                           <span>
-                            {formatPercentage(
-                              Math.min(utilization, 100),
-                              locale,
-                            )}
+                            <Sensitive>
+                              {formatPercentage(
+                                Math.min(utilization, 100),
+                                locale,
+                              )}
+                            </Sensitive>
                           </span>
                         </div>
                         <div className="h-2 w-full rounded-full bg-muted">
@@ -2224,13 +2252,15 @@ function BankCardsSection({
                     )}
                     {position.currency !== defaultCurrency && (
                       <div className="border-t border-border pt-2 text-xs text-muted-foreground">
-                        {formatCurrency(
-                          position.used,
-                          locale,
-                          position.currency,
-                        )}
-                        {isFiniteNumber(position.limit) &&
-                          ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.used,
+                            locale,
+                            position.currency,
+                          )}
+                          {isFiniteNumber(position.limit) &&
+                            ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
+                        </Sensitive>
                       </div>
                     )}
                     {isDirty && (
@@ -2735,11 +2765,13 @@ function BankLoansSection({
                         {t.banking.principalOutstanding}
                       </span>
                       <span className="text-xl font-semibold text-red-500">
-                        {formatCurrency(
-                          position.convertedPrincipalOutstanding,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedPrincipalOutstanding,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
@@ -2751,11 +2783,13 @@ function BankLoansSection({
                           t.banking.monthlyInstallment}
                       </span>
                       <span className="text-lg font-semibold">
-                        {formatCurrency(
-                          position.convertedCurrentInstallment,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedCurrentInstallment,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
@@ -2765,15 +2799,17 @@ function BankLoansSection({
                       <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
                         <span className="flex items-center gap-1">
                           <Percent className="h-3 w-3" />
-                          {formatPercentage(
-                            (position.interest_rate ?? 0) * 100,
-                            locale,
-                          )}
+                          <Sensitive>
+                            {formatPercentage(
+                              (position.interest_rate ?? 0) * 100,
+                              locale,
+                            )}
+                          </Sensitive>
                         </span>
                         {euriborRateText && (
                           <span className="text-xs text-muted-foreground">
                             {manualTranslate(`${assetPath}.fields.euriborRate`)}
-                            : {euriborRateText}
+                            : <Sensitive>{euriborRateText}</Sensitive>
                           </span>
                         )}
                       </span>
@@ -2786,11 +2822,13 @@ function BankLoansSection({
                         {t.banking.principalPaid}
                       </span>
                       <span className="text-sm">
-                        {formatCurrency(
-                          position.convertedPrincipalPaid,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedPrincipalPaid,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
@@ -2798,11 +2836,13 @@ function BankLoansSection({
                         {t.banking.originalAmount}
                       </span>
                       <span className="text-sm">
-                        {formatCurrency(
-                          position.convertedLoanAmount,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedLoanAmount,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                   </div>
@@ -2863,10 +2903,12 @@ function BankLoansSection({
                               `${assetPath}.fields.fixedInterestRate`,
                             )}
                             {": "}
-                            {formatPercentage(
-                              (position.fixed_interest_rate ?? 0) * 100,
-                              locale,
-                            )}
+                            <Sensitive>
+                              {formatPercentage(
+                                (position.fixed_interest_rate ?? 0) * 100,
+                                locale,
+                              )}
+                            </Sensitive>
                           </div>
                         )}
                     </div>
@@ -2877,10 +2919,12 @@ function BankLoansSection({
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{t.banking.repaymentProgress}</span>
                         <span>
-                          {formatPercentage(
-                            Math.min(repaymentProgress, 100),
-                            locale,
-                          )}
+                          <Sensitive>
+                            {formatPercentage(
+                              Math.min(repaymentProgress, 100),
+                              locale,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted">
@@ -2901,11 +2945,13 @@ function BankLoansSection({
                           {t.banking.principalOutstanding}:
                         </span>
                         <span>
-                          {formatCurrency(
-                            position.principal_outstanding ?? 0,
-                            locale,
-                            position.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              position.principal_outstanding ?? 0,
+                              locale,
+                              position.currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div>
@@ -2918,11 +2964,13 @@ function BankLoansSection({
                           :
                         </span>
                         <span>
-                          {formatCurrency(
-                            position.current_installment ?? 0,
-                            locale,
-                            position.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              position.current_installment ?? 0,
+                              locale,
+                              position.currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                     </div>
@@ -3039,11 +3087,13 @@ function BankLoansSection({
                         {t.banking.creditDrawn}
                       </span>
                       <span className="text-xl font-semibold text-red-500">
-                        {formatCurrency(
-                          credit.convertedDrawnAmount,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            credit.convertedDrawnAmount,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
@@ -3051,11 +3101,13 @@ function BankLoansSection({
                         {t.banking.creditLimit}
                       </span>
                       <span className="text-lg font-semibold">
-                        {formatCurrency(
-                          credit.convertedCreditLimit,
-                          locale,
-                          defaultCurrency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            credit.convertedCreditLimit,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
@@ -3064,10 +3116,12 @@ function BankLoansSection({
                       </span>
                       <span className="flex items-center gap-1 text-sm font-medium">
                         <Percent className="h-3 w-3" />
-                        {formatPercentage(
-                          (credit.interest_rate ?? 0) * 100,
-                          locale,
-                        )}
+                        <Sensitive>
+                          {formatPercentage(
+                            (credit.interest_rate ?? 0) * 100,
+                            locale,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                   </div>
@@ -3078,7 +3132,9 @@ function BankLoansSection({
                         {t.banking.availableCredit}
                       </span>
                       <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(available, locale, defaultCurrency)}
+                        <Sensitive>
+                          {formatCurrency(available, locale, defaultCurrency)}
+                        </Sensitive>
                       </span>
                     </div>
                     {credit.pledged_amount != null &&
@@ -3090,16 +3146,18 @@ function BankLoansSection({
                             )}
                           </span>
                           <span className="text-sm">
-                            {formatCurrency(
-                              convertCurrency(
-                                credit.pledged_amount,
-                                credit.currency,
+                            <Sensitive>
+                              {formatCurrency(
+                                convertCurrency(
+                                  credit.pledged_amount,
+                                  credit.currency,
+                                  defaultCurrency,
+                                  exchangeRates,
+                                ),
+                                locale,
                                 defaultCurrency,
-                                exchangeRates,
-                              ),
-                              locale,
-                              defaultCurrency,
-                            )}
+                              )}
+                            </Sensitive>
                           </span>
                         </div>
                       )}
@@ -3124,7 +3182,12 @@ function BankLoansSection({
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{t.banking.utilization}</span>
                         <span>
-                          {formatPercentage(Math.min(utilization, 100), locale)}
+                          <Sensitive>
+                            {formatPercentage(
+                              Math.min(utilization, 100),
+                              locale,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted">
@@ -3141,21 +3204,25 @@ function BankLoansSection({
                       <div>
                         <span className="block">{t.banking.creditDrawn}:</span>
                         <span>
-                          {formatCurrency(
-                            credit.drawn_amount ?? 0,
-                            locale,
-                            credit.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              credit.drawn_amount ?? 0,
+                              locale,
+                              credit.currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div>
                         <span className="block">{t.banking.creditLimit}:</span>
                         <span>
-                          {formatCurrency(
-                            credit.credit_limit ?? 0,
-                            locale,
-                            credit.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              credit.credit_limit ?? 0,
+                              locale,
+                              credit.currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                     </div>

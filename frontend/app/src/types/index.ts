@@ -495,6 +495,11 @@ export interface PlatformInfo {
 
 export type ThemeMode = "light" | "dark" | "system"
 
+export enum DataDisplayMode {
+  NONE = "NONE",
+  PRIVATE = "PRIVATE",
+}
+
 export interface AboutAppInfo {
   appName: string
   version: string

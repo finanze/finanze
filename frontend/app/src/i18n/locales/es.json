@@ -510,6 +510,10 @@
     "applicationLanguageDescription": "Elige el idioma de la interfaz. También usado para dar formato a fechas, números y monedas.",
     "themeTitle": "Tema",
     "themeDescription": "Elige la apariencia de la aplicación.",
+    "dataDisplayModeTitle": "Modo privado",
+    "dataDisplayModeDescription": "Oculta datos financieros sensibles difuminando importes y porcentajes.",
+    "dataDisplayModeNone": "Desactivado",
+    "dataDisplayModePrivate": "Activado",
     "userTitle": "Cuenta",
     "userDescription": "Gestiona tu cuenta.",
     "biometricCredentialsTitle": "Inicio biométrico",
@@ -959,7 +963,8 @@
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
     "includeRealEstateEquityInfo": "Activar esta opción hace que se tenga en cuenta el patrimonio inmobiliario al calcular el patrimonio neto. El patrimonio inmobiliario se define como la valoración del inmueble menos el capital pendiente de los préstamos asociados. Si también quieres incluir las residencias, marca la opción de abajo.",
     "includeResidences": "Incluir residencias",
-    "compactNumbers": "Números compactos"
+    "compactNumbers": "Números compactos",
+    "privateMode": "Modo privado"
   },
   "forecast": {
     "title": "Proyectar",

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
   getEntitiesWithProductType,
@@ -1013,6 +1014,7 @@ function FactoringViewContent({
                     {
                       icon: <Percent className="h-3 w-3" />,
                       value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                      sensitive: true,
                     },
                     {
                       icon: <TrendingUp className="h-3 w-3" />,
@@ -1021,6 +1023,7 @@ function FactoringViewContent({
                         locale,
                         defaultCurrency,
                       ),
+                      sensitive: true,
                     },
                   ]}
                   centerContent={{
@@ -1230,7 +1233,7 @@ function FactoringViewContent({
                           <span>•</span>
                           <Percent size={12} />
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            {compactInterestRate}%
+                            <Sensitive>{compactInterestRate}%</Sensitive>
                           </span>
                           {isLate && hasLateInterestRate && (
                             <span className="text-xs text-amber-500 dark:text-amber-400">
@@ -1245,16 +1248,18 @@ function FactoringViewContent({
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            {position.formattedAmount}
+                            <Sensitive>{position.formattedAmount}</Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
-                              {position.formattedConvertedAmount}
+                              <Sensitive>
+                                {position.formattedConvertedAmount}
+                              </Sensitive>
                             </div>
                           )}
                           {position.formattedProfit && (
                             <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
-                              {position.formattedProfit}
+                              <Sensitive>{position.formattedProfit}</Sensitive>
                             </div>
                           )}
                         </div>
@@ -1307,34 +1312,41 @@ function FactoringViewContent({
                                   <div className="text-foreground">
                                     {isLate && hasLateInterestRate ? (
                                       <span>
-                                        {(position.interest_rate * 100).toFixed(
-                                          2,
-                                        )}
-                                        %
-                                        {showGrossRate && (
-                                          <span className="ml-1 text-muted-foreground">
-                                            /{" "}
-                                            {(
-                                              position.gross_interest_rate * 100
-                                            ).toFixed(2)}
-                                            % {t.investments.gross}
-                                          </span>
-                                        )}
+                                        <Sensitive>
+                                          {(
+                                            position.interest_rate * 100
+                                          ).toFixed(2)}
+                                          %
+                                          {showGrossRate && (
+                                            <span className="ml-1 text-muted-foreground">
+                                              /{" "}
+                                              {(
+                                                position.gross_interest_rate *
+                                                100
+                                              ).toFixed(2)}
+                                              % {t.investments.gross}
+                                            </span>
+                                          )}
+                                        </Sensitive>
                                       </span>
                                     ) : hasLateInterestRate ? (
                                       <span>
-                                        {(
-                                          (position.late_interest_rate ?? 0) *
-                                          100
-                                        ).toFixed(2)}
-                                        %
+                                        <Sensitive>
+                                          {(
+                                            (position.late_interest_rate ?? 0) *
+                                            100
+                                          ).toFixed(2)}
+                                          %
+                                        </Sensitive>
                                       </span>
                                     ) : showGrossRate ? (
                                       <span>
-                                        {(
-                                          position.gross_interest_rate * 100
-                                        ).toFixed(2)}
-                                        % {t.investments.gross}
+                                        <Sensitive>
+                                          {(
+                                            position.gross_interest_rate * 100
+                                          ).toFixed(2)}
+                                          % {t.investments.gross}
+                                        </Sensitive>
                                       </span>
                                     ) : (
                                       <span className="text-muted-foreground">
@@ -1349,12 +1361,18 @@ function FactoringViewContent({
                                       {t.investments.expectedProfit}
                                     </div>
                                     <div className="font-medium text-emerald-600 dark:text-emerald-400">
-                                      {position.formattedProfit}
+                                      <Sensitive>
+                                        {position.formattedProfit}
+                                      </Sensitive>
                                       {position.profitabilityPct !== null && (
                                         <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                          (
-                                          {position.profitabilityPct.toFixed(2)}
-                                          %)
+                                          <Sensitive>
+                                            (
+                                            {position.profitabilityPct.toFixed(
+                                              2,
+                                            )}
+                                            %)
+                                          </Sensitive>
                                         </span>
                                       )}
                                     </div>
@@ -1368,7 +1386,9 @@ function FactoringViewContent({
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">
-                                    {percentageOfFactoring.toFixed(1)}%
+                                    <Sensitive>
+                                      {percentageOfFactoring.toFixed(1)}%
+                                    </Sensitive>
                                   </div>
                                 </div>
                               </div>

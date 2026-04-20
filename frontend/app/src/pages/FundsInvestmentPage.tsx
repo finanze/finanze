@@ -11,6 +11,7 @@ import { getColorForName, getCurrencySymbol, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getStockAndFundPositions,
   getEntitiesWithProductType,
@@ -1132,7 +1133,11 @@ function FundsInvestmentPageContent({
                         </div>
                         {(formattedShares || formattedMarketPrice) && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            {formattedShares && <span>{formattedShares}</span>}
+                            {formattedShares && (
+                              <span>
+                                <Sensitive>{formattedShares}</Sensitive>
+                              </span>
+                            )}
                             {formattedShares && formattedMarketPrice && (
                               <span>×</span>
                             )}
@@ -1145,13 +1150,15 @@ function FundsInvestmentPageContent({
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            {position.formattedOriginalValue ||
-                              position.formattedValue}
+                            <Sensitive>
+                              {position.formattedOriginalValue ||
+                                position.formattedValue}
+                            </Sensitive>
                           </div>
                           {position.currency !==
                             settings.general.defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
-                              {position.formattedValue}
+                              <Sensitive>{position.formattedValue}</Sensitive>
                             </div>
                           )}
                           <div
@@ -1162,12 +1169,14 @@ function FundsInvestmentPageContent({
                                 : "text-red-500",
                             )}
                           >
-                            {position.change >= 0 ? (
-                              <TrendingUp size={14} />
-                            ) : (
-                              <TrendingDown size={14} />
-                            )}
-                            <span>{position.change.toFixed(2)}%</span>
+                            <Sensitive>
+                              {position.change >= 0 ? (
+                                <TrendingUp size={14} />
+                              ) : (
+                                <TrendingDown size={14} />
+                              )}
+                              <span>{position.change.toFixed(2)}%</span>
+                            </Sensitive>
                           </div>
                         </div>
                         <ChevronDown
@@ -1205,7 +1214,11 @@ function FundsInvestmentPageContent({
                                     <div className="flex items-center gap-1 text-foreground">
                                       {formattedShares && (
                                         <>
-                                          <span>{formattedShares}</span>
+                                          <span>
+                                            <Sensitive>
+                                              {formattedShares}
+                                            </Sensitive>
+                                          </span>
                                           {sharesLabel && (
                                             <span className="text-muted-foreground">
                                               {sharesLabel}
@@ -1233,7 +1246,9 @@ function FundsInvestmentPageContent({
                                     {formattedAvgBuyPrice && (
                                       <div className="text-xs text-muted-foreground mt-0.5">
                                         {t.investments.averageBuyPrice}:{" "}
-                                        {formattedAvgBuyPrice}
+                                        <Sensitive>
+                                          {formattedAvgBuyPrice}
+                                        </Sensitive>
                                       </div>
                                     )}
                                   </div>
@@ -1271,7 +1286,9 @@ function FundsInvestmentPageContent({
                                           : "text-red-500",
                                       )}
                                     >
-                                      {position.formattedGainLossAmount}
+                                      <Sensitive>
+                                        {position.formattedGainLossAmount}
+                                      </Sensitive>
                                     </div>
                                   </div>
                                 )}
@@ -1283,7 +1300,9 @@ function FundsInvestmentPageContent({
                                     )}
                                   </div>
                                   <div className="font-medium text-blue-600 dark:text-blue-400">
-                                    {percentageOfFunds.toFixed(1)}%
+                                    <Sensitive>
+                                      {percentageOfFunds.toFixed(1)}%
+                                    </Sensitive>
                                   </div>
                                 </div>
                               </div>

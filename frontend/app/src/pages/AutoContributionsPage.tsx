@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { getCurrencySymbol, cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -1237,11 +1238,15 @@ export default function AutoContributionsPage() {
               <div className="flex items-start gap-2">
                 <div className="flex flex-col items-end gap-1">
                   <div className="text-2xl font-semibold tracking-tight leading-none">
-                    {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    <Sensitive>
+                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    </Sensitive>
                   </div>
                   {showOriginalCurrency && (
                     <div className="text-xs text-muted-foreground">
-                      {formatCurrency(amount, locale, currency)}
+                      <Sensitive>
+                        {formatCurrency(amount, locale, currency)}
+                      </Sensitive>
                     </div>
                   )}
                 </div>
@@ -1394,19 +1399,23 @@ export default function AutoContributionsPage() {
                       </span>
                       <div className="text-right">
                         <div className="font-medium">
-                          {formatCurrency(
-                            convertedMonthlyAmount,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              convertedMonthlyAmount,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </div>
                         {showOriginalCurrency && (
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(
-                              normalizedMonthlyAmount,
-                              locale,
-                              currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                normalizedMonthlyAmount,
+                                locale,
+                                currency,
+                              )}
+                            </Sensitive>
                           </div>
                         )}
                       </div>

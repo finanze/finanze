@@ -21,6 +21,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { Sensitive } from "@/components/ui/Sensitive"
+import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
+import { DataDisplayMode } from "@/types"
 
 interface ChartDataItem {
   name: string
@@ -36,6 +39,7 @@ interface ChartDataItem {
 interface DonutBadge {
   icon: React.ReactNode
   value: string
+  sensitive?: boolean
 }
 
 interface DonutCenterConfig {
@@ -127,10 +131,12 @@ const CustomTooltip = ({
       <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
         <p className="font-medium">{data.name}</p>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {data.percentage.toFixed(2)}% •{" "}
-          {showOriginalCurrency && data.currency && data.currency !== currency
-            ? `${formatCurrency(data.value, locale, data.currency)} (${formatCurrency(data.convertedValue || data.value, locale, currency)})`
-            : formatCurrency(data.value, locale, data.currency || currency)}
+          <Sensitive>{data.percentage.toFixed(2)}%</Sensitive> •{" "}
+          <Sensitive>
+            {showOriginalCurrency && data.currency && data.currency !== currency
+              ? `${formatCurrency(data.value, locale, data.currency)} (${formatCurrency(data.convertedValue || data.value, locale, currency)})`
+              : formatCurrency(data.value, locale, data.currency || currency)}
+          </Sensitive>
         </p>
       </div>
     )
@@ -156,7 +162,7 @@ function InfoPopover({
             <div key={i}>
               <span className="text-muted-foreground">{row.label}: </span>
               <span className={cn("font-semibold", row.valueClassName)}>
-                {row.value}
+                <Sensitive>{row.value}</Sensitive>
               </span>
             </div>
           ))}
@@ -194,6 +200,9 @@ export const InvestmentDistributionChart: React.FC<
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
   const hasData = Array.isArray(data) && data.length > 0
 
+  const { mode: dataDisplayMode } = useDataDisplayMode()
+  const isPrivate = dataDisplayMode === DataDisplayMode.PRIVATE
+
   const compactNumbers = useMemo(() => {
     if (typeof window === "undefined") return true
     try {
@@ -209,7 +218,7 @@ export const InvestmentDistributionChart: React.FC<
   }, [])
 
   const formattedCenterValue = centerContent
-    ? compactNumbers
+    ? compactNumbers && !isPrivate
       ? formatCompactCurrency(centerContent.rawValue, locale, currency)
       : formatCurrency(centerContent.rawValue, locale, currency)
     : ""
@@ -432,7 +441,7 @@ export const InvestmentDistributionChart: React.FC<
                     compactNumbers ? "text-3xl" : "text-[1.7rem]",
                   )}
                 >
-                  {formattedCenterValue}
+                  <Sensitive>{formattedCenterValue}</Sensitive>
                 </span>
                 {centerContent.badgeText && (
                   <span className="text-sm font-semibold text-muted-foreground mt-0.5">
@@ -452,8 +461,13 @@ export const InvestmentDistributionChart: React.FC<
                               : "text-muted-foreground",
                         )}
                       >
-                        {centerContent.gainPercentage > 0 ? "+" : ""}
-                        {formatPercentage(centerContent.gainPercentage, locale)}
+                        <Sensitive>
+                          {centerContent.gainPercentage > 0 ? "+" : ""}
+                          {formatPercentage(
+                            centerContent.gainPercentage,
+                            locale,
+                          )}
+                        </Sensitive>
                       </span>
                       {centerContent.infoRows &&
                         centerContent.infoRows.length > 0 && (
@@ -477,7 +491,13 @@ export const InvestmentDistributionChart: React.FC<
                     className="inline-flex items-center gap-1.5 rounded-full bg-muted/80 backdrop-blur-sm border border-border/50 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm"
                   >
                     {badge.icon}
-                    {badge.value}
+                    {badge.sensitive ? (
+                      <Sensitive className="text-muted-foreground">
+                        {badge.value}
+                      </Sensitive>
+                    ) : (
+                      badge.value
+                    )}
                   </span>
                 ))}
               </div>
@@ -629,18 +649,22 @@ export const InvestmentDistributionChart: React.FC<
               </div>
               <div className="text-right flex-shrink-0 ml-2">
                 <div className="font-medium text-gray-900 dark:text-gray-100">
-                  {showOriginalCurrency &&
-                  item.currency &&
-                  item.currency !== currency
-                    ? formatCurrency(item.value, locale, item.currency)
-                    : formatCurrency(item.value, locale, currency)}
+                  <Sensitive>
+                    {showOriginalCurrency &&
+                    item.currency &&
+                    item.currency !== currency
+                      ? formatCurrency(item.value, locale, item.currency)
+                      : formatCurrency(item.value, locale, currency)}
+                  </Sensitive>
                 </div>
                 {showOriginalCurrency &&
                   item.currency &&
                   item.currency !== currency &&
                   item.convertedValue && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatCurrency(item.convertedValue, locale, currency)}
+                      <Sensitive>
+                        {formatCurrency(item.convertedValue, locale, currency)}
+                      </Sensitive>
                     </div>
                   )}
               </div>
@@ -695,18 +719,22 @@ export const InvestmentDistributionLegend: React.FC<LegendProps> = ({
             </div>
             <div className="text-right flex-shrink-0 ml-2">
               <div className="font-medium text-gray-900 dark:text-gray-100">
-                {showOriginalCurrency &&
-                item.currency &&
-                item.currency !== currency
-                  ? formatCurrency(item.value, locale, item.currency)
-                  : formatCurrency(item.value, locale, currency)}
+                <Sensitive>
+                  {showOriginalCurrency &&
+                  item.currency &&
+                  item.currency !== currency
+                    ? formatCurrency(item.value, locale, item.currency)
+                    : formatCurrency(item.value, locale, currency)}
+                </Sensitive>
               </div>
               {showOriginalCurrency &&
                 item.currency &&
                 item.currency !== currency &&
                 item.convertedValue && (
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatCurrency(item.convertedValue, locale, currency)}
+                    <Sensitive>
+                      {formatCurrency(item.convertedValue, locale, currency)}
+                    </Sensitive>
                   </div>
                 )}
             </div>
