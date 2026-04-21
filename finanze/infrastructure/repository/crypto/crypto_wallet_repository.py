@@ -1,12 +1,13 @@
 import json
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import UUID, uuid4
 
 from dateutil.tz import tzlocal
 
 from application.ports.crypto_wallet_port import CryptoWalletPort
 from domain.crypto import CryptoWallet, HDWallet, HDAddress, AddressSource
+from domain.dezimal import Dezimal
 from domain.public_key import ScriptType, CoinType
 from infrastructure.repository.crypto.queries import CryptoWalletQueries
 from infrastructure.repository.db.client import DBClient
@@ -25,6 +26,7 @@ class CryptoWalletRepository(CryptoWalletPort):
                 change=hd_row["change"],
                 path=hd_row["derived_path"],
                 pubkey=hd_row["pubkey"],
+                balance=Dezimal(hd_row["balance"]),
             )
             for hd_row in hd_addr_rows
         ]
@@ -40,6 +42,18 @@ class CryptoWalletRepository(CryptoWalletPort):
             return await self._map_crypto_rows(
                 cursor, await cursor.fetchall(), hd_addresses
             )
+
+    async def get_by_id(self, wallet_id: UUID) -> Optional[CryptoWallet]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                CryptoWalletQueries.GET_BY_ID,
+                (str(wallet_id),),
+            )
+            rows = await cursor.fetchall()
+            if not rows:
+                return None
+            wallets = await self._map_crypto_rows(cursor, rows, hd_addresses=True)
+            return wallets[0] if wallets else None
 
     @staticmethod
     async def _map_crypto_rows(cursor, rows, hd_addresses: bool) -> List[CryptoWallet]:
@@ -144,7 +158,7 @@ class CryptoWalletRepository(CryptoWalletPort):
             )
 
     async def insert_hd_addresses(self, wallet_id: UUID, addresses: list[HDAddress]):
-        placeholders = ", ".join("(?, ?, ?, ?, ?, ?, ?)" for _ in addresses)
+        placeholders = ", ".join("(?, ?, ?, ?, ?, ?, ?, ?)" for _ in addresses)
         params = []
         for address in addresses:
             params.extend(
@@ -156,12 +170,35 @@ class CryptoWalletRepository(CryptoWalletPort):
                     address.path,
                     address.address,
                     address.pubkey,
+                    str(address.balance),
                 ]
             )
         query = f"""
-            INSERT INTO hd_addresses (id, hd_wallet_id, address_index, "change", derived_path, address, pubkey)
+            INSERT INTO hd_addresses (id, hd_wallet_id, address_index, "change", derived_path, address, pubkey, balance)
             VALUES {placeholders}
         """
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(query, params)
+
+    async def update_hd_address_balances(
+        self, wallet_id: UUID, balances: dict[str, Dezimal]
+    ):
+        if not balances:
+            return
+        case_clauses = " ".join("WHEN ? THEN ?" for _ in balances)
+        in_placeholders = ", ".join("?" for _ in balances)
+        query = f"""
+            UPDATE hd_addresses SET balance = CASE address
+                {case_clauses}
+            END
+            WHERE hd_wallet_id = ? AND address IN ({in_placeholders})
+        """
+        params = []
+        for addr, bal in balances.items():
+            params.extend([addr, str(bal)])
+        params.append(str(wallet_id))
+        for addr in balances:
+            params.append(addr)
         async with self._db_client.tx() as cursor:
             await cursor.execute(query, params)
 

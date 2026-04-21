@@ -235,6 +235,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
             lz.del_crypto,
         ),
         (
+            "GET",
+            "/api/v1/crypto-wallet/addresses",
+            "get_crypto_wallet_addresses",
+            "get_crypto_wallet_addresses",
+            lz.get_wallet_addrs,
+        ),
+        (
             "POST",
             "/api/v1/commodities",
             "save_commodities",

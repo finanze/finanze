@@ -43,6 +43,7 @@ class MockCryptoWalletPort(CryptoWalletPort):
     def __init__(self, wallets: list[CryptoWallet] = None):
         self._wallets = wallets or []
         self.inserted_hd_addresses: dict[UUID, list[HDAddress]] = {}
+        self.updated_hd_balances: dict[UUID, dict[str, Dezimal]] = {}
 
     async def get_by_entity_id(
         self, entity_id: UUID, hd_addresses: bool
@@ -66,6 +67,14 @@ class MockCryptoWalletPort(CryptoWalletPort):
 
     async def insert_hd_addresses(self, wallet_id: UUID, addresses: list[HDAddress]):
         self.inserted_hd_addresses[wallet_id] = addresses
+
+    async def update_hd_address_balances(
+        self, wallet_id: UUID, balances: dict[str, Dezimal]
+    ):
+        self.updated_hd_balances[wallet_id] = balances
+
+    async def get_by_id(self, wallet_id: UUID):
+        return next((w for w in self._wallets if w.id == wallet_id), None)
 
     async def rename(self, wallet_connection_id: UUID, name: str):
         pass
@@ -630,6 +639,139 @@ class TestFetchCryptoDataDerivedWallets:
         btc_asset = next(a for a in target_wallet.assets if a.symbol == "BTC")
         assert btc_asset.amount == Dezimal("2.0")
 
+    @pytest.mark.asyncio
+    async def test_updates_balances_for_existing_addresses(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        existing_hd = [
+            HDAddress(
+                address="recv_0",
+                index=0,
+                change=0,
+                path="m/84'/0'/0'/0/0",
+                pubkey="pub_recv_0",
+                balance=Dezimal("0"),
+            ),
+            HDAddress(
+                address="recv_1",
+                index=1,
+                change=0,
+                path="m/84'/0'/0'/0/1",
+                pubkey="pub_recv_1",
+                balance=Dezimal("0"),
+            ),
+        ]
+        wallet = _make_derived_wallet(hd_addresses=existing_hd)
+        wallet_port = MockCryptoWalletPort([wallet])
+
+        def fetcher_fn(request: CryptoFetchRequest):
+            results = {}
+            for addr in request.addresses:
+                has_txs = addr in ("recv_0", "recv_1")
+                balance = (
+                    Dezimal("2.5")
+                    if addr == "recv_0"
+                    else (Dezimal("0.3") if addr == "recv_1" else Dezimal(0))
+                )
+                results[addr] = CryptoFetchResult(
+                    address=addr,
+                    has_txs=has_txs,
+                    assets=[
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="BTC",
+                            balance=balance,
+                            type=CryptoCurrencyType.NATIVE,
+                        )
+                    ],
+                )
+            return CryptoFetchResults(results=results)
+
+        fetcher = MockCryptoEntityFetcher(results_fn=fetcher_fn)
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        updated = wallet_port.updated_hd_balances.get(wallet.id, {})
+        assert updated["recv_0"] == Dezimal("2.5")
+        assert updated["recv_1"] == Dezimal("0.3")
+
+    @pytest.mark.asyncio
+    async def test_new_derived_addresses_stored_with_balance(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet = _make_derived_wallet()
+        wallet_port = MockCryptoWalletPort([wallet])
+
+        def fetcher_fn(request: CryptoFetchRequest):
+            results = {}
+            for addr in request.addresses:
+                has_txs = addr == "recv_0"
+                balance = Dezimal("0.75") if has_txs else Dezimal(0)
+                results[addr] = CryptoFetchResult(
+                    address=addr,
+                    has_txs=has_txs,
+                    assets=[
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="BTC",
+                            balance=balance,
+                            type=CryptoCurrencyType.NATIVE,
+                        )
+                    ],
+                )
+            return CryptoFetchResults(results=results)
+
+        fetcher = MockCryptoEntityFetcher(results_fn=fetcher_fn)
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        stored = wallet_port.inserted_hd_addresses.get(wallet.id, [])
+        recv_0 = next((a for a in stored if a.address == "recv_0"), None)
+        assert recv_0 is not None
+        assert recv_0.balance == Dezimal("0.75")
+
 
 class TestFetchCryptoDataMixed:
     @pytest.mark.asyncio
@@ -1107,7 +1249,23 @@ class TestMapDerivedToHDAddresses:
                 change=1,
             ),
         ]
-        result = FetchCryptoDataImpl._map_derived_to_hd_addresses(derived)
+        data_by_address = {
+            "addr_0": CryptoFetchResult(
+                address="addr_0",
+                assets=[
+                    CryptoFetchedPosition(
+                        id=uuid4(),
+                        symbol="BTC",
+                        balance=Dezimal("1.5"),
+                        type=CryptoCurrencyType.NATIVE,
+                    )
+                ],
+            ),
+            "addr_1": None,
+        }
+        result = FetchCryptoDataImpl._map_derived_to_hd_addresses(
+            derived, data_by_address
+        )
 
         assert len(result) == 2
         assert result[0].address == "addr_0"
@@ -1115,8 +1273,10 @@ class TestMapDerivedToHDAddresses:
         assert result[0].change == 0
         assert result[0].path == "m/84'/0'/0'/0/0"
         assert result[0].pubkey == "pub_0"
+        assert result[0].balance == Dezimal("1.5")
         assert result[1].address == "addr_1"
         assert result[1].change == 1
+        assert result[1].balance == Dezimal("0")
 
 
 class TestMergeAddressAssets:

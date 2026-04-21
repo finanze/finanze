@@ -58,13 +58,34 @@ class CryptoWalletQueries(str, Enum):
                 hdw.xpub, hdw.script_type, hdw.coin
     """
 
+    GET_BY_ID = """
+       SELECT cw.id,
+              cw.entity_id,
+              cw.name,
+              cw.address_source,
+              cw.created_at,
+              hdw.xpub,
+              hdw.script_type,
+              hdw.coin,
+              json_group_array(
+                      cwa.address
+              ) as addresses
+       FROM crypto_wallets cw
+                LEFT JOIN crypto_wallet_addresses cwa ON cw.id = cwa.wallet_id
+                LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
+       WHERE cw.id = ?
+       GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
+                hdw.xpub, hdw.script_type, hdw.coin
+    """
+
     GET_HD_ADDRESSES_BY_WALLET_ID = """
         SELECT 
             address,
             address_index,
             "change",
             derived_path,
-            pubkey
+            pubkey,
+            balance
         FROM hd_addresses
         WHERE hd_wallet_id = ?
         ORDER BY "change", address_index

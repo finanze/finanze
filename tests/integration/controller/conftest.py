@@ -17,6 +17,9 @@ from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.update_crypto_wallet import update_crypto_wallet
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
+from infrastructure.controller.routes.get_crypto_wallet_addresses import (
+    get_crypto_wallet_addresses,
+)
 from infrastructure.controller.routes.fetch_crypto_data import (
     fetch_crypto_data as fetch_crypto_data_route,
 )
@@ -135,6 +138,9 @@ from application.use_cases.import_backup import ImportBackupImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.get_crypto_wallet_addresses import (
+    GetCryptoWalletAddressesImpl,
+)
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
@@ -326,6 +332,7 @@ async def app(tmp_path):
     )
     update_crypto_wallet_uc = UpdateCryptoWalletConnectionImpl(crypto_wallet_port)
     delete_crypto_wallet_uc = DeleteCryptoWalletConnectionImpl(crypto_wallet_port)
+    get_crypto_wallet_addresses_uc = GetCryptoWalletAddressesImpl(crypto_wallet_port)
     fetch_crypto_data_uc = FetchCryptoDataImpl(
         position_port,
         crypto_entity_fetchers,
@@ -493,6 +500,10 @@ async def app(tmp_path):
     @test_app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
     async def delete_crypto_wallet_route(wallet_connection_id: str):
         return await delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+
+    @test_app.route("/api/v1/crypto-wallet/addresses", methods=["GET"])
+    async def get_crypto_wallet_addresses_route():
+        return await get_crypto_wallet_addresses(get_crypto_wallet_addresses_uc)
 
     @test_app.route("/api/v1/data/fetch/crypto", methods=["POST"])
     async def fetch_crypto_data_route_handler():

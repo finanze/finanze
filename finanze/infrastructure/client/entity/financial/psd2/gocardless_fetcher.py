@@ -215,7 +215,7 @@ class GoCardlessFetcher(ExternalEntityFetcher):
             total_amount = Dezimal("0")
             balance = None
 
-            self._log.info(balances)
+            self._log.debug(balances)
 
             for b in balances.get("balances", []):
                 btype = b.get("balanceType")

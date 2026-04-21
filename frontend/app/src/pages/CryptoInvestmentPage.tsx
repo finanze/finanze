@@ -59,6 +59,7 @@ import {
   DollarSign,
   ShieldAlert,
   Tag,
+  List,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -82,6 +83,7 @@ import {
 } from "@/components/ui/Popover"
 import { cn } from "@/lib/utils"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
+import { WalletAddressesDialog } from "@/components/WalletAddressesDialog"
 
 const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
 const normalizeDerivativeCurrency = (currency: string) =>
@@ -479,10 +481,16 @@ function CryptoInvestmentContent({
     string | null
   >(null)
   const [showConnectConfirm, setShowConnectConfirm] = useState(false)
+  const [showAddressesDialog, setShowAddressesDialog] = useState(false)
+  const [addressesDialogWalletId, setAddressesDialogWalletId] = useState<
+    string | null
+  >(null)
+  const [addressesDialogWalletName, setAddressesDialogWalletName] = useState("")
 
   useModalBackHandler(showEditDialog, () => setShowEditDialog(false))
   useModalBackHandler(showDeleteConfirm, () => setShowDeleteConfirm(false))
   useModalBackHandler(showConnectConfirm, () => setShowConnectConfirm(false))
+  useModalBackHandler(showAddressesDialog, () => setShowAddressesDialog(false))
   const [selectedDerivative, setSelectedDerivative] =
     useState<DerivativeDetail | null>(null)
   useModalBackHandler(!!selectedDerivative, () => setSelectedDerivative(null))
@@ -1762,15 +1770,35 @@ function CryptoInvestmentContent({
                           ) : null}
                         </div>
                       </div>
-                      <WalletActionsMenu
-                        onEdit={() =>
-                          handleEditWallet(wallet, entityGroup.entity.id)
-                        }
-                        onDelete={() =>
-                          handleDeleteWallet(wallet, entityGroup.entity.id)
-                        }
-                        disabled={isUpdatingWallet || isDeletingWallet}
-                      />
+                      <div className="flex items-center gap-1">
+                        {walletXpub && wallet.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 h-7 w-7 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                            onClick={() => {
+                              setAddressesDialogWalletId(wallet.id!)
+                              setAddressesDialogWalletName(walletName)
+                              setShowAddressesDialog(true)
+                            }}
+                            title={
+                              (t.walletManagement as Record<string, string>)
+                                .viewAddresses
+                            }
+                          >
+                            <List className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <WalletActionsMenu
+                          onEdit={() =>
+                            handleEditWallet(wallet, entityGroup.entity.id)
+                          }
+                          onDelete={() =>
+                            handleDeleteWallet(wallet, entityGroup.entity.id)
+                          }
+                          disabled={isUpdatingWallet || isDeletingWallet}
+                        />
+                      </div>
                     </div>
                     <div className="text-lg font-medium">
                       <Sensitive>
@@ -3204,6 +3232,13 @@ function CryptoInvestmentContent({
             ? createPortal(dialogContent, document.body)
             : dialogContent
         })()}
+
+      <WalletAddressesDialog
+        isOpen={showAddressesDialog}
+        onClose={() => setShowAddressesDialog(false)}
+        walletId={addressesDialogWalletId}
+        walletName={addressesDialogWalletName}
+      />
     </div>
   )
 }

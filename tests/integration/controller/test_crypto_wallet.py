@@ -12,6 +12,7 @@ from domain.crypto import (
     CryptoCurrencyType,
     CryptoWallet,
     HDWallet,
+    HDAddress,
 )
 from domain.dezimal import Dezimal
 from domain.native_entities import ETHEREUM, NATIVE_ENTITIES
@@ -21,6 +22,7 @@ from domain.public_key import CoinType, DerivedAddressesResult, ScriptType
 CONNECT_URL = "/api/v1/crypto-wallet"
 UPDATE_URL = "/api/v1/crypto-wallet"
 GET_ENTITIES_URL = "/api/v1/entities"
+GET_ADDRESSES_URL = "/api/v1/crypto-wallet/addresses"
 
 BITCOIN_ID = "c0000000-0000-0000-0000-000000000001"
 ETHEREUM_ID = "c0000000-0000-0000-0000-000000000002"
@@ -568,3 +570,116 @@ class TestDeleteAndRead:
             e for e in entities_body["entities"] if str(e["id"]) == BITCOIN_ID
         )
         assert btc_entity["connected"] == []
+
+
+class TestGetAddressesValidation:
+    @pytest.mark.asyncio
+    async def test_returns_400_when_wallet_id_missing(self, client):
+        response = await client.get(GET_ADDRESSES_URL)
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+
+    @pytest.mark.asyncio
+    async def test_returns_400_on_invalid_uuid(self, client):
+        response = await client.get(f"{GET_ADDRESSES_URL}?wallet_id=not-a-uuid")
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+
+
+class TestGetAddresses:
+    @pytest.mark.asyncio
+    async def test_returns_404_when_wallet_not_found(self, client, crypto_wallet_port):
+        crypto_wallet_port.get_by_id = AsyncMock(return_value=None)
+        wallet_id = str(uuid.uuid4())
+        response = await client.get(f"{GET_ADDRESSES_URL}?wallet_id={wallet_id}")
+        assert response.status_code == 404
+        body = await response.get_json()
+        assert body["code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_returns_400_for_manual_wallet(self, client, crypto_wallet_port):
+        wallet_id = uuid.uuid4()
+        crypto_wallet_port.get_by_id = AsyncMock(
+            return_value=CryptoWallet(
+                id=wallet_id,
+                entity_id=uuid.UUID(ETHEREUM_ID),
+                addresses=["0xabc"],
+                name="Manual Wallet",
+                address_source=AddressSource.MANUAL,
+                hd_wallet=None,
+            )
+        )
+        response = await client.get(f"{GET_ADDRESSES_URL}?wallet_id={wallet_id}")
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+
+    @pytest.mark.asyncio
+    async def test_returns_addresses_for_derived_wallet(
+        self, client, crypto_wallet_port
+    ):
+        wallet_id = uuid.uuid4()
+        hd_addresses = [
+            HDAddress(
+                address="bc1qaddr0",
+                index=0,
+                change=0,
+                path="m/84'/0'/0'/0/0",
+                pubkey="pub0",
+                balance=Dezimal("1.5"),
+            ),
+            HDAddress(
+                address="bc1qaddr1",
+                index=1,
+                change=0,
+                path="m/84'/0'/0'/0/1",
+                pubkey="pub1",
+                balance=Dezimal("0"),
+            ),
+            HDAddress(
+                address="bc1qchange0",
+                index=0,
+                change=1,
+                path="m/84'/0'/0'/1/0",
+                pubkey="cpub0",
+                balance=Dezimal("0.25"),
+            ),
+        ]
+        crypto_wallet_port.get_by_id = AsyncMock(
+            return_value=CryptoWallet(
+                id=wallet_id,
+                entity_id=uuid.UUID(BITCOIN_ID),
+                addresses=[],
+                name="HD Wallet",
+                address_source=AddressSource.DERIVED,
+                hd_wallet=HDWallet(
+                    xpub="xpub6test123",
+                    addresses=hd_addresses,
+                    script_type=ScriptType.P2WPKH,
+                    coin_type=CoinType.BITCOIN,
+                ),
+            )
+        )
+
+        response = await client.get(f"{GET_ADDRESSES_URL}?wallet_id={wallet_id}")
+        assert response.status_code == 200
+        body = await response.get_json()
+
+        assert body["id"] == str(wallet_id)
+        assert body["name"] == "HD Wallet"
+        assert body["address_source"] == "DERIVED"
+        assert body["hd_wallet"] is not None
+        assert body["hd_wallet"]["xpub"] == "xpub6test123"
+        assert body["hd_wallet"]["script_type"] == "p2wpkh"
+        assert len(body["hd_wallet"]["receiving"]) == 2
+        assert len(body["hd_wallet"]["change"]) == 1
+        assert body["hd_wallet"]["receiving"][0]["address"] == "bc1qaddr0"
+        assert body["hd_wallet"]["receiving"][0]["index"] == 0
+        assert body["hd_wallet"]["receiving"][0]["path"] == "m/84'/0'/0'/0/0"
+        assert body["hd_wallet"]["receiving"][0]["balance"] == 1.5
+        assert body["hd_wallet"]["receiving"][1]["balance"] == 0
+        assert body["hd_wallet"]["change"][0]["address"] == "bc1qchange0"
+        assert body["hd_wallet"]["change"][0]["change"] == 1
+        assert body["hd_wallet"]["change"][0]["balance"] == 0.25

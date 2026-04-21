@@ -596,6 +596,7 @@ export interface DerivedAddress {
   address: string
   pubkey: string
   change: number
+  balance: number
 }
 
 export interface DerivedAddressesResult {
@@ -605,6 +606,19 @@ export interface DerivedAddressesResult {
   base_path: string
   receiving: DerivedAddress[]
   change: DerivedAddress[]
+}
+
+export interface WalletAddressesResponse {
+  id: string
+  name: string
+  address_source: AddressSource
+  hd_wallet: {
+    xpub: string
+    script_type: string
+    coin_type: string
+    receiving: DerivedAddress[]
+    change: DerivedAddress[]
+  } | null
 }
 
 export interface DeriveCryptoAddressesRequest {

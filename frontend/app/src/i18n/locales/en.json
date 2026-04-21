@@ -1656,7 +1656,14 @@
     "filterByWallet": "Filter by wallet",
     "walletFilterPlaceholder": "Select wallets",
     "clearFilters": "Clear filters",
-    "viewAllTokens": "View all tokens"
+    "viewAllTokens": "View all tokens",
+    "viewAddresses": "View addresses",
+    "showAddresses": "Show addresses",
+    "hideAddresses": "Hide addresses",
+    "receivingAddresses": "Receiving addresses",
+    "changeAddresses": "Change addresses",
+    "noAddresses": "No derived addresses found",
+    "addressesError": "Failed to load addresses. Please try again."
   },
   "commodityManagement": {
     "title": "Commodities",

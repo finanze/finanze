@@ -1655,7 +1655,14 @@
     "filterByWallet": "Filtrar por billetera",
     "walletFilterPlaceholder": "Selecciona billeteras",
     "clearFilters": "Limpiar filtros",
-    "viewAllTokens": "Ver todos los tokens"
+    "viewAllTokens": "Ver todos los tokens",
+    "viewAddresses": "Ver direcciones",
+    "showAddresses": "Mostrar direcciones",
+    "hideAddresses": "Ocultar direcciones",
+    "receivingAddresses": "Direcciones de recepción",
+    "changeAddresses": "Direcciones de cambio",
+    "noAddresses": "No se encontraron direcciones derivadas",
+    "addressesError": "Error al cargar las direcciones. Inténtalo de nuevo."
   },
   "commodityManagement": {
     "title": "Materias Primas",
