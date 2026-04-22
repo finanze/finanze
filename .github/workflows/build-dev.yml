@@ -18,6 +18,64 @@ concurrency:
 
 jobs:
 
+  pr-comment-init:
+    if: ${{ github.event_name == 'pull_request' && ((github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post initial build comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = context.runId;
+            const prNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            const dockerTag = `pr${prNumber}`;
+
+            const body = [
+              `<!-- finanze-build-artifacts -->`,
+              `## 📦 Build Artifacts`,
+              ``,
+              `**Workflow run:** [#${runId}](https://github.com/${owner}/${repo}/actions/runs/${runId})`,
+              ``,
+              `### Desktop Builds`,
+              ``,
+              `| Platform | Architecture | Type | Size | Link |`,
+              `|----------|-------------|------|------|------|`,
+              `| 🍎 macOS | ARM64 (Apple Silicon) | \`.dmg\` | — | ⏳ Building... |`,
+              `| 🍎 macOS | Intel x64 | \`.dmg\` | — | ⏳ Building... |`,
+              `| 🐧 Linux | x64 | \`.AppImage\` | — | ⏳ Building... |`,
+              `| 🪟 Windows | x64 | \`.exe\` | — | ⏳ Building... |`,
+              ``,
+              `### 🐳 Docker Images`,
+              ``,
+              `⏳ Building on tag \`${dockerTag}\`...`,
+            ].join('\n');
+
+            const marker = '<!-- finanze-build-artifacts -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: prNumber,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+
   build-app:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
