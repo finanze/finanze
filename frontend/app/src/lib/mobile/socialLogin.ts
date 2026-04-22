@@ -247,17 +247,17 @@ export async function signInWithAppleMobile(): Promise<MobileAppleSignInResult> 
     })
 
     const appleResponse = response.result as {
-      identityToken?: string
+      idToken?: string
       authorizationCode?: string
     }
 
-    if (!appleResponse.identityToken) {
+    if (!appleResponse.idToken) {
       return { success: false, error: "Failed to get Apple identity token" }
     }
 
     return {
       success: true,
-      idToken: appleResponse.identityToken,
+      idToken: appleResponse.idToken,
       rawNonce,
     }
   } catch (error) {
