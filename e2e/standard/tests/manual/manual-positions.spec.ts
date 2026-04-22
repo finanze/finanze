@@ -157,8 +157,11 @@ async function saveDraftAndPersist(page: Page) {
     await dialog.getByRole('button', { name: 'Save' }).click()
     await page.waitForTimeout(800)
 
-    // Click page-level Save button
-    await page.getByTestId('save-positions').click()
+    // Wait for the edit banner to appear with the page-level Save button
+    const saveBtn = page.getByTestId('save-positions')
+    await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+    await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
+    await saveBtn.click()
 
     await expect(
         page.getByText('Manual positions saved successfully.'),
@@ -196,7 +199,10 @@ async function deleteManualPosition(page: Page, positionName: string) {
     await page.waitForTimeout(300)
 
     // Save page-level
-    await page.getByTestId('save-positions').click()
+    const saveBtn = page.getByTestId('save-positions')
+    await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+    await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
+    await saveBtn.click()
     await expect(
         page.getByText('Manual positions saved successfully.'),
     ).toBeVisible({ timeout: 10_000 })

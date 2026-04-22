@@ -34,6 +34,7 @@ class HDAddress:
     change: int
     path: str
     pubkey: str
+    balance: Dezimal = Dezimal("0")
 
 
 @dataclass

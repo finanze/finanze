@@ -13,6 +13,7 @@ from domain.use_cases.connect_external_integration import ConnectExternalIntegra
 from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.create_template import CreateTemplate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
+from domain.use_cases.get_crypto_wallet_addresses import GetCryptoWalletAddresses
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
 from domain.use_cases.derive_crypto_addresses import DeriveCryptoAddresses
@@ -100,6 +101,9 @@ from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.create_real_estate import create_real_estate
 from infrastructure.controller.routes.create_template import create_template
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
+from infrastructure.controller.routes.get_crypto_wallet_addresses import (
+    get_crypto_wallet_addresses,
+)
 from infrastructure.controller.routes.delete_external_entity import (
     delete_external_entity,
 )
@@ -215,6 +219,7 @@ async def register_routes(
     connect_crypto_wallet_uc: ConnectCryptoWallet,
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
+    get_crypto_wallet_addresses_uc: GetCryptoWalletAddresses,
     derive_crypto_addresses_uc: DeriveCryptoAddresses,
     save_commodities_uc: SaveCommodities,
     get_external_integrations_uc: GetExternalIntegrations,
@@ -387,6 +392,10 @@ async def register_routes(
     @app.route("/api/v1/crypto-wallet/derivate", methods=["GET"])
     async def derive_crypto_addresses_route():
         return await derive_crypto_addresses(derive_crypto_addresses_uc)
+
+    @app.route("/api/v1/crypto-wallet/addresses", methods=["GET"])
+    async def get_crypto_wallet_addresses_route():
+        return await get_crypto_wallet_addresses(get_crypto_wallet_addresses_uc)
 
     @app.route("/api/v1/commodities", methods=["POST"])
     async def save_commodities_route():

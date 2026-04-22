@@ -14,6 +14,7 @@ import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { useSkipMountAnimation } from "@/lib/animations"
 import { isNativeMobile } from "@/lib/platform"
 import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
@@ -408,6 +409,7 @@ export default function DashboardPage() {
         exchangeRates,
         appliedPendingFlows,
         appliedRealEstateList,
+        { unknownEntity: t.common.unknownEntity },
       ),
     [
       effectivePositionsData,
@@ -415,6 +417,7 @@ export default function DashboardPage() {
       exchangeRates,
       appliedPendingFlows,
       appliedRealEstateList,
+      t,
     ],
   )
   const entityDistribution = useMemo(() => {
@@ -556,6 +559,7 @@ export default function DashboardPage() {
             locale,
             settings.general.defaultCurrency,
             exchangeRates,
+            { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCrypto = baseCrypto * cryptoFactor
           projectedTotalAssets += appreciatedCrypto - baseCrypto
@@ -568,6 +572,7 @@ export default function DashboardPage() {
             settings.general.defaultCurrency,
             exchangeRates,
             settings,
+            { unknown: t.common.unknown },
           ).reduce((s, c) => s + c.value, 0)
           const appreciatedCommodity = baseCommodity * commodityFactor
           projectedTotalAssets += appreciatedCommodity - baseCommodity
@@ -607,8 +612,9 @@ export default function DashboardPage() {
         effectivePositionsData,
         locale,
         settings.general.defaultCurrency,
+        { unknown: t.common.unknown },
       ),
-    [effectivePositionsData, locale, settings.general.defaultCurrency],
+    [effectivePositionsData, locale, settings.general.defaultCurrency, t],
   )
   const stockAndFundPositions = useMemo(
     () =>
@@ -632,12 +638,14 @@ export default function DashboardPage() {
         locale,
         settings.general.defaultCurrency,
         exchangeRates,
+        { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
       ),
     [
       effectivePositionsData,
       locale,
       settings.general.defaultCurrency,
       exchangeRates,
+      t,
     ],
   )
   const commodityPositions = useMemo(
@@ -648,6 +656,7 @@ export default function DashboardPage() {
         settings.general.defaultCurrency,
         exchangeRates,
         settings,
+        { unknown: t.common.unknown },
       ),
     [
       effectivePositionsData,
@@ -655,6 +664,7 @@ export default function DashboardPage() {
       settings.general.defaultCurrency,
       exchangeRates,
       settings,
+      t,
     ],
   )
   // Asset presence flags for conditional forecast inputs
@@ -1263,12 +1273,14 @@ export default function DashboardPage() {
                     <p
                       className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
                     >
-                      {amountPrefix}
-                      {formatCurrency(
-                        Math.abs(item.convertedAmount),
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {amountPrefix}
+                        {formatCurrency(
+                          Math.abs(item.convertedAmount),
+                          locale,
+                          settings.general.defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                 )
@@ -1611,14 +1623,16 @@ export default function DashboardPage() {
                               {t.forecast.negativeCashWarningTitle}
                             </p>
                             <p className="text-amber-800/90 dark:text-amber-100/80 leading-snug">
-                              {t.forecast.negativeCashWarning.replace(
-                                "{amount}",
-                                formatCurrency(
-                                  projectedCash,
-                                  locale,
-                                  settings.general.defaultCurrency,
-                                ),
-                              )}
+                              <Sensitive>
+                                {t.forecast.negativeCashWarning.replace(
+                                  "{amount}",
+                                  formatCurrency(
+                                    projectedCash,
+                                    locale,
+                                    settings.general.defaultCurrency,
+                                  ),
+                                )}
+                              </Sensitive>
                             </p>
                           </div>
                         </div>
@@ -1787,7 +1801,9 @@ export default function DashboardPage() {
                                   </div>
                                   <div className="flex justify-between items-start mb-2">
                                     <p className="text-base font-semibold">
-                                      {project.formattedValue}
+                                      <Sensitive>
+                                        {project.formattedValue}
+                                      </Sensitive>
                                     </p>
                                     {(() => {
                                       const isLate =
@@ -1799,26 +1815,32 @@ export default function DashboardPage() {
                                         return (
                                           <div className="flex items-center gap-1">
                                             <p className="text-[9px] text-muted-foreground">
-                                              {formatPercentage(
-                                                project.roi,
-                                                locale,
-                                              )}
+                                              <Sensitive>
+                                                {formatPercentage(
+                                                  project.roi,
+                                                  locale,
+                                                )}
+                                              </Sensitive>
                                             </p>
                                             <p className="text-base font-semibold text-green-600">
-                                              {formatPercentage(
-                                                project.lateInterestRate!,
-                                                locale,
-                                              )}
+                                              <Sensitive>
+                                                {formatPercentage(
+                                                  project.lateInterestRate!,
+                                                  locale,
+                                                )}
+                                              </Sensitive>
                                             </p>
                                           </div>
                                         )
                                       }
                                       return (
                                         <p className="text-base font-semibold text-green-600">
-                                          {formatPercentage(
-                                            project.roi,
-                                            locale,
-                                          )}
+                                          <Sensitive>
+                                            {formatPercentage(
+                                              project.roi,
+                                              locale,
+                                            )}
+                                          </Sensitive>
                                         </p>
                                       )
                                     })()}
@@ -1892,7 +1914,9 @@ export default function DashboardPage() {
                                           )}
                                         </div>
                                         <span className="font-semibold whitespace-nowrap text-sm">
-                                          {item.formattedValue}
+                                          <Sensitive>
+                                            {item.formattedValue}
+                                          </Sensitive>
                                         </span>
                                       </div>
 
@@ -1907,10 +1931,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -1946,7 +1972,9 @@ export default function DashboardPage() {
                                           {item.name}
                                         </span>
                                         <span className="font-semibold whitespace-nowrap text-sm">
-                                          {item.formattedValue}
+                                          <Sensitive>
+                                            {item.formattedValue}
+                                          </Sensitive>
                                         </span>
                                       </div>
                                       <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
@@ -1960,10 +1988,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2012,7 +2042,9 @@ export default function DashboardPage() {
                                             {item.symbol}
                                           </span>
                                           <span className="font-semibold whitespace-nowrap text-sm">
-                                            {item.formattedValue}
+                                            <Sensitive>
+                                              {item.formattedValue}
+                                            </Sensitive>
                                           </span>
                                         </div>
                                       </div>
@@ -2040,10 +2072,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2102,7 +2136,9 @@ export default function DashboardPage() {
                                             }
                                           </span>
                                           <span className="font-semibold whitespace-nowrap text-sm">
-                                            {item.formattedValue}
+                                            <Sensitive>
+                                              {item.formattedValue}
+                                            </Sensitive>
                                           </span>
                                         </div>
                                       </div>
@@ -2133,10 +2169,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2205,7 +2243,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -2215,10 +2255,12 @@ export default function DashboardPage() {
                                                     {t.dashboard.stakeInFunds}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -2258,15 +2300,17 @@ export default function DashboardPage() {
                                                         : "text-white"
                                                   }`}
                                                 >
-                                                  {item.change === 0
-                                                    ? "-"
-                                                    : (item.change > 0
-                                                        ? "+"
-                                                        : "") +
-                                                      formatPercentage(
-                                                        item.change,
-                                                        locale,
-                                                      )}
+                                                  <Sensitive>
+                                                    {item.change === 0
+                                                      ? "-"
+                                                      : (item.change > 0
+                                                          ? "+"
+                                                          : "") +
+                                                        formatPercentage(
+                                                          item.change,
+                                                          locale,
+                                                        )}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               <div className="col-span-2">
@@ -2274,11 +2318,13 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    (item as any)
-                                                      .formattedOriginalValue ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      (item as any)
+                                                        .formattedOriginalValue ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -2352,7 +2398,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -2362,10 +2410,12 @@ export default function DashboardPage() {
                                                     {t.dashboard.stakeInStocks}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -2411,15 +2461,17 @@ export default function DashboardPage() {
                                                         : "text-white"
                                                   }`}
                                                 >
-                                                  {item.change === 0
-                                                    ? "-"
-                                                    : (item.change > 0
-                                                        ? "+"
-                                                        : "") +
-                                                      formatPercentage(
-                                                        item.change,
-                                                        locale,
-                                                      )}
+                                                  <Sensitive>
+                                                    {item.change === 0
+                                                      ? "-"
+                                                      : (item.change > 0
+                                                          ? "+"
+                                                          : "") +
+                                                        formatPercentage(
+                                                          item.change,
+                                                          locale,
+                                                        )}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               <div className="col-span-2">
@@ -2427,11 +2479,13 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    (item as any)
-                                                      .formattedOriginalValue ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      (item as any)
+                                                        .formattedOriginalValue ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -2507,9 +2561,11 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -2520,10 +2576,12 @@ export default function DashboardPage() {
                                                     :
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -2601,13 +2659,15 @@ export default function DashboardPage() {
                                                         : "text-red-500"
                                                     }`}
                                                   >
-                                                    {item.change >= 0
-                                                      ? "+"
-                                                      : ""}
-                                                    {formatPercentage(
-                                                      item.change,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {item.change >= 0
+                                                        ? "+"
+                                                        : ""}
+                                                      {formatPercentage(
+                                                        item.change,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -2616,7 +2676,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -2696,9 +2758,11 @@ export default function DashboardPage() {
                                                     {t.dashboard.value}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {(item as any)
-                                                      .formattedInitialInvestment ||
-                                                      item.formattedValue}
+                                                    <Sensitive>
+                                                      {(item as any)
+                                                        .formattedInitialInvestment ||
+                                                        item.formattedValue}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 {item.percentageOfTotalVariableRent <
@@ -2712,10 +2776,12 @@ export default function DashboardPage() {
                                                       :
                                                     </span>
                                                     <div className="font-semibold">
-                                                      {formatPercentage(
-                                                        item.percentageOfTotalVariableRent,
-                                                        locale,
-                                                      )}
+                                                      <Sensitive>
+                                                        {formatPercentage(
+                                                          item.percentageOfTotalVariableRent,
+                                                          locale,
+                                                        )}
+                                                      </Sensitive>
                                                     </div>
                                                   </div>
                                                 )}
@@ -2751,15 +2817,17 @@ export default function DashboardPage() {
                                                           : "text-white"
                                                     }`}
                                                   >
-                                                    {item.change === 0
-                                                      ? "-"
-                                                      : (item.change > 0
-                                                          ? "+"
-                                                          : "") +
-                                                        formatPercentage(
-                                                          item.change,
-                                                          locale,
-                                                        )}
+                                                    <Sensitive>
+                                                      {item.change === 0
+                                                        ? "-"
+                                                        : (item.change > 0
+                                                            ? "+"
+                                                            : "") +
+                                                          formatPercentage(
+                                                            item.change,
+                                                            locale,
+                                                          )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 <div className="col-span-2">
@@ -2768,7 +2836,9 @@ export default function DashboardPage() {
                                                     :
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {item.formattedValue}
+                                                    <Sensitive>
+                                                      {item.formattedValue}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 {item.showEntityBadge &&
@@ -2920,12 +2990,14 @@ export default function DashboardPage() {
                                                   : undefined
                                             }`}
                                           >
-                                            {tx.displayType === "in"
-                                              ? "+"
-                                              : tx.type === TxType.FEE
-                                                ? "-"
-                                                : ""}
-                                            {tx.formattedAmount}
+                                            <Sensitive>
+                                              {tx.displayType === "in"
+                                                ? "+"
+                                                : tx.type === TxType.FEE
+                                                  ? "-"
+                                                  : ""}
+                                              {tx.formattedAmount}
+                                            </Sensitive>
                                           </p>
                                         </div>
                                       </li>

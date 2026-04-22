@@ -196,13 +196,14 @@ async function saveDraftAndPersist(page: Page) {
     // Wait for dialog to fully close and state to propagate
     await page.waitForTimeout(1_500)
 
-    // Wait for the "unsaved changes" indicator to confirm draft was saved
+    // Wait for the edit banner to appear with the unsaved changes indicator
     await expect(page.getByText('You have unsaved changes')).toBeVisible({
         timeout: 5_000,
     })
 
     // Click page-level Save button
     const saveBtn = page.getByTestId('save-positions')
+    await expect(saveBtn).toBeVisible({ timeout: 5_000 })
     await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
     await saveBtn.click()
     await expect(
@@ -352,7 +353,10 @@ test.describe('Manual Crypto Positions', () => {
         await page.waitForTimeout(300)
 
         // Save
-        await page.getByTestId('save-positions').click()
+        const saveBtn = page.getByTestId('save-positions')
+        await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+        await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
+        await saveBtn.click()
         await expect(
             page.getByText('Manual positions saved successfully.'),
         ).toBeVisible({ timeout: 10_000 })
@@ -400,7 +404,10 @@ test.describe('Manual Crypto Positions', () => {
             .getByRole('button', { name: 'Delete' })
             .click()
         await page.waitForTimeout(300)
-        await page.getByTestId('save-positions').click()
+        const cleanupSaveBtn = page.getByTestId('save-positions')
+        await expect(cleanupSaveBtn).toBeVisible({ timeout: 5_000 })
+        await expect(cleanupSaveBtn).toBeEnabled({ timeout: 3_000 })
+        await cleanupSaveBtn.click()
         await expect(
             page.getByText('Manual positions saved successfully.'),
         ).toBeVisible({ timeout: 10_000 })

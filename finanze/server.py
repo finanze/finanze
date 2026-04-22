@@ -24,6 +24,9 @@ from application.use_cases.connect_external_integration import (
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.create_template import CreateTemplateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.get_crypto_wallet_addresses import (
+    GetCryptoWalletAddressesImpl,
+)
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
@@ -567,6 +570,9 @@ class FinanzeServer:
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
             crypto_wallet_repository
         )
+        get_crypto_wallet_addresses = GetCryptoWalletAddressesImpl(
+            crypto_wallet_repository
+        )
         derive_crypto_addresses = DeriveCryptoAddressesImpl(
             public_key_derivation,
             entity_repository,
@@ -782,6 +788,7 @@ class FinanzeServer:
             connect_crypto_wallet,
             update_crypto_wallet,
             delete_crypto_wallet,
+            get_crypto_wallet_addresses,
             derive_crypto_addresses,
             save_commodities,
             get_external_integrations,

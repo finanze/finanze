@@ -121,6 +121,9 @@ class LazyComponents:
         from application.use_cases.delete_crypto_wallet import (
             DeleteCryptoWalletConnectionImpl,
         )
+        from application.use_cases.get_crypto_wallet_addresses import (
+            GetCryptoWalletAddressesImpl,
+        )
         from application.use_cases.save_commodities import SaveCommoditiesImpl
         from application.use_cases.connect_external_integration import (
             ConnectExternalIntegrationImpl,
@@ -329,6 +332,7 @@ class LazyComponents:
 
         self.up_crypto = UpdateCryptoWalletConnectionImpl(d.wallet_repo)
         self.del_crypto = DeleteCryptoWalletConnectionImpl(d.wallet_repo)
+        self.get_wallet_addrs = GetCryptoWalletAddressesImpl(d.wallet_repo)
 
         self.save_commodities = SaveCommoditiesImpl(
             d.position_repo,

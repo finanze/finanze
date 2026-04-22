@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
@@ -14,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { EditDialog } from "@/components/ui/EditDialog"
+import { WalletAddressesDialog } from "@/components/WalletAddressesDialog"
 import {
   ArrowLeft,
   Plus,
@@ -23,6 +25,7 @@ import {
   Copy,
   Check,
   Key,
+  List,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import type { Entity, ExchangeRates, CryptoWalletConnection } from "@/types"
@@ -92,6 +95,11 @@ export function ManageWalletsView({
   const [isUpdatingWallet, setIsUpdatingWallet] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showAddressesDialog, setShowAddressesDialog] = useState(false)
+  const [addressesWalletId, setAddressesWalletId] = useState<string | null>(
+    null,
+  )
+  const [addressesWalletName, setAddressesWalletName] = useState("")
 
   const getWalletAddresses = (
     wallet: CryptoCurrencyWallet | null | undefined,
@@ -682,6 +690,24 @@ export function ManageWalletsView({
                         </div>
                       </div>
                       <div className="flex gap-0.5 flex-shrink-0">
+                        {isDerived && walletEntry.connectionId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 h-7 w-7 sm:h-8 sm:w-8 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                            onClick={() => {
+                              setAddressesWalletId(walletEntry.connectionId)
+                              setAddressesWalletName(walletEntry.displayName)
+                              setShowAddressesDialog(true)
+                            }}
+                            title={
+                              (t.walletManagement as Record<string, string>)
+                                .viewAddresses
+                            }
+                          >
+                            <List className="h-3 w-3" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -731,11 +757,13 @@ export function ManageWalletsView({
                           {t.walletManagement.totalValue}
                         </p>
                         <p className="mt-1 text-base sm:text-lg font-semibold">
-                          {formatCurrency(
-                            walletEntry.totalValue,
-                            locale,
-                            settings.general.defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              walletEntry.totalValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                     </div>
@@ -772,6 +800,13 @@ export function ManageWalletsView({
         onCancel={cancelEditWallet}
         isLoading={isUpdatingWallet}
         placeholder={t.walletManagement.walletNamePlaceholder}
+      />
+
+      <WalletAddressesDialog
+        isOpen={showAddressesDialog}
+        onClose={() => setShowAddressesDialog(false)}
+        walletId={addressesWalletId}
+        walletName={addressesWalletName}
       />
     </div>
   )

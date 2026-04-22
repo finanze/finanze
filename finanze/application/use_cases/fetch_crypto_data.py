@@ -248,10 +248,24 @@ class FetchCryptoDataImpl(FetchCryptoData):
             await self._position_port.save(position)
 
             for wallet_id, new_derived in derived_new_addresses.items():
-                hd_addresses = self._map_derived_to_hd_addresses(new_derived)
+                hd_addresses = self._map_derived_to_hd_addresses(
+                    new_derived, data_by_address
+                )
                 if hd_addresses:
                     await self._crypto_wallet_port.insert_hd_addresses(
                         wallet_id, hd_addresses
+                    )
+
+            for wallet in derived_wallets:
+                if not wallet.hd_wallet:
+                    continue
+                balances = self._extract_address_balances(
+                    [a.address for a in wallet.hd_wallet.addresses],
+                    data_by_address,
+                )
+                if balances:
+                    await self._crypto_wallet_port.update_hd_address_balances(
+                        wallet.id, balances
                     )
 
             await self._update_last_fetch(entity.id, [Feature.POSITION])
@@ -482,6 +496,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
     @staticmethod
     def _map_derived_to_hd_addresses(
         derived_addresses: list[DerivedAddress],
+        data_by_address: dict[str, CryptoFetchResult | None],
     ) -> list[HDAddress]:
         return [
             HDAddress(
@@ -490,9 +505,34 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 change=da.change,
                 path=da.path,
                 pubkey=da.pubkey,
+                balance=FetchCryptoDataImpl._get_native_balance(
+                    data_by_address.get(da.address)
+                ),
             )
             for da in derived_addresses
         ]
+
+    @staticmethod
+    def _get_native_balance(result: CryptoFetchResult | None) -> Dezimal:
+        if not result:
+            return Dezimal("0")
+        total = Dezimal("0")
+        for asset in result.assets:
+            if asset.type == CryptoCurrencyType.NATIVE:
+                total += asset.balance
+        return total
+
+    @staticmethod
+    def _extract_address_balances(
+        addresses: list[str],
+        data_by_address: dict[str, CryptoFetchResult | None],
+    ) -> dict[str, Dezimal]:
+        balances = {}
+        for addr in addresses:
+            balances[addr] = FetchCryptoDataImpl._get_native_balance(
+                data_by_address.get(addr)
+            )
+        return balances
 
     @staticmethod
     def _asset_merge_key(asset: CryptoFetchedPosition) -> str:

@@ -1029,12 +1029,11 @@ export default function ExportPage() {
   }, [t])
 
   const featureLabels = useMemo(() => {
-    const labels = (t.features as Record<string, string>) ?? {}
     return {
-      POSITION: labels.POSITION ?? "POSITION",
-      AUTO_CONTRIBUTIONS: labels.AUTO_CONTRIBUTIONS ?? "AUTO_CONTRIBUTIONS",
-      TRANSACTIONS: labels.TRANSACTIONS ?? "TRANSACTIONS",
-      HISTORIC: labels.HISTORIC ?? "HISTORIC",
+      POSITION: t.features.POSITION,
+      AUTO_CONTRIBUTIONS: t.features.AUTO_CONTRIBUTIONS,
+      TRANSACTIONS: t.features.TRANSACTIONS,
+      HISTORIC: t.features.HISTORIC,
     }
   }, [t])
 

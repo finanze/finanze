@@ -70,13 +70,10 @@ export function AddWalletForm({
   const [isDerivingAddresses, setIsDerivingAddresses] = useState(false)
   const [deriveError, setDeriveError] = useState("")
 
-  const walletFormT = t.walletForm as Record<string, unknown>
   const addressErrorMap = t.walletForm.addressErrors as Record<string, string>
   const genericErrorMap = t.walletForm.errors as Record<string, string>
-  const derivedT = (walletFormT.derived ?? {}) as Record<string, string>
-  const addressesLabel =
-    (t.walletForm.fields as Record<string, string>).addresses ??
-    t.walletForm.fields.address
+  const derivedT = t.walletForm.derived
+  const addressesLabel = t.walletForm.fields.addresses
 
   const isDerived = addressSource === AddressSource.DERIVED
 
@@ -156,16 +153,14 @@ export function AddWalletForm({
     }
 
     if (!trimmedXpub) {
-      setXpubError(derivedT.xpubRequired || "Extended public key is required.")
+      setXpubError(derivedT.xpubRequired)
       isValid = false
     } else {
       setXpubError("")
     }
 
     if (!scriptType) {
-      setScriptTypeError(
-        derivedT.scriptTypeRequired || "Script type is required.",
-      )
+      setScriptTypeError(derivedT.scriptTypeRequired)
       isValid = false
     } else {
       setScriptTypeError("")
@@ -184,15 +179,13 @@ export function AddWalletForm({
 
     let isValid = true
     if (!xpubValue) {
-      setXpubError(derivedT.xpubRequired || "Extended public key is required.")
+      setXpubError(derivedT.xpubRequired)
       isValid = false
     } else {
       setXpubError("")
     }
     if (!scriptTypeValue) {
-      setScriptTypeError(
-        derivedT.scriptTypeRequired || "Script type is required.",
-      )
+      setScriptTypeError(derivedT.scriptTypeRequired)
       isValid = false
     } else {
       setScriptTypeError("")
@@ -215,17 +208,10 @@ export function AddWalletForm({
       console.error("Derive addresses error:", error)
       const apiError = error as ApiErrorException
       if (apiError?.code === "INVALID_REQUEST") {
-        setDeriveError(
-          derivedT.invalidXpub ||
-            "Invalid extended public key. Check it and try again.",
-        )
+        setDeriveError(derivedT.invalidXpub)
         return
       }
-      setDeriveError(
-        apiError?.message ||
-          derivedT.previewError ||
-          "Failed to derive addresses. Check the xpub and try again.",
-      )
+      setDeriveError(apiError?.message || derivedT.previewError)
     } finally {
       setIsDerivingAddresses(false)
     }
@@ -239,10 +225,7 @@ export function AddWalletForm({
       if (!validated) return
 
       if (!derivedPreview) {
-        setDeriveError(
-          derivedT.previewFirst ||
-            "Preview addresses before adding the wallet.",
-        )
+        setDeriveError(derivedT.previewFirst)
         return
       }
 
@@ -372,14 +355,14 @@ export function AddWalletForm({
                 className="text-xs px-2"
               >
                 <Wallet className="h-3.5 w-3.5 mr-1" />
-                {derivedT.manualTab || "Manual"}
+                {derivedT.manualTab}
               </TabsTrigger>
               <TabsTrigger
                 value={AddressSource.DERIVED}
                 className="text-xs px-2"
               >
                 <Key className="h-3.5 w-3.5 mr-1" />
-                {derivedT.xpubTab || "XPUB"}
+                {derivedT.xpubTab}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -425,9 +408,7 @@ export function AddWalletForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="wallet-xpub">
-                    {derivedT.xpubLabel || "Extended Public Key"}
-                  </Label>
+                  <Label htmlFor="wallet-xpub">{derivedT.xpubLabel}</Label>
                   <Input
                     id="wallet-xpub"
                     type="text"
@@ -439,7 +420,7 @@ export function AddWalletForm({
                         setDerivedPreview(null)
                       }
                     }}
-                    placeholder={derivedT.xpubPlaceholder || "xpub6..."}
+                    placeholder={derivedT.xpubPlaceholder}
                     disabled={isLoading || isDerivingAddresses}
                     className={xpubError ? "border-red-500" : ""}
                   />
@@ -450,7 +431,7 @@ export function AddWalletForm({
 
                 <div className="space-y-2">
                   <Label htmlFor="script-type">
-                    {derivedT.scriptTypeLabel || "Script Type"}
+                    {derivedT.scriptTypeLabel}
                   </Label>
                   <select
                     id="script-type"
@@ -470,9 +451,7 @@ export function AddWalletForm({
                       scriptTypeError ? "border-red-500" : "border-input"
                     }`}
                   >
-                    <option value="">
-                      {derivedT.scriptTypePlaceholder || "Select script type"}
-                    </option>
+                    <option value="">{derivedT.scriptTypePlaceholder}</option>
                     {Object.values(ScriptType).map(st => (
                       <option key={st} value={st}>
                         {SCRIPT_TYPE_LABELS[st]}
@@ -503,7 +482,7 @@ export function AddWalletForm({
                   ) : (
                     <Eye className="mr-2 h-4 w-4" />
                   )}
-                  {derivedT.previewButton || "Preview addresses"}
+                  {derivedT.previewButton}
                 </Button>
 
                 {deriveError && (
@@ -515,7 +494,7 @@ export function AddWalletForm({
                 <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 max-h-[56vh] overflow-y-auto lg:max-h-[66vh]">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
-                      {derivedT.basePath || "Base path"}
+                      {derivedT.basePath}
                     </span>
                     <code className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
                       {derivedPreview.base_path}
@@ -525,7 +504,7 @@ export function AddWalletForm({
                   {derivedPreview.receiving.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-xs font-medium">
-                        {derivedT.receivingAddresses || "Receiving addresses"}
+                        {derivedT.receivingAddresses}
                       </p>
                       <div className="space-y-1">
                         {derivedPreview.receiving.map(addr => (
@@ -565,7 +544,7 @@ export function AddWalletForm({
                   {derivedPreview.change.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-xs font-medium">
-                        {derivedT.changeAddresses || "Change addresses"}
+                        {derivedT.changeAddresses}
                       </p>
                       <div className="space-y-1">
                         {derivedPreview.change.map(addr => (

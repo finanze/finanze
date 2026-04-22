@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   RealEstate,
   DeleteRealEstateRequest,
@@ -430,11 +431,13 @@ export default function RealEstatePage() {
                           {t.realEstate.estimatedMarketValue}
                         </span>
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {formatCurrency(
-                            property.valuation_info.estimated_market_value,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              property.valuation_info.estimated_market_value,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
 
@@ -446,28 +449,30 @@ export default function RealEstatePage() {
                               {t.realEstate.initialExpenses}
                             </span>
                             <div className="font-semibold text-gray-900 dark:text-white">
-                              {formatCurrency(
-                                property.purchase_info.price +
-                                  property.purchase_info.expenses.reduce(
-                                    (sum, exp) => sum + exp.amount,
-                                    0,
-                                  ) -
-                                  property.flows
-                                    .filter(
-                                      flow =>
-                                        flow.flow_subtype ===
-                                        RealEstateFlowSubtype.LOAN,
-                                    )
-                                    .reduce((sum, flow) => {
-                                      const loanPayload =
-                                        flow.payload as LoanPayload
-                                      return (
-                                        sum + (loanPayload.loan_amount || 0)
+                              <Sensitive>
+                                {formatCurrency(
+                                  property.purchase_info.price +
+                                    property.purchase_info.expenses.reduce(
+                                      (sum, exp) => sum + exp.amount,
+                                      0,
+                                    ) -
+                                    property.flows
+                                      .filter(
+                                        flow =>
+                                          flow.flow_subtype ===
+                                          RealEstateFlowSubtype.LOAN,
                                       )
-                                    }, 0),
-                                locale,
-                                property.currency,
-                              )}
+                                      .reduce((sum, flow) => {
+                                        const loanPayload =
+                                          flow.payload as LoanPayload
+                                        return (
+                                          sum + (loanPayload.loan_amount || 0)
+                                        )
+                                      }, 0),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </div>
                           </div>
                           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
@@ -481,14 +486,16 @@ export default function RealEstatePage() {
                                   : "text-red-600 dark:text-red-400"
                               }`}
                             >
-                              {calculateMonthlyCashflow(property) >= 0
-                                ? "+"
-                                : ""}
-                              {formatCurrency(
-                                calculateMonthlyCashflow(property),
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {calculateMonthlyCashflow(property) >= 0
+                                  ? "+"
+                                  : ""}
+                                {formatCurrency(
+                                  calculateMonthlyCashflow(property),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </div>
                           </div>
                         </div>

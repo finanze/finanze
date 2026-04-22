@@ -40,6 +40,7 @@
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
+    "editing": "Editing",
     "upload": "Upload",
     "comingSoon": "Coming Soon",
     "confirm": "Confirm",
@@ -103,7 +104,10 @@
     "officialWebpageUrl": "https://finanze.me",
     "optional": "Optional",
     "clear": "Clear",
-    "notAvailableOnPlatform": "Not available on this platform"
+    "notAvailableOnPlatform": "Not available on this platform",
+    "unknown": "Unknown",
+    "unknownEntity": "Unknown Entity",
+    "unknownToken": "Unknown Token"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -507,6 +511,10 @@
     "applicationLanguageDescription": "Choose the language used across the app, used to format dates, numbers, and currencies too.",
     "themeTitle": "Theme",
     "themeDescription": "Choose the appearance of the application.",
+    "dataDisplayModeTitle": "Private mode",
+    "dataDisplayModeDescription": "Hide sensitive financial data by blurring amounts and percentages.",
+    "dataDisplayModeNone": "Off",
+    "dataDisplayModePrivate": "On",
     "userTitle": "Account",
     "userDescription": "Manage your account.",
     "biometricCredentialsActionTitle": "Disable biometric login",
@@ -956,7 +964,8 @@
     "includeRealEstateEquity": "Include real estate equity",
     "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
     "includeResidences": "Include residences",
-    "compactNumbers": "Compact numbers"
+    "compactNumbers": "Compact numbers",
+    "privateMode": "Private mode"
   },
   "forecast": {
     "title": "Forecast",
@@ -1609,7 +1618,7 @@
     "submit": "Add wallet",
     "derived": {
       "useXpub": "Use extended public key (xpub)",
-      "manualTab": "Manual",
+      "manualTab": "Address",
       "xpubTab": "XPUB",
       "xpubLabel": "Extended Public Key",
       "xpubPlaceholder": "xpub6...",
@@ -1647,7 +1656,14 @@
     "filterByWallet": "Filter by wallet",
     "walletFilterPlaceholder": "Select wallets",
     "clearFilters": "Clear filters",
-    "viewAllTokens": "View all tokens"
+    "viewAllTokens": "View all tokens",
+    "viewAddresses": "View addresses",
+    "showAddresses": "Show addresses",
+    "hideAddresses": "Hide addresses",
+    "receivingAddresses": "Receiving addresses",
+    "changeAddresses": "Change addresses",
+    "noAddresses": "No derived addresses found",
+    "addressesError": "Failed to load addresses. Please try again."
   },
   "commodityManagement": {
     "title": "Commodities",

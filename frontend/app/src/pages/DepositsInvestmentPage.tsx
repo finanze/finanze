@@ -12,6 +12,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
   calculateInvestmentDistribution,
@@ -35,7 +36,7 @@ import { useNavigate } from "react-router-dom"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { Entity } from "@/types"
@@ -107,7 +108,7 @@ export default function DepositsInvestmentPage() {
           "entries" in depositProduct &&
           depositProduct.entries.length > 0
         ) {
-          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityName = entityPosition.entity?.name || t.common.unknown
           const entityId = entityPosition.entity?.id || null
           const entityOrigin = entityPosition.entity?.origin ?? null
 
@@ -488,7 +489,7 @@ function DepositsViewContent({
           </div>
           <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>
@@ -545,6 +546,7 @@ function DepositsViewContent({
                     {
                       icon: <Percent className="h-3 w-3" />,
                       value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                      sensitive: true,
                     },
                     {
                       icon: <TrendingUp className="h-3 w-3" />,
@@ -553,6 +555,7 @@ function DepositsViewContent({
                         locale,
                         defaultCurrency,
                       ),
+                      sensitive: true,
                     },
                   ]}
                   centerContent={{
@@ -746,7 +749,9 @@ function DepositsViewContent({
                             className="text-gray-400 dark:text-gray-500"
                           />
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            {(position.interest_rate * 100).toFixed(2)}%
+                            <Sensitive>
+                              {(position.interest_rate * 100).toFixed(2)}%
+                            </Sensitive>
                           </span>
                           <span className="text-gray-400 dark:text-gray-500">
                             ·
@@ -762,16 +767,20 @@ function DepositsViewContent({
                       <div className="flex items-start gap-2 flex-shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            {position.formattedAmount}
+                            <Sensitive>{position.formattedAmount}</Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
-                              {position.formattedConvertedAmount}
+                              <Sensitive>
+                                {position.formattedConvertedAmount}
+                              </Sensitive>
                             </div>
                           )}
                           {position.formattedExpectedAmount && (
                             <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
-                              {position.formattedExpectedAmount}
+                              <Sensitive>
+                                {position.formattedExpectedAmount}
+                              </Sensitive>
                             </div>
                           )}
                         </div>
@@ -828,10 +837,14 @@ function DepositsViewContent({
                                   {t.investments.expected}
                                 </span>
                                 <span className="font-medium text-green-600 dark:text-green-400">
-                                  {position.formattedExpectedAmount}
+                                  <Sensitive>
+                                    {position.formattedExpectedAmount}
+                                  </Sensitive>
                                   {expectedReturnPct !== null && (
                                     <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                      ({expectedReturnPct.toFixed(2)}%)
+                                      <Sensitive>
+                                        ({expectedReturnPct.toFixed(2)}%)
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </span>
@@ -840,7 +853,9 @@ function DepositsViewContent({
 
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               <span className="font-medium text-blue-600 dark:text-blue-400">
-                                {percentageOfDeposits.toFixed(1)}%
+                                <Sensitive>
+                                  {percentageOfDeposits.toFixed(1)}%
+                                </Sensitive>
                               </span>
                               {" " +
                                 t.investments.ofInvestmentType.replace(

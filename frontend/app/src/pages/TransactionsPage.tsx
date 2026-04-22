@@ -33,6 +33,7 @@ import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
 import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
@@ -684,7 +685,7 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
                 </span>{" "}
-                {stockTx.shares.toLocaleString()}
+                <Sensitive>{stockTx.shares.toLocaleString()}</Sensitive>
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
@@ -692,23 +693,27 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.price}:
                 </span>{" "}
-                {formatCurrency(
-                  stockTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {stockTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  stockTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {stockTx.market && (
@@ -741,7 +746,9 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.currencyAmount}:
                 </span>{" "}
-                {cryptoTx.currency_amount.toLocaleString()}
+                <Sensitive>
+                  {cryptoTx.currency_amount.toLocaleString()}
+                </Sensitive>
               </div>
             )}
             {Number(cryptoTx.price || 0) !== 0 && (
@@ -749,23 +756,27 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.price}:
                 </span>{" "}
-                {formatCurrency(
-                  cryptoTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {cryptoTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  cryptoTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {cryptoTx.retentions != null && cryptoTx.retentions > 0 && (
@@ -773,12 +784,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  cryptoTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </>
@@ -796,26 +809,30 @@ export default function TransactionsPage() {
             </div>
             <div className={detailRowClass}>
               <span className={detailLabelClass}>{t.transactions.shares}:</span>{" "}
-              {fundTx.shares.toLocaleString()}
+              <Sensitive>{fundTx.shares.toLocaleString()}</Sensitive>
             </div>
             <div className={detailRowClass}>
               <span className={detailLabelClass}>{t.transactions.price}:</span>{" "}
-              {formatCurrency(
-                fundTx.price,
-                locale,
-                settings.general.defaultCurrency,
-                tx.currency,
-              )}
-            </div>
-            {fundTx.fees > 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
+              <Sensitive>
                 {formatCurrency(
-                  fundTx.fees,
+                  fundTx.price,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
                 )}
+              </Sensitive>
+            </div>
+            {fundTx.fees > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             <div className={detailRowClass}>
@@ -833,12 +850,14 @@ export default function TransactionsPage() {
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  fpTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    fpTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {fpTx.iban && (
@@ -869,23 +888,27 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.grossAmount}:
                 </span>{" "}
-                {formatCurrency(
-                  tx.amount,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    tx.amount,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  accountTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    accountTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.retentions > 0 && (
@@ -893,12 +916,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  accountTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    accountTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.interest_rate && (
@@ -906,7 +931,9 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.interestRate}:
                 </span>{" "}
-                {(accountTx.interest_rate * 100).toFixed(2)}%
+                <Sensitive>
+                  {(accountTx.interest_rate * 100).toFixed(2)}%
+                </Sensitive>
               </div>
             )}
             {accountTx.avg_balance && (
@@ -914,12 +941,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.avgBalance}:
                 </span>{" "}
-                {formatCurrency(
-                  accountTx.avg_balance,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    accountTx.avg_balance,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </>
@@ -934,12 +963,14 @@ export default function TransactionsPage() {
             {factoringTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  factoringTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    factoringTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {factoringTx.retentions > 0 && (
@@ -947,12 +978,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  factoringTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    factoringTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </>
@@ -967,12 +1000,14 @@ export default function TransactionsPage() {
             {realEstateTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  realEstateTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    realEstateTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {realEstateTx.retentions > 0 && (
@@ -980,12 +1015,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  realEstateTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    realEstateTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </>
@@ -1000,12 +1037,14 @@ export default function TransactionsPage() {
             {depositTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  depositTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    depositTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {depositTx.retentions > 0 && (
@@ -1013,12 +1052,14 @@ export default function TransactionsPage() {
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  depositTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    depositTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </>
@@ -1490,20 +1531,22 @@ export default function TransactionsPage() {
                                                       : "text-gray-900 dark:text-gray-100"
                                                 }`}
                                               >
-                                                {getTransactionDisplayType(
-                                                  tx.type,
-                                                ) === "in"
-                                                  ? "+"
-                                                  : tx.type === TxType.FEE
-                                                    ? "-"
-                                                    : ""}
-                                                {formatCurrency(
-                                                  tx.net_amount ?? tx.amount,
-                                                  locale,
-                                                  settings.general
-                                                    .defaultCurrency,
-                                                  tx.currency,
-                                                )}
+                                                <Sensitive>
+                                                  {getTransactionDisplayType(
+                                                    tx.type,
+                                                  ) === "in"
+                                                    ? "+"
+                                                    : tx.type === TxType.FEE
+                                                      ? "-"
+                                                      : ""}
+                                                  {formatCurrency(
+                                                    tx.net_amount ?? tx.amount,
+                                                    locale,
+                                                    settings.general
+                                                      .defaultCurrency,
+                                                    tx.currency,
+                                                  )}
+                                                </Sensitive>
                                               </div>
                                             </div>
 
@@ -1720,12 +1763,15 @@ export default function TransactionsPage() {
                                               : tx.type === TxType.FEE
                                                 ? "-"
                                                 : ""}
-                                            {formatCurrency(
-                                              tx.net_amount ?? tx.amount,
-                                              locale,
-                                              settings.general.defaultCurrency,
-                                              tx.currency,
-                                            )}
+                                            <Sensitive>
+                                              {formatCurrency(
+                                                tx.net_amount ?? tx.amount,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                                tx.currency,
+                                              )}
+                                            </Sensitive>
                                           </div>
                                         </div>
 

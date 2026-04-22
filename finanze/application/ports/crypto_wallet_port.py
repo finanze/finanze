@@ -1,11 +1,16 @@
 import abc
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from domain.crypto import CryptoWallet, HDWallet, HDAddress
+from domain.dezimal import Dezimal
 
 
 class CryptoWalletPort(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    async def get_by_id(self, wallet_id: UUID) -> Optional[CryptoWallet]:
+        raise NotImplementedError
+
     @abc.abstractmethod
     async def insert_hd_wallet(self, wallet_id: UUID, hd_wallet: HDWallet):
         raise NotImplementedError
@@ -34,6 +39,12 @@ class CryptoWalletPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def insert(self, connection: CryptoWallet):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def update_hd_address_balances(
+        self, wallet_id: UUID, balances: dict[str, Dezimal]
+    ):
         raise NotImplementedError
 
     @abc.abstractmethod

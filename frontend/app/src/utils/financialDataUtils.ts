@@ -921,6 +921,7 @@ export const getEntityDistribution = (
   exchangeRates: ExchangeRates,
   pendingFlows?: any[],
   realEstateList?: RealEstate[],
+  labels?: { unknownEntity: string },
 ): EntityDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -933,7 +934,8 @@ export const getEntityDistribution = (
   Object.values(positionsData.positions)
     .flat()
     .forEach(entityPosition => {
-      const entityName = entityPosition.entity?.name || "Unknown Entity"
+      const entityName =
+        entityPosition.entity?.name || labels?.unknownEntity || ""
       const entityId = entityPosition.entity?.id || "unknown"
 
       let entityTotal = 0
@@ -1726,6 +1728,7 @@ export const getOngoingProjects = (
   positionsData: EntitiesPosition | null,
   locale: string,
   defaultCurrency: string,
+  labels?: { unknown: string },
 ): OngoingProject[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -1771,7 +1774,7 @@ export const getOngoingProjects = (
         depositsProduct.entries.forEach((deposit: any) => {
           if (deposit.maturity) {
             projects.push({
-              name: deposit.name || "Deposit",
+              name: deposit.name || labels?.unknown || "",
               type: "DEPOSIT",
               value: deposit.amount,
               currency: deposit.currency,
@@ -1783,7 +1786,7 @@ export const getOngoingProjects = (
               ),
               roi: deposit.interest_rate * 100,
               maturity: deposit.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
+              entity: entityPosition.entity?.name || labels?.unknown || "",
               extendedMaturity: deposit.extended_maturity ?? null,
             })
           }
@@ -1812,7 +1815,7 @@ export const getOngoingProjects = (
               ),
               roi: project.interest_rate * 100,
               maturity: project.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
+              entity: entityPosition.entity?.name || labels?.unknown || "",
               extendedMaturity: project.extended_maturity ?? null,
             })
           }
@@ -1840,7 +1843,7 @@ export const getOngoingProjects = (
               ),
               roi: factoring.interest_rate * 100,
               maturity: factoring.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
+              entity: entityPosition.entity?.name || labels?.unknown || "",
               extendedMaturity: factoring.extended_maturity ?? null,
               lateInterestRate:
                 factoring.late_interest_rate != null
@@ -2153,6 +2156,7 @@ export const getCryptoPositions = (
   locale: string,
   defaultCurrency: string,
   exchangeRates: ExchangeRates,
+  labels?: { unknown: string; unknownToken: string },
 ): CryptoPosition[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -2175,7 +2179,8 @@ export const getCryptoPositions = (
         cryptoProduct.entries.length > 0
       ) {
         cryptoProduct.entries.forEach((wallet: CryptoCurrencyWallet) => {
-          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityName =
+            entityPosition.entity?.name || labels?.unknown || ""
           const assets = getWalletAssets(wallet)
 
           assets.forEach(asset => {
@@ -2225,13 +2230,16 @@ export const getCryptoPositions = (
             if (!cryptoAggregation[aggregationKey]) {
               cryptoAggregation[aggregationKey] = {
                 key: aggregationKey,
-                symbol: cryptoSymbol || tokenKey?.toUpperCase() || "UNKNOWN",
+                symbol: cryptoSymbol || tokenKey?.toUpperCase() || "",
                 name:
                   asset.crypto_asset?.name ||
                   asset.name ||
                   (isToken
-                    ? cryptoSymbol || tokenKey?.toUpperCase() || "Unknown Token"
-                    : cryptoSymbol || "Unknown"),
+                    ? cryptoSymbol ||
+                      tokenKey?.toUpperCase() ||
+                      labels?.unknownToken ||
+                      ""
+                    : cryptoSymbol || labels?.unknown || ""),
                 amount: 0,
                 value: 0,
                 currency: defaultCurrency,
@@ -2346,6 +2354,7 @@ export const getCommodityPositions = (
   defaultCurrency: string,
   exchangeRates: ExchangeRates,
   settings: { general: { defaultCommodityWeightUnit: string } },
+  labels?: { unknown: string },
 ): CommodityPosition[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -2362,7 +2371,7 @@ export const getCommodityPositions = (
   Object.values(positionsData.positions)
     .flat()
     .forEach(entityPosition => {
-      const entityName = entityPosition.entity?.name || "Unknown"
+      const entityName = entityPosition.entity?.name || labels?.unknown || ""
       const commodityProduct = entityPosition.products[ProductType.COMMODITY]
       if (
         commodityProduct &&

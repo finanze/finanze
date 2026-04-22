@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { getCurrencySymbol, cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -624,63 +625,44 @@ export default function AutoContributionsPage() {
   }, [exchangeRates, defaultCurrency, supportedCurrencySet])
 
   const targetSubtypeOptions = useMemo<TargetSubtypeOption[]>(() => {
-    const subtypeLabels = t.enums?.contributionTargetSubtype as
-      | Record<string, string>
-      | undefined
-    const productLabels = t.enums?.productType as
-      | Record<string, string>
-      | undefined
-
     return [
       {
         value: ContributionTargetSubtype.STOCK,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.STOCK] ??
-          ContributionTargetSubtype.STOCK,
+        label: t.enums.contributionTargetSubtype.STOCK,
         targetType: ContributionTargetType.STOCK_ETF,
       },
       {
         value: ContributionTargetSubtype.ETF,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.ETF] ??
-          ContributionTargetSubtype.ETF,
+        label: t.enums.contributionTargetSubtype.ETF,
         targetType: ContributionTargetType.STOCK_ETF,
       },
       {
         value: ContributionTargetSubtype.MUTUAL_FUND,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.MUTUAL_FUND] ??
-          ContributionTargetSubtype.MUTUAL_FUND,
+        label: t.enums.contributionTargetSubtype.MUTUAL_FUND,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: ContributionTargetSubtype.PENSION_FUND,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.PENSION_FUND] ??
-          ContributionTargetSubtype.PENSION_FUND,
+        label: t.enums.contributionTargetSubtype.PENSION_FUND,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: ContributionTargetSubtype.PRIVATE_EQUITY,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.PRIVATE_EQUITY] ??
-          ContributionTargetSubtype.PRIVATE_EQUITY,
+        label: t.enums.contributionTargetSubtype.PRIVATE_EQUITY,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: "FUND_PORTFOLIO" as const,
-        label:
-          productLabels?.[ContributionTargetType.FUND_PORTFOLIO] ??
-          ContributionTargetType.FUND_PORTFOLIO,
+        label: t.enums.productType.FUND_PORTFOLIO,
         targetType: ContributionTargetType.FUND_PORTFOLIO,
       },
       {
         value: "CRYPTO" as const,
-        label: productLabels?.["CRYPTO"] ?? "Crypto",
+        label: t.enums.productType.CRYPTO,
         targetType: ContributionTargetType.CRYPTO,
       },
     ]
-  }, [t.enums?.contributionTargetSubtype, t.enums?.productType])
+  }, [t.enums.contributionTargetSubtype, t.enums.productType])
 
   const frequencyOptions = useMemo(
     () => Object.values(ContributionFrequency),
@@ -1256,11 +1238,15 @@ export default function AutoContributionsPage() {
               <div className="flex items-start gap-2">
                 <div className="flex flex-col items-end gap-1">
                   <div className="text-2xl font-semibold tracking-tight leading-none">
-                    {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    <Sensitive>
+                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    </Sensitive>
                   </div>
                   {showOriginalCurrency && (
                     <div className="text-xs text-muted-foreground">
-                      {formatCurrency(amount, locale, currency)}
+                      <Sensitive>
+                        {formatCurrency(amount, locale, currency)}
+                      </Sensitive>
                     </div>
                   )}
                 </div>
@@ -1413,19 +1399,23 @@ export default function AutoContributionsPage() {
                       </span>
                       <div className="text-right">
                         <div className="font-medium">
-                          {formatCurrency(
-                            convertedMonthlyAmount,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              convertedMonthlyAmount,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </div>
                         {showOriginalCurrency && (
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(
-                              normalizedMonthlyAmount,
-                              locale,
-                              currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                normalizedMonthlyAmount,
+                                locale,
+                                currency,
+                              )}
+                            </Sensitive>
                           </div>
                         )}
                       </div>

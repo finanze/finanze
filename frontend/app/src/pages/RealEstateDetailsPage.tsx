@@ -13,6 +13,7 @@ import type {
   CostPayload,
 } from "@/types"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   MapPin,
   Calendar,
@@ -297,11 +298,13 @@ export default function RealEstateDetailsPage() {
             {t.realEstate.purchase.price}
           </div>
           <div className="font-semibold text-gray-900 dark:text-white mt-1">
-            {formatCurrency(
-              property.purchase_info.price,
-              locale,
-              property.currency,
-            )}
+            <Sensitive>
+              {formatCurrency(
+                property.purchase_info.price,
+                locale,
+                property.currency,
+              )}
+            </Sensitive>
           </div>
         </Card>
         {property.basic_info.is_rented && (
@@ -313,8 +316,10 @@ export default function RealEstateDetailsPage() {
               <div
                 className={`font-semibold mt-1 ${monthlyCashflow >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
               >
-                {monthlyCashflow >= 0 ? "+" : ""}
-                {formatCurrency(monthlyCashflow, locale, property.currency)}
+                <Sensitive>
+                  {monthlyCashflow >= 0 ? "+" : ""}
+                  {formatCurrency(monthlyCashflow, locale, property.currency)}
+                </Sensitive>
               </div>
             </Card>
 
@@ -376,11 +381,13 @@ export default function RealEstateDetailsPage() {
                   {t.realEstate.purchase.price}
                 </span>
                 <span className="font-medium">
-                  {formatCurrency(
-                    property.purchase_info.price,
-                    locale,
-                    property.currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      property.purchase_info.price,
+                      locale,
+                      property.currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
               {property.purchase_info.expenses.length > 0 ? (
@@ -402,11 +409,13 @@ export default function RealEstateDetailsPage() {
                             {exp.concept || "—"}
                           </span>
                           <span className="font-medium">
-                            {formatCurrency(
-                              exp.amount,
-                              locale,
-                              property.currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                exp.amount,
+                                locale,
+                                property.currency,
+                              )}
+                            </Sensitive>
                           </span>
                         </div>
                       ))}
@@ -440,11 +449,13 @@ export default function RealEstateDetailsPage() {
                                     {exp.concept || "—"}
                                   </span>
                                   <span className="font-medium">
-                                    {formatCurrency(
-                                      exp.amount,
-                                      locale,
-                                      property.currency,
-                                    )}
+                                    <Sensitive>
+                                      {formatCurrency(
+                                        exp.amount,
+                                        locale,
+                                        property.currency,
+                                      )}
+                                    </Sensitive>
                                   </span>
                                 </div>
                               ))}
@@ -454,15 +465,17 @@ export default function RealEstateDetailsPage() {
                               {t.realEstate.purchase.totalCost}
                             </span>
                             <span className="font-semibold">
-                              {formatCurrency(
-                                property.purchase_info.price +
-                                  property.purchase_info.expenses.reduce(
-                                    (s, e) => s + e.amount,
-                                    0,
-                                  ),
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {formatCurrency(
+                                  property.purchase_info.price +
+                                    property.purchase_info.expenses.reduce(
+                                      (s, e) => s + e.amount,
+                                      0,
+                                    ),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </span>
                           </div>
                         </PopoverContent>
@@ -486,11 +499,13 @@ export default function RealEstateDetailsPage() {
                   {t.realEstate.valuation.estimatedMarketValue}
                 </span>
                 <span className="font-semibold">
-                  {formatCurrency(
-                    property.valuation_info.estimated_market_value || 0,
-                    locale,
-                    property.currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      property.valuation_info.estimated_market_value || 0,
+                      locale,
+                      property.currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
               {typeof property.valuation_info.annual_appreciation ===
@@ -500,10 +515,12 @@ export default function RealEstateDetailsPage() {
                     {t.realEstate.valuation.annualAppreciation}
                   </span>
                   <span className="font-semibold">
-                    {(
-                      (property.valuation_info.annual_appreciation || 0) * 100
-                    ).toFixed(2)}
-                    %
+                    <Sensitive>
+                      {(
+                        (property.valuation_info.annual_appreciation || 0) * 100
+                      ).toFixed(2)}
+                      %
+                    </Sensitive>
                   </span>
                 </div>
               ) : null}
@@ -525,7 +542,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          {formatCurrency(v.amount, locale, property.currency)}
+                          <Sensitive>
+                            {formatCurrency(
+                              v.amount,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </span>
                         {v.notes ? (
                           <Popover>
@@ -595,11 +618,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-900 dark:text-white font-semibold">
-                          {formatCurrency(
-                            f.periodic_flow?.amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              f.periodic_flow?.amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </span>
                         <Popover>
                           <PopoverTrigger asChild>
@@ -639,12 +664,14 @@ export default function RealEstateDetailsPage() {
                                   {t.realEstate.loans.principalOutstanding}
                                 </span>
                                 <span className="font-medium text-gray-900 dark:text-white">
-                                  {formatCurrency(
-                                    (f.payload as any)?.principal_outstanding ||
-                                      0,
-                                    locale,
-                                    property.currency,
-                                  )}
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      (f.payload as any)
+                                        ?.principal_outstanding || 0,
+                                      locale,
+                                      property.currency,
+                                    )}
+                                  </Sensitive>
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
@@ -652,15 +679,17 @@ export default function RealEstateDetailsPage() {
                                   {t.realEstate.labels.monthlyInterest}
                                 </span>
                                 <span className="font-medium text-gray-900 dark:text-white">
-                                  {((f.payload as any)?.monthly_interests ??
-                                    null) !== null
-                                    ? formatCurrency(
-                                        (f.payload as any)?.monthly_interests ||
-                                          0,
-                                        locale,
-                                        property.currency,
-                                      )
-                                    : "—"}
+                                  <Sensitive>
+                                    {((f.payload as any)?.monthly_interests ??
+                                      null) !== null
+                                      ? formatCurrency(
+                                          (f.payload as any)
+                                            ?.monthly_interests || 0,
+                                          locale,
+                                          property.currency,
+                                        )
+                                      : "—"}
+                                  </Sensitive>
                                 </span>
                               </div>
                               {typeof (f.payload as any)?.loan_amount ===
@@ -670,11 +699,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.totalLoanAmountLabel}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {formatCurrency(
-                                      (f.payload as any)?.loan_amount || 0,
-                                      locale,
-                                      property.currency,
-                                    )}
+                                    <Sensitive>
+                                      {formatCurrency(
+                                        (f.payload as any)?.loan_amount || 0,
+                                        locale,
+                                        property.currency,
+                                      )}
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -684,11 +715,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.interestRateLabel}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {(
-                                      ((f.payload as any)?.interest_rate || 0) *
-                                      100
-                                    ).toFixed(2)}
-                                    %
+                                    <Sensitive>
+                                      {(
+                                        ((f.payload as any)?.interest_rate ||
+                                          0) * 100
+                                      ).toFixed(2)}
+                                      %
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -698,11 +731,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.euriborRate}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {(
-                                      ((f.payload as any)?.euribor_rate || 0) *
-                                      100
-                                    ).toFixed(2)}
-                                    %
+                                    <Sensitive>
+                                      {(
+                                        ((f.payload as any)?.euribor_rate ||
+                                          0) * 100
+                                      ).toFixed(2)}
+                                      %
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -817,11 +852,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                     </div>
                     <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                      {formatCurrency(
-                        f.periodic_flow?.amount || 0,
-                        locale,
-                        property.currency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          f.periodic_flow?.amount || 0,
+                          locale,
+                          property.currency,
+                        )}
+                      </Sensitive>
                     </div>
                   </div>
                 ))}
@@ -877,11 +914,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                     </div>
                     <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                      {formatCurrency(
-                        f.periodic_flow?.amount || 0,
-                        locale,
-                        property.currency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          f.periodic_flow?.amount || 0,
+                          locale,
+                          property.currency,
+                        )}
+                      </Sensitive>
                     </div>
                   </div>
                 ))}
@@ -905,10 +944,12 @@ export default function RealEstateDetailsPage() {
                     {t.realEstate.rent.vacancyRate}
                   </span>
                   <span className="font-medium">
-                    {((property.rental_data?.vacancy_rate || 0) * 100).toFixed(
-                      2,
-                    )}
-                    %
+                    <Sensitive>
+                      {(
+                        (property.rental_data?.vacancy_rate || 0) * 100
+                      ).toFixed(2)}
+                      %
+                    </Sensitive>
                   </span>
                 </div>
               ) : null}
@@ -944,21 +985,25 @@ export default function RealEstateDetailsPage() {
                           {typeof f.periodic_flow?.max_amount === "number" && (
                             <Badge variant="secondary" className="text-[10px]">
                               {t.realEstate.flows.maximumAmount}:{" "}
-                              {formatCurrency(
-                                f.periodic_flow.max_amount,
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {formatCurrency(
+                                  f.periodic_flow.max_amount,
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </Badge>
                           )}
                         </div>
                       </div>
                       <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                        {formatCurrency(
-                          f.periodic_flow?.amount || 0,
-                          locale,
-                          property.currency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            f.periodic_flow?.amount || 0,
+                            locale,
+                            property.currency,
+                          )}
+                        </Sensitive>
                       </div>
                     </div>
                   ))}
@@ -996,11 +1041,13 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.base}
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(
-                            a.base_amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              a.base_amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
                       <div className="sm:col-span-1 md:col-span-2">
@@ -1008,7 +1055,9 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.percentage}
                         </div>
                         <div className="font-medium">
-                          {(a.percentage ?? 0).toFixed(2)}%
+                          <Sensitive>
+                            {(a.percentage ?? 0).toFixed(2)}%
+                          </Sensitive>
                         </div>
                       </div>
                       <div className="sm:col-span-1 md:col-span-2">
@@ -1016,11 +1065,13 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.annual}
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(
-                            a.amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              a.amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
                     </div>

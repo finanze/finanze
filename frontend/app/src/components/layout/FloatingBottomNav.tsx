@@ -225,7 +225,7 @@ export function FloatingBottomNav() {
       {
         kind: "more",
         key: "more",
-        label: t.common.more ?? "More",
+        label: t.common.more,
         icon: <MoreVertical size={22} />,
       },
     ],

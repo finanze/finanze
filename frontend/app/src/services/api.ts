@@ -59,6 +59,7 @@ import {
   GetBackupsInfoRequest,
   CryptoAssetDetails,
   AvailableCryptoAssetsResult,
+  WalletAddressesResponse,
 } from "@/types"
 import {
   EntityContributions,
@@ -456,6 +457,14 @@ export async function updateCryptoWallet(
 
 export async function deleteCryptoWallet(id: string): Promise<void> {
   return (await getApiClient()).delete(`/crypto-wallet/${id}`)
+}
+
+export async function getCryptoWalletAddresses(
+  walletId: string,
+): Promise<WalletAddressesResponse> {
+  return (await getApiClient()).get(
+    `/crypto-wallet/addresses?wallet_id=${encodeURIComponent(walletId)}`,
+  )
 }
 
 export async function deriveCryptoAddresses(

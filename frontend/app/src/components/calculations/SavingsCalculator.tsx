@@ -38,6 +38,7 @@ import {
 } from "recharts"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { calculateSavings } from "@/services/api"
 import {
   SavingsPeriodicity,
@@ -564,16 +565,20 @@ export function SavingsCalculator() {
                 {scenarioName}
               </CardTitle>
               <span className="text-xs sm:text-sm text-muted-foreground shrink-0">
-                {(scenario.annual_market_performance * 100).toFixed(1)}%
+                <Sensitive>
+                  {(scenario.annual_market_performance * 100).toFixed(1)}%
+                </Sensitive>
               </span>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <span className="text-base sm:text-lg font-semibold">
-                {formatCurrency(
-                  scenario.final_balance,
-                  locale,
-                  defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    scenario.final_balance,
+                    locale,
+                    defaultCurrency,
+                  )}
+                </Sensitive>
               </span>
               {expandedScenario === scenario.scenario_id ? (
                 <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -645,11 +650,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.totalContributions}
                     </p>
                     <p className="font-medium">
-                      {formatCurrency(
-                        scenario.total_contributions,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.total_contributions,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -658,11 +665,13 @@ export function SavingsCalculator() {
                     </p>
                     <p className="font-medium text-green-600 dark:text-green-400">
                       +
-                      {formatCurrency(
-                        scenario.total_revaluation,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.total_revaluation,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -670,11 +679,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.periodicContribution}
                     </p>
                     <p className="font-medium">
-                      {formatCurrency(
-                        scenario.periodic_contribution,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.periodic_contribution,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -682,11 +693,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.finalBalance}
                     </p>
                     <p className="font-semibold text-primary">
-                      {formatCurrency(
-                        scenario.final_balance,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.final_balance,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                 </div>
@@ -703,11 +716,13 @@ export function SavingsCalculator() {
                           {t.calculations.savings.withdrawalPerPeriod}
                         </p>
                         <p className="font-medium">
-                          {formatCurrency(
-                            scenario.retirement.withdrawal_amount,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              scenario.retirement.withdrawal_amount,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                       <div className="space-y-1">
@@ -726,11 +741,13 @@ export function SavingsCalculator() {
                           {t.calculations.savings.totalWithdrawn}
                         </p>
                         <p className="font-medium">
-                          {formatCurrency(
-                            scenario.retirement.total_withdrawn,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              scenario.retirement.total_withdrawn,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                     </div>
@@ -859,7 +876,9 @@ export function SavingsCalculator() {
               />
               <span className="text-muted-foreground/80">{item.name}:</span>
               <span className="font-medium text-foreground/90">
-                {formatCurrency(item.value, locale, defaultCurrency)}
+                <Sensitive>
+                  {formatCurrency(item.value, locale, defaultCurrency)}
+                </Sensitive>
               </span>
             </div>
           ))}

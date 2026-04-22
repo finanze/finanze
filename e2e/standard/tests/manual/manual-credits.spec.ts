@@ -75,10 +75,10 @@ function creditCard(page: Page, name: string) {
 }
 
 async function persistAndExpectSuccess(page: Page) {
-    await page
-        .locator('button')
-        .filter({ has: page.locator('.lucide-save') })
-        .click()
+    const saveBtn = page.getByTestId('save-positions')
+    await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+    await expect(saveBtn).toBeEnabled({ timeout: 3_000 })
+    await saveBtn.click()
     await expect(
         page.getByText('Manual positions saved successfully.'),
     ).toBeVisible({ timeout: 10_000 })

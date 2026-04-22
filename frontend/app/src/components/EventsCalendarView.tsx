@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n"
 import { MoneyEvent, MoneyEventType } from "@/types"
 import { getMoneyEvents } from "@/services/api"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { BaseCalendar, CalendarDay } from "@/components/ui/BaseCalendar"
 import { Card } from "@/components/ui/Card"
@@ -439,12 +440,14 @@ function EventDayDetailModal({
                   <p
                     className={`font-mono text-sm font-semibold flex-shrink-0 ${getAmountColor(event)}`}
                   >
-                    {getAmountPrefix(event)}
-                    {formatCurrency(
-                      Math.abs(event.amount),
-                      locale,
-                      event.currency,
-                    )}
+                    <Sensitive>
+                      {getAmountPrefix(event)}
+                      {formatCurrency(
+                        Math.abs(event.amount),
+                        locale,
+                        event.currency,
+                      )}
+                    </Sensitive>
                   </p>
                 </div>
               </div>

@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { FlowType, PendingFlow, CreatePendingFlowRequest } from "@/types"
@@ -552,7 +553,9 @@ export default function PendingMoneyPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-mono font-semibold">
-                        {formatCurrency(flow.amount, locale, flow.currency)}
+                        <Sensitive>
+                          {formatCurrency(flow.amount, locale, flow.currency)}
+                        </Sensitive>
                       </span>
                       <div className="hidden sm:flex items-center gap-1">
                         <Button
@@ -745,11 +748,13 @@ export default function PendingMoneyPage() {
               </span>
             </div>
             <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(
-                totalPendingEarnings,
-                locale,
-                settings?.general?.defaultCurrency,
-              )}
+              <Sensitive>
+                {formatCurrency(
+                  totalPendingEarnings,
+                  locale,
+                  settings?.general?.defaultCurrency,
+                )}
+              </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
               {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
@@ -818,11 +823,13 @@ export default function PendingMoneyPage() {
                           {earning.category}
                         </span>
                         <span className="text-gray-500">
-                          {formatCurrency(
-                            earning.amount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              earning.amount,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                     )
@@ -840,11 +847,13 @@ export default function PendingMoneyPage() {
               </span>
             </div>
             <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(
-                totalPendingExpenses,
-                locale,
-                settings?.general?.defaultCurrency,
-              )}
+              <Sensitive>
+                {formatCurrency(
+                  totalPendingExpenses,
+                  locale,
+                  settings?.general?.defaultCurrency,
+                )}
+              </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
               {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
@@ -913,11 +922,13 @@ export default function PendingMoneyPage() {
                           {expense.category}
                         </span>
                         <span className="text-gray-500">
-                          {formatCurrency(
-                            expense.amount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              expense.amount,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                     )

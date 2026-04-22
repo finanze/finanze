@@ -88,9 +88,27 @@ class UnicajaClient:
             "_abck", abck, domain="univia.unicajabanco.es", path="/"
         )
 
+    async def _validate_session(self) -> bool:
+        try:
+            response = await self._execute_request(
+                "/services/rest/api/posicionGlobal/listaProductos",
+                "GET",
+                body=None,
+                params=None,
+                json=True,
+                raw=True,
+            )
+            return response.ok
+        except Exception:
+            return False
+
     async def login(
         self, username: str, password: str, abck: str, **kwargs
     ) -> EntityLoginResult:
+        if self._session and await self._validate_session():
+            self._log.info("Unicaja session still alive, skipping login")
+            return EntityLoginResult(LoginResultCode.RESUMED)
+
         if not abck:
             return EntityLoginResult(
                 code=LoginResultCode.LOGIN_REQUIRED,

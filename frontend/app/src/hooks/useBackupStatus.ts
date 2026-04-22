@@ -51,6 +51,7 @@ let globalAutoSyncInFlight = false
 let globalManualSyncInFlight = false
 let globalCooldownUntil: number | null = null
 let globalSyncCooldownUntil: number | null = null
+let globalSkipFastCheckUntil = 0
 
 export function resetBackupStatusCache(): void {
   globalFetchInFlight = false
@@ -62,6 +63,7 @@ export function resetBackupStatusCache(): void {
   globalManualSyncInFlight = false
   globalCooldownUntil = null
   globalSyncCooldownUntil = null
+  globalSkipFastCheckUntil = 0
   localStorage.removeItem(LAST_BACKUP_FETCH_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_HAD_TRANSFER_KEY)
@@ -192,11 +194,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         | null
         | ((prev: FullBackupsInfo | null) => FullBackupsInfo | null),
     ) => {
-      setBackupsState(prev => {
-        const next = typeof value === "function" ? value(prev) : value
-        globalBackupsCache = next
-        return next
-      })
+      const next =
+        typeof value === "function" ? value(globalBackupsCache) : value
+      globalBackupsCache = next
+      setBackupsState(next)
       window.dispatchEvent(new CustomEvent("backup-data-change"))
     },
     [],
@@ -289,7 +290,6 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   }, [])
 
   const backupsRef = useRef<FullBackupsInfo | null>(null)
-  const skipFastCheckUntilRef = useRef<number>(0)
   const lastBootstrappedModeRef = useRef<BackupMode | null>(null)
   const isConflictRef = useRef(false)
   const isSyncingRef = useRef(false)
@@ -339,7 +339,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     const now = Date.now()
     setLastBackupsFetchAt(now)
     setPersistedLastFetchAt(now)
-    skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+    globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
   }, [])
 
   const fetchBackups = useCallback(
@@ -417,7 +417,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           const now = Date.now()
           setLastBackupsFetchAt(now)
           setPersistedLastFetchAt(now)
-          skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+          globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
           setStatusMessage(null)
         }
       } catch (error) {
@@ -453,7 +453,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     } else if (isStale) {
       fetchBackups(false)
     } else {
-      if (now < skipFastCheckUntilRef.current) return
+      if (now < globalSkipFastCheckUntil) return
       fetchBackups(true)
     }
   }, [
@@ -618,7 +618,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         const now = Date.now()
         setLastBackupsFetchAt(now)
         setPersistedLastFetchAt(now)
-        skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+        globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
       } catch (refreshError) {
         console.error(
           "Failed to refresh backup info after import:",
@@ -681,7 +681,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       const now = Date.now()
       setLastBackupsFetchAt(now)
       setPersistedLastFetchAt(now)
-      skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+      globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
 
       const hasConflict = Object.values(info.pieces).some(
         piece => piece.status === SyncStatus.CONFLICT,
@@ -786,7 +786,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       const now = Date.now()
       setLastBackupsFetchAt(now)
       setPersistedLastFetchAt(now)
-      skipFastCheckUntilRef.current = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+      globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
 
       const hasConflict = Object.values(info.pieces).some(
         piece => piece.status === SyncStatus.CONFLICT,
@@ -943,7 +943,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       const fastCheckInterval = window.setInterval(() => {
         if (isConflictRef.current) return
         const now = Date.now()
-        if (now >= skipFastCheckUntilRef.current) {
+        if (now >= globalSkipFastCheckUntil) {
           fetchBackups(true)
         }
       }, MANUAL_FAST_CHECK_INTERVAL_MS)

@@ -145,6 +145,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_13_improved_loans import 
 from infrastructure.repository.db.versions.v0.v08.v080_14_credits import (
     V0814Credits,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_15_hd_address_balance import (
+    V0815HdAddressBalance,
+)
 
 versions = [
     V0Genesis(),
@@ -206,4 +209,5 @@ versions = [
     V0812IBKRCredentials(),
     V0813ImprovedLoans(),
     V0814Credits(),
+    V0815HdAddressBalance(),
 ]

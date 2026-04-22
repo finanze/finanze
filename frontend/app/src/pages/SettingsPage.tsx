@@ -21,6 +21,7 @@ import {
   Sun,
   Moon,
   SunMoon,
+  EyeOff,
 } from "lucide-react"
 import { useAppContext } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
@@ -40,6 +41,8 @@ import {
 } from "@/lib/mobile/biometric"
 import type { BiometricAvailability } from "@/lib/mobile/biometric"
 import { cn } from "@/lib/utils"
+import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
+import { DataDisplayMode } from "@/types"
 
 const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES"]
 
@@ -56,6 +59,8 @@ export default function SettingsPage() {
   const { role } = useCloud()
   const { theme, setThemeMode } = useTheme()
   const { alertColor } = useBackupAlert()
+  const { mode: dataDisplayMode, setMode: setDataDisplayMode } =
+    useDataDisplayMode()
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
@@ -296,6 +301,44 @@ export default function SettingsPage() {
                     >
                       <SunMoon className="h-4 w-4" />
                       {t.common.system}
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.dataDisplayModeTitle}</CardTitle>
+                  <CardDescription>
+                    {t.settings.dataDisplayModeDescription}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
+                    <button
+                      onClick={() => setDataDisplayMode(DataDisplayMode.NONE)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        dataDisplayMode === DataDisplayMode.NONE
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {t.settings.dataDisplayModeNone}
+                    </button>
+                    <button
+                      onClick={() =>
+                        setDataDisplayMode(DataDisplayMode.PRIVATE)
+                      }
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        dataDisplayMode === DataDisplayMode.PRIVATE
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <EyeOff className="h-4 w-4" />
+                      {t.settings.dataDisplayModePrivate}
                     </button>
                   </div>
                 </CardContent>

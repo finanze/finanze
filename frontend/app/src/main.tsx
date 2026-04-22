@@ -10,6 +10,7 @@ import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
 import { BackupAlertProvider } from "@/context/BackupAlertContext"
 import { ModalRegistryProvider } from "@/context/ModalRegistryContext"
+import { DataDisplayModeProvider } from "@/context/DataDisplayModeContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
 import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
 import * as mobile from "@/lib/mobile"
@@ -24,19 +25,21 @@ async function bootstrap(): Promise<void> {
   createRoot(document.getElementById("root")!).render(
     <HashRouter>
       <ThemeProvider>
-        <I18nProvider>
-          <ModalRegistryProvider>
-            <AuthProvider>
-              <AppProvider>
-                <CloudProvider>
-                  <BackupAlertProvider>
-                    <App />
-                  </BackupAlertProvider>
-                </CloudProvider>
-              </AppProvider>
-            </AuthProvider>
-          </ModalRegistryProvider>
-        </I18nProvider>
+        <DataDisplayModeProvider>
+          <I18nProvider>
+            <ModalRegistryProvider>
+              <AuthProvider>
+                <AppProvider>
+                  <CloudProvider>
+                    <BackupAlertProvider>
+                      <App />
+                    </BackupAlertProvider>
+                  </CloudProvider>
+                </AppProvider>
+              </AuthProvider>
+            </ModalRegistryProvider>
+          </I18nProvider>
+        </DataDisplayModeProvider>
       </ThemeProvider>
     </HashRouter>,
   )
