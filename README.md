@@ -170,22 +170,6 @@ Check [Export & Import Configuration](#export--import-configuration) for more te
 Download the latest version of the app from the [Releases](https://github.com/finanze/finanze/releases) for your
 OS.
 
-### Note for macOS
-
-When opening the app for the first time, you may encounter a security warning/error. To bypass this follow the steps
-below:
-
-1. Remove the quarantine attribute from the application using the following command in the terminal:
-
-```sh
-cd /Applications && xattr -d com.apple.quarantine Finanze.app
-```
-
-2. Open the application as usual.
-3. _(Disclaimer)_ If it still doesn't open, or you get some kind of "Operation not permitted" error in the previous
-   command, then do the following:
-    - Go to `System Settings → Privacy & Security → Full Disk Access` and add or enable `Terminal` in the list.
-
 ### Docker
 
 Two Docker images are available, a Selenium one (`latest-selenium`) and a lighter default one (`latest`).
