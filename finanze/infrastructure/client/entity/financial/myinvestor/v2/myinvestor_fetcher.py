@@ -62,6 +62,14 @@ from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client impo
 DATE_FORMAT = "%Y-%m-%d"
 ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
+
+def _parse_datetime(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError, TypeError:
+        return datetime.strptime(value, ISO_DATE_TIME_FORMAT)
+
+
 FUND_INVESTMENT_TXS = [
     "INVESTMENT_FUNDS_SUBSCRIPTION",
     "INVESTMENT_FUNDS_SUBSCRIPTION_SF",
@@ -354,9 +362,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
-                tx_date = datetime.fromtimestamp(tx["operationDate"] / 1000).replace(
-                    tzinfo=tzlocal()
-                )
+                raw_op_date = tx["operationDate"]
+                if isinstance(raw_op_date, str):
+                    tx_date = _parse_datetime(raw_op_date).astimezone(tzlocal())
+                else:
+                    tx_date = datetime.fromtimestamp(raw_op_date / 1000).replace(
+                        tzinfo=tzlocal()
+                    )
                 currency = tx["currency"]
                 name = tx["concept"].strip()
                 amount = abs(Dezimal(tx["amount"]))
@@ -648,12 +660,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 currency="EUR",
                 expected_interests=round(Dezimal(deposit["grossInterest"]), 2),
                 interest_rate=round(Dezimal(deposit["tae"]) / 100, 4),
-                maturity=datetime.strptime(
-                    deposit["expirationDate"], ISO_DATE_TIME_FORMAT
-                ).date(),
-                creation=datetime.strptime(
-                    deposit["creationDate"], ISO_DATE_TIME_FORMAT
-                ),
+                maturity=_parse_datetime(deposit["expirationDate"]).date(),
+                creation=_parse_datetime(deposit["creationDate"]),
             )
             for deposit in deposits_raw
         ]
@@ -1013,9 +1021,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             raw_order_details = await self._client.get_fund_order_details(
                 securities_account_id, ref
             )
-            order_date = datetime.strptime(
-                raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
-            )
+            order_date = _parse_datetime(raw_order_details["orderDate"])
             execution_op, execution_date = None, None
 
             shares = Dezimal(raw_order_details.get("executedShares") or 0)
@@ -1027,18 +1033,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             fees = Dezimal(raw_order_details.get("commissions") or 0)
 
             if raw_order_details.get("executionDate"):
-                execution_date = datetime.strptime(
-                    raw_order_details.get("executionDate"), ISO_DATE_TIME_FORMAT
-                )
+                execution_date = _parse_datetime(raw_order_details["executionDate"])
 
             linked_ops = raw_order_details.get("relatedOperations", [])
             if linked_ops:
                 ops_amount, ops_net_amount, ops_fees, counted_shares = (Dezimal(0),) * 4
                 execution_op = linked_ops[0]
                 if execution_op and execution_op.get("executionDate"):
-                    execution_date = datetime.strptime(
-                        execution_op.get("executionDate"), ISO_DATE_TIME_FORMAT
-                    )
+                    execution_date = _parse_datetime(execution_op["executionDate"])
 
                 if execution_op:
                     price = Dezimal(execution_op.get("liquidationValue") or 0)
@@ -1142,9 +1144,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     continue
 
                 raw_order_details = await self._client.get_stock_order_details(ref)
-                order_date = datetime.strptime(
-                    raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
-                )
+                order_date = _parse_datetime(raw_order_details["orderDate"])
 
                 if not raw_order_details.get("executedShares"):
                     continue
@@ -1166,9 +1166,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         raw_order_details.get("tradeCommissions") or 0
                     ) + Dezimal(raw_order_details.get("otherCommissions") or 0)
 
-                execution_date = datetime.strptime(
-                    raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT
-                )
+                execution_date = _parse_datetime(raw_order_details["executionDate"])
 
                 shares = Dezimal(raw_order_details.get("executedShares") or 0)
                 price = Dezimal(raw_order_details.get("priceCurrency") or 0)

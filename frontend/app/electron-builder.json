@@ -36,7 +36,8 @@
     "category": "public.app-category.finance",
     "icon": "./dist/finanze-macos.icns",
     "target": ["zip", "dmg"],
-    "identity": null,
+    "hardenedRuntime": true,
+    "notarize": true,
     "publish": [
       {
         "provider": "github",
