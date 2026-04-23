@@ -10,35 +10,28 @@ from domain.external_integration import (
     ExternalIntegrationType,
 )
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.external_integration.queries import (
+    ExternalIntegrationQueries,
+)
 
 
 class ExternalIntegrationRepository(ExternalIntegrationPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def deactivate(self, integration: ExternalIntegrationId):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE external_integrations
-                SET status  = ?,
-                    payload = NULL
-                WHERE id = ?
-                """,
+    async def deactivate(self, integration: ExternalIntegrationId):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.DEACTIVATE,
                 (ExternalIntegrationStatus.OFF.value, integration.value),
             )
 
-    def activate(
+    async def activate(
         self, integration: ExternalIntegrationId, payload: ExternalIntegrationPayload
     ):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE external_integrations
-                SET status  = ?,
-                    payload = ?
-                WHERE id = ?
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.ACTIVATE,
                 (
                     ExternalIntegrationStatus.ON.value,
                     json.dumps(payload),
@@ -46,16 +39,16 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 ),
             )
 
-    def get_payload(
+    async def get_payload(
         self, integration: ExternalIntegrationId
     ) -> Optional[ExternalIntegrationPayload]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT payload FROM external_integrations WHERE id = ? AND status = ? AND payload IS NOT NULL",
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.GET_PAYLOAD,
                 (integration.value, ExternalIntegrationStatus.ON.value),
             )
 
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row is None:
                 return None
 
@@ -65,22 +58,16 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 else None
             )
 
-    def get_payloads_by_type(
+    async def get_payloads_by_type(
         self, integration_type: ExternalIntegrationType
     ) -> dict[ExternalIntegrationId, ExternalIntegrationPayload]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT id, payload
-                FROM external_integrations
-                WHERE type = ?
-                  AND status = ?
-                  AND payload IS NOT NULL
-                """,
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.GET_PAYLOADS_BY_TYPE,
                 (integration_type.value, ExternalIntegrationStatus.ON.value),
             )
 
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
             return {
                 ExternalIntegrationId(row["id"]): ExternalIntegrationPayload(
                     **json.loads(row["payload"])
@@ -89,15 +76,10 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 if row["payload"]
             }
 
-    def get_all(self) -> list[ExternalIntegration]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT id, name, type, status
-                FROM external_integrations
-                """
-            )
-            rows = cursor.fetchall()
+    async def get_all(self) -> list[ExternalIntegration]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ExternalIntegrationQueries.GET_ALL)
+            rows = await cursor.fetchall()
             return [
                 ExternalIntegration(
                     id=ExternalIntegrationId(row["id"]),

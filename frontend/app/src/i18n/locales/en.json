@@ -10,6 +10,7 @@
     "success": "Success",
     "error": "Error",
     "unexpectedError": "Unexpected error occurred",
+    "somethingWentWrong": "Something went wrong",
     "fetchSuccess": "Data successfully fetched",
     "fetchSuccessEntity": "Data successfully fetched from {entity}",
     "loginSuccessEntity": "Successfully logged in to {entity}",
@@ -39,6 +40,7 @@
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
+    "editing": "Editing",
     "upload": "Upload",
     "comingSoon": "Coming Soon",
     "confirm": "Confirm",
@@ -72,6 +74,7 @@
     "crypto": "Crypto",
     "commodities": "Commodities",
     "stocks": "Stocks",
+    "all": "All",
     "funds": "Funds",
     "deposits": "Deposits",
     "factoring": "Factoring",
@@ -80,11 +83,13 @@
     "copy": "Copy",
     "copied": "Copied",
     "each": "each",
-    "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
+    "incompatibleLoginPlatform": "Use the app in order to do manual log in.",
     "selectOptions": "Select options...",
     "searchOptions": "Search options...",
     "noOptionsFound": "No options found",
     "close": "Close",
+    "more": "More",
+    "showLess": "Show less",
     "download": "Download",
     "viewRelease": "View Release",
     "remindLater": "Remind Me Later",
@@ -94,7 +99,15 @@
     "unpinAsset": "Unpin asset",
     "continueInBackground": "Continue in background",
     "connectingToServer": "Connecting to",
-    "startingServer": "Starting server"
+    "startingServer": "Starting server",
+    "officialWebpage": "finanze.me",
+    "officialWebpageUrl": "https://finanze.me",
+    "optional": "Optional",
+    "clear": "Clear",
+    "notAvailableOnPlatform": "Not available on this platform",
+    "unknown": "Unknown",
+    "unknownEntity": "Unknown Entity",
+    "unknownToken": "Unknown Token"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -167,9 +180,12 @@
     "pending": "Pending",
     "gross": "gross",
     "openInfoSheet": "View fund sheet",
+    "issuer": "Issuer",
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
+    "averageBuyPrice": "Avg. buy price",
+    "perSharePrice": "per share",
     "isin": "ISIN",
     "portfolio": "Portfolio",
     "ofInvestmentType": "of {type}",
@@ -178,12 +194,62 @@
     "numberOfAssets": "Number of Assets",
     "asset": "asset",
     "assets": "assets",
+    "entry": "entry",
+    "byAsset": "Per asset",
+    "byType": "Per type",
+    "sortBy": "",
+    "sortAmount": "Amount",
+    "sortRelativeGain": "Gain %",
+    "sortAbsoluteGain": "Gain",
+    "actives": "Actives",
+    "passives": "Passives",
+    "sortStart": "Start",
+    "sortMaturity": "Maturity",
     "cryptoView": {
       "belongsTo": "Belongs to",
       "viewModeLabel": "View",
       "viewModes": {
         "wallets": "By wallet",
-        "network": "By network"
+        "network": "By source"
+      }
+    },
+    "derivatives": {
+      "title": "Derivatives",
+      "singular": "derivative",
+      "plural": "derivatives",
+      "includeDerivatives": "Include Derivatives",
+      "size": "Size",
+      "direction": {
+        "LONG": "Long",
+        "SHORT": "Short"
+      },
+      "contractType": {
+        "PERPETUAL": "Perpetual",
+        "FUTURES": "Futures",
+        "KNOCK_OUT": "Knock Out",
+        "FACTOR": "Factor",
+        "WARRANT": "Warrant",
+        "OPTIONS": "Options",
+        "CFD": "CFD",
+        "OTHER": "Other"
+      },
+      "detail": {
+        "positionDetails": "Position Details",
+        "overview": "Overview",
+        "symbol": "Symbol",
+        "underlying": "Underlying",
+        "direction": "Direction",
+        "contractType": "Contract Type",
+        "pricing": "Pricing",
+        "entryPrice": "Entry Price",
+        "markPrice": "Mark Price",
+        "marketValue": "Market Value",
+        "unrealizedPnl": "Unrealized P&L",
+        "risk": "Risk & Margin",
+        "leverage": "Leverage",
+        "margin": "Margin",
+        "marginType": "Margin Type",
+        "liquidationPrice": "Liquidation Price"
       }
     },
     "weightedAverageInterest": "Weighted Avg. Interest",
@@ -214,12 +280,20 @@
       "INSURED": "Insured",
       "NON_INSURED": "Non-insured"
     },
+    "businessTypes": {
+      "EQUITY": "Equity",
+      "LENDING": "Lending",
+      "RENT": "Rent",
+      "SOLD": "Sale",
+      "RENT_AND_SOLD": "Rent & Sale",
+      "DONATION": "Donation"
+    },
     "historicSection": {
       "heading": "Past investments",
-      "showToggle": "Show completed",
+      "showToggle": "See completed",
       "hideToggle": "Hide completed",
       "toggleShort": {
-        "show": "Show completed",
+        "show": "See completed",
         "hide": "Hide completed"
       },
       "empty": "No completed {type} projects available.",
@@ -243,7 +317,11 @@
       "effectiveMaturity": "Effective maturity",
       "extendedMaturity": "Extended maturity",
       "extendableMaturity": "Extendable maturity",
-      "initialMaturityDate": "Initial maturity date"
+      "initialMaturityDate": "Initial maturity date",
+      "sortBy": "",
+      "sortMaturity": "Maturity",
+      "sortStartDate": "Start date",
+      "sortInvested": "Amount"
     }
   },
   "toast": {
@@ -265,6 +343,14 @@
       "USER": "Username",
       "API_TOKEN": "API Token"
     },
+    "credentialFields": {
+      "apiKey": "API Key",
+      "secretKey": "Secret Key"
+    },
+    "addAccountName": "Name this account",
+    "accountNamePlaceholder": "Account name (optional)",
+    "credentialsSecurityTitle": "Your data is safe",
+    "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",
@@ -294,7 +380,20 @@
     "signup": "Sign Up",
     "login": "Log In",
     "viewErrorDetails": "View technical details",
-    "errorDetailsTitle": "Technical details"
+    "errorDetailsTitle": "Technical details",
+    "syncPasswordHint": "Use the same password across devices if sync is enabled",
+    "enableBiometric": "Enable {type}",
+    "biometricFaceId": "Face ID",
+    "biometricFingerprint": "Fingerprint",
+    "biometricAuth": "Biometric",
+    "biometricLoginReason": "Unlock Finanze",
+    "biometricSaved": "Biometric login enabled",
+    "biometricError": "Could not enable biometric login",
+    "biometricLoginFailed": "Biometric authentication failed",
+    "inAppConfirmationTitle": "Confirm login in",
+    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "challengeTitle": "Security verification for",
+    "challengeMessage": "Please complete the security verification to continue."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
@@ -317,6 +416,7 @@
     "EXTERNAL_LOGIN_FAILED": "External login failed. Please try again.",
     "LOGIN_REQUIRED": "Login required for {entity}. Please login again.",
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again.",
+    "CURRENTLY_UNAVAILABLE": "{entity} is currently unavailable due to scheduled maintenance. Please try again later.",
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
@@ -355,10 +455,15 @@
     "refreshEntity": "Update data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
+    "cryptoExchanges": "Crypto Exchanges",
     "commodities": "Commodities",
     "commoditiesDescription": "Integrate your commodities with live market value",
     "manualDataEntry": "User data",
     "manage": "Manage",
+    "addAccount": "Add Account",
+    "manageAccounts": "Manage Accounts",
+    "account": "Account",
+    "noAccounts": "No accounts connected",
     "moreFinancialInstitutionsCard": "More Banks",
     "addExternalEntity": "Financial institutions",
     "requiresProviderIntegration": "Requires integration",
@@ -386,7 +491,7 @@
     "selectFeatures": "Select features to fetch from",
     "selectAll": "Select all",
     "unselectAll": "Unselect all",
-    "fetchSelected": "Fetch selected data",
+    "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
     "advancedOptions": "Advanced options",
@@ -401,9 +506,25 @@
     "generalDescription": "Configure general settings",
     "application": "Application",
     "applicationDescription": "Adjust preferences stored locally on this device",
-    "applicationDisclaimerDescription": "These settings are saved only in this browser. If you are only using the desktop app, you don't need to worry.",
+    "applicationDisclaimerDescription": "These settings are saved only in this window instance, if you use another device or application they won't be shared.",
     "applicationLanguageTitle": "Language",
     "applicationLanguageDescription": "Choose the language used across the app, used to format dates, numbers, and currencies too.",
+    "themeTitle": "Theme",
+    "themeDescription": "Choose the appearance of the application.",
+    "dataDisplayModeTitle": "Private mode",
+    "dataDisplayModeDescription": "Hide sensitive financial data by blurring amounts and percentages.",
+    "dataDisplayModeNone": "Off",
+    "dataDisplayModePrivate": "On",
+    "userTitle": "Account",
+    "userDescription": "Manage your account.",
+    "biometricCredentialsActionTitle": "Disable biometric login",
+    "biometricCredentialsNotEnabledTitle": "Enable biometric login",
+    "biometricCredentialsNotEnabledHint": "Enable biometric login for faster and secure from login or when changing your password.",
+    "biometricCredentialsAction": "Disable",
+    "biometricCredentialsTitle": "Biometric login",
+    "biometricCredentialsDescription": "Manage biometric login.",
+    "biometricCredentialsCleared": "Biometric login disabled",
+    "biometricCredentialsClearError": "Failed to disable biometric login",
     "applicationLanguageOptions": {
       "en-US": "English",
       "es-ES": "Spanish"
@@ -460,6 +581,169 @@
       }
     },
     "integrations": "Integrations",
+    "legal": {
+      "title": "Legal",
+      "description": "Legal information and policies",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfService": "Terms of Service"
+    },
+    "cloud": {
+      "tabTitle": "Cloud",
+      "title": "Cloud Sync",
+      "accountTitle": "Account",
+      "description": "Connect your account to enable cloud features and sync across devices",
+      "signInTitle": "Sign in to Cloud",
+      "signInDescription": "Access extra features and sync your data across devices",
+      "signInWithGoogle": "Sign in with Google",
+      "signInWithApple": "Sign in with Apple",
+      "googleDesktopOnly": "Available in desktop app only",
+      "signInWithEmail": "Sign in with Email",
+      "signUp": "Create Account",
+      "emailPlaceholder": "Email address",
+      "passwordPlaceholder": "Password",
+      "orContinueWith": "or continue with",
+      "legalNoticePrefix": "By continuing, you agree to the",
+      "termsOfService": "Terms of Service",
+      "legalNoticeAnd": "and",
+      "privacyPolicy": "Privacy Policy",
+      "noAccount": "Don't have an account? Sign up",
+      "alreadyHaveAccount": "Already have an account? Sign in",
+      "signedInAs": "Signed in as",
+      "role": "Role",
+      "roles": {
+        "NONE": "None",
+        "PLUS": "＋ Plus"
+      },
+      "logout": "Sign out",
+      "deleteAccount": "Delete account",
+      "requestAccountDeletion": "Request account deletion",
+      "deleteAccountEmailSubject": "Account Deletion Request",
+      "deleteAccountEmailBody": "Hi,\n\nI would like to request the deletion of my Finanze Cloud Account (the one associated with this email, {email}).\n\nI understand this action is irreversible and will permanently remove my cloud account and backups. Local data on my devices will not be affected.",
+      "loggingIn": "Signing in...",
+      "signingUp": "Creating account...",
+      "tooManyRequests": "Too many requests. Please wait a bit and try again.",
+      "signUpSuccessCheckEmail": "Account created. We sent a confirmation email to {email}. Confirm it before signing in.",
+      "signUpSuccess": "Account created successfully.",
+      "signUpError": "Sign up failed. Please try again.",
+      "signUpErrorEmailTaken": "An account with this email already exists. Try signing in instead.",
+      "signUpErrors": {
+        "signup_disabled": "Sign up is currently disabled.",
+        "email_address_invalid": "Enter a valid email address.",
+        "email_exists": "An account with this email already exists. Try signing in instead.",
+        "email_provider_disabled": "Email/password sign up is currently disabled.",
+        "weak_password": "Password is too weak. Please choose a stronger one.",
+        "unknown": "Sign up failed ({error}). Please try again."
+      },
+      "loggingOut": "Signing out...",
+      "loginError": "Sign in failed. Please try again.",
+      "loginErrorInvalidCredentials": "Invalid email or password.",
+      "loginErrorEmailNotConfirmed": "Please confirm your email before signing in.",
+      "forgotPassword": "Forgot your password?",
+      "sendingPasswordResetEmail": "Sending reset email...",
+      "passwordResetEmailRequired": "Enter your email to reset your password.",
+      "passwordResetEmailSent": "We sent a password reset email to {email}.",
+      "passwordResetError": "Failed to send password reset email. Please try again.",
+      "passwordResetTitle": "Reset password",
+      "passwordResetDescription": "Choose a new password for your account.",
+      "newPasswordPlaceholder": "New password",
+      "confirmNewPasswordPlaceholder": "Confirm new password",
+      "passwordMismatch": "Passwords do not match.",
+      "updatePassword": "Update password",
+      "cancelPasswordReset": "Cancel",
+      "passwordUpdateSuccess": "Password updated successfully.",
+      "passwordUpdateError": "Failed to update password. Please try again.",
+      "oauthErrors": {
+        "access_denied": "Access was denied. You may have cancelled the sign in.",
+        "invalid_request": "Invalid sign in request. Please try again.",
+        "unauthorized_client": "This app is not authorized. Please contact support.",
+        "server_error": "The authentication server encountered an error. Please try again later.",
+        "user_banned": "Your account is banned. Please contact support if this is unexpected.",
+        "temporarily_unavailable": "The authentication service is temporarily unavailable. Please try again later.",
+        "signup_disabled": "Could not find a related account, have you signed up yet?",
+        "unknown": "Authentication failed ({error}). Please try again."
+      },
+      "oauthRedirectTitle": "Finishing sign in",
+      "oauthRedirectDescription": "Returning to the desktop app…",
+      "oauthRedirectCloseHint": "If this tab doesn’t close automatically, you can close it now.",
+      "oauthRedirectErrorTitle": "Authentication failed",
+      "oauthRedirectErrorDescription": "Returning to the desktop app to show the error…",
+      "logoutError": "Sign out failed. Please try again.",
+      "syncError": "Failed to sync with server. Please try again.",
+      "sessionExpired": "Your session has expired. Please sign in again.",
+      "oauthRedirectOpenApp": "Open Finanze"
+    },
+    "backup": {
+      "title": "Backup",
+      "enableLabel": "Backup",
+      "enableDescription": "Choose how backups run",
+      "mode": "Mode",
+      "auto": "Auto",
+      "manual": "Manual",
+      "modes": {
+        "OFF": "Off",
+        "AUTO": "Auto",
+        "MANUAL": "Manual"
+      },
+      "modeDescriptions": {
+        "OFF": "Backups are disabled",
+        "AUTO": "Keeps your backups in sync automatically",
+        "MANUAL": "You control when backups are checked and synced"
+      },
+      "data": "Data",
+      "config": "Config",
+      "lastBackup": "Last Backup Date",
+      "noBackupYet": "No backup yet",
+      "pendingBackup": "Pending",
+      "tooManyRequests": "Too many requests. Please wait a bit before retrying.",
+      "cooldownActive": "Please wait a moment before trying again.",
+      "conflictRetry": "Sync conflict detected. Choose local or remote.",
+      "conflictDetected": "Conflict detected",
+      "conflictDescription": "There are conflicting changes. Choose which version to keep.",
+      "credentialsMismatch": "Password mismatch",
+      "credentialsMismatchTitle": "Unable to decrypt backup",
+      "credentialsMismatchDescription": "The remote backup was encrypted with a different password. For proper backup sync, use the same password across all your devices.",
+      "credentialsMismatchHint": "You can change your password in Settings > General > Account.",
+      "never": "Never",
+      "status": {
+        "SYNC": "Synced",
+        "PENDING": "Pending",
+        "CONFLICT": "Conflict",
+        "OUTDATED": "Outdated",
+        "MISSING": "Not backed up"
+      },
+      "statusSync": "Synced",
+      "statusPending": "Pending",
+      "statusConflict": "Conflict",
+      "statusOutdated": "Outdated",
+      "statusMissing": "Missing",
+      "statusUnknown": "Unknown",
+      "upload": "Backup now",
+      "download": "Download",
+      "import": "Sync",
+      "sync": "Sync",
+      "syncNow": "Sync now",
+      "syncedRecently": "Synced recently",
+      "syncing": "Syncing...",
+      "useRemote": "Use remote",
+      "useLocal": "Use local",
+      "uploading": "Backing up...",
+      "importing": "Syncing...",
+      "uploadSuccess": "Backup completed successfully",
+      "importSuccess": "Sync completed successfully",
+      "error": "Backup operation failed",
+      "noBackups": "No backups yet",
+      "local": "Local",
+      "remote": "Cloud",
+      "justNow": "Just now",
+      "oneMinuteAgo": "1 minute ago",
+      "minutesAgo": "{n} minutes ago",
+      "oneHourAgo": "1 hour ago",
+      "hoursAgo": "{n} hours ago",
+      "oneDayAgo": "1 day ago",
+      "daysAgo": "{n} days ago",
+      "oneWeekAgo": "1 week ago",
+      "weeksAgo": "{n} weeks ago"
+    },
     "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configure your Google Sheets API credentials to enable data import and export",
     "clientId": "Client ID",
@@ -530,7 +814,7 @@
         "description": "Configure your Google Sheets API to enable data import and export."
       },
       "ETHERSCAN": {
-        "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC nets (recommended only if standard fetch fails, or if using a paid API).",
+        "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC (paid) nets (recommended only if standard fetch fails, or if using a paid API).",
         "help": "How to get an API key",
         "hint": {
           "title": "Generate an Etherscan API key",
@@ -622,8 +906,8 @@
     "recentTransactions": "Recent Transactions",
     "maturity": "Maturity",
     "assetDistribution": "Distribution",
-    "assetDistributionByType": "By product",
-    "assetDistributionByEntity": "By source",
+    "assetDistributionByType": "Product",
+    "assetDistributionByEntity": "Source",
     "ongoingProjects": "Ongoing investments",
     "noOngoingProjects": "No ongoing investments at the moment.",
     "stockPositions": "Stocks & Funds",
@@ -640,6 +924,7 @@
     "data": "Data",
     "from": "From",
     "netWorth": "Net Worth",
+    "invested": "Invested",
     "investedAmount": "Initial Value",
     "upcomingFlows": "Upcoming",
     "manageFlows": "Manage",
@@ -672,9 +957,15 @@
     "noTransactions": "No transactions found",
     "noInvestments": "You don't have investments",
     "includePendingMoney": "Include pending money",
+    "includePendingMoneyInfo": "With this option enabled, pending (expenses or earnings) will be considered in the Pending Money section when calculating the net worth.",
+    "includeLoans": "Include loans & credits",
+    "includeLoansInfo": "This option means loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
     "includeCardExpenses": "Subtract card expenses",
     "includeRealEstateEquity": "Include real estate equity",
-    "includeResidences": "Include residences"
+    "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
+    "includeResidences": "Include residences",
+    "compactNumbers": "Compact numbers",
+    "privateMode": "Private mode"
   },
   "forecast": {
     "title": "Forecast",
@@ -682,10 +973,10 @@
     "avgAnnualIncrease": "Avg. annual market increase",
     "avgAnnualCryptoIncrease": "Avg. annual crypto increase",
     "avgAnnualCommodityIncrease": "Avg. annual commodity increase",
-    "run": "Run",
+    "run": "Calculate",
     "reset": "Reset",
     "active": "Forecast for {date}",
-    "disclaimer": "All values are estimated for the selected future date. Revaluations configured in real estate are included.",
+    "disclaimer": "All values are estimated for the selected future date. Revaluations configured in real estate are included. Only loans in recurring payments are considered.",
     "cashDeltaEntity": "Forecast Cash",
     "cashDeltaLabel": "Forecast Cash",
     "notShowing": "This is hidden in forecast mode",
@@ -695,7 +986,8 @@
     "pendingPaymentsLegendLabel": "Projected pending payments",
     "pendingPaymentsLegend": "Projected pending cash payments of {amount} (future outflows not counted in total assets yet)",
     "negativeCashWarningTitle": "Unfeasible projection",
-    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows."
+    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows.",
+    "includeRealEstateTaxes": "Include real estate taxes"
   },
   "export": {
     "title": "Export & Import",
@@ -755,7 +1047,7 @@
         "EUROPEAN": "1.000,00"
       },
       "datetimeHint": "If left empty, ISO formats (e.g. %Y-%m-%d and %Y-%m-%dT%H:%M:%S) will be used by default.",
-      "exportAction": "Export file",
+      "exportAction": "Export",
       "formats": {
         "CSV": "CSV",
         "TSV": "TSV",
@@ -800,7 +1092,7 @@
         "EUROPEAN": "1.000,00"
       },
       "datetimeHint": "Use the same date and datetime formatting found in your file. Both are required.",
-      "importAction": "Preview import",
+      "importAction": "Preview",
       "errors": {
         "featureRequired": "Select a feature to continue.",
         "productRequired": "Select a product to continue.",
@@ -833,7 +1125,7 @@
         "confirm": "Import data"
       }
     },
-    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data.",
+    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data. If you want to remove the imported data, simply remove the sheet or its content and import again.",
     "tabs": {
       "export": "Export",
       "import": "Import"
@@ -1080,7 +1372,8 @@
     "currency": "Currency",
     "symbol": "Symbol",
     "currencyAmount": "Currency Amount",
-    "addManualTransaction": "Transaction",
+    "contractAddress": "Contract Address",
+    "addManualTransaction": "Add",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
@@ -1101,7 +1394,8 @@
         "stocks": "Stocks & ETFs",
         "funds": "Funds",
         "portfolios": "Fund portfolios",
-        "accounts": "Accounts"
+        "accounts": "Accounts",
+        "crypto": "Crypto assets"
       },
       "netAmountLabel": "Net amount",
       "netAmountFormulaIncoming": "amount - fees - retentions",
@@ -1204,7 +1498,8 @@
       "COMMODITY": "Commodity",
       "PENDING_FLOWS": "Pending",
       "BOND": "Bond",
-      "DERIVATIVE": "Derivative"
+      "DERIVATIVE": "Derivative",
+      "CREDIT": "Credit"
     },
     "assetType": {
       "EQUITY": "Equity",
@@ -1232,6 +1527,16 @@
       "FIXED": "Fixed",
       "VARIABLE": "Variable",
       "MIXED": "Mixed"
+    },
+    "installmentFrequency": {
+      "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "SEMIMONTHLY": "Semimonthly",
+      "MONTHLY": "Monthly",
+      "BIMONTHLY": "Bimonthly",
+      "QUARTERLY": "Quarterly",
+      "SEMIANNUAL": "Semiannual",
+      "YEARLY": "Yearly"
     },
     "fundType": {
       "MUTUAL_FUND": "Mutual fund",
@@ -1265,6 +1570,12 @@
     "weightUnitName": {
       "GRAM": "Grams",
       "TROY_OUNCE": "Troy Ounces"
+    },
+    "realEstateFlowSubtype": {
+      "LOAN": "Loan",
+      "SUPPLY": "Supply",
+      "COST": "Cost",
+      "RENT": "Rent"
     }
   },
   "walletForm": {
@@ -1295,7 +1606,8 @@
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "This address is already connected.",
       "ADDRESS_NOT_FOUND": "We could not find this address. Check it and try again.",
-      "TOO_MANY_REQUESTS": "Too many attempts. Wait a moment and try again."
+      "TOO_MANY_REQUESTS": "Too many attempts. Wait a moment and try again.",
+      "XPUB_ALREADY_EXISTS": "This key is already connected."
     },
     "toasts": {
       "allSuccess": "Wallet added successfully.",
@@ -1303,12 +1615,33 @@
       "partialSuccessMultiple": "{count} addresses added successfully.",
       "allFailed": "No addresses were added."
     },
-    "submit": "Add wallet"
+    "submit": "Add wallet",
+    "derived": {
+      "useXpub": "Use extended public key (xpub)",
+      "manualTab": "Address",
+      "xpubTab": "XPUB",
+      "xpubLabel": "Extended Public Key",
+      "xpubPlaceholder": "xpub6...",
+      "xpubRequired": "Extended public key is required.",
+      "scriptTypeLabel": "Script Type",
+      "scriptTypePlaceholder": "Select script type",
+      "scriptTypeRequired": "Script type is required.",
+      "advancedOptions": "Advanced options",
+      "accountLabel": "Account index",
+      "accountHint": "Default is 0. Change only if needed.",
+      "previewButton": "Preview addresses",
+      "previewError": "Failed to derive addresses. Check the xpub and try again.",
+      "invalidXpub": "Invalid extended public key. Check it and try again.",
+      "previewFirst": "Preview addresses before adding the wallet.",
+      "basePath": "Base path",
+      "receivingAddresses": "Receiving addresses",
+      "changeAddresses": "Change addresses"
+    }
   },
   "walletManagement": {
     "title": "Manage Wallets",
-    "subtitle": "Connected wallets for {{entityName}}",
-    "addWallet": "Add Wallet",
+    "subtitle": "Wallets for {{entityName}}",
+    "addWallet": "Add",
     "noWallets": "No wallets connected",
     "noWalletsDescription": "Start by adding your first wallet to this crypto entity",
     "addFirstWallet": "Add Your First Wallet",
@@ -1323,7 +1656,14 @@
     "filterByWallet": "Filter by wallet",
     "walletFilterPlaceholder": "Select wallets",
     "clearFilters": "Clear filters",
-    "viewAllTokens": "View all tokens"
+    "viewAllTokens": "View all tokens",
+    "viewAddresses": "View addresses",
+    "showAddresses": "Show addresses",
+    "hideAddresses": "Hide addresses",
+    "receivingAddresses": "Receiving addresses",
+    "changeAddresses": "Change addresses",
+    "noAddresses": "No derived addresses found",
+    "addressesError": "Failed to load addresses. Please try again."
   },
   "commodityManagement": {
     "title": "Commodities",
@@ -1343,7 +1683,7 @@
     "saveError": "Failed to save commodities",
     "saveSuccess": "Commodities saved successfully",
     "deleteConfirmTitle": "Delete commodity",
-    "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? This change isn\u2019t applied until you save, so you can still cancel before saving.",
+    "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? This change isn’t applied until you save, so you can still cancel before saving.",
     "kpis": {
       "entries": "Entries",
       "totalWeight": "Total Weight",
@@ -1414,6 +1754,11 @@
     "accounts": "Accounts",
     "cards": "Cards",
     "loans": "Loans",
+    "loansAndCredits": "Loans & Credits",
+    "credit": "credit",
+    "creditDrawn": "Drawn Amount",
+    "creditLimit": "Credit Limit",
+    "availableCredit": "Available",
     "card": "card",
     "loan": "loan",
     "available": "Available",
@@ -1423,6 +1768,16 @@
     "inactive": "Inactive",
     "principalOutstanding": "Principal Outstanding",
     "monthlyInstallment": "Monthly Installment",
+    "installmentByFrequency": {
+      "WEEKLY": "Weekly Installment",
+      "BIWEEKLY": "Biweekly Installment",
+      "SEMIMONTHLY": "Semi-monthly Installment",
+      "MONTHLY": "Monthly Installment",
+      "BIMONTHLY": "Bimonthly Installment",
+      "QUARTERLY": "Quarterly Installment",
+      "SEMIANNUAL": "Semiannual Installment",
+      "YEARLY": "Yearly Installment"
+    },
     "interestRate": "Interest Rate",
     "nextPayment": "Next Payment",
     "originalAmount": "Original Amount",
@@ -1468,6 +1823,7 @@
     "categoryPlaceholder": "Enter category",
     "iconLabel": "Icon",
     "frequencyLabel": "Frequency",
+    "flowSubtype": "Type",
     "since": "Since",
     "until": "Until",
     "date": "Date",
@@ -1478,6 +1834,8 @@
     "deleteConfirmTitle": "Delete {type}",
     "deleteLinkedWarning": "Note: This {type} is linked to a real estate operation. Deleting it will affect the related real estate.",
     "editLinkedWarning": "Editing this {type} will affect the related real estate.",
+    "linkedToLoan": "Linked to a loan, managed from loans",
+    "linkedToRealEstate": "Linked to a real estate, managed from real estate",
     "noEarnings": "No earnings configured",
     "noExpenses": "No expenses configured",
     "addFirstEarning": "Click '+' to add recurring earnings.",
@@ -1495,6 +1853,8 @@
     "frequency": {
       "DAILY": "Daily",
       "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "SEMIMONTHLY": "Semi-monthly",
       "MONTHLY": "Monthly",
       "EVERY_TWO_MONTHS": "Every 2 Months",
       "QUARTERLY": "Quarterly",
@@ -1515,6 +1875,9 @@
     "sortBy": "Sort by",
     "sortByAmount": "Amount",
     "sortByDate": "Date",
+    "groupBy": "Group by",
+    "groupByCategory": "Category",
+    "uncategorized": "Uncategorized",
     "nextPayment": "Next",
     "overdue": "Overdue",
     "today": "Today",
@@ -1573,7 +1936,7 @@
     "source": "Source",
     "manualContributions": {
       "unnamed": "Manual contribution",
-      "add": "New contribution",
+      "add": "New",
       "createTitle": "Add manual contribution",
       "editTitle": "Edit manual contribution",
       "entity": "Entity",
@@ -1627,6 +1990,7 @@
         "validation": {
           "required": "This field is required",
           "number": "Enter a valid number",
+          "invalidDate": "Enter a valid date",
           "entity": "Select an entity",
           "entityName": "Enter an entity name",
           "entityNameExists": "An entity with this name already exists"
@@ -1660,7 +2024,7 @@
         "fields": {
           "type": "Account type",
           "total": "Balance",
-          "interest": "Interest rate (%)",
+          "interest": "Interest rate",
           "retained": "Retained amount",
           "pendingTransfers": "Pending transfers",
           "iban": "IBAN"
@@ -1709,8 +2073,8 @@
         "description": "Maintain loan data that isn't synced through an integration.",
         "add": "Add",
         "empty": {
-          "title": "No loans",
-          "description": "Add a loan to track payments and balances."
+          "title": "No loans or credits",
+          "description": "Add a loan or credit line to track balances."
         },
         "form": {
           "createTitle": "Add a loan",
@@ -1721,7 +2085,7 @@
         "fields": {
           "type": "Loan type",
           "loanAmount": "Original amount",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "currentInstallment": "Current installment",
           "principalOutstanding": "Principal outstanding",
           "principalPaid": "Principal paid",
@@ -1730,7 +2094,12 @@
           "euriborRate": "Euribor rate",
           "fixedYears": "Fixed-rate years",
           "creation": "Start date",
-          "maturity": "Maturity"
+          "maturity": "Maturity",
+          "installmentFrequency": "Installment frequency",
+          "fixedInterestRate": "Fixed interest rate",
+          "trackLoan": "Update loan automatically",
+          "trackLoanLabel": "Auto-update",
+          "trackLoanInfo": "Automatically recalculates the installment, interests, and outstanding principal over time. Only for fixed interest loans."
         },
         "helpers": {
           "calculationHint": "Use the calculator to estimate the current installment and outstanding principal.",
@@ -1740,7 +2109,33 @@
           "missingFixedYears": "Specify the fixed-rate years to calculate mixed interest loans.",
           "calculationApplied": "Suggested values were added to the form.",
           "calculationFailed": "We couldn't calculate the loan suggestion. Try again.",
+          "euriborUnavailable": "Euribor rates are temporarily unavailable.",
           "fixedRateDuration": "Fixed rate: {{years}} years"
+        },
+        "summary": {
+          "interest": "{{rate}}% interest"
+        }
+      },
+      "bankCredits": {
+        "title": "Manual credits",
+        "description": "Maintain credit line data that isn't synced through an integration.",
+        "add": "Add",
+        "empty": {
+          "title": "No credits",
+          "description": "Add a credit line to track drawn amounts and limits."
+        },
+        "form": {
+          "createTitle": "Add a credit line",
+          "createDescription": "Enter the credit line details to manage it manually.",
+          "editTitle": "Edit manual credit",
+          "editDescription": "Update the selected manual credit line."
+        },
+        "fields": {
+          "creditLimit": "Credit limit",
+          "drawnAmount": "Drawn amount",
+          "interestRate": "Interest rate",
+          "pledgedAmount": "Pledged guarantees value",
+          "creation": "Start date"
         },
         "summary": {
           "interest": "{{rate}}% interest"
@@ -1856,6 +2251,47 @@
           "investment": "Add at least initial investment or average buy price."
         }
       },
+      "crypto": {
+        "title": "Manual crypto",
+        "description": "Track crypto positions managed manually.",
+        "add": "Add",
+        "empty": {
+          "title": "No manual crypto",
+          "description": "Add a manual crypto position to your portfolio."
+        },
+        "form": {
+          "createTitle": "Add manual crypto",
+          "createDescription": "Provide the crypto details to track it manually.",
+          "editTitle": "Edit manual crypto",
+          "editDescription": "Update the selected manual crypto."
+        },
+        "fields": {
+          "symbol": "Symbol",
+          "name": "Name",
+          "amount": "Amount",
+          "contractAddress": "Contract address",
+          "initialInvestment": "Initial investment",
+          "averageBuyPrice": "Average buy price",
+          "investmentCurrency": "Investment currency"
+        },
+        "helpers": {
+          "searchBySymbol": "Search by symbol",
+          "searchByName": "Search by name",
+          "symbolPlaceholder": "e.g. BTC, ETH",
+          "namePlaceholder": "e.g. Bitcoin, Ethereum",
+          "unitPrice": "Unit price",
+          "marketValue": "Market value",
+          "selectPlatform": "Available platforms",
+          "platformHint": "Select a platform to auto-fill the entity.",
+          "searchResults": "Search results",
+          "noResults": "No results found",
+          "clearSelection": "Clear selection",
+          "existing": "Existing"
+        },
+        "validation": {
+          "symbolOrName": "Enter a symbol or name."
+        }
+      },
       "deposits": {
         "title": "Manual deposits",
         "description": "Keep term deposit data updated manually.",
@@ -1873,7 +2309,7 @@
         "fields": {
           "amount": "Amount",
           "expectedInterests": "Expected interests",
-          "interestRate": "Interest rate (%)",
+          "interestRate": "Interest rate",
           "creation": "Start date",
           "maturity": "Maturity"
         }
@@ -1894,9 +2330,9 @@
         },
         "fields": {
           "amount": "Amount",
-          "interestRate": "Interest rate (%)",
-          "lateInterestRate": "Late interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "lateInterestRate": "Late interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "type": "Type",
@@ -1920,9 +2356,9 @@
         "fields": {
           "amount": "Amount",
           "pendingAmount": "Pending amount",
-          "interestRate": "Interest rate (%)",
-          "extendedInterestRate": "Extended interest rate (%)",
-          "profitability": "Profitability (%)",
+          "interestRate": "Interest rate",
+          "extendedInterestRate": "Extended interest rate",
+          "profitability": "Profitability",
           "start": "Start date",
           "maturity": "Maturity",
           "extendedMaturity": "Extended maturity",
@@ -2024,8 +2460,8 @@
         "scenario": "Scenario",
         "compare": "Compare scenarios"
       },
-      "yearlyView": "Yearly view",
-      "periodView": "Period view",
+      "yearlyView": "By Year",
+      "periodView": "By Period",
       "retirementModeInfo": "Contribution will be calculated based on retirement goals"
     }
   },
@@ -2034,11 +2470,13 @@
   },
   "realEstate": {
     "title": "Real Estate",
+    "linkedToPosition": "Linked to loan",
+    "notLinked": "Not linked",
     "properties": "Properties",
     "summary": "Summary",
-    "addProperty": "Add Property",
-    "editProperty": "Edit Property",
-    "deleteProperty": "Delete Property",
+    "addProperty": "Add",
+    "editProperty": "Edit",
+    "deleteProperty": "Delete",
     "emptyStateDescription": "Start by adding your first property to manage your real estate portfolio.",
     "bedrooms": "bedrooms",
     "bathrooms": "bathrooms",
@@ -2060,8 +2498,8 @@
       "name": "Name",
       "photo": "Photo",
       "purchaseDate": "Purchase date",
-      "isResidence": "Marked as residence",
-      "isRented": "Rented property",
+      "isResidence": "My residence",
+      "isRented": "Rented",
       "bathrooms": "Bathrooms",
       "bedrooms": "Bedrooms"
     },
@@ -2084,7 +2522,7 @@
     "valuation": {
       "estimatedMarketValue": "Estimated market value",
       "valuations": "Valuations",
-      "addValuation": "Add valuation",
+      "addValuation": "Add",
       "date": "Date",
       "amount": "Value",
       "notes": "Notes",
@@ -2109,6 +2547,7 @@
       "interestType": "Interest type",
       "fixedYears": "Fixed years",
       "fixedYearsLabel": "Fixed rate years",
+      "fixedInterestRateLabel": "Fixed interest rate",
       "fromLabel": "From",
       "untilLabel": "Until",
       "existingLoan": "Existing Loan",
@@ -2122,12 +2561,13 @@
       "loanTypeLabel": "Loan type",
       "totalLoanAmountLabel": "Total loan amount",
       "interestTypeLabel": "Interest type",
-      "interestRateLabel": "Interest rate (%)",
+      "interestRateLabel": "Interest rate",
       "noAssociatedLoans": "No associated loans",
       "paymentDate": "Payment date",
       "principalOutstanding": "Principal outstanding",
       "principalPaid": "Principal paid",
-      "monthlyPayment": "Monthly payment",
+      "monthlyPayment": "Current installment",
+      "installmentFrequencyLabel": "Installment frequency",
       "capitalContributed": "Capital contributed",
       "totalFinanced": "Total financed",
       "precalculate": "Precalculate",
@@ -2253,11 +2693,14 @@
       "noSuggestionsAvailable": "No suggestions available"
     },
     "suggestions": {
-      "availableSuggestions": "Available Suggestions"
+      "availableSuggestions": "Available Suggestions",
+      "currencyMismatch": "This item is in {currency} and cannot be linked to a {propertyCurrency} property"
     },
     "frequency": {
       "daily": "Daily",
       "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "semimonthly": "Semi-monthly",
       "monthly": "Monthly",
       "bimonthly": "Bimonthly",
       "quarterly": "Quarterly",
@@ -2271,7 +2714,7 @@
       "marginalTaxRate": "Marginal tax rate (%):",
       "estimatedMonthlyTax": "Estimated monthly tax:",
       "estimatedAnnualTax": "Estimated annual tax:",
-      "monthlyPayment": "Monthly payment",
+      "monthlyPayment": "Current installment",
       "monthlyAmount": "Monthly amount",
       "monthlyIncomeGross": "Monthly income (gross):",
       "monthlyIncome": "Monthly income:",
@@ -2285,7 +2728,7 @@
       "totalPurchaseCost": "Total purchase cost",
       "estimatedValue": "Estimated value",
       "equity": "Equity",
-      "monthlyInterest": "Monthly interest",
+      "monthlyInterest": "Installment interest",
       "taxDeductible": "Deductible",
       "taxDeductibleShort": "deductible",
       "taxableAmount": "Taxable amount",
@@ -2343,7 +2786,12 @@
       "saveChanges": "Save changes",
       "discardChanges": "Discard changes",
       "discardChangesTitle": "Discard changes?",
-      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?"
+      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?",
+      "unlinkLoanTitle": "Unlink loan?",
+      "unlinkLoanMessage": "Unlinking the loan will remove the connection to the banking position. To link it again, you will need to add the loan again.",
+      "unlinkLoanWarning": "This action cannot be undone.",
+      "unlinkLoanConfirm": "Unlink",
+      "unlinkLoanCancel": "Cancel"
     },
     "validation": {
       "title": "Validation Errors",

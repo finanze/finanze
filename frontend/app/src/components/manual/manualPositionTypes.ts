@@ -6,12 +6,14 @@ export type ManualPositionAsset =
   | "bankAccounts"
   | "bankCards"
   | "bankLoans"
+  | "bankCredits"
   | "fundPortfolios"
   | "funds"
   | "stocks"
   | "deposits"
   | "factoring"
   | "realEstateCf"
+  | "crypto"
 
 export type ManualPositionDraft<Entry extends Record<string, any>> = Entry & {
   localId: string
@@ -90,6 +92,7 @@ export interface ManualPositionConfig<
     form: FormState,
     params: {
       previous?: ManualPositionDraft<Entry>
+      defaultCurrency?: string
     },
   ) => Entry | null
   validateForm: (
@@ -126,5 +129,10 @@ export type ManualSavePayloadByEntity = Map<
     entries: ManualSaveEntryPayload<Record<string, any>>[]
     isNewEntity: boolean
     newEntityName?: string | null
+    newEntityIconUrl?: string | null
+    netCryptoEntityDetails?: {
+      provider_asset_id: string
+      provider: string
+    } | null
   }
 >

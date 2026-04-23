@@ -1,0 +1,6 @@
+requests==2.32.4
+cryptography==46.0.3
+strictyaml==1.7.3
+
+# Pyodide special package (not a PyPI requirement)
+ssl

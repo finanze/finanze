@@ -7,7 +7,7 @@ from domain.exchange_rate import CommodityExchangeRate
 
 class MetalPriceProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def get_price(
+    async def get_price(
         self, commodity: CommodityType, **kwargs
     ) -> Optional[CommodityExchangeRate]:
         raise NotImplementedError

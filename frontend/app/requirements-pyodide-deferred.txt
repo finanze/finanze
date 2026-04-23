@@ -1,0 +1,4 @@
+httpx==0.28.1
+pydantic==2.12.5
+brotli==1.2.0
+python-dateutil==2.9.0.post0

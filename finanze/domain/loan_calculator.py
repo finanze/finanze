@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 
 from domain.dezimal import Dezimal
-from domain.global_position import InterestType
+from domain.global_position import InstallmentFrequency, InterestType
 
 
 @dataclass
@@ -16,11 +16,15 @@ class LoanCalculationParams:
     start: date
     end: date
     principal_outstanding: Optional[Dezimal]
+    fixed_interest_rate: Optional[Dezimal] = None
+    installment_frequency: InstallmentFrequency = InstallmentFrequency.MONTHLY
+    tracking_ref_outstanding: Optional[Dezimal] = None
+    tracking_ref_date: Optional[date] = None
 
 
 @dataclass
 class LoanCalculationResult:
-    current_monthly_payment: Optional[Dezimal]
-    current_monthly_interests: Optional[Dezimal]
+    current_installment_payment: Optional[Dezimal]
+    current_installment_interests: Optional[Dezimal]
     principal_outstanding: Optional[Dezimal]
     installment_date: Optional[date] = None

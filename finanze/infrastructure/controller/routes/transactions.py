@@ -1,10 +1,10 @@
 from uuid import UUID
 
 from domain.transactions import TransactionQueryRequest
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def transactions(get_transactions_uc):
+async def transactions(get_transactions_uc):
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
     entities = request.args.getlist("entity")
@@ -30,6 +30,6 @@ def transactions(get_transactions_uc):
         historic_entry_id=historic_entry_id,
     )
 
-    result = get_transactions_uc.execute(query)
+    result = await get_transactions_uc.execute(query)
 
     return jsonify({"transactions": result.transactions}), 200

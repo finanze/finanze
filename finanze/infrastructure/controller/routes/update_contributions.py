@@ -9,11 +9,11 @@ from domain.auto_contributions import (
 )
 from domain.dezimal import Dezimal
 from domain.use_cases.update_contributions import UpdateContributions
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def update_contributions(update_contributions_uc: UpdateContributions):
-    body = request.json
+    body = await request.get_json()
 
     contributions: list[ManualPeriodicContribution] = []
     try:

@@ -171,7 +171,7 @@ def validate_template_default_values(template: Template):
                 # Check if it's actually an integer (not a float)
                 if isinstance(default_value, float) and default_value != int_val:
                     raise ValueError()
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 raise InvalidTemplateDefaultValue(
                     field_display_name,
                     effective_field.type.value,
@@ -188,7 +188,7 @@ def validate_template_default_values(template: Template):
                 )
             try:
                 Dezimal(default_value)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 raise InvalidTemplateDefaultValue(
                     field_display_name,
                     effective_field.type.value,

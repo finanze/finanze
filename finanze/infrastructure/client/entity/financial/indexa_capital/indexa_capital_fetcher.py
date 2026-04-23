@@ -3,8 +3,9 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
@@ -22,6 +23,7 @@ from domain.global_position import (
     GlobalPosition,
     ProductType,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import INDEXA_CAPITAL
 from domain.transactions import FundPortfolioTx, FundTx, Transactions, TxType
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_client import (
@@ -36,10 +38,10 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         token = login_params.credentials.get("token")
-        return self._client.setup(token)
+        return await self._client.setup(token)
 
     async def global_position(self) -> GlobalPosition:
-        user_info = self._client.get_user_info()
+        user_info = await self._client.get_user_info()
         accounts_list = []
         fund_details = []
         fund_portfolios = []
@@ -53,16 +55,15 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             iban = account_data.get("account_cash")
             account_currency = account_data.get("currency")
 
-            portfolio_data = self._client.get_portfolio(account_number)
-            # New API structure has keys at top level (portfolio, cash_accounts, instrument_accounts)
+            portfolio_data = await self._client.get_portfolio(account_number)
+
             portfolio_info = portfolio_data.get("portfolio", {})
-            # instrument_accounts may be at top level or nested (backwards compatibility)
+
             instrument_accounts = portfolio_data.get(
                 "instrument_accounts"
             ) or portfolio_info.get("instrument_accounts", [])
             cash_accounts = portfolio_data.get("cash_accounts", [])
 
-            # Cash amount can be directly provided or we derive it from cash_accounts list
             cash_amount = portfolio_info.get("cash_amount")
             if cash_amount is None and cash_accounts:
                 try:
@@ -74,13 +75,11 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             cash_amount = cash_amount or 0
             total_cash = Dezimal(cash_amount)
 
-            # Portfolio aggregated investment values (instruments) if provided
             instruments_cost = Dezimal(portfolio_info.get("instruments_cost", 0))
             instruments_amount = Dezimal(portfolio_info.get("instruments_amount", 0))
 
             fund_portfolio_id = uuid4()
 
-            # Cash retained per account (if API returns cash position entries)
             retained_cash = Dezimal(0)
 
             for account_item in instrument_accounts:
@@ -101,8 +100,6 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     if market_value == 0 or initial_investment == 0 or titles == 0:
                         continue
 
-                    price = Dezimal(pos.get("price", 0))
-
                     isin = instrument.get("identifier") or instrument.get("isin_code")
                     if not isin:
                         continue
@@ -113,6 +110,11 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         fund_type = FundType.PENSION_FUND
 
                     fund_details_url = self._parse_fund_details_url(instrument)
+
+                    name = instrument.get("name")
+
+                    issuer = instrument.get("management_company_description")
+                    issuer = resolve_issuer(issuer, name)
 
                     asset_type = AssetType.OTHER
                     if "equity" in raw_asset_type:
@@ -125,17 +127,17 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     fund_details.append(
                         FundDetail(
                             id=uuid4(),
-                            name=instrument.get("name"),
+                            name=name,
                             isin=isin,
                             market=instrument.get("market_code"),
                             shares=titles,
                             initial_investment=initial_investment,
-                            average_buy_price=price,
                             market_value=market_value,
                             type=fund_type,
                             asset_type=asset_type,
                             currency=account_currency,
                             info_sheet_url=fund_details_url,
+                            issuer=issuer,
                             portfolio=FundPortfolio(id=fund_portfolio_id),
                         )
                     )
@@ -223,13 +225,13 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        user_info = self._client.get_user_info()
-        investment_txs = self._fetch_investment_txs(registered_txs, user_info)
-        portfolio_txs = self._fetch_portfolio_txs(registered_txs, user_info)
+        user_info = await self._client.get_user_info()
+        investment_txs = await self._fetch_investment_txs(registered_txs, user_info)
+        portfolio_txs = await self._fetch_portfolio_txs(registered_txs, user_info)
 
         return Transactions(investment=investment_txs + portfolio_txs, account=[])
 
-    def _fetch_investment_txs(
+    async def _fetch_investment_txs(
         self, registered_txs: set[str], user_info: dict
     ) -> list[FundTx]:
         investment_txs: list[FundTx] = []
@@ -242,7 +244,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             if not account_number:
                 continue
 
-            raw_txs = self._client.get_instrument_transactions(account_number)
+            raw_txs = await self._client.get_instrument_transactions(account_number)
             for tx in raw_txs:
                 if tx.get("status") != "closed":
                     continue
@@ -317,7 +319,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                 )
         return investment_txs
 
-    def _fetch_portfolio_txs(
+    async def _fetch_portfolio_txs(
         self, registered_txs: set[str], user_info: dict
     ) -> list[FundPortfolioTx]:
         # We only take fee transactions for the portfolio level (custody / management)
@@ -334,7 +336,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             portfolio_name = account_number
 
             try:
-                cash_txs = self._client.get_cash_transactions(account_number)
+                cash_txs = await self._client.get_cash_transactions(account_number)
             except Exception as e:
                 self._log.error(
                     f"Failed fetching cash transactions for {account_number}: {e}"

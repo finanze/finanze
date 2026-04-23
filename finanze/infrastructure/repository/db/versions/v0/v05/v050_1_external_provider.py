@@ -78,11 +78,11 @@ class V0501ExternalEntityProvider(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.5.0:1_external_entity_provider"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(DDL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)
 
         statements = self.parse_block(DML)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

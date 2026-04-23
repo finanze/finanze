@@ -3,9 +3,10 @@ from datetime import date, datetime
 from hashlib import sha1
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
@@ -68,7 +69,7 @@ class WecityFetcher(FinancialEntityFetcher):
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
 
-        return self._client.login(
+        return await self._client.login(
             username,
             password,
             login_options=login_params.options,
@@ -78,7 +79,7 @@ class WecityFetcher(FinancialEntityFetcher):
         )
 
     async def global_position(self) -> GlobalPosition:
-        wallet = Dezimal(self._client.get_wallet()["LW"]["balance"]) / 100
+        wallet = Dezimal((await self._client.get_wallet())["LW"]["balance"]) / 100
         account = Account(
             id=uuid4(),
             total=round(wallet, 2),
@@ -86,7 +87,7 @@ class WecityFetcher(FinancialEntityFetcher):
             type=AccountType.VIRTUAL_WALLET,
         )
 
-        investments = self._client.get_investments()
+        investments = await self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
@@ -96,11 +97,11 @@ class WecityFetcher(FinancialEntityFetcher):
             ):  # It can be marked as completed (5), but there could be pending principal
                 continue
 
-            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+            raw_related_txs = (await self._client.get_investment_transactions(inv_id))[
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            mapped_investment = await self._map_investment(related_txs, inv_id, inv)
             if mapped_investment:
                 investment_details.append(mapped_investment)
 
@@ -111,12 +112,14 @@ class WecityFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=WECITY, products=products)
 
-    def _map_investment(self, related_txs, inv_id, inv) -> RealEstateCFDetail | None:
+    async def _map_investment(
+        self, related_txs, inv_id, inv
+    ) -> RealEstateCFDetail | None:
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
         amount = Dezimal(inv["amount"]["initial"])
         pending = Dezimal(inv["amount"]["current"])
-        investments_details = self._client.get_investment_details(inv_id)
+        investments_details = await self._client.get_investment_details(inv_id)
         opportunity = investments_details["opportunity"]
 
         raw_business_type = opportunity["investment_type_id"]
@@ -188,11 +191,25 @@ class WecityFetcher(FinancialEntityFetcher):
         if start_date_field:
             start_date = datetime.strptime(start_date_field, DATE_FORMAT).date()
 
-        maturity = datetime.strptime(
-            ordinary_period.get("fecha_vencimiento")
-            or ordinary_period.get("fecha_fin"),
-            DATE_FORMAT,
-        ).date()
+        raw_originary_period_end = ordinary_period.get(
+            "fecha_vencimiento"
+        ) or ordinary_period.get("fecha_fin")
+        raw_originary_months = ordinary_period.get("plazo")
+
+        if raw_originary_period_end:
+            maturity = datetime.strptime(
+                raw_originary_period_end,
+                DATE_FORMAT,
+            ).date()
+        elif raw_originary_months and start_date:
+            maturity = start_date + relativedelta(months=int(raw_originary_months))
+        else:
+            self._log.warning(
+                "We can't calculate the maturity date for investment %s %s",
+                inv_id,
+                name,
+            )
+            return None
 
         extended_maturity = None
         extended_period = periods.get("prorroga", {})
@@ -262,7 +279,9 @@ class WecityFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        raw_transactions = _normalize_transactions(self._client.get_transactions())
+        raw_transactions = _normalize_transactions(
+            await self._client.get_transactions()
+        )
 
         txs = []
         for tx in raw_transactions:
@@ -332,15 +351,15 @@ class WecityFetcher(FinancialEntityFetcher):
         ).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
-        investments = self._client.get_investments()
+        investments = await self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+            raw_related_txs = (await self._client.get_investment_transactions(inv_id))[
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            mapped_investment = await self._map_investment(related_txs, inv_id, inv)
             if mapped_investment:
                 investment_details.append(mapped_investment)
 

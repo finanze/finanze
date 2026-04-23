@@ -1,76 +1,61 @@
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from application.ports.last_fetches_port import LastFetchesPort
-from domain.entity import Entity, Feature
+from domain.entity import Feature
 from domain.fetch_record import FetchRecord
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.fetch.queries import LastFetchesQueries
+
+
+def _map_row(row) -> FetchRecord:
+    entity_account_id_raw = row["entity_account_id"]
+    return FetchRecord(
+        entity_id=UUID(row["entity_id"]),
+        feature=Feature(row["feature"]),
+        date=datetime.fromisoformat(row["date"]),
+        entity_account_id=UUID(entity_account_id_raw)
+        if entity_account_id_raw
+        else None,
+    )
 
 
 class LastFetchesRepository(LastFetchesPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get_by_entity_id(self, entity_id: UUID) -> list[FetchRecord]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT entity_id, feature, date FROM last_fetches WHERE entity_id = ?",
+    async def get_by_entity_id(self, entity_id: UUID) -> list[FetchRecord]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                LastFetchesQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
-            rows = cursor.fetchall()
-            return [
-                FetchRecord(
-                    entity_id=UUID(row["entity_id"]),
-                    feature=Feature(row["feature"]),
-                    date=datetime.fromisoformat(row["date"]),
-                )
-                for row in rows
-            ]
+            rows = await cursor.fetchall()
+            return [_map_row(row) for row in rows]
 
-    def get_grouped_by_entity(self, feature: Feature) -> dict[Entity, FetchRecord]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """SELECT lf.entity_id,
-                          e.name       as entity_name,
-                          e.natural_id as entity_natural_id,
-                          e.type       as entity_type,
-                          e.origin     as entity_origin,
-                          lf.feature,
-                          lf.date
-                   FROM last_fetches lf
-                            JOIN entities e ON lf.entity_id = e.id
-                   WHERE feature = ?
-                """,
-                (feature,),
+    async def get_by_entity_account_id(
+        self, entity_account_id: UUID
+    ) -> list[FetchRecord]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                LastFetchesQueries.GET_BY_ENTITY_ACCOUNT_ID,
+                (str(entity_account_id),),
             )
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
+            return [_map_row(row) for row in rows]
 
-            return {
-                Entity(
-                    id=UUID(row["entity_id"]),
-                    name=row["entity_name"],
-                    natural_id=row["entity_natural_id"],
-                    type=row["entity_type"],
-                    origin=row["entity_origin"],
-                ): FetchRecord(
-                    entity_id=UUID(row["entity_id"]),
-                    feature=Feature(row["feature"]),
-                    date=datetime.fromisoformat(row["date"]),
-                )
-                for row in rows
-            }
-
-    def save(self, fetch_records: list[FetchRecord]):
-        with self._db_client.tx() as cursor:
+    async def save(self, fetch_records: list[FetchRecord]):
+        async with self._db_client.tx() as cursor:
             for fetch_record in fetch_records:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO last_fetches (entity_id, feature, date)
-                    VALUES (?, ?, ?)
-                    """,
+                await cursor.execute(
+                    LastFetchesQueries.UPSERT,
                     (
+                        str(uuid4()),
                         str(fetch_record.entity_id),
                         fetch_record.feature.value,
                         fetch_record.date.isoformat(),
+                        str(fetch_record.entity_account_id)
+                        if fetch_record.entity_account_id
+                        else None,
                     ),
                 )

@@ -28,6 +28,18 @@ parser.add_argument(
     default="full",
     help='Specify what to package: "backend", "frontend", or "full" (default: "full")',
 )
+parser.add_argument(
+    "--os",
+    choices=["mac", "win", "linux"],
+    default=None,
+    help='Specify target OS: "mac", "win", or "linux" (default: None for all platforms)',
+)
+parser.add_argument(
+    "--arch",
+    choices=["x64", "arm64"],
+    default=None,
+    help='Specify target architecture: "x64" or "arm64" (default: None, only applies to macOS)',
+)
 args = parser.parse_args()
 
 # --- Backend Packaging ---
@@ -47,13 +59,28 @@ if args.target in ["frontend", "full"]:
     logger.info("Starting frontend packaging...")
     front_dir = cwd / "frontend" / "app"
 
+    env = os.environ.copy()
+
     os.chdir(front_dir)
-    pinstall_front = subprocess.call("pnpm install", shell=True)
+    pinstall_front = subprocess.call("pnpm install", shell=True, env=env)
     if pinstall_front != 0:
         logger.error("Frontend installation failed")
         sys.exit(1)
 
-    package_front = subprocess.call("pnpm run dist", shell=True)
+    # Build pnpm dist command with OS and arch parameters
+    pnpm_dist_cmd = "pnpm run dist"
+    if args.os:
+        pnpm_dist_cmd += f":{args.os}"
+        if args.arch and args.os == "mac":
+            pnpm_dist_cmd += f":{args.arch}"
+
+    logger.info(f"Running: {pnpm_dist_cmd}")
+    if "VITE_SUPABASE_URL" in env:
+        logger.info("VITE_SUPABASE_URL is set")
+    if "VITE_SUPABASE_PUBLISHABLE_KEY" in env:
+        logger.info("VITE_SUPABASE_PUBLISHABLE_KEY is set")
+
+    package_front = subprocess.call(pnpm_dist_cmd, shell=True, env=env)
     if package_front != 0:
         logger.error("Frontend packaging failed")
         sys.exit(1)
@@ -76,7 +103,18 @@ if args.target in ["frontend", "full"]:
         if any(name.endswith(ext) for ext in file_ext) or (
             name.startswith("latest") and name.endswith(".yml")
         ):
-            move_to_dist(path)
+            # Rename latest-arm64-mac.yml to latest-mac.yml for macOS ARM64
+            if (
+                args.os == "mac"
+                and args.arch == "arm64"
+                and name == "latest-arm64-mac.yml"
+            ):
+                renamed_path = path.parent / "latest-mac.yml"
+                path.rename(renamed_path)
+                logger.info(f"Renamed {name} to latest-mac.yml")
+                move_to_dist(renamed_path)
+            else:
+                move_to_dist(path)
 
     logger.info("Frontend release files moved.")
 

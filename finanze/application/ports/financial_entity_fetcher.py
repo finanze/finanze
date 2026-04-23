@@ -12,6 +12,9 @@ class FinancialEntityFetcher(metaclass=abc.ABCMeta):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         raise NotImplementedError
 
+    def cancel_login(self) -> None:
+        pass
+
     async def global_position(self) -> GlobalPosition:
         raise FeatureNotSupported
 

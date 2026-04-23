@@ -9,10 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ManualPositionsManager,
@@ -29,6 +26,7 @@ import type {
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 import { cn } from "@/lib/utils"
 import { SourceBadge } from "@/components/ui/SourceBadge"
@@ -40,16 +38,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import {
   ArrowLeft,
   Wallet,
   CreditCard,
-  TrendingDown,
+  HandCoins,
   Percent,
   Calendar,
   Shield,
   AlertCircle,
-  Eye,
-  EyeOff,
   Pencil,
   Plus,
   Save,
@@ -57,6 +58,9 @@ import {
   X,
   Copy,
   Check,
+  Loader2,
+  Binary,
+  ChevronDown,
 } from "lucide-react"
 import {
   ProductType,
@@ -67,6 +71,7 @@ import {
   type Account,
   type Card as CardModel,
   type Loan,
+  type CreditDetail,
   type PartialProductPositions,
   type UpdatePositionRequest,
 } from "@/types/position"
@@ -99,6 +104,13 @@ interface LoanPosition extends Loan {
   entityOrigin: EntityOrigin | null
 }
 
+interface CreditPosition extends CreditDetail {
+  entityId: string
+  entityName: string
+  entryId: string
+  entityOrigin: EntityOrigin | null
+}
+
 interface AccountsSummary {
   totalBalance: number
   weightedInterest: number
@@ -113,6 +125,13 @@ interface CardsSummary {
 interface LoansSummary {
   totalDebt: number
   totalMonthlyPayments: number
+  weightedInterest: number
+  count: number
+}
+
+interface CreditsSummary {
+  totalDrawn: number
+  totalLimit: number
   weightedInterest: number
   count: number
 }
@@ -134,6 +153,7 @@ const isFiniteNumber = (value: number | null | undefined): value is number =>
 type AccountDraft = ManualPositionDraft<Account>
 type CardDraft = ManualPositionDraft<CardModel>
 type LoanDraft = ManualPositionDraft<Loan>
+type CreditDraft = ManualPositionDraft<CreditDetail>
 
 type AccountDisplay = AccountPosition & {
   convertedTotal: number
@@ -153,10 +173,26 @@ type LoanDisplay = LoanPosition & {
   convertedPrincipalPaid: number
 }
 
+type CreditDisplay = CreditPosition & {
+  convertedDrawnAmount: number
+  convertedCreditLimit: number
+}
+
+type CreditDisplayItem = ManualDisplayItem<CreditDisplay, CreditDraft>
+
+interface CreditEditHandlers {
+  editByOriginalId: (id: string) => void
+  editByLocalId: (id: string) => void
+  deleteByOriginalId: (id: string) => void
+  deleteByLocalId: (id: string) => void
+  isEditMode: boolean
+}
+
 const MANUAL_ASSETS_ORDER: ManualPositionAsset[] = [
   "bankAccounts",
   "bankCards",
   "bankLoans",
+  "bankCredits",
 ]
 
 interface ManualSectionController {
@@ -190,12 +226,16 @@ function BankingManualControls({
   t,
   showToast,
   refreshEntity,
+  fetchEntities,
+  refreshData,
   className,
 }: {
   controllers: ManualSectionController[]
   t: Translations
   showToast: (message: string, type: "success" | "error" | "warning") => void
   refreshEntity: (entityId: string) => Promise<void>
+  fetchEntities: () => Promise<void>
+  refreshData: () => Promise<void>
   className?: string
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -213,12 +253,6 @@ function BankingManualControls({
   const unsavedControllers = controllers.filter(
     controller => controller.isEditMode && controller.hasLocalChanges,
   )
-
-  const handleEnterEdit = useCallback(() => {
-    controllers.forEach(controller => {
-      controller.enterEditMode()
-    })
-  }, [controllers])
 
   const handleCancel = useCallback(() => {
     controllers.forEach(controller => {
@@ -336,7 +370,7 @@ function BankingManualControls({
         return
       }
 
-      const requestPromises: Promise<void>[] = []
+      const requests: { payload: UpdatePositionRequest }[] = []
       let missingNewEntityName = false
 
       aggregated.forEach(
@@ -370,13 +404,7 @@ function BankingManualControls({
             requestPayload.entity_id = entityId
           }
 
-          requestPromises.push(
-            saveManualPositions(requestPayload).then(() => {
-              if (requestPayload.entity_id) {
-                return refreshEntity(requestPayload.entity_id)
-              }
-            }),
-          )
+          requests.push({ payload: requestPayload })
         },
       )
 
@@ -395,12 +423,26 @@ function BankingManualControls({
         return
       }
 
-      if (requestPromises.length === 0) {
+      if (requests.length === 0) {
         controllers.forEach(controller => controller.handleSaveSuccess())
         return
       }
 
-      await Promise.all(requestPromises)
+      let createdNewEntity = false
+      for (const { payload } of requests) {
+        await saveManualPositions(payload)
+        if (payload.entity_id) {
+          await refreshEntity(payload.entity_id)
+        }
+        if (payload.new_entity_name) {
+          createdNewEntity = true
+        }
+      }
+
+      if (createdNewEntity) {
+        await fetchEntities()
+        await refreshData()
+      }
 
       controllers.forEach(controller => controller.handleSaveSuccess())
 
@@ -426,57 +468,66 @@ function BankingManualControls({
       controllers.forEach(controller => controller.setSavingState(false))
       setIsSaving(false)
     }
-  }, [controllers, hasAnyChanges, isAnySaving, refreshEntity, showToast, t])
+  }, [
+    controllers,
+    hasAnyChanges,
+    isAnySaving,
+    refreshEntity,
+    fetchEntities,
+    refreshData,
+    showToast,
+    t,
+  ])
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex flex-wrap items-center gap-2 md:justify-end">
-        {isAnyEditMode ? (
-          <>
+      {isAnyEditMode && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="relative flex-shrink-0">
+              <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+              {t.common.editing}
+            </span>
+            {unsavedControllers.length > 0 && (
+              <>
+                <span className="text-blue-300 dark:text-blue-600">·</span>
+                <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+                  {unsavedControllers[0].translate("management.unsavedChanges")}
+                </span>
+                <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+              </>
+            )}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={handleCancel}
               disabled={isAnySaving}
-              className="flex items-center gap-2"
+              className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
             >
-              <X className="h-3.5 w-3.5" />
-              {t.common.cancel}
+              <X className="h-3 w-3" />
+              <span className="hidden sm:inline ml-1">{t.common.cancel}</span>
             </Button>
             <Button
+              data-testid="save-positions"
               size="sm"
               onClick={handleSave}
               disabled={isAnySaving || !hasAnyChanges}
-              className="flex items-center gap-2"
+              className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
             >
-              <Save className="h-3.5 w-3.5" />
-              {t.common.save}
+              {isAnySaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
+              <span className="hidden sm:inline ml-1">{t.common.save}</span>
             </Button>
-          </>
-        ) : (
-          <Button
-            size="sm"
-            onClick={handleEnterEdit}
-            className="flex items-center gap-2"
-            disabled={isAnySaving}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            {t.common.edit}
-          </Button>
-        )}
-      </div>
-      {unsavedControllers.length > 0 && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <div className="space-y-1">
-            <div>
-              {unsavedControllers[0].translate("management.unsavedChanges")}
-            </div>
-            <div className="text-xs text-amber-700 dark:text-amber-300">
-              {unsavedControllers
-                .map(controller => controller.assetTitle)
-                .join(", ")}
-            </div>
           </div>
         </div>
       )}
@@ -486,12 +537,33 @@ function BankingManualControls({
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
-  const { positionsData, isLoading, refreshEntity } = useFinancialData()
-  const { settings, exchangeRates, entities, showToast } = useAppContext()
+  const { positionsData, isLoading, refreshEntity, refreshData } =
+    useFinancialData()
+  const { settings, exchangeRates, entities, showToast, fetchEntities } =
+    useAppContext()
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [showAccountNumbers, setShowAccountNumbers] = useState(false)
+
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, boolean>
+  >(() => {
+    try {
+      const raw = localStorage.getItem("bankingSections")
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const toggleSection = useCallback((section: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [section]: !prev[section] }
+      localStorage.setItem("bankingSections", JSON.stringify(next))
+      return next
+    })
+  }, [])
 
   const [accountsSummary, setAccountsSummary] = useState<AccountsSummary>({
     totalBalance: 0,
@@ -508,6 +580,17 @@ export default function BankingPage() {
     weightedInterest: 0,
     count: 0,
   })
+  const [creditsSummary, setCreditsSummary] = useState<CreditsSummary>({
+    totalDrawn: 0,
+    totalLimit: 0,
+    weightedInterest: 0,
+    count: 0,
+  })
+  const [creditDisplayItems, setCreditDisplayItems] = useState<
+    CreditDisplayItem[]
+  >([])
+  const [creditEditHandlers, setCreditEditHandlers] =
+    useState<CreditEditHandlers | null>(null)
 
   const [manualControllersMap, setManualControllersMap] = useState<
     Partial<Record<ManualPositionAsset, ManualSectionController>>
@@ -550,6 +633,19 @@ export default function BankingPage() {
     })
   }, [manualControllers])
 
+  useEffect(() => {
+    const anyEditMode = manualControllers.some(
+      controller => controller.isEditMode,
+    )
+    if (anyEditMode) {
+      manualControllers.forEach(controller => {
+        if (!controller.isEditMode) {
+          controller.enterEditMode()
+        }
+      })
+    }
+  }, [manualControllers])
+
   const entityOrigins = useMemo<Record<string, EntityOrigin | null>>(() => {
     const map: Record<string, EntityOrigin | null> = {}
     entities?.forEach(entity => {
@@ -560,92 +656,142 @@ export default function BankingPage() {
 
   const accountPositions = useMemo<AccountPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.ACCOUNT] as
-        | { entries?: Account[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.ACCOUNT] as
+          | { entries?: Account[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(account => ({
-        ...account,
-        entityId,
-        entityName,
-        entryId: account.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(account => ({
+          ...account,
+          entityId,
+          entityName,
+          entryId: account.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const cardPositions = useMemo<CardPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.CARD] as
-        | { entries?: CardModel[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.CARD] as
+          | { entries?: CardModel[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(card => ({
-        ...card,
-        entityId,
-        entityName,
-        entryId: card.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(card => ({
+          ...card,
+          entityId,
+          entityName,
+          entryId: card.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const loanPositions = useMemo<LoanPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.LOAN] as
-        | { entries?: Loan[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.LOAN] as
+          | { entries?: Loan[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(loan => ({
-        ...loan,
-        entityId,
-        entityName,
-        entryId: loan.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(loan => ({
+          ...loan,
+          entityId,
+          entityName,
+          entryId: loan.id,
+          entityOrigin,
+        }))
+      })
+  }, [positionsData, entities])
+
+  const creditPositions = useMemo<CreditPosition[]>(() => {
+    if (!positionsData?.positions) return []
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
+
+        const product = entityPosition.products[ProductType.CREDIT] as
+          | { entries?: CreditDetail[] }
+          | undefined
+        if (!product?.entries?.length) return []
+
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
+
+        return product.entries.map(credit => ({
+          ...credit,
+          entityId,
+          entityName,
+          entryId: credit.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const filteredAccounts = useMemo(() => {
@@ -669,45 +815,51 @@ export default function BankingPage() {
     )
   }, [loanPositions, selectedEntities])
 
-  const bankingEntityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredCredits = useMemo(() => {
+    if (selectedEntities.length === 0) return creditPositions
+    return creditPositions.filter(credit =>
+      selectedEntities.includes(credit.entityId),
+    )
+  }, [creditPositions, selectedEntities])
+
+  const bankingEntities = useMemo(() => {
     const ids = new Set<string>()
     accountPositions.forEach(position => ids.add(position.entityId))
     cardPositions.forEach(position => ids.add(position.entityId))
     loanPositions.forEach(position => ids.add(position.entityId))
+    creditPositions.forEach(position => ids.add(position.entityId))
 
     return (
-      entities
-        ?.filter(entity => {
-          const entityId = entity.id
-          if (typeof entityId !== "string" || entityId.length === 0) {
-            return false
-          }
-          if (entityId.startsWith("new-")) {
-            return false
-          }
-          if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
-            return false
-          }
-          return ids.has(entityId)
-        })
-        .map(entity => ({ value: entity.id, label: entity.name })) ?? []
+      entities?.filter(entity => {
+        const entityId = entity.id
+        if (typeof entityId !== "string" || entityId.length === 0) {
+          return false
+        }
+        if (entityId.startsWith("new-")) {
+          return false
+        }
+        if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
+          return false
+        }
+        return ids.has(entityId)
+      }) ?? []
     )
   }, [accountPositions, cardPositions, loanPositions, entities])
 
   useEffect(() => {
-    if (bankingEntityOptions.length === 0) {
+    if (bankingEntities.length === 0) {
       if (selectedEntities.length > 0) {
         setSelectedEntities([])
       }
       return
     }
 
-    const allowed = new Set(bankingEntityOptions.map(option => option.value))
+    const allowed = new Set(bankingEntities.map(e => e.id))
     setSelectedEntities(prev => {
       const next = prev.filter(id => allowed.has(id))
       return next.length === prev.length ? prev : next
     })
-  }, [bankingEntityOptions, selectedEntities])
+  }, [bankingEntities, selectedEntities])
 
   const handleFocusEntity = useCallback(
     (entityId: string) => {
@@ -754,10 +906,30 @@ export default function BankingPage() {
     )
   }, [])
 
+  const updateCreditsSummary = useCallback((summary: CreditsSummary) => {
+    setCreditsSummary(prev =>
+      prev.totalDrawn === summary.totalDrawn &&
+      prev.totalLimit === summary.totalLimit &&
+      prev.weightedInterest === summary.weightedInterest &&
+      prev.count === summary.count
+        ? prev
+        : summary,
+    )
+  }, [])
+
   const totalAccountBalance = accountsSummary.totalBalance
   const totalCardUsed = cardsSummary.totalUsed
-  const totalLoanDebt = loansSummary.totalDebt
+  const totalLoanDebt = loansSummary.totalDebt + creditsSummary.totalDrawn
   const totalMonthlyPayments = loansSummary.totalMonthlyPayments
+  const combinedDebtCount = loansSummary.count + creditsSummary.count
+
+  const combinedWeightedInterest = useMemo(() => {
+    const loanWeight = loansSummary.weightedInterest * loansSummary.totalDebt
+    const creditWeight =
+      creditsSummary.weightedInterest * creditsSummary.totalDrawn
+    const totalBase = loansSummary.totalDebt + creditsSummary.totalDrawn
+    return totalBase > 0 ? (loanWeight + creditWeight) / totalBase : 0
+  }, [loansSummary, creditsSummary])
 
   if (isLoading) {
     return (
@@ -772,50 +944,27 @@ export default function BankingPage() {
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-6 pb-6"
+      className="space-y-6"
     >
       <motion.div variants={fadeListItem}>
         <div className="mb-6 space-y-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigate(-1)}
-                >
-                  <ArrowLeft size={20} />
-                </Button>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold">{t.banking.title}</h1>
-                  <PinAssetButton assetId="banking" />
-                </div>
-              </div>
-              <p className="text-muted-foreground">{t.banking.subtitle}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+          <div className="flex flex-col gap-3 [@media(min-width:500px)]:flex-row [@media(min-width:500px)]:items-center [@media(min-width:500px)]:justify-between">
+            <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowAccountNumbers(value => !value)}
-                className="flex items-center gap-2"
+                className="p-1 h-8 w-8"
+                onClick={() => navigate(-1)}
               >
-                {showAccountNumbers ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-                {showAccountNumbers
-                  ? t.banking.hideNumbers
-                  : t.banking.showNumbers}
+                <ArrowLeft size={20} />
               </Button>
-              <MultiSelect
-                options={bankingEntityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
-                placeholder={t.transactions.selectEntities}
-                className="min-w-[200px]"
-              />
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{t.banking.title}</h1>
+                <PinAssetButton
+                  assetId="banking"
+                  className="hidden md:inline-flex"
+                />
+              </div>
             </div>
           </div>
           {manualControllers.length > 0 && (
@@ -824,9 +973,15 @@ export default function BankingPage() {
               t={t}
               showToast={showToast}
               refreshEntity={refreshEntity}
-              className="md:items-end"
+              fetchEntities={fetchEntities}
+              refreshData={refreshData}
             />
           )}
+          <InvestmentFilters
+            filteredEntities={bankingEntities}
+            selectedEntities={selectedEntities}
+            onEntitiesChange={setSelectedEntities}
+          />
         </div>
       </motion.div>
 
@@ -841,19 +996,23 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalAccountBalance,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalAccountBalance,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               {accountsSummary.weightedInterest > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                   <Percent className="h-3 w-3" />
-                  {formatPercentage(
-                    accountsSummary.weightedInterest * 100,
-                    locale,
-                  )}
+                  <Sensitive className="text-green-600 dark:text-green-400">
+                    {formatPercentage(
+                      accountsSummary.weightedInterest * 100,
+                      locale,
+                    )}
+                  </Sensitive>
                   <span>{t.banking.avgInterest}</span>
                 </div>
               )}
@@ -869,11 +1028,13 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalCardUsed,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalCardUsed,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {cardsSummary.count}{" "}
@@ -882,28 +1043,29 @@ export default function BankingPage() {
             </Card>
           )}
 
-          {loansSummary.count > 0 && (
+          {combinedDebtCount > 0 && (
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-red-500" />
+                <HandCoins className="h-5 w-5 text-red-500" />
                 <span className="text-sm font-medium text-muted-foreground">
                   {t.banking.totalDebt}
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalLoanDebt,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalLoanDebt,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
-              {loansSummary.weightedInterest > 0 && (
+              {combinedWeightedInterest > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                   <Percent className="h-3 w-3" />
-                  {formatPercentage(
-                    loansSummary.weightedInterest * 100,
-                    locale,
-                  )}
+                  <Sensitive className="text-red-500 dark:text-red-400">
+                    {formatPercentage(combinedWeightedInterest * 100, locale)}
+                  </Sensitive>
                   <span>{t.banking.avgInterest}</span>
                 </div>
               )}
@@ -919,11 +1081,13 @@ export default function BankingPage() {
                 </span>
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  totalMonthlyPayments,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    totalMonthlyPayments,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {loansSummary.count}{" "}
@@ -941,12 +1105,15 @@ export default function BankingPage() {
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
           showAccountNumbers={showAccountNumbers}
+          onToggleAccountNumbers={() => setShowAccountNumbers(v => !v)}
           onSummaryChange={updateAccountsSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
           entityOrigins={entityOrigins}
           onRegisterController={registerManualController}
           onEnterGlobalEditMode={enterGlobalEditMode}
+          collapsed={!!collapsedSections.accounts}
+          onToggleCollapsed={() => toggleSection("accounts")}
         />
       </ManualPositionsManager>
 
@@ -963,6 +1130,8 @@ export default function BankingPage() {
           entityOrigins={entityOrigins}
           onRegisterController={registerManualController}
           onEnterGlobalEditMode={enterGlobalEditMode}
+          collapsed={!!collapsedSections.cards}
+          onToggleCollapsed={() => toggleSection("cards")}
         />
       </ManualPositionsManager>
 
@@ -971,14 +1140,37 @@ export default function BankingPage() {
           t={t}
           locale={locale}
           positions={filteredLoans}
+          creditDisplayItems={creditDisplayItems}
+          creditEditHandlers={creditEditHandlers}
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
-          onSummaryChange={updateLoansSummary}
+          onLoansSummaryChange={updateLoansSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
           entityOrigins={entityOrigins}
           onRegisterController={registerManualController}
           onEnterGlobalEditMode={enterGlobalEditMode}
+          collapsed={!!collapsedSections.loans}
+          onToggleCollapsed={() => toggleSection("loans")}
+          onBeginCreditCreate={(entityId?: string) => {
+            const creditCtrl = manualControllersMap["bankCredits"]
+            if (creditCtrl) {
+              creditCtrl.beginCreate(entityId ? { entityId } : undefined)
+            }
+          }}
+        />
+      </ManualPositionsManager>
+      <ManualPositionsManager asset="bankCredits">
+        <BankCreditsBridge
+          onRegisterController={registerManualController}
+          onCreditsSummaryChange={updateCreditsSummary}
+          selectedEntities={selectedEntities}
+          entityOrigins={entityOrigins}
+          defaultCurrency={settings.general.defaultCurrency}
+          exchangeRates={exchangeRates}
+          creditPositions={filteredCredits}
+          onCreditDisplayItemsChange={setCreditDisplayItems}
+          onCreditEditHandlersChange={setCreditEditHandlers}
         />
       </ManualPositionsManager>
     </motion.div>
@@ -995,11 +1187,14 @@ interface SectionCommonProps {
   entityOrigins: Record<string, EntityOrigin | null>
   onRegisterController: ManualControllerRegistrar
   onEnterGlobalEditMode: () => void
+  collapsed: boolean
+  onToggleCollapsed: () => void
 }
 
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
   showAccountNumbers: boolean
+  onToggleAccountNumbers: () => void
   onSummaryChange: (summary: AccountsSummary) => void
 }
 
@@ -1010,12 +1205,15 @@ function BankAccountsSection({
   defaultCurrency,
   exchangeRates,
   showAccountNumbers,
+  onToggleAccountNumbers,
   onSummaryChange,
   onFocusEntity,
   selectedEntities,
   entityOrigins,
   onRegisterController,
   onEnterGlobalEditMode,
+  collapsed,
+  onToggleCollapsed,
 }: BankAccountsSectionProps) {
   const {
     asset,
@@ -1295,8 +1493,18 @@ function BankAccountsSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={onToggleCollapsed}
+        >
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              collapsed && "-rotate-90",
+            )}
+          />
           <Wallet className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
             {t.banking.accounts}
@@ -1304,271 +1512,309 @@ function BankAccountsSection({
               ({summary.count})
             </span>
           </h2>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        </button>
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showAccountNumbers ? "outline" : "ghost"}
+              size="sm"
+              className="flex items-center gap-1 h-8 px-2 text-xs"
+              onClick={onToggleAccountNumbers}
+            >
+              <Binary className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Iban</span>
+            </Button>
+            {!isEditMode && (
+              <Button
+                variant="default"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onEnterGlobalEditMode}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="default"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                beginCreate(
+                  defaultEntityId ? { entityId: defaultEntityId } : undefined,
+                )
+              }}
+              disabled={!canCreate}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-4 p-10 text-center">
-          <div className="text-blue-500 dark:text-blue-400">
-            <Wallet className="mx-auto h-12 w-12" />
-          </div>
-          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-          <p className="text-sm text-muted-foreground">
-            {manualEmptyDescription}
-          </p>
-        </Card>
-      ) : (
-        <TooltipProvider delayDuration={120}>
-          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {displayItems.map(item => {
-              const { position, manualDraft, isManual, isDirty, originalId } =
-                item
+      {!collapsed &&
+        (summary.count === 0 ? (
+          <Card className="flex flex-col items-center gap-4 p-10 text-center">
+            <div className="text-blue-500 dark:text-blue-400">
+              <Wallet className="mx-auto h-12 w-12" />
+            </div>
+            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+            <p className="text-sm text-muted-foreground">
+              {manualEmptyDescription}
+            </p>
+          </Card>
+        ) : (
+          <TooltipProvider delayDuration={120}>
+            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {displayItems.map(item => {
+                const { position, manualDraft, isManual, isDirty, originalId } =
+                  item
 
-              if (originalId && isEntryDeleted(originalId)) {
-                return null
-              }
+                if (originalId && isEntryDeleted(originalId)) {
+                  return null
+                }
 
-              const hasInterest =
-                isFiniteNumber(position.interest) &&
-                (position.interest ?? 0) > 0
-              const hasRetained =
-                isFiniteNumber(position.convertedRetained) &&
-                Math.abs(position.convertedRetained ?? 0) > 0
-              const hasPendingTransfers =
-                isFiniteNumber(position.convertedPendingTransfers) &&
-                Math.abs(position.convertedPendingTransfers ?? 0) > 0
-              const hasFooter =
-                hasInterest || hasRetained || hasPendingTransfers
+                const hasInterest =
+                  isFiniteNumber(position.interest) &&
+                  (position.interest ?? 0) > 0
+                const hasRetained =
+                  isFiniteNumber(position.convertedRetained) &&
+                  Math.abs(position.convertedRetained ?? 0) > 0
+                const hasPendingTransfers =
+                  isFiniteNumber(position.convertedPendingTransfers) &&
+                  Math.abs(position.convertedPendingTransfers ?? 0) > 0
+                const hasFooter =
+                  hasInterest || hasRetained || hasPendingTransfers
 
-              const highlightClass = isDirty
-                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
-                : ""
-              const showActions = isEditMode && isManual
+                const highlightClass = isDirty
+                  ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                  : ""
+                const showActions = isEditMode && isManual
 
-              return (
-                <Card
-                  key={item.key}
-                  className={cn(
-                    "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
-                    highlightClass,
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      {getAccountTypeIcon(position.type as AccountType)}
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-xs",
-                          getAccountTypeColor(position.type),
+                return (
+                  <Card
+                    key={item.key}
+                    className={cn(
+                      "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
+                      highlightClass,
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        {getAccountTypeIcon(position.type as AccountType)}
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-xs",
+                            getAccountTypeColor(position.type),
+                          )}
+                        >
+                          {t.accountTypes[position.type] || position.type}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <SourceBadge
+                          source={position.source}
+                          onClick={
+                            position.source === DataSource.MANUAL
+                              ? onEnterGlobalEditMode
+                              : undefined
+                          }
+                        />
+                        <EntityBadge
+                          name={position.entityName}
+                          origin={position.entityOrigin}
+                          onClick={() => onFocusEntity(position.entityId)}
+                          className="text-xs"
+                          title={position.entityName}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-1 flex-col justify-between gap-4">
+                      <div className="space-y-2">
+                        {position.name && (
+                          <h3 className="text-lg font-semibold">
+                            {position.name}
+                          </h3>
                         )}
-                      >
-                        {t.accountTypes[position.type] || position.type}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SourceBadge source={position.source} />
-                      <EntityBadge
-                        name={position.entityName}
-                        origin={position.entityOrigin}
-                        onClick={() => onFocusEntity(position.entityId)}
-                        className="text-xs"
-                        title={position.entityName}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-1 flex-col justify-between gap-4">
-                    <div className="space-y-2">
-                      {position.name && (
-                        <h3 className="text-lg font-semibold">
-                          {position.name}
-                        </h3>
-                      )}
-                      {position.iban && (
-                        <div className="flex items-center gap-2 group">
-                          <div className="font-mono text-sm text-muted-foreground">
-                            {formatIban(position.iban, showAccountNumbers)}
+                        {position.iban && (
+                          <div className="flex items-center gap-2 group">
+                            <div className="font-mono text-sm text-muted-foreground">
+                              {formatIban(position.iban, showAccountNumbers)}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                                copiedIban === position.iban
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                              }`}
+                              onClick={() => handleCopyIban(position.iban!)}
+                              title={
+                                copiedIban === position.iban
+                                  ? t.common.copied
+                                  : t.common.copy
+                              }
+                            >
+                              {copiedIban === position.iban ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </Button>
                           </div>
+                        )}
+                        <div className="space-y-1">
+                          <div className="text-2xl font-bold">
+                            <Sensitive>
+                              {formatCurrency(
+                                position.convertedTotal,
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </Sensitive>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {position.currency !== defaultCurrency && (
+                              <span>
+                                <Sensitive>
+                                  {formatCurrency(
+                                    position.total ?? 0,
+                                    locale,
+                                    position.currency,
+                                  )}
+                                </Sensitive>
+                                <span aria-hidden="true" className="px-1">
+                                  •
+                                </span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {hasFooter && (
+                        <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
+                          {hasInterest && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
+                                >
+                                  <Percent className="h-3 w-3" />
+                                  <Sensitive className="text-green-600 dark:text-green-400">
+                                    {formatPercentage(
+                                      (position.interest ?? 0) * 100,
+                                      locale,
+                                    )}
+                                  </Sensitive>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t.banking.interestRate}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {hasRetained && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
+                                >
+                                  <Shield className="h-3 w-3" />
+                                  <Sensitive className="text-orange-500">
+                                    {formatCurrency(
+                                      position.convertedRetained ?? 0,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </Sensitive>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t.banking.retainedAmount}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {hasPendingTransfers && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
+                                >
+                                  <AlertCircle className="h-3 w-3" />
+                                  <Sensitive className="text-blue-500">
+                                    {formatCurrency(
+                                      position.convertedPendingTransfers ?? 0,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </Sensitive>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t.banking.pendingTransfers}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      )}
+
+                      {isDirty && (
+                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                          {manualTranslate("management.unsavedChanges")}
+                        </p>
+                      )}
+
+                      {showActions && (
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                            onClick={() => {
+                              if (manualDraft?.originalId) {
+                                editByOriginalId(manualDraft.originalId)
+                              } else if (manualDraft) {
+                                editByLocalId(manualDraft.localId)
+                              } else if (item.originalId) {
+                                editByOriginalId(item.originalId)
+                              }
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t.common.edit}
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
-                              copiedIban === position.iban
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                            }`}
-                            onClick={() => handleCopyIban(position.iban!)}
-                            title={
-                              copiedIban === position.iban
-                                ? t.common.copied
-                                : t.common.copy
-                            }
+                            className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
+                            onClick={() => {
+                              if (manualDraft?.originalId) {
+                                deleteByOriginalId(manualDraft.originalId)
+                              } else if (manualDraft) {
+                                deleteByLocalId(manualDraft.localId)
+                              } else if (item.originalId) {
+                                deleteByOriginalId(item.originalId)
+                              }
+                            }}
                           >
-                            {copiedIban === position.iban ? (
-                              <Check className="h-3 w-3" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t.common.delete}
                           </Button>
                         </div>
                       )}
-                      <div className="space-y-1">
-                        <div className="text-2xl font-bold">
-                          {formatCurrency(
-                            position.convertedTotal,
-                            locale,
-                            defaultCurrency,
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {position.currency !== defaultCurrency && (
-                            <span>
-                              {formatCurrency(
-                                position.total ?? 0,
-                                locale,
-                                position.currency,
-                              )}
-                              <span aria-hidden="true" className="px-1">
-                                •
-                              </span>
-                            </span>
-                          )}
-                          <span>{t.banking.available}</span>
-                        </div>
-                      </div>
                     </div>
-
-                    {hasFooter && (
-                      <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
-                        {hasInterest && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
-                              >
-                                <Percent className="h-3 w-3" />
-                                {formatPercentage(
-                                  (position.interest ?? 0) * 100,
-                                  locale,
-                                )}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t.banking.interestRate}
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                        {hasRetained && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
-                              >
-                                <Shield className="h-3 w-3" />
-                                {formatCurrency(
-                                  position.convertedRetained ?? 0,
-                                  locale,
-                                  defaultCurrency,
-                                )}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t.banking.retainedAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                        {hasPendingTransfers && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
-                              >
-                                <AlertCircle className="h-3 w-3" />
-                                {formatCurrency(
-                                  position.convertedPendingTransfers ?? 0,
-                                  locale,
-                                  defaultCurrency,
-                                )}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t.banking.pendingTransfers}
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                    )}
-
-                    {isDirty && (
-                      <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                        {manualTranslate("management.unsavedChanges")}
-                      </p>
-                    )}
-
-                    {showActions && (
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-1"
-                          onClick={() => {
-                            if (manualDraft?.originalId) {
-                              editByOriginalId(manualDraft.originalId)
-                            } else if (manualDraft) {
-                              editByLocalId(manualDraft.localId)
-                            } else if (item.originalId) {
-                              editByOriginalId(item.originalId)
-                            }
-                          }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          {t.common.edit}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
-                          onClick={() => {
-                            if (manualDraft?.originalId) {
-                              deleteByOriginalId(manualDraft.originalId)
-                            } else if (manualDraft) {
-                              deleteByLocalId(manualDraft.localId)
-                            } else if (item.originalId) {
-                              deleteByOriginalId(item.originalId)
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {t.common.delete}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        </TooltipProvider>
-      )}
+                  </Card>
+                )
+              })}
+            </div>
+          </TooltipProvider>
+        ))}
     </motion.div>
   )
 }
@@ -1590,6 +1836,8 @@ function BankCardsSection({
   entityOrigins,
   onRegisterController,
   onEnterGlobalEditMode,
+  collapsed,
+  onToggleCollapsed,
 }: BankCardsSectionProps) {
   const {
     asset,
@@ -1800,8 +2048,18 @@ function BankCardsSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={onToggleCollapsed}
+        >
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              collapsed && "-rotate-90",
+            )}
+          />
           <CreditCard className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
             {t.banking.cards}
@@ -1809,237 +2067,280 @@ function BankCardsSection({
               ({summary.count})
             </span>
           </h2>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        </button>
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            {!isEditMode && (
+              <Button
+                variant="default"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onEnterGlobalEditMode}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              variant="default"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                beginCreate(
+                  defaultEntityId ? { entityId: defaultEntityId } : undefined,
+                )
+              }}
+              disabled={!canCreate}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-4 p-10 text-center">
-          <div className="text-orange-500 dark:text-orange-400">
-            <CreditCard className="mx-auto h-12 w-12" />
-          </div>
-          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-          <p className="text-sm text-muted-foreground">
-            {manualEmptyDescription}
-          </p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
-          {displayItems.map(item => {
-            const { position, manualDraft, isManual, isDirty, originalId } =
-              item
+      {!collapsed &&
+        (summary.count === 0 ? (
+          <Card className="flex flex-col items-center gap-4 p-10 text-center">
+            <div className="text-orange-500 dark:text-orange-400">
+              <CreditCard className="mx-auto h-12 w-12" />
+            </div>
+            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+            <p className="text-sm text-muted-foreground">
+              {manualEmptyDescription}
+            </p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
+            {displayItems.map(item => {
+              const { position, manualDraft, isManual, isDirty, originalId } =
+                item
 
-            if (originalId && isEntryDeleted(originalId)) {
-              return null
-            }
+              if (originalId && isEntryDeleted(originalId)) {
+                return null
+              }
 
-            const showActions = isEditMode && isManual
-            const highlightClass = isDirty
-              ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
-              : ""
+              const showActions = isEditMode && isManual
+              const highlightClass = isDirty
+                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                : ""
 
-            const gradientClass =
-              position.type === CardType.CREDIT
-                ? "from-blue-600 to-blue-800"
-                : "from-green-600 to-green-800"
+              const gradientClass =
+                position.type === CardType.CREDIT
+                  ? "from-blue-600 to-blue-800"
+                  : "from-green-600 to-green-800"
 
-            const utilization =
-              position.convertedLimit && position.convertedLimit > 0
-                ? Math.min(
-                    (position.convertedUsed / position.convertedLimit) * 100,
-                    200,
-                  )
-                : 0
+              const utilization =
+                position.convertedLimit && position.convertedLimit > 0
+                  ? Math.min(
+                      (position.convertedUsed / position.convertedLimit) * 100,
+                      200,
+                    )
+                  : 0
 
-            return (
-              <Card
-                key={item.key}
-                className={cn(
-                  "flex flex-col overflow-hidden transition-shadow hover:shadow-lg",
-                  highlightClass,
-                  !position.active && "opacity-60 grayscale",
-                )}
-              >
-                <div
+              return (
+                <Card
+                  key={item.key}
                   className={cn(
-                    "relative flex flex-col justify-center gap-2 p-6 text-white",
-                    "bg-gradient-to-br",
-                    gradientClass,
+                    "flex flex-col overflow-hidden transition-shadow hover:shadow-lg",
+                    highlightClass,
+                    !position.active && "opacity-60 grayscale",
                   )}
                 >
-                  <div className="absolute right-3 top-3 flex items-center gap-2">
-                    <SourceBadge source={position.source} />
-                    <EntityBadge
-                      name={position.entityName}
-                      origin={position.entityOrigin}
-                      onClick={() => onFocusEntity(position.entityId)}
-                      className="text-xs"
-                    />
+                  <div
+                    className={cn(
+                      "relative flex flex-col justify-center gap-2 p-6 text-white",
+                      "bg-gradient-to-br",
+                      gradientClass,
+                    )}
+                  >
+                    <div className="absolute right-3 top-3 flex items-center gap-2">
+                      <SourceBadge
+                        source={position.source}
+                        onClick={
+                          position.source === DataSource.MANUAL
+                            ? onEnterGlobalEditMode
+                            : undefined
+                        }
+                      />
+                      <EntityBadge
+                        name={position.entityName}
+                        origin={position.entityOrigin}
+                        onClick={() => onFocusEntity(position.entityId)}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="mb-4 flex items-center gap-2">
+                      <CreditCard className="h-5 w-5" />
+                      <span className="text-sm font-medium">
+                        {position.type === CardType.CREDIT
+                          ? t.cardTypes.CREDIT
+                          : t.cardTypes.DEBIT}
+                      </span>
+                    </div>
+                    <div className="mb-2 font-mono text-lg">
+                      {formatCardNumber(position.ending)}
+                    </div>
+                    {position.name && (
+                      <div className="text-sm opacity-90">{position.name}</div>
+                    )}
+                    {!position.active && (
+                      <Badge
+                        variant="destructive"
+                        className="absolute left-3 bottom-3 text-xs"
+                      >
+                        {manualTranslate(`${assetPath}.summary.inactive`)}
+                      </Badge>
+                    )}
                   </div>
-                  <div className="mb-4 flex items-center gap-2">
-                    <CreditCard className="h-5 w-5" />
-                    <span className="text-sm font-medium">
-                      {position.type === CardType.CREDIT
-                        ? t.cardTypes.CREDIT
-                        : t.cardTypes.DEBIT}
-                    </span>
-                  </div>
-                  <div className="mb-2 font-mono text-lg">
-                    {formatCardNumber(position.ending)}
-                  </div>
-                  {position.name && (
-                    <div className="text-sm opacity-90">{position.name}</div>
-                  )}
-                  {!position.active && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute left-3 bottom-3 text-xs"
-                    >
-                      {manualTranslate(`${assetPath}.summary.inactive`)}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col space-y-3 p-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {t.banking.used}
-                    </span>
-                    <span className="font-semibold">
-                      {formatCurrency(
-                        position.convertedUsed,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                  {Number(position.convertedLimit || 0) > 0 && (
+                  <div className="flex flex-1 flex-col space-y-3 p-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {t.banking.limit}
+                        {t.banking.used}
                       </span>
-                      <span>
-                        {formatCurrency(
-                          position.convertedLimit!,
-                          locale,
-                          defaultCurrency,
-                        )}
+                      <span className="font-semibold">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedUsed,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
-                  )}
-                  {Number(position.convertedLimit || 0) > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{t.banking.utilization}</span>
+                    {Number(position.convertedLimit || 0) > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {t.banking.limit}
+                        </span>
                         <span>
-                          {formatPercentage(Math.min(utilization, 100), locale)}
+                          <Sensitive>
+                            {formatCurrency(
+                              position.convertedLimit!,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
-                        <div
-                          className={cn(
-                            "h-2 rounded-full",
-                            utilization > 80
-                              ? "bg-red-500"
-                              : utilization > 60
-                                ? "bg-yellow-400"
-                                : "bg-emerald-500",
-                          )}
-                          style={{ width: `${Math.min(utilization, 100)}%` }}
-                        />
+                    )}
+                    {Number(position.convertedLimit || 0) > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{t.banking.utilization}</span>
+                          <span>
+                            <Sensitive>
+                              {formatPercentage(
+                                Math.min(utilization, 100),
+                                locale,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              "h-2 rounded-full",
+                              utilization > 80
+                                ? "bg-red-500"
+                                : utilization > 60
+                                  ? "bg-yellow-400"
+                                  : "bg-emerald-500",
+                            )}
+                            style={{ width: `${Math.min(utilization, 100)}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {position.currency !== defaultCurrency && (
-                    <div className="border-t border-border pt-2 text-xs text-muted-foreground">
-                      {formatCurrency(position.used, locale, position.currency)}
-                      {isFiniteNumber(position.limit) &&
-                        ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
-                    </div>
-                  )}
-                  {isDirty && (
-                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {manualTranslate("management.unsavedChanges")}
-                    </p>
-                  )}
-                  {showActions && (
-                    <div className="mt-auto flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (manualDraft?.originalId) {
-                            editByOriginalId(manualDraft.originalId)
-                          } else if (manualDraft) {
-                            editByLocalId(manualDraft.localId)
-                          } else if (item.originalId) {
-                            editByOriginalId(item.originalId)
-                          }
-                        }}
-                        className="flex items-center gap-1"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
-                        onClick={() => {
-                          if (manualDraft?.originalId) {
-                            deleteByOriginalId(manualDraft.originalId)
-                          } else if (manualDraft) {
-                            deleteByLocalId(manualDraft.localId)
-                          } else if (item.originalId) {
-                            deleteByOriginalId(item.originalId)
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        {t.common.delete}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                    )}
+                    {position.currency !== defaultCurrency && (
+                      <div className="border-t border-border pt-2 text-xs text-muted-foreground">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.used,
+                            locale,
+                            position.currency,
+                          )}
+                          {isFiniteNumber(position.limit) &&
+                            ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
+                        </Sensitive>
+                      </div>
+                    )}
+                    {isDirty && (
+                      <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        {manualTranslate("management.unsavedChanges")}
+                      </p>
+                    )}
+                    {showActions && (
+                      <div className="mt-auto flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (manualDraft?.originalId) {
+                              editByOriginalId(manualDraft.originalId)
+                            } else if (manualDraft) {
+                              editByLocalId(manualDraft.localId)
+                            } else if (item.originalId) {
+                              editByOriginalId(item.originalId)
+                            }
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          {t.common.edit}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                          onClick={() => {
+                            if (manualDraft?.originalId) {
+                              deleteByOriginalId(manualDraft.originalId)
+                            } else if (manualDraft) {
+                              deleteByLocalId(manualDraft.localId)
+                            } else if (item.originalId) {
+                              deleteByOriginalId(item.originalId)
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {t.common.delete}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        ))}
     </motion.div>
   )
 }
 
 interface BankLoansSectionProps extends SectionCommonProps {
   positions: LoanPosition[]
-  onSummaryChange: (summary: LoansSummary) => void
+  creditDisplayItems: CreditDisplayItem[]
+  creditEditHandlers: CreditEditHandlers | null
+  onLoansSummaryChange: (summary: LoansSummary) => void
+  onBeginCreditCreate: (entityId?: string) => void
 }
 
 function BankLoansSection({
   t,
   locale,
   positions,
+  creditDisplayItems,
+  creditEditHandlers,
   defaultCurrency,
   exchangeRates,
-  onSummaryChange,
+  onLoansSummaryChange,
   onFocusEntity,
   selectedEntities,
   entityOrigins,
   onRegisterController,
   onEnterGlobalEditMode,
+  collapsed,
+  onToggleCollapsed,
+  onBeginCreditCreate,
 }: BankLoansSectionProps) {
   const {
     asset,
@@ -2121,6 +2422,7 @@ function BankLoansSection({
   const defaultEntityId =
     selectedEntities.length === 1 ? selectedEntities[0] : undefined
   const canCreate = manualEntities.length > 0
+  const [addPopoverOpen, setAddPopoverOpen] = useState(false)
 
   const loanDrafts = drafts as LoanDraft[]
 
@@ -2275,8 +2577,10 @@ function BankLoansSection({
   }, [displayItems, isEntryDeleted])
 
   useEffect(() => {
-    onSummaryChange(summary)
-  }, [summary, onSummaryChange])
+    onLoansSummaryChange(summary)
+  }, [summary, onLoansSummaryChange])
+
+  const totalSectionCount = summary.count + creditDisplayItems.length
 
   const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
   const manualEmptyDescription = manualTranslate(
@@ -2285,345 +2589,950 @@ function BankLoansSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <TrendingDown className="h-5 w-5" />
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={onToggleCollapsed}
+        >
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              collapsed && "-rotate-90",
+            )}
+          />
+          <HandCoins className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
-            {t.banking.loans}
+            {t.banking.loansAndCredits}
             <span className="ml-2 text-sm text-muted-foreground">
-              ({summary.count})
+              ({totalSectionCount})
             </span>
           </h2>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        </button>
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            {!isEditMode && (
+              <Button
+                variant="default"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onEnterGlobalEditMode}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!canCreate}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-44 p-1">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => {
+                    setAddPopoverOpen(false)
+                    beginCreate(
+                      defaultEntityId
+                        ? { entityId: defaultEntityId }
+                        : undefined,
+                    )
+                  }}
+                >
+                  <HandCoins className="h-4 w-4" />
+                  {t.enums.productType.LOAN}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => {
+                    setAddPopoverOpen(false)
+                    onBeginCreditCreate(defaultEntityId ?? undefined)
+                  }}
+                >
+                  <Shield className="h-4 w-4" />
+                  {t.enums.productType.CREDIT}
+                </button>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
 
-      {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-4 p-10 text-center">
-          <div className="text-red-500 dark:text-red-400">
-            <TrendingDown className="mx-auto h-12 w-12" />
-          </div>
-          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-          <p className="text-sm text-muted-foreground">
-            {manualEmptyDescription}
-          </p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          {displayItems.map(item => {
-            const { position, manualDraft, isManual, isDirty, originalId } =
-              item
+      {!collapsed &&
+        (totalSectionCount === 0 ? (
+          <Card className="flex flex-col items-center gap-4 p-10 text-center">
+            <div className="text-red-500 dark:text-red-400">
+              <HandCoins className="mx-auto h-12 w-12" />
+            </div>
+            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+            <p className="text-sm text-muted-foreground">
+              {manualEmptyDescription}
+            </p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+            {displayItems.map(item => {
+              const { position, manualDraft, isManual, isDirty, originalId } =
+                item
 
-            if (originalId && isEntryDeleted(originalId)) {
-              return null
-            }
+              if (originalId && isEntryDeleted(originalId)) {
+                return null
+              }
 
-            const showActions = isEditMode && isManual
-            const highlightClass = isDirty
-              ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
-              : ""
-            const repaymentProgress =
-              position.convertedLoanAmount > 0
-                ? Math.min(
-                    (position.convertedPrincipalPaid /
-                      position.convertedLoanAmount) *
-                      100,
-                    200,
-                  )
-                : 0
-            const interestTypeKey = position.interest_type
-              ? position.interest_type.toLowerCase()
-              : null
-            const normalizedInterestType =
-              interestTypeKey === "fixed" ||
-              interestTypeKey === "variable" ||
-              interestTypeKey === "mixed"
-                ? interestTypeKey
+              const showActions = isEditMode && isManual
+              const highlightClass = isDirty
+                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                : ""
+              const repaymentProgress =
+                position.convertedLoanAmount > 0
+                  ? Math.min(
+                      (position.convertedPrincipalPaid /
+                        position.convertedLoanAmount) *
+                        100,
+                      200,
+                    )
+                  : 0
+              const interestTypeKey = position.interest_type
+                ? position.interest_type.toLowerCase()
                 : null
-            const interestTypeLabel =
-              normalizedInterestType &&
-              t.realEstate?.loans?.interestTypes?.[normalizedInterestType]
-                ? t.realEstate.loans.interestTypes[normalizedInterestType]
+              const normalizedInterestType =
+                interestTypeKey === "fixed" ||
+                interestTypeKey === "variable" ||
+                interestTypeKey === "mixed"
+                  ? interestTypeKey
+                  : null
+              const interestTypeLabel =
+                normalizedInterestType &&
+                t.realEstate?.loans?.interestTypes?.[normalizedInterestType]
+                  ? t.realEstate.loans.interestTypes[normalizedInterestType]
+                  : null
+              const euriborRateText = isFiniteNumber(position.euribor_rate)
+                ? formatPercentage((position.euribor_rate ?? 0) * 100, locale)
                 : null
-            const euriborRateText = isFiniteNumber(position.euribor_rate)
-              ? formatPercentage((position.euribor_rate ?? 0) * 100, locale)
-              : null
-            const fixedYearsValue =
-              typeof position.fixed_years === "number"
-                ? position.fixed_years
-                : null
-            return (
-              <Card
-                key={item.key}
-                className={cn(
-                  "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
-                  highlightClass,
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <Badge
-                    variant="secondary"
-                    className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  >
-                    {position.type === LoanType.MORTGAGE
-                      ? t.loanTypes.MORTGAGE
-                      : t.loanTypes.STANDARD}
-                  </Badge>
-                  <div className="flex items-center gap-2">
-                    <SourceBadge source={position.source} />
-                    <EntityBadge
-                      name={position.entityName}
-                      origin={position.entityOrigin}
-                      onClick={() => onFocusEntity(position.entityId)}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
-
-                {position.name && (
-                  <h3 className="text-lg font-semibold">{position.name}</h3>
-                )}
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.principalOutstanding}
-                    </span>
-                    <span className="text-xl font-semibold text-red-500">
-                      {formatCurrency(
-                        position.convertedPrincipalOutstanding,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.monthlyInstallment}
-                    </span>
-                    <span className="text-lg font-semibold">
-                      {formatCurrency(
-                        position.convertedCurrentInstallment,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.interestRate}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                      <span className="flex items-center gap-1">
-                        <Percent className="h-3 w-3" />
-                        {formatPercentage(
-                          (position.interest_rate ?? 0) * 100,
-                          locale,
-                        )}
-                      </span>
-                      {euriborRateText && (
-                        <span className="text-xs text-muted-foreground">
-                          {manualTranslate(`${assetPath}.fields.euriborRate`)}:{" "}
-                          {euriborRateText}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.principalPaid}
-                    </span>
-                    <span className="text-sm">
-                      {formatCurrency(
-                        position.convertedPrincipalPaid,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.originalAmount}
-                    </span>
-                    <span className="text-sm">
-                      {formatCurrency(
-                        position.convertedLoanAmount,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-3">
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {t.banking.paymentDate}
-                    </span>
-                    <span className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      {position.next_payment_date
-                        ? formatDate(position.next_payment_date, locale)
-                        : t.common.notAvailable}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {manualTranslate(`${assetPath}.fields.creation`)} /{" "}
-                      {manualTranslate(`${assetPath}.fields.maturity`)}
-                    </span>
-                    <span className="text-sm">
-                      {position.creation
-                        ? formatDate(position.creation, locale)
-                        : t.common.notAvailable}
-                      <span aria-hidden="true" className="px-1">
-                        •
-                      </span>
-                      {position.maturity
-                        ? formatDate(position.maturity, locale)
-                        : t.common.notAvailable}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm text-muted-foreground">
-                      {manualTranslate(`${assetPath}.fields.interestType`)}
-                    </span>
-                    <div className="text-sm font-medium">
-                      {interestTypeLabel ||
-                        position.interest_type ||
-                        t.common.notAvailable}
-                    </div>
-                    {position.interest_type === InterestType.MIXED &&
-                      fixedYearsValue != null && (
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {manualTranslate(
-                            `${assetPath}.helpers.fixedRateDuration`,
-                            {
-                              years: fixedYearsValue,
-                            },
-                          )}
-                        </div>
-                      )}
-                  </div>
-                </div>
-
-                {position.convertedLoanAmount > 0 && (
-                  <div className="mt-4 space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{t.banking.repaymentProgress}</span>
-                      <span>
-                        {formatPercentage(
-                          Math.min(repaymentProgress, 100),
-                          locale,
-                        )}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-muted">
-                      <div
-                        className="h-2 rounded-full bg-emerald-500"
-                        style={{
-                          width: `${Math.min(repaymentProgress, 100)}%`,
-                        }}
+              const fixedYearsValue =
+                typeof position.fixed_years === "number"
+                  ? position.fixed_years
+                  : null
+              return (
+                <Card
+                  key={item.key}
+                  className={cn(
+                    "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                    highlightClass,
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <Badge
+                      variant="secondary"
+                      className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    >
+                      {position.type === LoanType.MORTGAGE
+                        ? t.loanTypes.MORTGAGE
+                        : t.loanTypes.STANDARD}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <SourceBadge
+                        source={position.source}
+                        onClick={
+                          position.source === DataSource.MANUAL
+                            ? onEnterGlobalEditMode
+                            : undefined
+                        }
+                      />
+                      <EntityBadge
+                        name={position.entityName}
+                        origin={position.entityOrigin}
+                        onClick={() => onFocusEntity(position.entityId)}
+                        className="text-xs"
                       />
                     </div>
                   </div>
-                )}
 
-                {position.currency !== defaultCurrency && (
-                  <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                  {position.name && (
+                    <h3 className="text-lg font-semibold">{position.name}</h3>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
-                      <span className="block">
-                        {t.banking.principalOutstanding}:
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.principalOutstanding}
                       </span>
-                      <span>
-                        {formatCurrency(
-                          position.principal_outstanding ?? 0,
-                          locale,
-                          position.currency,
-                        )}
+                      <span className="text-xl font-semibold text-red-500">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedPrincipalOutstanding,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
                       </span>
                     </div>
                     <div>
-                      <span className="block">
-                        {t.banking.monthlyInstallment}:
+                      <span className="block text-sm text-muted-foreground">
+                        {(position.installment_frequency &&
+                          (t.banking as any).installmentByFrequency?.[
+                            position.installment_frequency
+                          ]) ||
+                          t.banking.monthlyInstallment}
                       </span>
-                      <span>
-                        {formatCurrency(
-                          position.current_installment ?? 0,
-                          locale,
-                          position.currency,
+                      <span className="text-lg font-semibold">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedCurrentInstallment,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.interestRate}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        <span className="flex items-center gap-1">
+                          <Percent className="h-3 w-3" />
+                          <Sensitive>
+                            {formatPercentage(
+                              (position.interest_rate ?? 0) * 100,
+                              locale,
+                            )}
+                          </Sensitive>
+                        </span>
+                        {euriborRateText && (
+                          <span className="text-xs text-muted-foreground">
+                            {manualTranslate(`${assetPath}.fields.euriborRate`)}
+                            : <Sensitive>{euriborRateText}</Sensitive>
+                          </span>
                         )}
                       </span>
                     </div>
                   </div>
-                )}
 
-                {isDirty && (
-                  <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    {manualTranslate("management.unsavedChanges")}
-                  </p>
-                )}
-
-                {showActions && (
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (manualDraft?.originalId) {
-                          editByOriginalId(manualDraft.originalId)
-                        } else if (manualDraft) {
-                          editByLocalId(manualDraft.localId)
-                        } else if (item.originalId) {
-                          editByOriginalId(item.originalId)
-                        }
-                      }}
-                      className="flex items-center gap-1"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      {t.common.edit}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center gap-1 text-red-500 hover:text-red-600"
-                      onClick={() => {
-                        if (manualDraft?.originalId) {
-                          deleteByOriginalId(manualDraft.originalId)
-                        } else if (manualDraft) {
-                          deleteByLocalId(manualDraft.localId)
-                        } else if (item.originalId) {
-                          deleteByOriginalId(item.originalId)
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {t.common.delete}
-                    </Button>
+                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.principalPaid}
+                      </span>
+                      <span className="text-sm">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedPrincipalPaid,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.originalAmount}
+                      </span>
+                      <span className="text-sm">
+                        <Sensitive>
+                          {formatCurrency(
+                            position.convertedLoanAmount,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
                   </div>
-                )}
-              </Card>
-            )
-          })}
-        </div>
-      )}
+
+                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-3">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.paymentDate}
+                      </span>
+                      <span className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        {position.next_payment_date
+                          ? formatDate(position.next_payment_date, locale)
+                          : t.common.notAvailable}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {manualTranslate(`${assetPath}.fields.creation`)} /{" "}
+                        {manualTranslate(`${assetPath}.fields.maturity`)}
+                      </span>
+                      <span className="text-sm">
+                        {position.creation
+                          ? formatDate(position.creation, locale)
+                          : t.common.notAvailable}
+                        <span aria-hidden="true" className="px-1">
+                          •
+                        </span>
+                        {position.maturity
+                          ? formatDate(position.maturity, locale)
+                          : t.common.notAvailable}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {manualTranslate(`${assetPath}.fields.interestType`)}
+                      </span>
+                      <div className="text-sm font-medium">
+                        {interestTypeLabel ||
+                          position.interest_type ||
+                          t.common.notAvailable}
+                      </div>
+                      {position.interest_type === InterestType.MIXED &&
+                        fixedYearsValue != null && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {manualTranslate(
+                              `${assetPath}.helpers.fixedRateDuration`,
+                              {
+                                years: fixedYearsValue,
+                              },
+                            )}
+                          </div>
+                        )}
+                      {position.interest_type === InterestType.MIXED &&
+                        isFiniteNumber(position.fixed_interest_rate) && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {manualTranslate(
+                              `${assetPath}.fields.fixedInterestRate`,
+                            )}
+                            {": "}
+                            <Sensitive>
+                              {formatPercentage(
+                                (position.fixed_interest_rate ?? 0) * 100,
+                                locale,
+                              )}
+                            </Sensitive>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+
+                  {position.convertedLoanAmount > 0 && (
+                    <div className="mt-4 space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{t.banking.repaymentProgress}</span>
+                        <span>
+                          <Sensitive>
+                            {formatPercentage(
+                              Math.min(repaymentProgress, 100),
+                              locale,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-emerald-500"
+                          style={{
+                            width: `${Math.min(repaymentProgress, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {position.currency !== defaultCurrency && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                      <div>
+                        <span className="block">
+                          {t.banking.principalOutstanding}:
+                        </span>
+                        <span>
+                          <Sensitive>
+                            {formatCurrency(
+                              position.principal_outstanding ?? 0,
+                              locale,
+                              position.currency,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block">
+                          {(position.installment_frequency &&
+                            (t.banking as any).installmentByFrequency?.[
+                              position.installment_frequency
+                            ]) ||
+                            t.banking.monthlyInstallment}
+                          :
+                        </span>
+                        <span>
+                          <Sensitive>
+                            {formatCurrency(
+                              position.current_installment ?? 0,
+                              locale,
+                              position.currency,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {isDirty && (
+                    <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {manualTranslate("management.unsavedChanges")}
+                    </p>
+                  )}
+
+                  {showActions && (
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (manualDraft?.originalId) {
+                            editByOriginalId(manualDraft.originalId)
+                          } else if (manualDraft) {
+                            editByLocalId(manualDraft.localId)
+                          } else if (item.originalId) {
+                            editByOriginalId(item.originalId)
+                          }
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t.common.edit}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                        onClick={() => {
+                          if (manualDraft?.originalId) {
+                            deleteByOriginalId(manualDraft.originalId)
+                          } else if (manualDraft) {
+                            deleteByLocalId(manualDraft.localId)
+                          } else if (item.originalId) {
+                            deleteByOriginalId(item.originalId)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t.common.delete}
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+            {creditDisplayItems.map(item => {
+              const {
+                position: credit,
+                manualDraft: creditDraft,
+                isManual: creditIsManual,
+                isDirty: creditIsDirty,
+                originalId: creditOriginalId,
+              } = item
+              const available =
+                credit.convertedCreditLimit - credit.convertedDrawnAmount
+              const utilization =
+                credit.convertedCreditLimit > 0
+                  ? (credit.convertedDrawnAmount /
+                      credit.convertedCreditLimit) *
+                    100
+                  : 0
+              const showCreditActions =
+                creditEditHandlers?.isEditMode && creditIsManual
+              const creditHighlightClass = creditIsDirty
+                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                : ""
+              return (
+                <Card
+                  key={item.key}
+                  className={cn(
+                    "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                    creditHighlightClass,
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <Badge
+                      variant="secondary"
+                      className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    >
+                      {t.enums.productType.CREDIT}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <SourceBadge
+                        source={credit.source}
+                        onClick={
+                          credit.source === DataSource.MANUAL
+                            ? onEnterGlobalEditMode
+                            : undefined
+                        }
+                      />
+                      <EntityBadge
+                        name={credit.entityName}
+                        origin={credit.entityOrigin}
+                        onClick={() => onFocusEntity(credit.entityId)}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {credit.name && (
+                    <h3 className="text-lg font-semibold">{credit.name}</h3>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.creditDrawn}
+                      </span>
+                      <span className="text-xl font-semibold text-red-500">
+                        <Sensitive>
+                          {formatCurrency(
+                            credit.convertedDrawnAmount,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.creditLimit}
+                      </span>
+                      <span className="text-lg font-semibold">
+                        <Sensitive>
+                          {formatCurrency(
+                            credit.convertedCreditLimit,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.interestRate}
+                      </span>
+                      <span className="flex items-center gap-1 text-sm font-medium">
+                        <Percent className="h-3 w-3" />
+                        <Sensitive>
+                          {formatPercentage(
+                            (credit.interest_rate ?? 0) * 100,
+                            locale,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
+                    <div>
+                      <span className="block text-sm text-muted-foreground">
+                        {t.banking.availableCredit}
+                      </span>
+                      <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        <Sensitive>
+                          {formatCurrency(available, locale, defaultCurrency)}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    {credit.pledged_amount != null &&
+                      credit.pledged_amount > 0 && (
+                        <div>
+                          <span className="block text-sm text-muted-foreground">
+                            {manualTranslate(
+                              "management.manualPositions.bankCredits.fields.pledgedAmount",
+                            )}
+                          </span>
+                          <span className="text-sm">
+                            <Sensitive>
+                              {formatCurrency(
+                                convertCurrency(
+                                  credit.pledged_amount,
+                                  credit.currency,
+                                  defaultCurrency,
+                                  exchangeRates,
+                                ),
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
+                      )}
+                  </div>
+
+                  {credit.creation && (
+                    <div className="border-t border-border pt-4">
+                      <span className="block text-sm text-muted-foreground">
+                        {manualTranslate(
+                          "management.manualPositions.bankCredits.fields.creation",
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        {formatDate(credit.creation, locale)}
+                      </span>
+                    </div>
+                  )}
+
+                  {credit.convertedCreditLimit > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{t.banking.utilization}</span>
+                        <span>
+                          <Sensitive>
+                            {formatPercentage(
+                              Math.min(utilization, 100),
+                              locale,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted">
+                        <div
+                          className="h-2 rounded-full bg-rose-500"
+                          style={{ width: `${Math.min(utilization, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {credit.currency !== defaultCurrency && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                      <div>
+                        <span className="block">{t.banking.creditDrawn}:</span>
+                        <span>
+                          <Sensitive>
+                            {formatCurrency(
+                              credit.drawn_amount ?? 0,
+                              locale,
+                              credit.currency,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block">{t.banking.creditLimit}:</span>
+                        <span>
+                          <Sensitive>
+                            {formatCurrency(
+                              credit.credit_limit ?? 0,
+                              locale,
+                              credit.currency,
+                            )}
+                          </Sensitive>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {creditIsDirty && (
+                    <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {manualTranslate("management.unsavedChanges")}
+                    </p>
+                  )}
+
+                  {showCreditActions && creditEditHandlers && (
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (creditDraft?.originalId) {
+                            creditEditHandlers.editByOriginalId(
+                              creditDraft.originalId,
+                            )
+                          } else if (creditDraft) {
+                            creditEditHandlers.editByLocalId(
+                              creditDraft.localId,
+                            )
+                          } else if (creditOriginalId) {
+                            creditEditHandlers.editByOriginalId(
+                              creditOriginalId,
+                            )
+                          }
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t.common.edit}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                        onClick={() => {
+                          if (creditDraft?.originalId) {
+                            creditEditHandlers.deleteByOriginalId(
+                              creditDraft.originalId,
+                            )
+                          } else if (creditDraft) {
+                            creditEditHandlers.deleteByLocalId(
+                              creditDraft.localId,
+                            )
+                          } else if (creditOriginalId) {
+                            creditEditHandlers.deleteByOriginalId(
+                              creditOriginalId,
+                            )
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t.common.delete}
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        ))}
     </motion.div>
   )
+}
+
+function BankCreditsBridge({
+  onRegisterController,
+  onCreditsSummaryChange,
+  onCreditDisplayItemsChange,
+  onCreditEditHandlersChange,
+  selectedEntities,
+  entityOrigins,
+  defaultCurrency,
+  exchangeRates,
+  creditPositions,
+}: {
+  onRegisterController: ManualControllerRegistrar
+  onCreditsSummaryChange: (summary: CreditsSummary) => void
+  onCreditDisplayItemsChange: (items: CreditDisplayItem[]) => void
+  onCreditEditHandlersChange: (handlers: CreditEditHandlers) => void
+  selectedEntities: string[]
+  entityOrigins: Record<string, EntityOrigin | null>
+  defaultCurrency: string
+  exchangeRates: ExchangeRates | null
+  creditPositions: CreditPosition[]
+}) {
+  const {
+    asset,
+    drafts,
+    isEditMode,
+    beginCreate,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    translate: manualTranslate,
+    isEntryDeleted,
+    isDraftDirty: manualIsDraftDirty,
+    manualEntities,
+    hasLocalChanges,
+    isSaving,
+    assetTitle,
+    addLabel,
+    editLabel,
+    cancelLabel,
+    saveLabel,
+    requestSave,
+    requestCancel,
+    enterEditMode,
+    collectSavePayload,
+    setSavingState,
+    handleExternalSaveSuccess,
+  } = useManualPositions()
+
+  const creditController = useMemo<ManualSectionController>(
+    () => ({
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      canCreate: manualEntities.length > 0,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      translate: manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleSaveSuccess: handleExternalSaveSuccess,
+    }),
+    [
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      manualEntities.length,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleExternalSaveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    onRegisterController(asset, creditController)
+    return () => onRegisterController(asset, null)
+  }, [asset, creditController, onRegisterController])
+
+  const creditDrafts = drafts as CreditDraft[]
+
+  const computedPositions = useMemo<CreditDisplay[]>(
+    () =>
+      creditPositions.map(credit => ({
+        ...credit,
+        convertedDrawnAmount: convertCurrency(
+          credit.drawn_amount ?? 0,
+          credit.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        convertedCreditLimit: convertCurrency(
+          credit.credit_limit ?? 0,
+          credit.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+      })),
+    [creditPositions, defaultCurrency, exchangeRates],
+  )
+
+  const buildPositionFromDraft = useCallback(
+    (draft: CreditDraft): CreditDisplay => {
+      const entryId = draft.originalId ?? draft.id ?? draft.localId
+      return {
+        ...draft,
+        id: entryId,
+        entryId,
+        entityId: draft.entityId,
+        entityName: draft.entityName,
+        entityOrigin: entityOrigins[draft.entityId] ?? null,
+        convertedDrawnAmount: convertCurrency(
+          draft.drawn_amount ?? 0,
+          draft.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        convertedCreditLimit: convertCurrency(
+          draft.credit_limit ?? 0,
+          draft.currency,
+          defaultCurrency,
+          exchangeRates,
+        ),
+        source: DataSource.MANUAL,
+      }
+    },
+    [defaultCurrency, exchangeRates, entityOrigins],
+  )
+
+  const displayItems = useMemo(
+    () =>
+      mergeManualDisplayItems<CreditDisplay, CreditDraft>({
+        positions: computedPositions,
+        manualDrafts: creditDrafts,
+        getPositionOriginalId: (pos: CreditDisplay) => pos.entryId,
+        getDraftOriginalId: (draft: CreditDraft) => draft.originalId,
+        getDraftLocalId: (draft: CreditDraft) => draft.localId,
+        getPositionKey: (pos: CreditDisplay) => pos.entryId,
+        buildPositionFromDraft,
+        isManualPosition: (pos: CreditDisplay) =>
+          pos.source === DataSource.MANUAL,
+        isDraftDirty: manualIsDraftDirty,
+        isEntryDeleted,
+        shouldIncludeDraft: (draft: CreditDraft) =>
+          selectedEntities.length === 0 ||
+          selectedEntities.includes(draft.entityId),
+        mergeDraftMetadata: (pos: CreditDisplay, draft: CreditDraft) => ({
+          ...pos,
+          entityId: draft.entityId,
+          entityName: draft.entityName,
+          entityOrigin: entityOrigins[draft.entityId] ?? null,
+        }),
+      }),
+    [
+      computedPositions,
+      creditDrafts,
+      buildPositionFromDraft,
+      manualIsDraftDirty,
+      isEntryDeleted,
+      selectedEntities,
+      entityOrigins,
+    ],
+  )
+
+  const creditsSummary = useMemo<CreditsSummary>(() => {
+    const aggregates = displayItems.reduce(
+      (acc, item) => {
+        if (item.originalId && isEntryDeleted(item.originalId)) return acc
+        const drawn = item.position.convertedDrawnAmount ?? 0
+        acc.drawn += drawn
+        acc.limit += item.position.convertedCreditLimit ?? 0
+        const interest = item.position.interest_rate ?? 0
+        if (drawn > 0 && interest > 0) {
+          acc.weighted += interest * drawn
+        }
+        acc.count += 1
+        return acc
+      },
+      { drawn: 0, limit: 0, weighted: 0, count: 0 },
+    )
+    const weightedInterest =
+      aggregates.drawn > 0 ? aggregates.weighted / aggregates.drawn : 0
+    return {
+      totalDrawn: aggregates.drawn,
+      totalLimit: aggregates.limit,
+      weightedInterest,
+      count: aggregates.count,
+    }
+  }, [displayItems, isEntryDeleted])
+
+  useEffect(() => {
+    onCreditsSummaryChange(creditsSummary)
+  }, [creditsSummary, onCreditsSummaryChange])
+
+  const visibleCreditItems = useMemo(
+    () =>
+      displayItems.filter(
+        item => !(item.originalId && isEntryDeleted(item.originalId)),
+      ),
+    [displayItems, isEntryDeleted],
+  )
+
+  useEffect(() => {
+    onCreditDisplayItemsChange(visibleCreditItems)
+  }, [visibleCreditItems, onCreditDisplayItemsChange])
+
+  useEffect(() => {
+    onCreditEditHandlersChange({
+      editByOriginalId,
+      editByLocalId,
+      deleteByOriginalId,
+      deleteByLocalId,
+      isEditMode,
+    })
+  }, [
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    isEditMode,
+    onCreditEditHandlersChange,
+  ])
+
+  return null
 }

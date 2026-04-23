@@ -6,6 +6,7 @@ import {
   EntitiesPosition,
   ProductType,
   GlobalPosition,
+  CryptoCurrencyType,
 } from "./position"
 import {
   ContributionTargetType,
@@ -46,11 +47,46 @@ export enum DataSource {
   MANUAL = "MANUAL",
 }
 
+export enum AddressSource {
+  DERIVED = "DERIVED",
+  MANUAL = "MANUAL",
+}
+
+export enum ScriptType {
+  P2PKH = "p2pkh",
+  P2SH_P2WPKH = "p2sh-p2wpkh",
+  P2WPKH = "p2wpkh",
+  P2TR = "p2tr",
+}
+
+export interface HDAddress {
+  address: string
+  index: number
+  change: number
+  path: string
+  pubkey: string
+}
+
+export interface HDWallet {
+  xpub: string
+  addresses: HDAddress[]
+  script_type: ScriptType
+  coin_type: string
+}
+
 export interface CryptoWalletConnection {
   id: string
   entity_id: string
-  address: string
+  addresses: string[]
   name: string
+  address_source: AddressSource
+  hd_wallet: HDWallet | null
+}
+
+export interface EntityAccountInfo {
+  id: string
+  name: string | null
+  status: EntityStatus
 }
 
 export interface Entity {
@@ -59,6 +95,7 @@ export interface Entity {
   type: EntityType
   origin: EntityOrigin
   natural_id: string
+  icon_url?: string | null
   status?: EntityStatus
   features: Feature[]
   credentials_template?: Record<string, string>
@@ -73,6 +110,9 @@ export interface Entity {
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
+  fetchable?: boolean
+  allows_hd_wallet?: boolean | null
+  accounts?: EntityAccountInfo[]
 }
 
 export enum EntitySessionCategory {
@@ -127,14 +167,116 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
+export interface User {
+  id: string
+  username: string
+  path: string
+}
+
+export enum FFStatus {
+  ON = "ON",
+  OFF = "OFF",
+}
+
+export type FFValue = FFStatus | string
+
+export type FeatureFlags = Record<string, FFValue>
+
+export enum CloudRole {
+  NONE = "NONE",
+  PLUS = "PLUS",
+}
+
+export interface CloudAuthToken {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_at: number
+}
+
+export interface CloudAuthData {
+  role: CloudRole
+  permissions: string[]
+  email: string
+  token: CloudAuthToken
+}
+
+export interface CloudAuthRequest {
+  token: CloudAuthToken | null
+}
+
+export interface CloudAuthResponse {
+  role: CloudRole
+  permissions: string[]
+}
+
+export enum BackupFileType {
+  DATA = "DATA",
+  CONFIG = "CONFIG",
+}
+
+export enum BackupMode {
+  OFF = "OFF",
+  AUTO = "AUTO",
+  MANUAL = "MANUAL",
+}
+
+export enum SyncStatus {
+  SYNC = "SYNC",
+  PENDING = "PENDING",
+  CONFLICT = "CONFLICT",
+  OUTDATED = "OUTDATED",
+  MISSING = "MISSING",
+}
+
+export interface BackupInfo {
+  id: string
+  protocol: number
+  date: string
+  type: BackupFileType
+  size: number
+}
+
+export interface FullBackupInfo {
+  local: BackupInfo | null
+  remote: BackupInfo | null
+  status: SyncStatus
+  has_local_changes: boolean
+  last_update: string
+}
+
+export interface FullBackupsInfo {
+  pieces: Record<BackupFileType, FullBackupInfo>
+}
+
+export interface BackupSyncResult {
+  pieces: Record<BackupFileType, FullBackupInfo>
+}
+
+export interface UploadBackupRequest {
+  types: BackupFileType[]
+  force?: boolean
+}
+
+export interface ImportBackupRequest {
+  types: BackupFileType[]
+  force?: boolean
+}
+
+export interface BackupSettings {
+  mode: BackupMode
+}
+
 export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
-  lastLogged?: string
-  user?: string
+  lastLogged?: string | null
+  user?: User | null
   server: {
     version: string
+    platform_type: PlatformType
     options: BackendOptions
   }
+  features: FeatureFlags
 }
 
 export interface LoginRequest {
@@ -142,28 +284,49 @@ export interface LoginRequest {
   credentials: Record<string, string>
   code?: string
   processId?: string
+  token?: string
+  entityAccountId?: string
+  accountName?: string
 }
 
 export interface FetchRequest {
   entity?: string
   features: Feature[]
+  credentials?: Record<string, string>
   code?: string
   processId?: string
+  token?: string
   avoidNewLogin?: boolean
   deep?: boolean
+  entityAccountId?: string
+}
+
+export enum LoginConfirmationType {
+  IN_APP = "IN_APP",
+  CHALLENGE = "CHALLENGE",
+}
+
+export enum ChallengeType {
+  RECAPTCHA = "RECAPTCHA",
+  AWSWAF = "AWSWAF",
 }
 
 export interface LoginResponse {
   code: LoginResultCode
   processId?: string
+  confirmationType?: LoginConfirmationType
+  challengeType?: ChallengeType
   details?: any
+  entityAccountId?: string
 }
 
 export interface FetchResponse {
   code: FetchResultCode
+  confirmationType?: LoginConfirmationType
   details?: {
     wait?: number
     processId?: string
+    challengeType?: ChallengeType
     credentials?: Record<string, string>
   }
   data?: any
@@ -209,6 +372,9 @@ export enum LoginResultCode {
   CREATED = "CREATED",
   RESUMED = "RESUMED",
 
+  // Cooldown
+  COOLDOWN = "COOLDOWN",
+
   // Flow deferral
   CODE_REQUESTED = "CODE_REQUESTED",
   MANUAL_LOGIN = "MANUAL_LOGIN",
@@ -219,6 +385,9 @@ export enum LoginResultCode {
   // Bad user input
   INVALID_CODE = "INVALID_CODE",
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
+
+  // Other unexpected-unsuccessful-controlled results
+  CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE",
 
   // Not setup
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
@@ -250,7 +419,9 @@ export enum FetchResultCode {
   INVALID_CODE = "INVALID_CODE",
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
+  NOT_CONNECTED = "NOT_CONNECTED",
   LOGIN_REQUIRED = "LOGIN_REQUIRED",
+  CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE",
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 
@@ -308,6 +479,8 @@ export enum PlatformType {
   MAC = "mac",
   LINUX = "linux",
   WEB = "web",
+  IOS = "ios",
+  ANDROID = "android",
 }
 
 export interface PlatformInfo {
@@ -315,9 +488,17 @@ export interface PlatformInfo {
   arch?: string
   osVersion?: string
   electronVersion?: string
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  webViewVersion?: string | null
 }
 
 export type ThemeMode = "light" | "dark" | "system"
+
+export enum DataDisplayMode {
+  NONE = "NONE",
+  PRIVATE = "PRIVATE",
+}
 
 export interface AboutAppInfo {
   appName: string
@@ -325,10 +506,6 @@ export interface AboutAppInfo {
   author?: string | null
   repository?: string | null
   homepage?: string | null
-  electronVersion?: string | null
-  chromiumVersion?: string | null
-  nodeVersion?: string | null
-  platform: PlatformInfo
 }
 
 export type BackendLogLevel =
@@ -399,6 +576,9 @@ export interface CreateCryptoWalletRequest {
   entityId: string
   name: string
   addresses: string[]
+  source: AddressSource
+  xpub?: string | null
+  script_type?: ScriptType | null
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -407,20 +587,52 @@ export interface UpdateCryptoWalletConnectionRequest {
 }
 
 export interface CryptoWalletConnectionResult {
-  created?: Array<{
-    id: string
-    address: string
-    name?: string | null
-  }>
   failed?: Record<string, string>
 }
 
-// Electron window interface
+export interface DerivedAddress {
+  index: number
+  path: string
+  address: string
+  pubkey: string
+  change: number
+  balance: number
+}
+
+export interface DerivedAddressesResult {
+  key_type: string
+  script_type: string
+  coin: string
+  base_path: string
+  receiving: DerivedAddress[]
+  change: DerivedAddress[]
+}
+
+export interface WalletAddressesResponse {
+  id: string
+  name: string
+  address_source: AddressSource
+  hd_wallet: {
+    xpub: string
+    script_type: string
+    coin_type: string
+    receiving: DerivedAddress[]
+    change: DerivedAddress[]
+  } | null
+}
+
+export interface DeriveCryptoAddressesRequest {
+  xpub: string
+  network: string
+  script_type?: string | null
+  range?: number
+}
+
 declare global {
   interface Window {
+    platform: PlatformInfo
     ipcAPI?: {
       apiUrl: () => Promise<{ url: string; custom: boolean }>
-      platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       getAboutInfo: () => Promise<AboutAppInfo>
@@ -466,6 +678,29 @@ declare global {
       onUpdateError: (
         callback: (error: AutoUpdateErrorInfo) => void,
       ) => () => void
+      onOAuthCallback: (
+        callback: (tokens: {
+          access_token: string
+          refresh_token: string
+          type?: string
+        }) => void,
+      ) => () => void
+
+      onOAuthCallbackError: (
+        callback: (payload: {
+          error: string
+          error_description: string | null
+          error_code: string | null
+        }) => void,
+      ) => () => void
+
+      onOAuthCallbackCode: (
+        callback: (payload: { code: string }) => void,
+      ) => () => void
+
+      onOAuthCallbackUrl: (
+        callback: (payload: { url: string }) => void,
+      ) => () => void
     }
   }
 }
@@ -501,6 +736,7 @@ export interface ExternalIntegration {
   name: string
   status: ExternalIntegrationStatus
   type: ExternalIntegrationType
+  available: boolean
   payload_schema?: Record<string, string> | null
 }
 
@@ -578,6 +814,8 @@ export enum FlowType {
 export enum FlowFrequency {
   DAILY = "DAILY",
   WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  SEMIMONTHLY = "SEMIMONTHLY",
   MONTHLY = "MONTHLY",
   EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
   QUARTERLY = "QUARTERLY",
@@ -599,6 +837,10 @@ export interface PeriodicFlow {
   currency: string
   icon?: string
   linked?: boolean
+  real_estate_flow?: {
+    flow_subtype: string
+    linked_loan_hash?: string | null
+  } | null
   next_date?: string
   max_amount?: number
 }
@@ -674,6 +916,7 @@ export interface LoanPayload {
   euribor_rate?: number | null
   interest_type: InterestType
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
   principal_outstanding: number
   monthly_interests?: number | null
 }
@@ -700,6 +943,7 @@ export interface RealEstateFlow {
   flow_subtype: RealEstateFlowSubtype
   description: string
   payload: RealEstateFlowPayload
+  linked_loan_hash?: string | null
 }
 
 export interface PurchaseExpense {
@@ -791,15 +1035,26 @@ export interface LoanCalculationRequest {
   interest_type: InterestType
   euribor_rate?: number | null
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
+  installment_frequency?: string
   start: string
   end: string
 }
 
 export interface LoanCalculationResult {
-  current_monthly_payment?: number | null
-  current_monthly_interests?: number | null
+  current_installment_payment?: number | null
+  current_installment_interests?: number | null
   principal_outstanding?: number | null
   installment_date?: string | null
+}
+
+export interface EuriborRate {
+  period: string
+  rate: number
+}
+
+export interface EuriborHistory {
+  rates: EuriborRate[]
 }
 
 // Forecast types
@@ -809,6 +1064,7 @@ export interface ForecastRequest {
   avg_annual_market_increase?: number | null
   avg_annual_crypto_increase?: number | null
   avg_annual_commodity_increase?: number | null
+  include_real_estate_taxes?: boolean
 }
 
 export interface CashDelta {
@@ -877,6 +1133,41 @@ export interface InstrumentInfo {
 
 export interface InstrumentsResponse {
   entries: InstrumentInfo[]
+}
+
+export interface CryptoAssetPlatform {
+  provider_id: string
+  name: string
+  contract_address: string
+  icon_url?: string | null
+  related_entity_id?: string | null
+}
+
+export interface CryptoAssetDetails {
+  name: string
+  symbol: string
+  platforms: CryptoAssetPlatform[]
+  provider: string
+  provider_id: string
+  price: Record<string, number>
+  icon_url?: string | null
+  type: CryptoCurrencyType
+}
+
+export interface AvailableCryptoAsset {
+  name: string
+  symbol: string
+  platforms: CryptoAssetPlatform[]
+  provider: string
+  provider_id: string
+}
+
+export interface AvailableCryptoAssetsResult {
+  provider: string
+  assets: AvailableCryptoAsset[]
+  page: number
+  limit: number
+  total: number
 }
 
 // Template system
@@ -1133,4 +1424,7 @@ export interface SavingsScenarioResult {
 
 export interface SavingsCalculationResult {
   scenarios: SavingsScenarioResult[]
+}
+export interface GetBackupsInfoRequest {
+  only_local?: boolean
 }

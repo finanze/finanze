@@ -1,6 +1,6 @@
 from domain.template_fields import TemplateFieldType
 from domain.use_cases.get_template_fields import GetTemplateFields
-from flask import jsonify
+from quart import jsonify
 
 
 def _serialize_template_field(field):
@@ -22,8 +22,8 @@ def _serialize_template_field(field):
     return data
 
 
-def get_template_fields(get_template_fields_uc: GetTemplateFields):
-    all_fields = get_template_fields_uc.execute()
+async def get_template_fields(get_template_fields_uc: GetTemplateFields):
+    all_fields = await get_template_fields_uc.execute()
 
     result = {}
     for feature, field_groups in all_fields.items():

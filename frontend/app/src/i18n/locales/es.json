@@ -6,10 +6,11 @@
     "fetching": "Obteniendo...",
     "saving": "Guardando...",
     "refresh": "Actualizar",
-    "export": "Exportar a Sheets",
+    "export": "Exportar",
     "success": "Éxito",
     "error": "Error",
     "unexpectedError": "Error inesperado al cargar",
+    "somethingWentWrong": "Algo salió mal",
     "fetchSuccess": "Datos obtenidos con éxito",
     "fetchSuccessEntity": "Datos obtenidos con éxito de {entity}",
     "loginSuccessEntity": "Inicio de sesión exitoso en {entity}",
@@ -38,6 +39,7 @@
     "distributionByAsset": "Distribución por Activo",
     "distribution": "Distribución",
     "stocks": "Acciones",
+    "all": "Todo",
     "funds": "Fondos",
     "deposits": "Depósitos",
     "factoring": "Factoring",
@@ -67,6 +69,7 @@
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
+    "editing": "Editando",
     "upload": "Subir",
     "unlock": "Desbloquear",
     "configuredInSettings": "Configurado en Configuración",
@@ -83,6 +86,8 @@
     "crypto": "Cripto",
     "commodities": "Materias Primas",
     "close": "Cerrar",
+    "more": "Más",
+    "showLess": "Mostrar menos",
     "download": "Descargar",
     "viewRelease": "Ver versión",
     "remindLater": "Recordar después",
@@ -90,9 +95,17 @@
     "unpin": "Quitar",
     "pinAsset": "Fijar activo",
     "unpinAsset": "Quitar activo",
-    "continueInBackground": "Continuar en segundo plano",
+    "continueInBackground": "Continuar por detrás",
     "connectingToServer": "Conectando a",
-    "startingServer": "Iniciando servidor"
+    "startingServer": "Iniciando servidor",
+    "officialWebpage": "finanze.me",
+    "officialWebpageUrl": "https://finanze.me",
+    "optional": "Opcional",
+    "clear": "Limpiar",
+    "notAvailableOnPlatform": "No disponible en esta plataforma",
+    "unknown": "Desconocido",
+    "unknownEntity": "Entidad desconocida",
+    "unknownToken": "Token desconocido"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -166,8 +179,11 @@
     "gross": "bruto",
     "symbol": "Símbolo",
     "openInfoSheet": "Ver ficha del fondo",
+    "issuer": "Emisor",
     "shares": "Acciones",
     "price": "Precio",
+    "averageBuyPrice": "Precio medio compra",
+    "perSharePrice": "por participación",
     "isin": "ISIN",
     "portfolio": "Cartera",
     "ofInvestmentType": "de {type}",
@@ -176,12 +192,62 @@
     "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
+    "entry": "entrada",
+    "byAsset": "Por activo",
+    "byType": "Por tipo",
+    "sortBy": "",
+    "sortAmount": "Importe",
+    "sortRelativeGain": "Gan. %",
+    "sortAbsoluteGain": "Ganancia",
+    "actives": "Activos",
+    "passives": "Pasivos",
+    "sortStart": "Inicio",
+    "sortMaturity": "Vencimiento",
     "cryptoView": {
       "belongsTo": "Pertenece a",
       "viewModeLabel": "Vista",
       "viewModes": {
         "wallets": "Por billetera",
-        "network": "Por red"
+        "network": "Por origen"
+      }
+    },
+    "derivatives": {
+      "title": "Derivados",
+      "singular": "derivado",
+      "plural": "derivados",
+      "includeDerivatives": "Incluir Derivados",
+      "size": "Cantidad",
+      "direction": {
+        "LONG": "Largo",
+        "SHORT": "Corto"
+      },
+      "contractType": {
+        "PERPETUAL": "Perpetuo",
+        "FUTURES": "Futuros",
+        "KNOCK_OUT": "Knock Out",
+        "FACTOR": "Factor",
+        "WARRANT": "Warrant",
+        "OPTIONS": "Opciones",
+        "CFD": "CFD",
+        "OTHER": "Otro"
+      },
+      "detail": {
+        "positionDetails": "Detalles de la Posición",
+        "overview": "Resumen",
+        "symbol": "Símbolo",
+        "underlying": "Subyacente",
+        "direction": "Dirección",
+        "contractType": "Tipo de Contrato",
+        "pricing": "Precios",
+        "entryPrice": "Precio de Entrada",
+        "markPrice": "Precio Actual",
+        "marketValue": "Valor de Mercado",
+        "unrealizedPnl": "P&L no Realizado",
+        "risk": "Riesgo y Margen",
+        "leverage": "Apalancamiento",
+        "margin": "Margen",
+        "marginType": "Tipo de Margen",
+        "liquidationPrice": "Precio de Liquidación"
       }
     },
     "weightedAverageInterest": "Interés ponderado",
@@ -212,12 +278,20 @@
       "INSURED": "Con seguro",
       "NON_INSURED": "Sin seguro"
     },
+    "businessTypes": {
+      "EQUITY": "Equity",
+      "LENDING": "Préstamo",
+      "RENT": "Alquiler",
+      "SOLD": "Venta",
+      "RENT_AND_SOLD": "Alquiler y venta",
+      "DONATION": "Donación"
+    },
     "historicSection": {
       "heading": "Inversiones pasadas",
-      "showToggle": "Mostrar completadas",
+      "showToggle": "Ver completadas",
       "hideToggle": "Ocultar completadas",
       "toggleShort": {
-        "show": "Mostrar completadas",
+        "show": "Ver completadas",
         "hide": "Ocultar completadas"
       },
       "empty": "No hay proyectos de {type} completados.",
@@ -241,7 +315,11 @@
       "effectiveMaturity": "Vencimiento efectivo",
       "extendedMaturity": "Vencimiento extendido",
       "extendableMaturity": "Vencimiento prolongable",
-      "initialMaturityDate": "Fecha de vencimiento inicial"
+      "initialMaturityDate": "Fecha de vencimiento inicial",
+      "sortBy": "",
+      "sortMaturity": "Vencimiento",
+      "sortStartDate": "Inicio",
+      "sortInvested": "Importe"
     }
   },
   "toast": {
@@ -263,6 +341,14 @@
       "USER": "Nombre de Usuario",
       "API_TOKEN": "Token API"
     },
+    "credentialFields": {
+      "apiKey": "Clave API",
+      "secretKey": "Clave Secreta"
+    },
+    "addAccountName": "Nombrar esta cuenta",
+    "accountNamePlaceholder": "Nombre de cuenta (opcional)",
+    "credentialsSecurityTitle": "Tus datos están seguros",
+    "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos. Además, esta app es de código abierto y puedes verificar tú mismo cómo se almacenan y manejan los datos.",
     "title": "Bienvenido a Finanze",
     "subtitle": "Tus datos financieros están encriptados",
     "welcomeBack": "¡Bienvenido de vuelta, {username}!",
@@ -292,7 +378,20 @@
     "signup": "Registrarse",
     "login": "Iniciar Sesión",
     "viewErrorDetails": "Ver detalles técnicos",
-    "errorDetailsTitle": "Detalles técnicos"
+    "errorDetailsTitle": "Detalles técnicos",
+    "syncPasswordHint": "Usa la misma contraseña en todos tus dispositivos si tienes la sincronización activada",
+    "enableBiometric": "Activar {type}",
+    "biometricFaceId": "Face ID",
+    "biometricFingerprint": "Huella",
+    "biometricAuth": "Biometría",
+    "biometricLoginReason": "Desbloquear Finanze",
+    "biometricSaved": "Inicio de sesión biométrico activado",
+    "biometricError": "No se pudo activar el inicio de sesión biométrico",
+    "biometricLoginFailed": "La autenticación biométrica falló",
+    "inAppConfirmationTitle": "Confirma el inicio de sesión en",
+    "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión.",
+    "challengeTitle": "Verificación de seguridad de",
+    "challengeMessage": "Por favor, completa la verificación de seguridad para continuar."
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
@@ -315,6 +414,7 @@
     "EXTERNAL_LOGIN_FAILED": "Error en el inicio de sesión externo. Por favor intente de nuevo.",
     "LOGIN_REQUIRED": "Se requiere iniciar sesión en {entity}. Por favor inicie sesión nuevamente.",
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente.",
+    "CURRENTLY_UNAVAILABLE": "{entity} no está disponible por mantenimiento programado. Inténtalo más tarde.",
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
@@ -334,46 +434,51 @@
     "integrations": "integraciones",
     "cannotConnect": "No se puede conectar",
     "requiresExternalIntegrations": "Requiere configuración de integración",
-    "setupIntegrationsMessage": "Configure las integraciones requeridas para conectar esta entidad:",
+    "setupIntegrationsMessage": "Configura las integraciones requeridas para conectar esta entidad:",
     "goToSettings": "Ir a Configuración",
-    "userEntered": "Datos importados",
+    "userEntered": "Datos de usuario",
     "importData": "Importar",
-    "runImport": "Importar Datos Manuales",
-    "confirmUserEntered": "Importar Datos Manuales",
+    "runImport": "Importar datos",
+    "confirmUserEntered": "Importar datos",
     "confirmUserEnteredDescription": "Esto importará datos desde tus hojas de Google configuradas.",
-    "available": "Entidades Disponibles",
-    "setupUserEntered": "Configurar Datos Manuales",
+    "available": "Entidades disponibles",
+    "setupUserEntered": "Configurar datos de usuario",
     "userEnteredDescription": "Importa datos desde tus hojas de Google configuradas para seguimiento manual.",
     "userEnteredAvailableDescription": "Configura Google Sheets para importar datos financieros.",
     "configureInSettings": "Configurar en Ajustes",
     "relogin": "Reloguear",
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar desconexión",
-    "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos, y una vez desconectada no se tendrán en cuenta.",
+    "confirmDisconnectMessage": "¿Seguro que quieres desconectar {entity}? Tendrás que iniciar sesión de nuevo para acceder a sus datos, y una vez desconectada no se mostrará.",
     "refreshEntity": "Actualizar datos",
-    "financialInstitutions": "Instituciones Financieras",
-    "cryptoWallets": "Billeteras Crypto",
-    "commodities": "Materias Primas",
+    "financialInstitutions": "Instituciones financieras",
+    "cryptoWallets": "Billeteras cripto",
+    "cryptoExchanges": "Exchanges cripto",
+    "commodities": "Materias primas",
     "commoditiesDescription": "Integra tus materias primas con valor de mercado en tiempo real",
     "manualDataEntry": "Datos de usuario",
     "manage": "Gestionar",
+    "addAccount": "Añadir cuenta",
+    "manageAccounts": "Gestionar cuentas",
+    "account": "Cuenta",
+    "noAccounts": "No hay cuentas conectadas",
     "moreFinancialInstitutionsCard": "Más bancos",
-    "addExternalEntity": "Instituciones Financieras",
+    "addExternalEntity": "Instituciones financieras",
     "requiresProviderIntegration": "Requiere integración",
-    "selectCountry": "Seleccionar País",
-    "selectInstitution": "Seleccionar Institución",
+    "selectCountry": "Seleccionar país",
+    "selectInstitution": "Seleccionar institución",
     "loadingInstitutions": "Cargando instituciones...",
     "noInstitutionsFound": "No se encontraron instituciones",
     "connecting": "Conectando...",
     "alreadyLinked": "Ya vinculada",
-    "confirmConnection": "Completar Conexión",
+    "confirmConnection": "Completar conexión",
     "providerLinkInstructions": "Finaliza el proceso en la ventana abierta y luego confirma la conexión.",
-    "openLink": "Abrir Enlace",
+    "openLink": "Abrir enlace",
     "dismiss": "Cerrar",
     "continueLink": "Continuar enlace",
     "relink": "Re-enlazar",
-    "confirmRelink": "Confirmar Re-enlace",
-    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}, ¿quieres continuar?",
+    "confirmRelink": "Confirmar re-enlace",
+    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}. ¿Quieres continuar?",
     "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas."
   },
   "features": {
@@ -384,7 +489,7 @@
     "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
     "unselectAll": "Deseleccionar todas",
-    "fetchSelected": "Obtener datos seleccionados",
+    "fetchSelected": "Obtener",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
@@ -400,9 +505,25 @@
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "application": "Aplicación",
     "applicationDescription": "Ajusta las preferencias locales de este dispositivo",
-    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si solo usas la aplicación de escritorio no te preocupes.",
+    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si usas otro dispositivo u aplicación no se comparten.",
     "applicationLanguageTitle": "Idioma",
     "applicationLanguageDescription": "Elige el idioma de la interfaz. También usado para dar formato a fechas, números y monedas.",
+    "themeTitle": "Tema",
+    "themeDescription": "Elige la apariencia de la aplicación.",
+    "dataDisplayModeTitle": "Modo privado",
+    "dataDisplayModeDescription": "Oculta datos financieros sensibles difuminando importes y porcentajes.",
+    "dataDisplayModeNone": "Desactivado",
+    "dataDisplayModePrivate": "Activado",
+    "userTitle": "Cuenta",
+    "userDescription": "Gestiona tu cuenta.",
+    "biometricCredentialsTitle": "Inicio biométrico",
+    "biometricCredentialsNotEnabledTitle": "Habilitar inicio biométrico",
+    "biometricCredentialsDescription": "Gestiona el inicio de sesión biométrico.",
+    "biometricCredentialsAction": "Desactivar",
+    "biometricCredentialsCleared": "Credenciales biométricas eliminadas",
+    "biometricCredentialsClearError": "No se pudo deshabilitar el inicio biométrico",
+    "biometricCredentialsNotEnabledHint": "Habilita el inicio biométrico para un acceso más rápido y seguro al iniciar sesión o al cambiar tu contraseña.",
+    "biometricCredentialsActionTitle": "Desactivar inicio biométrico",
     "applicationLanguageOptions": {
       "en-US": "Inglés",
       "es-ES": "Español"
@@ -424,7 +545,7 @@
         "invalidSymbol": "Introduce un símbolo válido (letras, números, punto o guion).",
         "editStablecoin": "Editar stablecoin",
         "removeStablecoin": "Eliminar stablecoin",
-        "confirmEdit": "Guardar cambios",
+        "confirmEdit": "Guardar",
         "cancelEdit": "Cancelar edición",
         "hideUnknownTokensLabel": "Ocultar tokens desconocidos",
         "hideUnknownTokensDescription": "Excluye los tokens sin datos de referencia de las vistas y cálculos"
@@ -459,6 +580,169 @@
       }
     },
     "integrations": "Integraciones",
+    "legal": {
+      "title": "Legal",
+      "description": "Información legal y políticas",
+      "privacyPolicy": "Política de privacidad",
+      "termsOfService": "Términos del servicio"
+    },
+    "cloud": {
+      "tabTitle": "Cloud",
+      "title": "Cloud Sync",
+      "accountTitle": "Cuenta",
+      "description": "Conecta tu cuenta para habilitar funciones en la nube y sincronizar entre dispositivos",
+      "signInTitle": "Iniciar sesión en Cloud",
+      "signInDescription": "Accede a funciones extra y sincroniza tus datos entre dispositivos",
+      "signInWithGoogle": "Iniciar sesión con Google",
+      "signInWithApple": "Iniciar sesión con Apple",
+      "googleDesktopOnly": "Disponible solo en la app de escritorio",
+      "signInWithEmail": "Iniciar sesión con Email",
+      "signUp": "Crear cuenta",
+      "emailPlaceholder": "Correo electrónico",
+      "passwordPlaceholder": "Contraseña",
+      "orContinueWith": "o continuar con",
+      "legalNoticePrefix": "Al continuar, aceptas los",
+      "termsOfService": "Términos del servicio",
+      "legalNoticeAnd": "y la",
+      "privacyPolicy": "Política de privacidad",
+      "noAccount": "¿No tienes cuenta? Regístrate",
+      "alreadyHaveAccount": "¿Ya tienes cuenta? Inicia sesión",
+      "signedInAs": "Sesión iniciada como",
+      "role": "Rol",
+      "roles": {
+        "NONE": "Ninguno",
+        "PLUS": "＋ Plus"
+      },
+      "logout": "Cerrar sesión",
+      "deleteAccount": "Eliminar cuenta",
+      "requestAccountDeletion": "Solicitar eliminación de cuenta",
+      "deleteAccountEmailSubject": "Solicitud de eliminación de cuenta",
+      "deleteAccountEmailBody": "Hola,\n\nMe gustaría solicitar la eliminación de mi cuenta de Finanze Cloud (la asociada a este correo, {email}).\n\nEntiendo que esta acción es irreversible y eliminará permanentemente mi cuenta y copias de seguridad en la nube. Los datos locales en mis dispositivos no se verán afectados.",
+      "loggingIn": "Iniciando sesión...",
+      "signingUp": "Creando cuenta...",
+      "tooManyRequests": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
+      "signUpSuccessCheckEmail": "Cuenta creada. Te enviamos un correo de confirmación a {email}. Confírmalo antes de iniciar sesión.",
+      "signUpSuccess": "Cuenta creada correctamente.",
+      "signUpError": "Error al registrarte. Inténtalo de nuevo.",
+      "signUpErrorEmailTaken": "Ya existe una cuenta con ese correo. Prueba a iniciar sesión.",
+      "signUpErrors": {
+        "signup_disabled": "El registro está deshabilitado actualmente.",
+        "email_address_invalid": "Introduce un correo electrónico válido.",
+        "email_exists": "Ya existe una cuenta con ese correo. Prueba a iniciar sesión.",
+        "email_provider_disabled": "El registro con email/contraseña está deshabilitado actualmente.",
+        "weak_password": "La contraseña es demasiado débil. Elige una más segura.",
+        "unknown": "Error al registrarte ({error}). Inténtalo de nuevo."
+      },
+      "loggingOut": "Cerrando sesión...",
+      "loginError": "Error al iniciar sesión. Inténtalo de nuevo.",
+      "loginErrorInvalidCredentials": "Correo o contraseña inválidos.",
+      "loginErrorEmailNotConfirmed": "Confirma tu correo electrónico antes de iniciar sesión.",
+      "forgotPassword": "¿Has olvidado tu contraseña?",
+      "sendingPasswordResetEmail": "Enviando correo de restablecimiento...",
+      "passwordResetEmailRequired": "Introduce tu correo para restablecer la contraseña.",
+      "passwordResetEmailSent": "Te enviamos un correo para restablecer la contraseña a {email}.",
+      "passwordResetError": "No se pudo enviar el correo de restablecimiento. Inténtalo de nuevo.",
+      "passwordResetTitle": "Restablecer contraseña",
+      "passwordResetDescription": "Elige una nueva contraseña para tu cuenta.",
+      "newPasswordPlaceholder": "Nueva contraseña",
+      "confirmNewPasswordPlaceholder": "Confirmar nueva contraseña",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "updatePassword": "Actualizar contraseña",
+      "cancelPasswordReset": "Cancelar",
+      "passwordUpdateSuccess": "Contraseña actualizada correctamente.",
+      "passwordUpdateError": "No se pudo actualizar la contraseña. Inténtalo de nuevo.",
+      "oauthErrors": {
+        "access_denied": "Acceso denegado. Puede que hayas cancelado el inicio de sesión.",
+        "invalid_request": "Solicitud de inicio de sesión inválida. Inténtalo de nuevo.",
+        "unauthorized_client": "Esta aplicación no está autorizada. Contacta con soporte.",
+        "server_error": "El servidor de autenticación encontró un error. Inténtalo más tarde.",
+        "user_banned": "Tu cuenta está bloqueada. Si crees que es un error, contacta con soporte.",
+        "temporarily_unavailable": "El servicio de autenticación no está disponible temporalmente. Inténtalo más tarde.",
+        "signup_disabled": "No se ha podido encontrar una cuenta asociada, ¿te has registrado?",
+        "unknown": "Error de autenticación ({error}). Inténtalo de nuevo."
+      },
+      "oauthRedirectTitle": "Finalizando inicio de sesión",
+      "oauthRedirectDescription": "Volviendo a la app de escritorio…",
+      "oauthRedirectCloseHint": "Si esta pestaña no se cierra automáticamente, puedes cerrarla ahora.",
+      "oauthRedirectOpenApp": "Abrir Finanze",
+      "oauthRedirectErrorTitle": "Error de autenticación",
+      "oauthRedirectErrorDescription": "Volviendo a la app de escritorio para mostrar el error…",
+      "logoutError": "Error al cerrar sesión. Inténtalo de nuevo.",
+      "syncError": "Error al sincronizar con el servidor. Inténtalo de nuevo.",
+      "sessionExpired": "Tu sesión ha expirado. Inicia sesión de nuevo."
+    },
+    "backup": {
+      "title": "Backup",
+      "enableLabel": "Copia de seguridad",
+      "enableDescription": "Elige cómo se ejecutan las copias",
+      "mode": "Modo",
+      "auto": "Auto",
+      "manual": "Manual",
+      "modes": {
+        "OFF": "No",
+        "AUTO": "Auto",
+        "MANUAL": "Manual"
+      },
+      "modeDescriptions": {
+        "OFF": "Las copias están desactivadas",
+        "AUTO": "Mantiene tus copias sincronizadas automáticamente",
+        "MANUAL": "Tú decides cuándo comprobar y sincronizar copias"
+      },
+      "data": "Datos",
+      "config": "Config",
+      "lastBackup": "Fecha de última copia",
+      "noBackupYet": "Sin copia aún",
+      "pendingBackup": "Pendiente",
+      "tooManyRequests": "Demasiadas solicitudes. Espera un momento antes de reintentar.",
+      "cooldownActive": "Espera un momento antes de intentar de nuevo.",
+      "conflictRetry": "Conflicto detectado. Elige local o remoto.",
+      "conflictDetected": "Conflicto detectado",
+      "conflictDescription": "Hay cambios en conflicto. Elige qué versión mantener.",
+      "credentialsMismatch": "Contraseña incorrecta",
+      "credentialsMismatchTitle": "No se puede descifrar la copia",
+      "credentialsMismatchDescription": "La copia remota fue cifrada con una contraseña diferente. Para sincronizar correctamente, usa la misma contraseña en todos tus dispositivos.",
+      "credentialsMismatchHint": "Puedes cambiar tu contraseña en Ajustes > General > Cuenta.",
+      "never": "Nunca",
+      "status": {
+        "SYNC": "Sincronizado",
+        "PENDING": "Pendiente",
+        "CONFLICT": "Conflicto",
+        "OUTDATED": "Desfasada",
+        "MISSING": "Sin copia"
+      },
+      "statusSync": "Sincronizado",
+      "statusPending": "Pendiente",
+      "statusConflict": "Conflicto",
+      "statusOutdated": "Desfasado",
+      "statusMissing": "Sin copia",
+      "statusUnknown": "Desconocido",
+      "upload": "Hacer copia",
+      "download": "Descargar",
+      "import": "Sincronizar",
+      "sync": "Sincronizar",
+      "syncNow": "Sincronizar ahora",
+      "syncedRecently": "Sincronizado recientemente",
+      "syncing": "Sincronizando...",
+      "useRemote": "Usar remoto",
+      "useLocal": "Usar local",
+      "uploading": "Guardando...",
+      "importing": "Sincronizando...",
+      "uploadSuccess": "Copia completada correctamente",
+      "importSuccess": "Sincronización completada correctamente",
+      "error": "Error en la operación de copia",
+      "noBackups": "Sin copias aún",
+      "local": "Local",
+      "remote": "Nube",
+      "justNow": "Justo ahora",
+      "oneMinuteAgo": "Hace 1 minuto",
+      "minutesAgo": "Hace {n} minutos",
+      "oneHourAgo": "Hace 1 hora",
+      "hoursAgo": "Hace {n} horas",
+      "oneDayAgo": "Hace 1 día",
+      "daysAgo": "Hace {n} días",
+      "oneWeekAgo": "Hace 1 semana",
+      "weeksAgo": "Hace {n} semanas"
+    },
     "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets para poder importar y exportar datos",
     "clientId": "ID de Cliente",
@@ -528,7 +812,7 @@
         "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
       },
       "ETHERSCAN": {
-        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (recomendado solo si falla la obtención estándar, o si la API es de pago)",
+        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (solo de pago) (recomendado solo si falla la obtención estándar, o si la API es de pago)",
         "help": "Cómo obtener la clave API",
         "hint": {
           "title": "Generar una clave API de Etherscan",
@@ -639,6 +923,7 @@
     "data": "Datos",
     "daysDelay": "d retr.",
     "netWorth": "Patrimonio",
+    "invested": "Invertido",
     "investedAmount": "Valor inicial",
     "upcomingFlows": "Próximamente",
     "manageFlows": "Gestionar",
@@ -671,12 +956,18 @@
     "noTransactions": "No se han encontrado transacciones",
     "noInvestments": "No tienes inversiones",
     "includePendingMoney": "Incluir dinero pendiente",
+    "includePendingMoneyInfo": "Con esta opción activada se tendrá en cuenta el dinero pendiente (gastos o ingresos) definido en la sección de Dinero Pendiente al calcular el patrimonio neto.",
+    "includeLoans": "Incluir préstamos y créditos",
+    "includeLoansInfo": "Esta opción hace que se tenga en cuenta el capital pendiente de los préstamos y el importe dispuesto de las líneas de crédito al calcular el patrimonio neto. Los préstamos asociados a un inmueble no se considerarán, ya que ya están calculados en el patrimonio inmobiliario (ver opción abajo).",
     "includeCardExpenses": "Descontar gastos de tarjetas",
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
-    "includeResidences": "Incluir residencias"
+    "includeRealEstateEquityInfo": "Activar esta opción hace que se tenga en cuenta el patrimonio inmobiliario al calcular el patrimonio neto. El patrimonio inmobiliario se define como la valoración del inmueble menos el capital pendiente de los préstamos asociados. Si también quieres incluir las residencias, marca la opción de abajo.",
+    "includeResidences": "Incluir residencias",
+    "compactNumbers": "Números compactos",
+    "privateMode": "Modo privado"
   },
   "forecast": {
-    "title": "Proyección",
+    "title": "Proyectar",
     "targetDate": "Fecha objetivo",
     "avgAnnualIncrease": "Aumento anual medio de mercado",
     "avgAnnualCryptoIncrease": "Aumento anual medio cripto",
@@ -684,7 +975,7 @@
     "run": "Calcular",
     "reset": "Reiniciar",
     "active": "Proyección para {date}",
-    "disclaimer": "Todos los valores son estimados para la fecha seleccionada. Se incluyen revalorizaciones configuradas en inmobiliario.",
+    "disclaimer": "Todos los valores son estimados para la fecha seleccionada. Se incluyen revalorizaciones configuradas en inmobiliario. Solo se consideran los préstamos de la sección de gastos recurrentes",
     "cashDeltaEntity": "Efectivo Proyección",
     "cashDeltaLabel": "Efectivo Proyección",
     "notShowing": "Oculto en modo proyección",
@@ -694,7 +985,8 @@
     "pendingPaymentsLegendLabel": "Pagos pendientes proyectados",
     "pendingPaymentsLegend": "Pagos de efectivo pendientes proyectados de {amount} (salidas futuras no contadas aún en activos totales)",
     "negativeCashWarningTitle": "Proyección inviable",
-    "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible."
+    "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible.",
+    "includeRealEstateTaxes": "Incluir impuestos inmobiliarios"
   },
   "export": {
     "title": "Exportar e Importar",
@@ -719,7 +1011,7 @@
     "importTitle": "Importar datos manuales",
     "importDescription": "Importa los datos manuales más recientes desde tu hoja configurada.",
     "importDisabledDescription": "La importación manual está deshabilitada. Actívala en la configuración para actualizar tus datos.",
-    "importButton": "Importar datos manuales",
+    "importButton": "Importar",
     "import": {
       "entityLabel": "Entidad destino",
       "entityPlaceholder": "Seleccionar o crear entidad",
@@ -754,7 +1046,7 @@
         "EUROPEAN": "1.000,00"
       },
       "datetimeHint": "Si los dejas vacíos, se usarán formatos ISO por defecto (p. ej. %Y-%m-%d y %Y-%m-%dT%H:%M:%S).",
-      "exportAction": "Exportar archivo",
+      "exportAction": "Exportar",
       "formats": {
         "CSV": "CSV",
         "TSV": "TSV",
@@ -799,7 +1091,7 @@
         "EUROPEAN": "1.000,00"
       },
       "datetimeHint": "Usa los mismos formatos de fecha y fecha-hora que están en tu archivo. Ambos son obligatorios.",
-      "importAction": "Previsualizar importación",
+      "importAction": "Previsualizar",
       "errors": {
         "featureRequired": "Selecciona una funcionalidad para continuar.",
         "productRequired": "Selecciona un producto para continuar.",
@@ -832,7 +1124,7 @@
         "confirm": "Importar datos"
       }
     },
-    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente.",
+    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente. Si quieres borrar los datos importados, simplemente borra la hoja o su contenido y vuelve a importar.",
     "tabs": {
       "export": "Exportar",
       "import": "Importar"
@@ -1079,7 +1371,8 @@
     "currency": "Moneda",
     "symbol": "Símbolo",
     "currencyAmount": "Cantidad",
-    "addManualTransaction": "Transacción",
+    "contractAddress": "Dirección del contrato",
+    "addManualTransaction": "Añadir",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",
@@ -1100,7 +1393,8 @@
         "stocks": "Acciones y ETFs",
         "funds": "Fondos",
         "portfolios": "Carteras de fondos",
-        "accounts": "Cuentas asociadas"
+        "accounts": "Cuentas asociadas",
+        "crypto": "Criptoactivos"
       },
       "netAmountLabel": "Importe neto",
       "netAmountFormulaIncoming": "importe - comisiones - retenciones",
@@ -1202,8 +1496,9 @@
       "CRYPTO": "Criptomonedas",
       "COMMODITY": "Materia Prima",
       "PENDING_FLOWS": "Pendiente",
-      "BOND": "Bono",
-      "DERIVATIVE": "Derivado"
+      "BOND": "Bonos",
+      "DERIVATIVE": "Derivados",
+      "CREDIT": "Crédito"
     },
     "assetType": {
       "EQUITY": "Renta Variable",
@@ -1231,6 +1526,16 @@
       "FIXED": "Fijo",
       "VARIABLE": "Variable",
       "MIXED": "Mixto"
+    },
+    "installmentFrequency": {
+      "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "SEMIMONTHLY": "Bimensual (2x/mes)",
+      "MONTHLY": "Mensual",
+      "BIMONTHLY": "Bimestral",
+      "QUARTERLY": "Trimestral",
+      "SEMIANNUAL": "Semestral",
+      "YEARLY": "Anual"
     },
     "fundType": {
       "MUTUAL_FUND": "Fondo de inversión",
@@ -1264,6 +1569,12 @@
     "weightUnitName": {
       "GRAM": "Gramos",
       "TROY_OUNCE": "Onzas Troy"
+    },
+    "realEstateFlowSubtype": {
+      "LOAN": "Préstamo",
+      "SUPPLY": "Suministro",
+      "COST": "Coste",
+      "RENT": "Alquiler"
     }
   },
   "walletForm": {
@@ -1294,7 +1605,8 @@
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Esta dirección ya está conectada.",
       "ADDRESS_NOT_FOUND": "No pudimos encontrar esta dirección. Revísala e inténtalo de nuevo.",
-      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez."
+      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez.",
+      "XPUB_ALREADY_EXISTS": "Esta clave pública ya está conectada."
     },
     "toasts": {
       "allSuccess": "Billetera agregada correctamente.",
@@ -1302,12 +1614,33 @@
       "partialSuccessMultiple": "{count} direcciones agregadas correctamente.",
       "allFailed": "No se agregó ninguna dirección."
     },
-    "submit": "Agregar billetera"
+    "submit": "Agregar billetera",
+    "derived": {
+      "useXpub": "Usar clave pública extendida (xpub)",
+      "manualTab": "Dirección",
+      "xpubTab": "XPUB",
+      "xpubLabel": "Clave Pública Extendida",
+      "xpubPlaceholder": "xpub6...",
+      "xpubRequired": "La clave pública extendida es obligatoria.",
+      "scriptTypeLabel": "Tipo de script",
+      "scriptTypePlaceholder": "Seleccionar tipo de script",
+      "scriptTypeRequired": "El tipo de script es obligatorio.",
+      "advancedOptions": "Opciones avanzadas",
+      "accountLabel": "Índice de cuenta",
+      "accountHint": "Por defecto es 0. Cambiar solo si es necesario.",
+      "previewButton": "Previsualizar direcciones",
+      "previewError": "Error al derivar direcciones. Verifica el xpub e inténtalo de nuevo.",
+      "invalidXpub": "Clave pública extendida inválida. Revísala e inténtalo de nuevo.",
+      "previewFirst": "Previsualiza las direcciones antes de agregar la billetera.",
+      "basePath": "Ruta base",
+      "receivingAddresses": "Direcciones de recepción",
+      "changeAddresses": "Direcciones de cambio"
+    }
   },
   "walletManagement": {
     "title": "Gestionar billeteras",
-    "subtitle": "Billeteras conectadas para {{entityName}}",
-    "addWallet": "Agregar billetera",
+    "subtitle": "Billeteras de {{entityName}}",
+    "addWallet": "Agregar",
     "noWallets": "No hay billeteras conectadas",
     "noWalletsDescription": "Comienza agregando tu primera billetera a esta entidad cripto",
     "addFirstWallet": "Agregar tu primera billetera",
@@ -1322,7 +1655,14 @@
     "filterByWallet": "Filtrar por billetera",
     "walletFilterPlaceholder": "Selecciona billeteras",
     "clearFilters": "Limpiar filtros",
-    "viewAllTokens": "Ver todos los tokens"
+    "viewAllTokens": "Ver todos los tokens",
+    "viewAddresses": "Ver direcciones",
+    "showAddresses": "Mostrar direcciones",
+    "hideAddresses": "Ocultar direcciones",
+    "receivingAddresses": "Direcciones de recepción",
+    "changeAddresses": "Direcciones de cambio",
+    "noAddresses": "No se encontraron direcciones derivadas",
+    "addressesError": "Error al cargar las direcciones. Inténtalo de nuevo."
   },
   "commodityManagement": {
     "title": "Materias Primas",
@@ -1413,6 +1753,11 @@
     "accounts": "Cuentas",
     "cards": "Tarjetas",
     "loans": "Préstamos",
+    "loansAndCredits": "Préstamos y Créditos",
+    "credit": "crédito",
+    "creditDrawn": "Importe dispuesto",
+    "creditLimit": "Límite de crédito",
+    "availableCredit": "Disponible",
     "card": "tarjeta",
     "loan": "préstamo",
     "available": "Disponible",
@@ -1422,6 +1767,16 @@
     "inactive": "Inactiva",
     "principalOutstanding": "Capital pendiente",
     "monthlyInstallment": "Cuota mensual",
+    "installmentByFrequency": {
+      "WEEKLY": "Cuota semanal",
+      "BIWEEKLY": "Cuota quincenal",
+      "SEMIMONTHLY": "Cuota bimensual",
+      "MONTHLY": "Cuota mensual",
+      "BIMONTHLY": "Cuota bimestral",
+      "QUARTERLY": "Cuota trimestral",
+      "SEMIANNUAL": "Cuota semestral",
+      "YEARLY": "Cuota anual"
+    },
     "interestRate": "Tasa de interés",
     "nextPayment": "Próximo pago",
     "originalAmount": "Total",
@@ -1446,7 +1801,7 @@
     "SAVINGS": "Ahorros",
     "BROKERAGE": "Inversión",
     "VIRTUAL_WALLET": "Monedero",
-    "FUND_PORTFOLIO": "Asociada a cartera"
+    "FUND_PORTFOLIO": "De cartera"
   },
   "management": {
     "title": "Gestión",
@@ -1467,6 +1822,7 @@
     "categoryPlaceholder": "Ingresa la categoría",
     "iconLabel": "Icono",
     "frequencyLabel": "Frecuencia",
+    "flowSubtype": "Tipo",
     "since": "Desde",
     "until": "Hasta",
     "date": "Fecha",
@@ -1477,6 +1833,8 @@
     "deleteConfirmTitle": "Eliminar {type}",
     "deleteLinkedWarning": "Nota: Este {type} está asociado a una operación inmobiliaria. Al eliminarlo afectará a la propiedad relacionada.",
     "editLinkedWarning": "Editar este {type} afectará a la propiedad relacionada.",
+    "linkedToLoan": "Vinculado a un préstamo, gestionado desde préstamos",
+    "linkedToRealEstate": "Vinculado a un inmueble, gestionado desde inmuebles",
     "noEarnings": "No hay ingresos configurados",
     "noExpenses": "No hay gastos configurados",
     "addFirstEarning": "Haz clic en '+' para añadir ingresos recurrentes.",
@@ -1494,6 +1852,8 @@
     "frequency": {
       "DAILY": "Diario",
       "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "SEMIMONTHLY": "Bimensual",
       "MONTHLY": "Mensual",
       "EVERY_TWO_MONTHS": "Cada 2 Meses",
       "QUARTERLY": "Trimestral",
@@ -1514,6 +1874,9 @@
     "sortBy": "Ordenar por",
     "sortByAmount": "Cantidad",
     "sortByDate": "Fecha",
+    "groupBy": "Agrupar por",
+    "groupByCategory": "Categoría",
+    "uncategorized": "Sin categoría",
     "nextPayment": "Próximo",
     "overdue": "Vencido",
     "today": "Hoy",
@@ -1572,7 +1935,7 @@
     "source": "Origen",
     "manualContributions": {
       "unnamed": "Aportación manual",
-      "add": "Nueva aportación",
+      "add": "Añadir",
       "createTitle": "Agregar aportación manual",
       "editTitle": "Editar aportación manual",
       "entity": "Entidad",
@@ -1626,6 +1989,7 @@
         "validation": {
           "required": "Este campo es obligatorio",
           "number": "Introduce un número válido",
+          "invalidDate": "Introduce una fecha válida",
           "entity": "Selecciona una entidad",
           "entityName": "Introduce un nombre de entidad",
           "entityNameExists": "Ya existe una entidad con este nombre"
@@ -1659,7 +2023,7 @@
         "fields": {
           "type": "Tipo de cuenta",
           "total": "Saldo",
-          "interest": "Interés (%)",
+          "interest": "Interés",
           "retained": "Importe retenido",
           "pendingTransfers": "Transferencias pendientes",
           "iban": "IBAN"
@@ -1721,8 +2085,8 @@
         "description": "Mantén datos de préstamos que no se sincronizan mediante integraciones.",
         "add": "Añadir",
         "empty": {
-          "title": "No hay préstamos manuales",
-          "description": "Añade un préstamo manual para seguir sus pagos y saldos."
+          "title": "No hay préstamos ni créditos",
+          "description": "Añade un préstamo o crédito para seguir sus saldos."
         },
         "form": {
           "createTitle": "Añadir préstamo manual",
@@ -1733,7 +2097,7 @@
         "fields": {
           "type": "Tipo de préstamo",
           "loanAmount": "Importe original",
-          "interestRate": "Tipo de interés (%)",
+          "interestRate": "Tipo de interés",
           "currentInstallment": "Cuota actual",
           "principalOutstanding": "Principal pendiente",
           "principalPaid": "Principal pagado",
@@ -1742,7 +2106,12 @@
           "euriborRate": "Euríbor",
           "fixedYears": "Años a tipo fijo",
           "creation": "Fecha de inicio",
-          "maturity": "Vencimiento"
+          "maturity": "Vencimiento",
+          "installmentFrequency": "Frecuencia de cuota",
+          "fixedInterestRate": "Tipo de interés fijo",
+          "trackLoan": "Actualizar préstamo automáticamente",
+          "trackLoanLabel": "Auto-actualizar",
+          "trackLoanInfo": "Recalcula automáticamente la cuota, los intereses y el principal pendiente con el tiempo. Solo para tipo fijo."
         },
         "helpers": {
           "calculationHint": "Usa la calculadora para estimar la cuota actual y el principal pendiente.",
@@ -1752,7 +2121,33 @@
           "missingFixedYears": "Especifica los años a tipo fijo para calcular préstamos mixtos.",
           "calculationApplied": "Se añadieron valores sugeridos al formulario.",
           "calculationFailed": "No pudimos calcular la sugerencia del préstamo. Inténtalo de nuevo.",
+          "euriborUnavailable": "Las tasas Euríbor no están disponibles temporalmente.",
           "fixedRateDuration": "Tipo fijo: {{years}} años"
+        },
+        "summary": {
+          "interest": "{{rate}}% de interés"
+        }
+      },
+      "bankCredits": {
+        "title": "Créditos manuales",
+        "description": "Mantén datos de líneas de crédito que no se sincronizan mediante integraciones.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay créditos",
+          "description": "Añade una línea de crédito para seguir importes dispuestos y límites."
+        },
+        "form": {
+          "createTitle": "Añadir línea de crédito",
+          "createDescription": "Introduce los datos de la línea de crédito para gestionarla manualmente.",
+          "editTitle": "Editar crédito manual",
+          "editDescription": "Actualiza la línea de crédito manual seleccionada."
+        },
+        "fields": {
+          "creditLimit": "Límite de crédito",
+          "drawnAmount": "Importe dispuesto",
+          "interestRate": "Tipo de interés",
+          "pledgedAmount": "Valor garantías pignoradas",
+          "creation": "Fecha de inicio"
         },
         "summary": {
           "interest": "{{rate}}% de interés"
@@ -1868,6 +2263,47 @@
           "investment": "Indica al menos inversión inicial o precio medio."
         }
       },
+      "crypto": {
+        "title": "Cripto manual",
+        "description": "Sigue posiciones en criptomonedas gestionadas manualmente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay cripto manual",
+          "description": "Añade una posición manual de criptomoneda a tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir cripto manual",
+          "createDescription": "Introduce los datos de la criptomoneda para seguirla manualmente.",
+          "editTitle": "Editar cripto manual",
+          "editDescription": "Actualiza la criptomoneda manual seleccionada."
+        },
+        "fields": {
+          "symbol": "Símbolo",
+          "name": "Nombre",
+          "amount": "Cantidad",
+          "contractAddress": "Dirección del contrato",
+          "initialInvestment": "Inversión inicial",
+          "averageBuyPrice": "Precio medio de compra",
+          "investmentCurrency": "Moneda de inversión"
+        },
+        "helpers": {
+          "searchBySymbol": "Buscar por símbolo",
+          "searchByName": "Buscar por nombre",
+          "symbolPlaceholder": "ej. BTC, ETH",
+          "namePlaceholder": "ej. Bitcoin, Ethereum",
+          "unitPrice": "Precio unitario",
+          "marketValue": "Valor de mercado",
+          "selectPlatform": "Plataformas disponibles",
+          "platformHint": "Selecciona una plataforma para completar la entidad.",
+          "searchResults": "Resultados de búsqueda",
+          "noResults": "No se encontraron resultados",
+          "clearSelection": "Limpiar selección",
+          "existing": "Existente"
+        },
+        "validation": {
+          "symbolOrName": "Introduce un símbolo o nombre."
+        }
+      },
       "deposits": {
         "title": "Depósitos manuales",
         "description": "Mantén los datos de depósitos a plazo de forma manual.",
@@ -1885,7 +2321,7 @@
         "fields": {
           "amount": "Importe",
           "expectedInterests": "Intereses esperados",
-          "interestRate": "Tipo de interés (%)",
+          "interestRate": "Tipo de interés",
           "creation": "Fecha de inicio",
           "maturity": "Vencimiento"
         }
@@ -1906,9 +2342,9 @@
         },
         "fields": {
           "amount": "Importe",
-          "interestRate": "Tipo de interés (%)",
-          "lateInterestRate": "Interés de demora (%)",
-          "profitability": "Rentabilidad (%)",
+          "interestRate": "Tipo de interés",
+          "lateInterestRate": "Interés de demora",
+          "profitability": "Rentabilidad",
           "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "type": "Tipo",
@@ -1932,9 +2368,9 @@
         "fields": {
           "amount": "Importe",
           "pendingAmount": "Importe pendiente",
-          "interestRate": "Tipo de interés (%)",
-          "extendedInterestRate": "Tipo de interés extendido (%)",
-          "profitability": "Rentabilidad (%)",
+          "interestRate": "Tipo de interés",
+          "extendedInterestRate": "Tipo de interés extendido",
+          "profitability": "Rentabilidad",
           "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "extendedMaturity": "Vencimiento extendido",
@@ -2036,8 +2472,8 @@
         "scenario": "Escenario",
         "compare": "Comparar escenarios"
       },
-      "yearlyView": "Vista anual",
-      "periodView": "Vista por periodo",
+      "yearlyView": "Por Año",
+      "periodView": "Por Periodo",
       "retirementModeInfo": "La aportación se calculará según los objetivos de jubilación"
     }
   },
@@ -2046,11 +2482,13 @@
   },
   "realEstate": {
     "title": "Inmobiliario",
+    "linkedToPosition": "Vinculado a préstamo",
+    "notLinked": "No vinculado",
     "properties": "Propiedades",
     "summary": "Resumen",
-    "addProperty": "Añadir Propiedad",
-    "editProperty": "Editar Propiedad",
-    "deleteProperty": "Eliminar Propiedad",
+    "addProperty": "Añadir",
+    "editProperty": "Editar",
+    "deleteProperty": "Eliminar",
     "emptyStateDescription": "Comienza añadiendo tu primera propiedad para gestionar tu patrimonio inmobiliario.",
     "bedrooms": "habitaciones",
     "bathrooms": "baños",
@@ -2072,8 +2510,8 @@
       "name": "Nombre",
       "photo": "Foto",
       "purchaseDate": "Fecha de adquisición",
-      "isResidence": "Marcado como residencia",
-      "isRented": "Vivienda alquilada",
+      "isResidence": "Mi residencia",
+      "isRented": "Alquilada",
       "bathrooms": "Baños",
       "bedrooms": "Habitaciones"
     },
@@ -2096,7 +2534,7 @@
     "valuation": {
       "estimatedMarketValue": "Valor estimado de mercado",
       "valuations": "Tasaciones",
-      "addValuation": "Añadir tasación",
+      "addValuation": "Añadir",
       "date": "Fecha",
       "amount": "Valor",
       "notes": "Notas",
@@ -2121,7 +2559,8 @@
       "interestType": "Tipo de interés",
       "fixedYears": "Años fijos",
       "fixedYearsLabel": "Años a tipo fijo",
-      "monthlyInterest": "Intereses mensuales",
+      "fixedInterestRateLabel": "Tipo de interés fijo",
+      "monthlyInterest": "Intereses de la cuota",
       "fromLabel": "Desde",
       "untilLabel": "Hasta",
       "existingLoan": "Préstamo Existente",
@@ -2140,7 +2579,8 @@
       "paymentDate": "Fecha de pago",
       "principalOutstanding": "Capital pendiente",
       "principalPaid": "Capital pagado",
-      "monthlyPayment": "Cuota mensual",
+      "monthlyPayment": "Cuota actual",
+      "installmentFrequencyLabel": "Frecuencia de cuota",
       "capitalContributed": "Capital aportado",
       "totalFinanced": "Total financiado",
       "precalculate": "Precalcular",
@@ -2266,11 +2706,14 @@
       "noSuggestionsAvailable": "No hay sugerencias disponibles"
     },
     "suggestions": {
-      "availableSuggestions": "Sugerencias Disponibles"
+      "availableSuggestions": "Sugerencias Disponibles",
+      "currencyMismatch": "Este elemento está en {currency} y no se puede vincular a una propiedad en {propertyCurrency}"
     },
     "frequency": {
       "daily": "Diario",
       "weekly": "Semanal",
+      "biweekly": "Quincenal",
+      "semimonthly": "Bimensual",
       "monthly": "Mensual",
       "bimonthly": "Bimestral",
       "quarterly": "Trimestral",
@@ -2284,7 +2727,7 @@
       "marginalTaxRate": "Tramo marginal (%):",
       "estimatedMonthlyTax": "Impuestos estimados mensuales:",
       "estimatedAnnualTax": "Impuestos estimados anuales:",
-      "monthlyPayment": "Cuota mensual",
+      "monthlyPayment": "Cuota actual",
       "monthlyAmount": "Importe mensual",
       "monthlyIncomeGross": "Ingresos mensuales (bruto):",
       "monthlyIncome": "Ingresos mensuales:",
@@ -2298,7 +2741,7 @@
       "totalPurchaseCost": "Coste total compra",
       "estimatedValue": "Valor estimado",
       "equity": "Patrimonio neto",
-      "monthlyInterest": "Intereses mensuales",
+      "monthlyInterest": "Intereses de la cuota",
       "taxDeductible": "Deducible",
       "taxDeductibleShort": "deducibles",
       "taxableAmount": "Importe gravable",
@@ -2356,7 +2799,12 @@
       "saveChanges": "Guardar",
       "discardChanges": "Descartar cambios",
       "discardChangesTitle": "¿Descartar cambios?",
-      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?"
+      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?",
+      "unlinkLoanTitle": "¿Desvincular préstamo?",
+      "unlinkLoanMessage": "Al desvincular el préstamo, se perderá la conexión con la posición bancaria. Para volver a vincularlo, deberás añadirlo de nuevo.",
+      "unlinkLoanWarning": "Esta acción no se puede deshacer.",
+      "unlinkLoanConfirm": "Desvincular",
+      "unlinkLoanCancel": "Cancelar"
     },
     "validation": {
       "title": "Errores de Validación",

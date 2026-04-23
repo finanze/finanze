@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from application.ports.historic_port import HistoricPort
 from dateutil.tz import tzlocal
+
+from application.ports.historic_port import HistoricPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.global_position import ProductType
@@ -12,10 +13,12 @@ from domain.historic import (
     FactoringEntry,
     Historic,
     HistoricQueryRequest,
+    HistoricSortBy,
     RealEstateCFEntry,
 )
 from domain.transactions import BaseInvestmentTx
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.historic.queries import HistoricQueries
 from infrastructure.repository.transaction.transaction_repository import (
     _map_investment_row,
 )
@@ -28,6 +31,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         natural_id=row["entity_natural_id"],
         type=row["entity_type"],
         origin=row["entity_origin"],
+        icon_url=row["icon_url"],
     )
 
     common = {
@@ -50,6 +54,9 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "entity": entity,
         "product_type": ProductType(row["product_type"]),
         "related_txs": [],
+        "entity_account_id": UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
     }
 
     if common["product_type"] == ProductType.FACTORING:
@@ -85,8 +92,8 @@ class HistoricSQLRepository(HistoricPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entries: list[BaseHistoricEntry]):
-        with self._db_client.tx() as cursor:
+    async def save(self, entries: list[BaseHistoricEntry]):
+        async with self._db_client.tx() as cursor:
             for entry in entries:
                 base_data = {
                     "id": str(entry.id),
@@ -114,6 +121,9 @@ class HistoricSQLRepository(HistoricPort):
                     "extended_maturity": None,
                     "type": None,
                     "business_type": None,
+                    "entity_account_id": str(entry.entity_account_id)
+                    if entry.entity_account_id
+                    else None,
                 }
 
                 if isinstance(entry, FactoringEntry):
@@ -136,34 +146,18 @@ class HistoricSQLRepository(HistoricPort):
                         }
                     )
 
-                cursor.execute(
-                    """
-                               INSERT INTO investment_historic (id, name, invested, repaid, returned, currency,
-                                                                last_invest_date,
-                                                                last_tx_date, effective_maturity, net_return, fees,
-                                                                retentions, interests, state, entity_id, product_type,
-                                                                interest_rate, gross_interest_rate, maturity,
-                                                                extended_maturity, type, business_type, created_at)
-                               VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
-                                       :last_tx_date, :effective_maturity, :net_return, :fees,
-                                       :retentions, :interests, :state, :entity_id, :product_type,
-                                       :interest_rate, :gross_interest_rate, :maturity,
-                                       :extended_maturity, :type, :business_type, :created_at)
-                               """,
+                await cursor.execute(
+                    HistoricQueries.INSERT_HISTORIC_ENTRY,
                     base_data,
                 )
 
                 for tx in entry.related_txs:
-                    cursor.execute(
-                        """
-                                   INSERT INTO investment_historic_txs
-                                       (tx_id, historic_entry_id)
-                                   VALUES (?, ?)
-                                   """,
+                    await cursor.execute(
+                        HistoricQueries.INSERT_HISTORIC_TX,
                         (str(tx.id), str(entry.id)),
                     )
 
-    def _build_historic_entries(
+    async def _build_historic_entries(
         self, entries, fetch_related_txs: bool, cursor
     ) -> list[BaseHistoricEntry]:
         if not entries:
@@ -173,24 +167,15 @@ class HistoricSQLRepository(HistoricPort):
 
         if fetch_related_txs:
             entry_ids = [str(entry["id"]) for entry in entries]
-            cursor.execute(
-                f"""
-                SELECT t.*,
-                        e.id         AS entity_id,
-                          e.name       AS entity_name,
-                          e.natural_id AS entity_natural_id,
-                          e.type       as entity_type,
-                          e.origin     as entity_origin,
-                        h_txs.historic_entry_id
-                FROM investment_historic_txs h_txs
-                JOIN investment_transactions t ON h_txs.tx_id = t.id
-                JOIN entities e ON t.entity_id = e.id
-                WHERE h_txs.historic_entry_id IN ({",".join(["?"] * len(entry_ids))})
-            """,
+            placeholders = ",".join(["?"] * len(entry_ids))
+            await cursor.execute(
+                HistoricQueries.SELECT_RELATED_TXS_BASE.value.format(
+                    placeholders=placeholders
+                ),
                 entry_ids,
             )
 
-            for row in cursor.fetchall():
+            for row in await cursor.fetchall():
                 entry_id = row["historic_entry_id"]
                 tx = _map_transaction_row(
                     row,
@@ -211,26 +196,18 @@ class HistoricSQLRepository(HistoricPort):
 
         return historic_entries
 
-    def delete_by_entity(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM investment_historic WHERE entity_id = ?", (str(entity_id),)
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                HistoricQueries.DELETE_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
             )
 
-    def get_by_filters(
+    async def get_by_filters(
         self, query: HistoricQueryRequest, fetch_related_txs: bool = False
     ) -> Historic:
-        with self._db_client.read() as cursor:
-            base_sql = """
-                       SELECT h.*,
-                              e.id         AS entity_id,
-                              e.name       AS entity_name,
-                              e.natural_id AS entity_natural_id,
-                              e.type       as entity_type,
-                              e.origin     as entity_origin
-                       FROM investment_historic h
-                                JOIN entities e ON h.entity_id = e.id
-                       """
+        async with self._db_client.read() as cursor:
+            base_sql = HistoricQueries.GET_BY_FILTERS_BASE.value
             conditions = []
             params: List[str] = []
 
@@ -254,14 +231,27 @@ class HistoricSQLRepository(HistoricPort):
 
             final_sql = base_sql
             if conditions:
-                final_sql += "\nWHERE " + " AND ".join(conditions)
+                final_sql += "\nAND " + " AND ".join(conditions)
 
-            cursor.execute(final_sql, params)
-            entries = cursor.fetchall()
+            sort_column_map = {
+                HistoricSortBy.MATURITY: "h.effective_maturity",
+                HistoricSortBy.LAST_INVEST_DATE: "h.last_invest_date",
+                HistoricSortBy.INVESTED: "CAST(h.invested AS REAL)",
+            }
+            sort_col = sort_column_map.get(query.sort_by, "h.maturity")
+            sort_dir = query.sort_order.value.upper()
+            final_sql += f"\nORDER BY {sort_col} {sort_dir}"
+
+            offset = (query.page - 1) * query.limit
+            final_sql += " LIMIT ? OFFSET ?"
+            params.extend([str(query.limit), str(offset)])
+
+            await cursor.execute(final_sql, params)
+            entries = await cursor.fetchall()
             if not entries:
                 return Historic(entries=[])
 
-            historic_entries = self._build_historic_entries(
+            historic_entries = await self._build_historic_entries(
                 entries, fetch_related_txs, cursor
             )
 

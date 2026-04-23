@@ -3,7 +3,7 @@ from uuid import UUID
 from domain.exception.exceptions import RealEstateNotFound
 from domain.real_estate import DeleteRealEstateRequest
 from domain.use_cases.delete_real_estate import DeleteRealEstate
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def delete_real_estate(
@@ -11,12 +11,12 @@ async def delete_real_estate(
 ):
     try:
         real_estate_id = UUID(real_estate_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return jsonify(
             {"code": "INVALID_REQUEST", "message": "Invalid real estate ID"}
         ), 400
 
-    data = request.get_json() or {}
+    data = await request.get_json() or {}
     remove_related_flows = data.get("remove_related_flows", False)
 
     delete_request = DeleteRealEstateRequest(

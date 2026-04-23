@@ -29,6 +29,11 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
   }
 
   .dark {
@@ -66,14 +71,59 @@
     height: 100%;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground;
-    overflow-y: hidden;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
+}
+
+@keyframes more-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes more-popover-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+.more-popover {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  will-change: transform, opacity;
+}
+
+.more-popover[data-state="open"] {
+  animation: more-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.more-popover[data-state="closed"] {
+  animation: more-popover-out 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Custom animations to replace tailwindcss-animate */
@@ -148,35 +198,23 @@
     transform 300ms;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--foreground) / 0.25) transparent;
 }
 
-::-webkit-scrollbar-track {
+*::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--foreground) / 0.2);
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-html:hover ::-webkit-scrollbar-thumb,
-::-webkit-scrollbar-thumb:hover {
-  opacity: 1;
-}
-
-/* Auto-hide scrollbar and fade in on hover */
-html {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-
-html:hover {
-  scrollbar-color: hsl(var(--foreground) / 0.2) transparent;
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--foreground) / 0.25);
+  border-radius: 999px;
 }
 
 #titlebar {

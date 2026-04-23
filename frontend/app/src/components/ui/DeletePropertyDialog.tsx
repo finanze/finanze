@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { Button } from "@/components/ui/Button"
 import { Switch } from "@/components/ui/Switch"
 import { Label } from "@/components/ui/Label"
@@ -29,6 +30,8 @@ export function DeletePropertyDialog({
 }: DeletePropertyDialogProps) {
   const { t } = useI18n()
   const [removeRelatedFlows, setRemoveRelatedFlows] = useState(true)
+
+  useModalBackHandler(isOpen, onCancel)
 
   if (!isOpen) return null
 

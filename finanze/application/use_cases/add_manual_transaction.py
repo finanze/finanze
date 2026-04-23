@@ -27,7 +27,7 @@ class AddManualTransactionImpl(AddManualTransaction, AtomicUCMixin):
         self._helper = ManualTransactionVirtualImportHelper(virtual_import_registry)
 
     async def execute(self, tx: BaseTx):
-        existing_entity = self._entity_port.get_by_id(tx.entity.id)
+        existing_entity = await self._entity_port.get_by_id(tx.entity.id)
         if existing_entity is None:
             raise EntityNotFound(tx.entity.id)
 
@@ -41,12 +41,12 @@ class AddManualTransactionImpl(AddManualTransaction, AtomicUCMixin):
                 raise ValueError(
                     "ACCOUNT product_type requires AccountTx data structure"
                 )
-            self._transaction_port.save(Transactions(account=[tx]))
+            await self._transaction_port.save(Transactions(account=[tx]))
         else:
             if not isinstance(tx, BaseInvestmentTx):
                 raise ValueError(
                     "Investment product_type requires investment tx structure"
                 )
-            self._transaction_port.save(Transactions(investment=[tx]))
+            await self._transaction_port.save(Transactions(investment=[tx]))
 
-        self._helper.refresh(tx.entity.id, has_transactions=True)
+        await self._helper.refresh(tx.entity.id, has_transactions=True)

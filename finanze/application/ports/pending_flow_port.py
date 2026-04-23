@@ -5,13 +5,13 @@ from domain.earnings_expenses import PendingFlow
 
 class PendingFlowPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, flows: list[PendingFlow]):
+    async def save(self, flows: list[PendingFlow]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_all(self):
+    async def delete_all(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> list[PendingFlow]:
+    async def get_all(self) -> list[PendingFlow]:
         raise NotImplementedError

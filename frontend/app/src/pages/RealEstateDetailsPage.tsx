@@ -13,6 +13,7 @@ import type {
   CostPayload,
 } from "@/types"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   MapPin,
   Calendar,
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/Popover"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { FlowFrequency } from "@/types"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 export default function RealEstateDetailsPage() {
   const { t, locale } = useI18n()
   const { showToast } = useAppContext()
@@ -54,6 +56,9 @@ export default function RealEstateDetailsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [property, setProperty] = useState<RealEstate | null>(null)
 
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
+  useModalBackHandler(isEditModalOpen, () => setIsEditModalOpen(false))
+
   const frequencyLabel = (freq?: FlowFrequency | string) => {
     if (!freq) return ""
     const f = String(freq)
@@ -63,17 +68,21 @@ export default function RealEstateDetailsPage() {
         ? t.realEstate.frequency.yearly
         : f === "WEEKLY"
           ? t.realEstate.frequency.weekly
-          : f === "DAILY"
-            ? t.realEstate.frequency.daily
-            : f === "QUARTERLY"
-              ? t.realEstate.frequency.quarterly
-              : f === "EVERY_TWO_MONTHS"
-                ? t.realEstate.frequency.bimonthly
-                : f === "EVERY_FOUR_MONTHS"
-                  ? t.realEstate.frequency.fourMonthly
-                  : f === "SEMIANNUALLY"
-                    ? t.realEstate.frequency.semiannually
-                    : f
+          : f === "BIWEEKLY"
+            ? (t.realEstate.frequency as any).biweekly
+            : f === "SEMIMONTHLY"
+              ? (t.realEstate.frequency as any).semimonthly
+              : f === "DAILY"
+                ? t.realEstate.frequency.daily
+                : f === "QUARTERLY"
+                  ? t.realEstate.frequency.quarterly
+                  : f === "EVERY_TWO_MONTHS"
+                    ? t.realEstate.frequency.bimonthly
+                    : f === "EVERY_FOUR_MONTHS"
+                      ? t.realEstate.frequency.fourMonthly
+                      : f === "SEMIANNUALLY"
+                        ? t.realEstate.frequency.semiannually
+                        : f
   }
 
   useEffect(() => {
@@ -84,7 +93,10 @@ export default function RealEstateDetailsPage() {
         const found = list.find(p => p.id === id) || null
         setProperty(found)
         if (found?.basic_info.photo_url) {
-          const url = await getImageUrl(found.basic_info.photo_url)
+          const url = await getImageUrl(
+            found.basic_info.photo_url,
+            found.updated_at || Date.now(),
+          )
           setImageUrl(url)
         } else {
           setImageUrl(null)
@@ -107,7 +119,7 @@ export default function RealEstateDetailsPage() {
       if (!flow.periodic_flow?.enabled) continue
       const amount = flow.periodic_flow.amount
       const freq = flow.periodic_flow.frequency
-      let monthly = amount
+      let monthly: number
       switch (freq) {
         case "DAILY":
           monthly = amount * 30
@@ -157,7 +169,10 @@ export default function RealEstateDetailsPage() {
       const found = list.find(p => p.id === id) || null
       setProperty(found)
       if (found?.basic_info.photo_url) {
-        const url = await getImageUrl(found.basic_info.photo_url)
+        const url = await getImageUrl(
+          found.basic_info.photo_url,
+          found.updated_at || Date.now(),
+        )
         setImageUrl(url)
       }
     } catch (e) {
@@ -204,12 +219,13 @@ export default function RealEstateDetailsPage() {
   }
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
+            className="p-1 h-8 w-8"
             onClick={() => navigate(-1)}
             aria-label={t.common.back}
           >
@@ -229,19 +245,21 @@ export default function RealEstateDetailsPage() {
             )}
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap md:flex-nowrap md:justify-end">
+        <div className="flex gap-2 shrink-0">
           <Button
             onClick={handleEdit}
-            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black px-3 py-2 h-auto text-sm"
+            size="icon"
+            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black h-8 w-8"
           >
-            <Edit className="w-4 h-4 mr-1" /> {t.common.edit}
+            <Edit className="w-4 h-4" />
           </Button>
           <Button
             variant="outline"
+            size="icon"
             onClick={() => setIsDeleteDialogOpen(true)}
-            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 px-3 py-2 h-auto text-sm"
+            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 h-8 w-8"
           >
-            <Trash2 className="w-4 h-4 mr-1" /> {t.common.delete}
+            <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -251,19 +269,22 @@ export default function RealEstateDetailsPage() {
           <img
             src={imageUrl}
             alt={property.basic_info.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover select-none"
+            style={{ WebkitTouchCallout: "none" }}
+            draggable={false}
+            onContextMenu={e => e.preventDefault()}
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-            <Home className="w-16 h-16 text-gray-500" />
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <Home className="w-16 h-16 text-muted-foreground" />
           </div>
         )}
       </div>
 
       <div
-        className={`grid grid-cols-1 ${property.basic_info.is_rented ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}
+        className={`grid grid-cols-1 ${property.basic_info.is_rented ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4 -mx-6 md:mx-0`}
       >
-        <Card className="p-4">
+        <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t.realEstate.basicInfo.purchaseDate}
           </div>
@@ -272,29 +293,33 @@ export default function RealEstateDetailsPage() {
             {formatDate(property.purchase_info.date, locale)}
           </div>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t.realEstate.purchase.price}
           </div>
           <div className="font-semibold text-gray-900 dark:text-white mt-1">
-            {formatCurrency(
-              property.purchase_info.price,
-              locale,
-              property.currency,
-            )}
+            <Sensitive>
+              {formatCurrency(
+                property.purchase_info.price,
+                locale,
+                property.currency,
+              )}
+            </Sensitive>
           </div>
         </Card>
         {property.basic_info.is_rented && (
           <>
-            <Card className="p-4">
+            <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {t.realEstate.analysis.monthlyCashflow}
               </div>
               <div
                 className={`font-semibold mt-1 ${monthlyCashflow >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
               >
-                {monthlyCashflow >= 0 ? "+" : ""}
-                {formatCurrency(monthlyCashflow, locale, property.currency)}
+                <Sensitive>
+                  {monthlyCashflow >= 0 ? "+" : ""}
+                  {formatCurrency(monthlyCashflow, locale, property.currency)}
+                </Sensitive>
               </div>
             </Card>
 
@@ -303,9 +328,9 @@ export default function RealEstateDetailsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start -mx-6 md:mx-0">
+        <div className="xl:col-span-2 space-y-6">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Building2 className="w-5 h-5" /> {t.realEstate.sections.basic}
             </h3>
@@ -345,7 +370,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />{" "}
               {t.realEstate.sections.purchase}
@@ -356,11 +381,13 @@ export default function RealEstateDetailsPage() {
                   {t.realEstate.purchase.price}
                 </span>
                 <span className="font-medium">
-                  {formatCurrency(
-                    property.purchase_info.price,
-                    locale,
-                    property.currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      property.purchase_info.price,
+                      locale,
+                      property.currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
               {property.purchase_info.expenses.length > 0 ? (
@@ -382,11 +409,13 @@ export default function RealEstateDetailsPage() {
                             {exp.concept || "—"}
                           </span>
                           <span className="font-medium">
-                            {formatCurrency(
-                              exp.amount,
-                              locale,
-                              property.currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                exp.amount,
+                                locale,
+                                property.currency,
+                              )}
+                            </Sensitive>
                           </span>
                         </div>
                       ))}
@@ -420,11 +449,13 @@ export default function RealEstateDetailsPage() {
                                     {exp.concept || "—"}
                                   </span>
                                   <span className="font-medium">
-                                    {formatCurrency(
-                                      exp.amount,
-                                      locale,
-                                      property.currency,
-                                    )}
+                                    <Sensitive>
+                                      {formatCurrency(
+                                        exp.amount,
+                                        locale,
+                                        property.currency,
+                                      )}
+                                    </Sensitive>
                                   </span>
                                 </div>
                               ))}
@@ -434,15 +465,17 @@ export default function RealEstateDetailsPage() {
                               {t.realEstate.purchase.totalCost}
                             </span>
                             <span className="font-semibold">
-                              {formatCurrency(
-                                property.purchase_info.price +
-                                  property.purchase_info.expenses.reduce(
-                                    (s, e) => s + e.amount,
-                                    0,
-                                  ),
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {formatCurrency(
+                                  property.purchase_info.price +
+                                    property.purchase_info.expenses.reduce(
+                                      (s, e) => s + e.amount,
+                                      0,
+                                    ),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </span>
                           </div>
                         </PopoverContent>
@@ -455,7 +488,7 @@ export default function RealEstateDetailsPage() {
           </Card>
 
           {/* Valuation moved right after Purchase */}
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />{" "}
               {t.realEstate.sections.valuation}
@@ -466,11 +499,13 @@ export default function RealEstateDetailsPage() {
                   {t.realEstate.valuation.estimatedMarketValue}
                 </span>
                 <span className="font-semibold">
-                  {formatCurrency(
-                    property.valuation_info.estimated_market_value || 0,
-                    locale,
-                    property.currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      property.valuation_info.estimated_market_value || 0,
+                      locale,
+                      property.currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
               {typeof property.valuation_info.annual_appreciation ===
@@ -480,10 +515,12 @@ export default function RealEstateDetailsPage() {
                     {t.realEstate.valuation.annualAppreciation}
                   </span>
                   <span className="font-semibold">
-                    {(
-                      (property.valuation_info.annual_appreciation || 0) * 100
-                    ).toFixed(2)}
-                    %
+                    <Sensitive>
+                      {(
+                        (property.valuation_info.annual_appreciation || 0) * 100
+                      ).toFixed(2)}
+                      %
+                    </Sensitive>
                   </span>
                 </div>
               ) : null}
@@ -505,7 +542,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          {formatCurrency(v.amount, locale, property.currency)}
+                          <Sensitive>
+                            {formatCurrency(
+                              v.amount,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </span>
                         {v.notes ? (
                           <Popover>
@@ -537,7 +580,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <CreditCard className="w-5 h-5" /> {t.realEstate.sections.loans}
             </h3>
@@ -575,11 +618,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-900 dark:text-white font-semibold">
-                          {formatCurrency(
-                            f.periodic_flow?.amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              f.periodic_flow?.amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </span>
                         <Popover>
                           <PopoverTrigger asChild>
@@ -619,12 +664,14 @@ export default function RealEstateDetailsPage() {
                                   {t.realEstate.loans.principalOutstanding}
                                 </span>
                                 <span className="font-medium text-gray-900 dark:text-white">
-                                  {formatCurrency(
-                                    (f.payload as any)?.principal_outstanding ||
-                                      0,
-                                    locale,
-                                    property.currency,
-                                  )}
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      (f.payload as any)
+                                        ?.principal_outstanding || 0,
+                                      locale,
+                                      property.currency,
+                                    )}
+                                  </Sensitive>
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
@@ -632,15 +679,17 @@ export default function RealEstateDetailsPage() {
                                   {t.realEstate.labels.monthlyInterest}
                                 </span>
                                 <span className="font-medium text-gray-900 dark:text-white">
-                                  {((f.payload as any)?.monthly_interests ??
-                                    null) !== null
-                                    ? formatCurrency(
-                                        (f.payload as any)?.monthly_interests ||
-                                          0,
-                                        locale,
-                                        property.currency,
-                                      )
-                                    : "—"}
+                                  <Sensitive>
+                                    {((f.payload as any)?.monthly_interests ??
+                                      null) !== null
+                                      ? formatCurrency(
+                                          (f.payload as any)
+                                            ?.monthly_interests || 0,
+                                          locale,
+                                          property.currency,
+                                        )
+                                      : "—"}
+                                  </Sensitive>
                                 </span>
                               </div>
                               {typeof (f.payload as any)?.loan_amount ===
@@ -650,11 +699,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.totalLoanAmountLabel}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {formatCurrency(
-                                      (f.payload as any)?.loan_amount || 0,
-                                      locale,
-                                      property.currency,
-                                    )}
+                                    <Sensitive>
+                                      {formatCurrency(
+                                        (f.payload as any)?.loan_amount || 0,
+                                        locale,
+                                        property.currency,
+                                      )}
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -664,11 +715,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.interestRateLabel}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {(
-                                      ((f.payload as any)?.interest_rate || 0) *
-                                      100
-                                    ).toFixed(2)}
-                                    %
+                                    <Sensitive>
+                                      {(
+                                        ((f.payload as any)?.interest_rate ||
+                                          0) * 100
+                                      ).toFixed(2)}
+                                      %
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -678,11 +731,13 @@ export default function RealEstateDetailsPage() {
                                     {t.realEstate.loans.euriborRate}
                                   </span>
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {(
-                                      ((f.payload as any)?.euribor_rate || 0) *
-                                      100
-                                    ).toFixed(2)}
-                                    %
+                                    <Sensitive>
+                                      {(
+                                        ((f.payload as any)?.euribor_rate ||
+                                          0) * 100
+                                      ).toFixed(2)}
+                                      %
+                                    </Sensitive>
                                   </span>
                                 </div>
                               )}
@@ -754,7 +809,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Receipt className="w-5 h-5" /> {t.realEstate.sections.costs}
             </h3>
@@ -797,11 +852,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                     </div>
                     <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                      {formatCurrency(
-                        f.periodic_flow?.amount || 0,
-                        locale,
-                        property.currency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          f.periodic_flow?.amount || 0,
+                          locale,
+                          property.currency,
+                        )}
+                      </Sensitive>
                     </div>
                   </div>
                 ))}
@@ -814,7 +871,7 @@ export default function RealEstateDetailsPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
             <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
               <Zap className="w-5 h-5" /> {t.realEstate.sections.utilities}
             </h3>
@@ -857,11 +914,13 @@ export default function RealEstateDetailsPage() {
                       </div>
                     </div>
                     <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                      {formatCurrency(
-                        f.periodic_flow?.amount || 0,
-                        locale,
-                        property.currency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          f.periodic_flow?.amount || 0,
+                          locale,
+                          property.currency,
+                        )}
+                      </Sensitive>
                     </div>
                   </div>
                 ))}
@@ -875,7 +934,7 @@ export default function RealEstateDetailsPage() {
           </Card>
 
           {property.basic_info.is_rented && (
-            <Card className="p-4">
+            <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
               <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
                 <DollarSign className="w-5 h-5" /> {t.realEstate.sections.rent}
               </h3>
@@ -885,10 +944,12 @@ export default function RealEstateDetailsPage() {
                     {t.realEstate.rent.vacancyRate}
                   </span>
                   <span className="font-medium">
-                    {((property.rental_data?.vacancy_rate || 0) * 100).toFixed(
-                      2,
-                    )}
-                    %
+                    <Sensitive>
+                      {(
+                        (property.rental_data?.vacancy_rate || 0) * 100
+                      ).toFixed(2)}
+                      %
+                    </Sensitive>
                   </span>
                 </div>
               ) : null}
@@ -924,21 +985,25 @@ export default function RealEstateDetailsPage() {
                           {typeof f.periodic_flow?.max_amount === "number" && (
                             <Badge variant="secondary" className="text-[10px]">
                               {t.realEstate.flows.maximumAmount}:{" "}
-                              {formatCurrency(
-                                f.periodic_flow.max_amount,
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {formatCurrency(
+                                  f.periodic_flow.max_amount,
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </Badge>
                           )}
                         </div>
                       </div>
                       <div className="text-sm text-gray-900 dark:text-white font-semibold">
-                        {formatCurrency(
-                          f.periodic_flow?.amount || 0,
-                          locale,
-                          property.currency,
-                        )}
+                        <Sensitive>
+                          {formatCurrency(
+                            f.periodic_flow?.amount || 0,
+                            locale,
+                            property.currency,
+                          )}
+                        </Sensitive>
                       </div>
                     </div>
                   ))}
@@ -954,7 +1019,7 @@ export default function RealEstateDetailsPage() {
 
           {property.basic_info.is_rented &&
             (property.rental_data?.amortizations?.length || 0) > 0 && (
-              <Card className="p-4">
+              <Card className="p-4 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
                   <Calculator className="w-5 h-5" />{" "}
                   {t.realEstate.amortizations.title}
@@ -976,11 +1041,13 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.base}
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(
-                            a.base_amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              a.base_amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
                       <div className="sm:col-span-1 md:col-span-2">
@@ -988,7 +1055,9 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.percentage}
                         </div>
                         <div className="font-medium">
-                          {(a.percentage ?? 0).toFixed(2)}%
+                          <Sensitive>
+                            {(a.percentage ?? 0).toFixed(2)}%
+                          </Sensitive>
                         </div>
                       </div>
                       <div className="sm:col-span-1 md:col-span-2">
@@ -996,11 +1065,13 @@ export default function RealEstateDetailsPage() {
                           {t.realEstate.amortizations.annual}
                         </div>
                         <div className="font-medium">
-                          {formatCurrency(
-                            a.amount || 0,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              a.amount || 0,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
                     </div>
@@ -1010,7 +1081,7 @@ export default function RealEstateDetailsPage() {
             )}
         </div>
 
-        <div className="lg:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6">
           <RealEstateStats
             currency={property.currency}
             isRented={property.basic_info.is_rented}
@@ -1027,7 +1098,7 @@ export default function RealEstateDetailsPage() {
               property.rental_data?.amortizations || []
             ).map(a => ({ amount: a.amount }))}
             vacancyRate={property.rental_data?.vacancy_rate ?? undefined}
-            cardClassName="p-4 border border-gray-800 bg-gray-900 text-white dark:bg-gray-900 dark:border-gray-800"
+            cardClassName="p-4 rounded-none md:rounded-lg border-x-0 md:border-x"
           />
         </div>
       </div>

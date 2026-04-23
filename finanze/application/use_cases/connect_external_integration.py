@@ -26,7 +26,7 @@ class ConnectExternalIntegrationImpl(ConnectExternalIntegration):
 
         self._log = logging.getLogger(__name__)
 
-    def execute(self, request: ConnectedExternalIntegrationRequest):
+    async def execute(self, request: ConnectedExternalIntegrationRequest):
         integration = self._integrations.get(request.integration_id)
         if integration is None:
             raise IntegrationNotFound()
@@ -41,10 +41,10 @@ class ConnectExternalIntegrationImpl(ConnectExternalIntegration):
                 )
 
         try:
-            integration.setup(payload)
+            await integration.setup(payload)
         except IntegrationSetupError as e:
             raise e
         except Exception as e:
             raise IntegrationSetupError(IntegrationSetupErrorCode.UNKNOWN) from e
 
-        self._external_integration_port.activate(request.integration_id, payload)
+        await self._external_integration_port.activate(request.integration_id, payload)

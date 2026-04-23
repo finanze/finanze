@@ -2,7 +2,8 @@ import logging
 from typing import Optional
 
 import yfinance as yf
-from cachetools import TTLCache, cached
+from aiocache import cached
+
 from domain.dezimal import Dezimal
 from domain.instrument import (
     InstrumentDataRequest,
@@ -16,7 +17,7 @@ class YFinanceClient:
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = request.isin or request.ticker or request.name
         if not query:
             return []
@@ -58,8 +59,8 @@ class YFinanceClient:
 
         return results
 
-    @cached(cache=TTLCache(maxsize=100, ttl=86400))
-    def _resolve_symbol(
+    @cached(ttl=86400)
+    async def _resolve_symbol(
         self, query: str, instrument_type: InstrumentType
     ) -> Optional[str]:
         if not query:
@@ -83,11 +84,11 @@ class YFinanceClient:
 
         return query
 
-    @cached(cache=TTLCache(maxsize=100, ttl=60))
-    def get_instrument_info(
+    @cached(ttl=60)
+    async def get_instrument_info(
         self, query: str, instrument_type: InstrumentType
     ) -> Optional[InstrumentInfo]:
-        symbol = self._resolve_symbol(query, instrument_type)
+        symbol = await self._resolve_symbol(query, instrument_type)
         if not symbol:
             return None
 

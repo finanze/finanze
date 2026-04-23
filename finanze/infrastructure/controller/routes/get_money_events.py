@@ -2,10 +2,10 @@ from datetime import date
 
 from domain.money_event import MoneyEventQuery
 from domain.use_cases.get_money_events import GetMoneyEvents
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def get_money_events(get_money_events_uc: GetMoneyEvents):
+async def get_money_events(get_money_events_uc: GetMoneyEvents):
     from_date_param = request.args.get("from_date")
     to_date_param = request.args.get("to_date")
 
@@ -26,7 +26,7 @@ def get_money_events(get_money_events_uc: GetMoneyEvents):
         to_date=to_date,
     )
 
-    result = get_money_events_uc.execute(query)
+    result = await get_money_events_uc.execute(query)
 
     events_payload = []
     for event in result.events:

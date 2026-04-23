@@ -6,19 +6,20 @@ from uuid import UUID
 from application.ports.sessions_port import SessionsPort
 from domain.entity_login import EntitySession
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.sessions.queries import SessionsQueries
 
 
 class SessionsRepository(SessionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get(self, entity_id: UUID) -> Optional[EntitySession]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT created_at, expiration, payload FROM entity_sessions WHERE entity_id = ?",
-                (str(entity_id),),
+    async def get(self, entity_account_id: UUID) -> Optional[EntitySession]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                SessionsQueries.GET,
+                (str(entity_account_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 created_at = datetime.fromisoformat(row["created_at"])
                 expiration = (
@@ -30,14 +31,14 @@ class SessionsRepository(SessionsPort):
                 return EntitySession(created_at, expiration, payload)
             return None
 
-    def save(self, entity_id: UUID, session: EntitySession):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO entity_sessions (entity_id, created_at, expiration, payload)
-                VALUES (?, ?, ?, ?)
-                """,
+    async def save(
+        self, entity_account_id: UUID, entity_id: UUID, session: EntitySession
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                SessionsQueries.INSERT,
                 (
+                    str(entity_account_id),
                     str(entity_id),
                     session.creation.isoformat(),
                     session.expiration.isoformat() if session.expiration else None,
@@ -45,8 +46,16 @@ class SessionsRepository(SessionsPort):
                 ),
             )
 
-    def delete(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM entity_sessions WHERE entity_id = ?", (str(entity_id),)
+    async def delete(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                SessionsQueries.DELETE,
+                (str(entity_account_id),),
+            )
+
+    async def delete_by_entity_id(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                SessionsQueries.DELETE_BY_ENTITY_ID,
+                (str(entity_id),),
             )

@@ -2,9 +2,9 @@ import datetime
 from pathlib import Path
 
 from domain.dezimal import Dezimal
-from flask import Flask
-from flask.json.provider import DefaultJSONProvider
-from flask_cors import CORS
+from quart import Quart
+from quart.json.provider import DefaultJSONProvider
+from quart_cors import cors
 from infrastructure.controller import exception_handler
 
 
@@ -19,17 +19,17 @@ class FJSONProvider(DefaultJSONProvider):
         return super().default(obj)
 
 
-class FlaskApp(Flask):
+class QuartApp(Quart):
     json_provider_class = FJSONProvider
 
 
-def flask(static_upload_dir: Path):
-    app = FlaskApp(
+def quart(static_upload_dir: Path):
+    app = QuartApp(
         __name__,
         static_url_path="/static",
         static_folder=str(static_upload_dir.absolute()),
     )
-    CORS(app, expose_headers=["Content-Disposition"])
+    cors(app, expose_headers=["Content-Disposition"])
     exception_handler.register_exception_handlers(app)
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1000 * 1000
     return app

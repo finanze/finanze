@@ -1,5 +1,3 @@
-selenium-wire==5.1.0
-blinker==1.7.0
-aiohttp
+selenium==4.41.0
 pydub==0.25.1
-SpeechRecognition==3.14.2
+SpeechRecognition==3.16.0

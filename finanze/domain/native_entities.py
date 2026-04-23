@@ -7,6 +7,8 @@ from domain.entity import (
     EntityType,
     Feature,
 )
+from domain.external_integration import ExternalIntegrationId
+from domain.global_position import ProductType
 from domain.native_entity import (
     PinDetails,
     CredentialType,
@@ -14,9 +16,8 @@ from domain.native_entity import (
     EntitySessionCategory,
     NativeFinancialEntity,
     NativeCryptoWalletEntity,
+    NativeCryptoExchangeEntity,
 )
-from domain.external_integration import ExternalIntegrationId
-from domain.global_position import ProductType
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
@@ -32,6 +33,7 @@ MY_INVESTOR = NativeFinancialEntity(
         ProductType.FUND,
         ProductType.FUND_PORTFOLIO,
         ProductType.DEPOSIT,
+        ProductType.CREDIT,
     ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -40,6 +42,7 @@ MY_INVESTOR = NativeFinancialEntity(
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 UNICAJA = NativeFinancialEntity(
@@ -57,6 +60,7 @@ UNICAJA = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
         "abck": CredentialType.INTERNAL,
     },
+    icon_url=None,
 )
 
 TRADE_REPUBLIC = NativeFinancialEntity(
@@ -72,13 +76,15 @@ TRADE_REPUBLIC = NativeFinancialEntity(
         ProductType.FUND,
         ProductType.CRYPTO,
     ],
-    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.SHORT,
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
+        "awsWafToken": CredentialType.INTERNAL_TEMP,
     },
+    icon_url=None,
 )
 
 URBANITAE = NativeFinancialEntity(
@@ -95,6 +101,7 @@ URBANITAE = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 WECITY = NativeFinancialEntity(
@@ -112,6 +119,7 @@ WECITY = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 SEGO = NativeFinancialEntity(
@@ -129,6 +137,7 @@ SEGO = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 MINTOS = NativeFinancialEntity(
@@ -146,6 +155,7 @@ MINTOS = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
         "cookie": CredentialType.INTERNAL_TEMP,
     },
+    icon_url=None,
 )
 
 F24 = NativeFinancialEntity(
@@ -162,6 +172,7 @@ F24 = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 INDEXA_CAPITAL = NativeFinancialEntity(
@@ -175,6 +186,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={"token": CredentialType.API_TOKEN},
+    icon_url=None,
 )
 
 ING = NativeFinancialEntity(
@@ -199,6 +211,7 @@ ING = NativeFinancialEntity(
         "apiAuth": CredentialType.INTERNAL_TEMP,
         "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
     },
+    icon_url=None,
 )
 
 CAJAMAR = NativeFinancialEntity(
@@ -215,6 +228,49 @@ CAJAMAR = NativeFinancialEntity(
         "user": CredentialType.USER,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
+)
+
+DEGIRO = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000012"),
+    name="DEGIRO",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+    ],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.MEDIUM,
+    credentials_template={
+        "user": CredentialType.USER,
+        "password": CredentialType.PASSWORD,
+    },
+    icon_url=None,
+)
+
+IBKR = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000013"),
+    name="Interactive Brokers",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+    ],
+    setup_login_type=EntitySetupLoginType.MANUAL,
+    session_category=EntitySessionCategory.NONE,
+    credentials_template={
+        "user": CredentialType.USER,
+        "password": CredentialType.PASSWORD,
+        "cookie": CredentialType.INTERNAL_TEMP,
+    },
+    icon_url=None,
 )
 
 
@@ -223,6 +279,7 @@ def _create_crypto_entity(
     name: str,
     features: list[Feature] = [Feature.POSITION],
     required_external_integrations: list[ExternalIntegrationId] = [],
+    allows_hd_wallet: bool = False,
 ) -> NativeCryptoWalletEntity:
     return NativeCryptoWalletEntity(
         id=UUID(f"c0000000-0000-0000-0000-000000000{num:03d}"),
@@ -232,16 +289,35 @@ def _create_crypto_entity(
         origin=EntityOrigin.NATIVE,
         features=features,
         required_external_integrations=required_external_integrations,
+        icon_url=None,
+        allows_hd_wallet=allows_hd_wallet,
     )
 
 
-BITCOIN = _create_crypto_entity(1, "Bitcoin")
+BITCOIN = _create_crypto_entity(1, "Bitcoin", allows_hd_wallet=True)
 ETHEREUM = _create_crypto_entity(2, "Ethereum")
-LITECOIN = _create_crypto_entity(3, "Litecoin")
+LITECOIN = _create_crypto_entity(3, "Litecoin", allows_hd_wallet=True)
 TRON = _create_crypto_entity(4, "Tron")
 BSC = _create_crypto_entity(
     5,
     "Binance Smart Chain",
+)
+
+BINANCE = NativeCryptoExchangeEntity(
+    id=UUID("ce000000-0000-0000-0000-000000000001"),
+    name="Binance",
+    natural_id=None,
+    type=EntityType.CRYPTO_EXCHANGE,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.CRYPTO, ProductType.DERIVATIVE],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "apiKey": CredentialType.API_TOKEN,
+        "secretKey": CredentialType.API_TOKEN,
+    },
+    icon_url=None,
 )
 
 COMMODITIES = Entity(
@@ -250,6 +326,7 @@ COMMODITIES = Entity(
     natural_id=None,
     type=EntityType.COMMODITY,
     origin=EntityOrigin.INTERNAL,
+    icon_url=None,
 )
 
 NATIVE_ENTITIES = [
@@ -264,11 +341,14 @@ NATIVE_ENTITIES = [
     INDEXA_CAPITAL,
     ING,
     CAJAMAR,
+    DEGIRO,
+    IBKR,
     BITCOIN,
     ETHEREUM,
     LITECOIN,
     TRON,
     BSC,
+    BINANCE,
     COMMODITIES,
 ]
 

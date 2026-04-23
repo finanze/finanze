@@ -1,17 +1,18 @@
 import logging
 from uuid import uuid4
 
-import requests
+import httpx
+from aiocache import cached, Cache
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from cachetools import TTLCache, cached
-from domain.crypto import CryptoFetchRequest
+from domain.crypto import (
+    CryptoFetchRequest,
+    CryptoCurrencyType,
+    CryptoFetchResults,
+    CryptoFetchResult,
+    CryptoFetchedPosition,
+)
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
-from domain.global_position import (
-    CryptoCurrencyPosition,
-    CryptoCurrencyType,
-    CryptoCurrencyWallet,
-)
 from infrastructure.client.http.backoff import http_get_with_backoff
 
 
@@ -26,30 +27,37 @@ class TronFetcher(CryptoEntityFetcher):
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        data = self._fetch_account_info(request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
+        results: dict[str, CryptoFetchResult | None] = {}
 
-        if not data or "balance" not in data:
-            raise AddressNotFound()
+        for address in request.addresses:
+            try:
+                data = await self._fetch_account_info(address)
+            except AddressNotFound:
+                results[address] = None
+                continue
 
-        trx_balance = Dezimal(data.get("balance", "0")) * self.TRX_SCALE
+            if not data or "balance" not in data:
+                results[address] = None
+                continue
 
-        assets = [
-            CryptoCurrencyPosition(
-                id=uuid4(),
-                symbol="TRX",
-                amount=trx_balance,
-                type=CryptoCurrencyType.NATIVE,
-            )
-        ]
-        assets += self._parse_tokens(data)
+            trx_balance = Dezimal(data.get("balance", "0")) * self.TRX_SCALE
 
-        return CryptoCurrencyWallet(
-            id=request.connection_id,
-            assets=assets,
-        )
+            assets = [
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="TRX",
+                    balance=trx_balance,
+                    type=CryptoCurrencyType.NATIVE,
+                )
+            ]
+            assets += self._parse_tokens(data)
 
-    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyPosition]:
+            results[address] = CryptoFetchResult(address=address, assets=assets)
+
+        return CryptoFetchResults(results=results)
+
+    def _parse_tokens(self, data: dict) -> list[CryptoFetchedPosition]:
         tokens = []
         if "trc20token_balances" not in data:
             return tokens
@@ -63,47 +71,48 @@ class TronFetcher(CryptoEntityFetcher):
                 decimals = int(token_data.get("tokenDecimal", 0))
                 balance = Dezimal(token_data.get("balance", "0"))
                 amount = balance * Dezimal(f"1e-{decimals}")
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 self._log.warning(f"Could not parse amount for token {symbol}")
                 continue
 
             tokens.append(
-                CryptoCurrencyPosition(
+                CryptoFetchedPosition(
                     id=uuid4(),
                     contract_address=token_data.get("tokenId", "").lower(),
                     name=token_data.get("tokenName"),
                     symbol=symbol,
-                    amount=amount,
+                    balance=amount,
                     type=CryptoCurrencyType.TOKEN,
                 )
             )
         return tokens
 
-    @cached(cache=TTLCache(maxsize=50, ttl=TTL))
-    def _fetch_account_info(self, address: str) -> dict:
+    @cached(cache=Cache.MEMORY, ttl=TTL)
+    async def _fetch_account_info(self, address: str) -> dict:
         url = f"{self.BASE_URL}?address={address}"
-        return self._fetch(url)
+        return await self._fetch(url)
 
-    def _fetch(self, url: str) -> dict:
+    async def _fetch(self, url: str) -> dict:
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 cooldown=self.COOLDOWN,
                 max_retries=self.MAX_RETRIES,
                 backoff_factor=self.BACKOFF_FACTOR,
                 log=self._log,
             )
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Request error calling Tronscan endpoint {url}: {e}")
             raise
 
         if not response.ok:
-            if response.status_code == 429:
+            if response.status == 429:
                 raise TooManyRequests()
+            if response.status in (400, 404):
+                raise AddressNotFound()
 
-            self._log.error(
-                f"Error fetching from Tronscan: {response.status_code} {response.text}"
-            )
+            body = await response.text()
+            self._log.error(f"Error fetching from Tronscan: {response.status} {body}")
             response.raise_for_status()
 
-        return response.json()
+        return await response.json()

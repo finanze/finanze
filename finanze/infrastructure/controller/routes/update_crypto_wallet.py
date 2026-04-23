@@ -4,11 +4,11 @@ from domain.crypto import (
     UpdateCryptoWalletConnection as UpdateCryptoWalletConnectionRequest,
 )
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
-from flask import request
+from quart import request
 
 
-def update_crypto_wallet(update_crypto_wallet_uc: UpdateCryptoWalletConnection):
-    body = request.json
+async def update_crypto_wallet(update_crypto_wallet_uc: UpdateCryptoWalletConnection):
+    body = await request.get_json()
 
     wallet_connection_id = body.get("id")
 
@@ -20,7 +20,7 @@ def update_crypto_wallet(update_crypto_wallet_uc: UpdateCryptoWalletConnection):
     except ValueError:
         return {"message": "Invalid wallet/entity ids format"}, 400
 
-    update_crypto_wallet_uc.execute(
+    await update_crypto_wallet_uc.execute(
         UpdateCryptoWalletConnectionRequest(
             id=wallet_connection_id,
             name=body.get("name"),

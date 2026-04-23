@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/Button"
 import { AlertTriangle } from "lucide-react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import {
   Card,
   CardHeader,
@@ -36,9 +38,11 @@ export function ConfirmationDialog({
   description,
   warning,
 }: ConfirmationDialogProps) {
-  const { t } = useI18n() // Added hook usage
+  const { t } = useI18n()
 
-  return (
+  useModalBackHandler(isOpen, onCancel)
+
+  const dialogContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -53,8 +57,9 @@ export function ConfirmationDialog({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
+            className="w-full max-w-md mx-auto"
           >
-            <Card className="w-full max-w-md mx-4">
+            <Card className="w-full">
               <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 {description && (
@@ -108,4 +113,8 @@ export function ConfirmationDialog({
       )}
     </AnimatePresence>
   )
+
+  return typeof document !== "undefined"
+    ? createPortal(dialogContent, document.body)
+    : dialogContent
 }

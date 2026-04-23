@@ -159,7 +159,7 @@ class TemplateDataParser(TemplateParserPort):
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def global_positions(
+    async def global_positions(
         self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> PositionImportResult:
         all_errors = []
@@ -216,6 +216,7 @@ class TemplateDataParser(TemplateParserPort):
                         natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
                         origin=EntityOrigin.MANUAL,
+                        icon_url=None,
                     )
                 entity = created_entities[entity]
 
@@ -296,7 +297,7 @@ class TemplateDataParser(TemplateParserPort):
 
         return per_entity, errors
 
-    def transactions(
+    async def transactions(
         self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> TransactionsImportResult:
         all_errors = []
@@ -363,6 +364,7 @@ class TemplateDataParser(TemplateParserPort):
                         natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
                         origin=EntityOrigin.MANUAL,
+                        icon_url=None,
                     )
 
                 tx_dict["entity"] = created_entities[entity_name]

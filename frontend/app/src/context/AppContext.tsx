@@ -9,13 +9,12 @@ import {
 } from "react"
 import {
   EntityStatus,
-  PlatformType,
   AutoRefreshMode,
   AutoRefreshMaxOutdatedTime,
   type Entity,
-  type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
+  type FeatureFlags,
   type DataConfig,
   type AutoRefresh,
 } from "@/types"
@@ -26,10 +25,16 @@ import {
   getExchangeRates,
   getExternalIntegrations,
   updateQuotesManualPositions,
+  updateTrackedLoans,
 } from "@/services/api"
+import { waitForLazyInit } from "@/lib/mobile"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
+import {
+  getFeatureFlags,
+  subscribeFeatureFlags,
+} from "@/context/featureFlagsStore"
 
 export interface AppSettings {
   export?: {
@@ -64,13 +69,13 @@ interface AppContextType {
   entities: Entity[]
   entitiesLoaded: boolean
   isLoadingEntities: boolean
+  featureFlags: FeatureFlags
   toast: {
     message: string
     type: "success" | "error" | "warning" | null
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
-  platform: PlatformType | null
   exchangeRates: ExchangeRates
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
@@ -83,12 +88,17 @@ interface AppContextType {
   fetchEntities: () => Promise<void>
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   updateEntityLastFetch: (entityId: string, features: string[]) => void
+  updateEntityVirtualFeatures: (entityId: string, features: string[]) => void
+  updateEntityAccount: (entityId: string, accountId: string) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
-  saveSettings: (settings: AppSettings) => Promise<boolean>
+  saveSettings: (
+    settings: AppSettings,
+    options?: { silent?: boolean },
+  ) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
-  fetchExternalIntegrations: () => Promise<void>
+  fetchExternalIntegrations: (force?: boolean) => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -197,13 +207,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entitiesLoaded, setEntitiesLoaded] = useState(false)
   const [isLoadingEntities, setIsLoadingEntities] = useState(false)
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(() =>
+    getFeatureFlags(),
+  )
   const [toast, setToast] = useState<{
     message: string
     type: "success" | "error" | "warning" | null
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
-  const [platform, setPlatform] = useState<PlatformType | null>(null)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false)
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
@@ -214,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   >([])
   const [externalIntegrationsLoading, setExternalIntegrationsLoading] =
     useState(false)
+  const externalIntegrationsLoaded = useRef(false)
   const [exportState, setExportState] = useState<ExportState>({
     isExporting: false,
     lastExportTime: null,
@@ -222,30 +235,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()
 
+  useEffect(() => {
+    return subscribeFeatureFlags(setFeatureFlags)
+  }, [])
+
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
+  const LAST_UPDATE_LOANS_KEY = "lastUpdateLoansTime"
   const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
+  const LOANS_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
-
-  useEffect(() => {
-    const getPlatformInfo = async () => {
-      if (window.ipcAPI && window.ipcAPI.platform) {
-        try {
-          const platformInfo: PlatformInfo = await window.ipcAPI.platform()
-          setPlatform(platformInfo.type)
-        } catch (error) {
-          console.error("Failed to get platform info:", error)
-          setPlatform(PlatformType.WEB)
-        }
-      } else {
-        setPlatform(PlatformType.WEB)
-      }
-    }
-
-    getPlatformInfo()
-  }, [])
 
   const showToast = useCallback(
     (message: string, type: "success" | "error" | "warning") => {
@@ -269,7 +270,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(false)
       setExchangeRates(rates)
     } catch (error) {
       console.error("Error fetching exchange rates silently:", error)
@@ -301,19 +302,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setExchangeRatesLoading(true)
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(true)
       setExchangeRates(rates)
 
       if (!exchangeRatesTimerRef.current) {
         startExchangeRatesTimer()
       }
+
+      waitForLazyInit().then(() => fetchExchangeRatesSilently())
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
       setExchangeRatesError(t.common.fetchError)
     } finally {
       setExchangeRatesLoading(false)
     }
-  }, [isAuthenticated, startExchangeRatesTimer, t])
+  }, [isAuthenticated, startExchangeRatesTimer, fetchExchangeRatesSilently, t])
 
   const refreshExchangeRates = useCallback(async () => {
     await fetchExchangeRates()
@@ -351,11 +354,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [showToast, t])
 
   const saveSettingsData = useCallback(
-    async (settingsData: AppSettings) => {
+    async (settingsData: AppSettings, options?: { silent?: boolean }) => {
       try {
         await saveSettings(settingsData)
         setSettings(mergeSettingsWithDefaults(settingsData))
-        showToast(t.settings.saveSuccess, "success")
+        if (!options?.silent) {
+          showToast(t.settings.saveSuccess, "success")
+        }
         return true
       } catch (error) {
         console.error("Error saving settings:", error)
@@ -402,11 +407,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const fetchExternalIntegrations = useCallback(async () => {
+  const updateEntityVirtualFeatures = useCallback(
+    (entityId: string, features: string[]) => {
+      const now = new Date().toISOString()
+      setEntities(prevEntities =>
+        prevEntities.map(entity =>
+          entity.id === entityId
+            ? {
+                ...entity,
+                virtual_features: {
+                  ...entity.virtual_features,
+                  ...Object.fromEntries(features.map(f => [f, now])),
+                },
+              }
+            : entity,
+        ),
+      )
+    },
+    [],
+  )
+
+  const updateEntityAccount = useCallback(
+    (entityId: string, accountId: string) => {
+      setEntities(prevEntities =>
+        prevEntities.map(entity => {
+          if (entity.id !== entityId) return entity
+          const existing = entity.accounts || []
+          if (existing.some(a => a.id === accountId)) return entity
+          return {
+            ...entity,
+            accounts: [
+              ...existing,
+              { id: accountId, name: null, status: EntityStatus.CONNECTED },
+            ],
+          }
+        }),
+      )
+    },
+    [],
+  )
+
+  const fetchExternalIntegrations = useCallback(async (force?: boolean) => {
+    if (!force && externalIntegrationsLoaded.current) return
     try {
       setExternalIntegrationsLoading(true)
       const data = await getExternalIntegrations()
       setExternalIntegrations(data.integrations)
+      externalIntegrationsLoaded.current = true
     } catch (error) {
       console.error("Error fetching external integrations:", error)
     } finally {
@@ -433,25 +480,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
 
+  const updateLoansIfNeeded = useCallback(async () => {
+    const now = Date.now()
+
+    const lastCallTimeStr = localStorage.getItem(LAST_UPDATE_LOANS_KEY)
+    const lastCallTime = lastCallTimeStr ? parseInt(lastCallTimeStr, 10) : null
+
+    if (
+      lastCallTime === null ||
+      now - lastCallTime >= LOANS_UPDATE_INTERVAL_MS
+    ) {
+      try {
+        await updateTrackedLoans()
+        localStorage.setItem(LAST_UPDATE_LOANS_KEY, now.toString())
+      } catch (error) {
+        console.error("Error updating tracked loans:", error)
+      }
+    }
+  }, [LAST_UPDATE_LOANS_KEY, LOANS_UPDATE_INTERVAL_MS])
+
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
-      fetchExternalIntegrations()
-      updateQuotesIfNeeded()
+      waitForLazyInit().then(() => {
+        updateQuotesIfNeeded()
+        updateLoansIfNeeded()
+      })
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
       setEntitiesLoaded(false)
+      externalIntegrationsLoaded.current = false
       initialFetchDone.current = false
     }
   }, [
     fetchEntities,
-    fetchExternalIntegrations,
     fetchSettings,
     isAuthenticated,
     stopExchangeRatesTimer,
     updateQuotesIfNeeded,
+    updateLoansIfNeeded,
   ])
 
   useEffect(() => {
@@ -466,10 +535,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         entities,
         entitiesLoaded,
         isLoadingEntities,
+        featureFlags,
         toast,
         settings,
         isLoadingSettings,
-        platform,
         exchangeRates,
         exchangeRatesLoading,
         exchangeRatesError,
@@ -480,6 +549,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         fetchEntities,
         updateEntityStatus,
         updateEntityLastFetch,
+        updateEntityVirtualFeatures,
+        updateEntityAccount,
         showToast,
         hideToast,
         fetchSettings,

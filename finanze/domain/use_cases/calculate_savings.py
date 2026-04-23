@@ -8,5 +8,7 @@ from domain.calculations import (
 
 class CalculateSavings(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, request: SavingsCalculationRequest) -> SavingsCalculationResult:
+    async def execute(
+        self, request: SavingsCalculationRequest
+    ) -> SavingsCalculationResult:
         pass

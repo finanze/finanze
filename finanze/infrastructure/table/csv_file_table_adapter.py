@@ -27,7 +27,7 @@ def _delimiter_from_upload(upload: FileUpload) -> str:
 
 
 class CSVFileTableAdapter(TableRWPort):
-    def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
+    async def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
         if not rows:
             raise ValueError("No rows provided for export")
 
@@ -41,7 +41,7 @@ class CSVFileTableAdapter(TableRWPort):
         data_str = output.getvalue()
         return data_str.encode("utf-8")
 
-    def parse(self, upload: FileUpload) -> list[list[str]]:
+    async def parse(self, upload: FileUpload) -> list[list[str]]:
         delimiter = _delimiter_from_upload(upload)
         upload.data.seek(0)
         stream = TextIOWrapper(upload.data, encoding="utf-8")

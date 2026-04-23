@@ -198,6 +198,9 @@ web_modules/
 # TypeScript cache
 *.tsbuildinfo
 
+# Generated offline Pyodide assets (do not commit)
+dist-pyodide/
+
 # Optional npm cache directory
 .npm
 
@@ -227,6 +230,7 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+.env.mobile
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -322,3 +326,8 @@ sketch
 
 /dist-electron
 /release
+
+# gomobile build artifacts (tls-client)
+native/tlsclient/build/
+ios/App/Tlsclient.xcframework/
+android/app/libs/tlsclient.aar

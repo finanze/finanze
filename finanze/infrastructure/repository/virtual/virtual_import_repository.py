@@ -6,20 +6,18 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.entity import Feature
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.virtual.queries import VirtualImportQueries
 
 
 class VirtualImportRepository(VirtualImportRegistry):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def insert(self, entries: list[VirtualDataImport]):
-        with self._db_client.tx() as cursor:
+    async def insert(self, entries: list[VirtualDataImport]):
+        async with self._db_client.tx() as cursor:
             for e in entries:
-                cursor.execute(
-                    """
-                    INSERT INTO virtual_data_imports (id, import_id, global_position_id, source, date, feature, entity_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
+                await cursor.execute(
+                    VirtualImportQueries.INSERT,
                     (
                         str(uuid4()),
                         str(e.import_id),
@@ -31,31 +29,23 @@ class VirtualImportRepository(VirtualImportRegistry):
                     ),
                 )
 
-    def get_last_import_records(
+    async def get_last_import_records(
         self, source: Optional[VirtualDataSource] = None
     ) -> list[VirtualDataImport]:
-        params = []
+        params: list[str] = []
         where = ""
         if source:
             where = " WHERE source = ? "
             params.append(source)
 
-        query = f"""
-                WITH latest_import_details AS (SELECT import_id
-                                               FROM virtual_data_imports
-                                               {where}
-                                               ORDER BY date DESC
-                                               LIMIT 1)
-                SELECT vdi.*
-                FROM virtual_data_imports vdi
-                         JOIN latest_import_details lid
-                              ON vdi.import_id = lid.import_id
-                """
+        query = VirtualImportQueries.GET_LAST_IMPORT_RECORDS_BASE.value.format(
+            where=where
+        )
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(query, params)
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, params)
 
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
             return [
                 VirtualDataImport(
                     import_id=UUID(row["import_id"]),
@@ -70,26 +60,28 @@ class VirtualImportRepository(VirtualImportRegistry):
                 for row in rows
             ]
 
-    def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                DELETE
-                FROM virtual_data_imports
-                WHERE import_id = ?
-                  AND feature = ?
-                """,
+    async def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                VirtualImportQueries.DELETE_BY_IMPORT_AND_FEATURE,
                 (str(import_id), feature),
             )
 
-    def delete_by_import_feature_and_entity(
+    async def delete_by_import_feature_and_entity(
         self, import_id: UUID, feature: Feature, entity_id: UUID
     ):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                DELETE FROM virtual_data_imports
-                WHERE import_id = ? AND feature = ? AND entity_id = ?
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                VirtualImportQueries.DELETE_BY_IMPORT_FEATURE_AND_ENTITY,
                 (str(import_id), feature, str(entity_id)),
             )
+
+    async def is_position_shared(
+        self, global_position_id: UUID, current_import_id: UUID
+    ) -> bool:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                VirtualImportQueries.IS_POSITION_SHARED,
+                (str(global_position_id), str(current_import_id)),
+            )
+            return await cursor.fetchone() is not None

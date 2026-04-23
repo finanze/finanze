@@ -1,7 +1,8 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from domain.external_integration import ExternalIntegrationId
+if TYPE_CHECKING:
+    from domain.external_integration import ExternalIntegrationId
 
 
 class MissingFieldsError(Exception):
@@ -31,7 +32,15 @@ class ExternalIntegrationRequired(Exception):
         super().__init__(message)
 
 
+class NoUserLogged(Exception):
+    pass
+
+
 class UserNotFound(Exception):
+    pass
+
+
+class InvalidUserCredentials(Exception):
     pass
 
 
@@ -60,7 +69,8 @@ class AddressNotFound(Exception):
 
 
 class TooManyRequests(Exception):
-    pass
+    def __init__(self, completed=None):
+        self.completed = completed
 
 
 class IntegrationSetupErrorCode(str, Enum):
@@ -159,3 +169,34 @@ class CalculationInputError(Exception):
     def __init__(self, details: str):
         self.details = details
         super().__init__(details)
+
+
+class InvalidBackupCredentials(Exception):
+    pass
+
+
+class BackupConflict(Exception):
+    """Raised when local changes conflict with remote backup"""
+
+    pass
+
+
+class UnsupportedBackupProtocol(Exception):
+    def __init__(self, protocol_version: int):
+        super().__init__(f"Unsupported backup protocol version: {protocol_version}")
+
+
+class UnauthorizedToken(Exception):
+    """Raised when a token is invalid or expired"""
+
+    pass
+
+
+class InvalidToken(Exception):
+    """Raised when a token cannot be decoded or is malformed"""
+
+    pass
+
+
+class PermissionDenied(Exception):
+    pass

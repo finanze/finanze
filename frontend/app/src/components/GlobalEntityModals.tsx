@@ -4,11 +4,22 @@ import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { Button } from "@/components/ui/Button"
 import { PinPad } from "@/components/PinPad"
-import { ExternalLink } from "lucide-react"
+import { ChallengeModal } from "@/components/ChallengeModal"
+import { ExternalLink, Smartphone, X } from "lucide-react"
 
 export function GlobalEntityModals() {
-  const { selectedEntity, pinRequired, view, isLoggingIn } = useEntityWorkflow()
+  const {
+    selectedEntity,
+    pinRequired,
+    challengeRequired,
+    inAppConfirmation,
+    cancelInAppConfirmation,
+    view,
+    setView,
+    isLoggingIn,
+  } = useEntityWorkflow()
   const { t } = useI18n()
   const location = useLocation()
 
@@ -38,12 +49,60 @@ export function GlobalEntityModals() {
                     <ExternalLink className="h-5 w-5" />
                     {t.login.externalLogin} {selectedEntity.name}
                   </CardTitle>
+                  <button
+                    onClick={() => setView("entities")}
+                    className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-center text-muted-foreground">
                     {t.login.externalLoginInProgress}
                   </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Global In-App Confirmation Modal - shown when not on entities page */}
+      <AnimatePresence>
+        {inAppConfirmation && selectedEntity && !isOnEntitiesPage && (
+          <motion.div
+            key="global-in-app-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
+            >
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5" />
+                    {t.login.inAppConfirmationTitle} {selectedEntity.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-center text-muted-foreground">
+                    {t.login.inAppConfirmationMessage}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-6"
+                    onClick={cancelInAppConfirmation}
+                  >
+                    {t.common.cancel}
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
@@ -81,6 +140,12 @@ export function GlobalEntityModals() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {challengeRequired && selectedEntity && !isOnEntitiesPage && (
+          <ChallengeModal />
         )}
       </AnimatePresence>
     </>

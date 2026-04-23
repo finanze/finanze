@@ -6,6 +6,7 @@ export const formatCurrency = (
   locale: string,
   defaultCurrency: string,
   currencyCode?: string,
+  options?: { narrowSymbol?: boolean },
 ): string => {
   const displayCurrency = (currencyCode || defaultCurrency)?.toUpperCase()
   const formatCurrencyValue = (currency: string) =>
@@ -13,6 +14,7 @@ export const formatCurrency = (
       style: "currency",
       currency,
       minimumFractionDigits: 2,
+      ...(options?.narrowSymbol && { currencyDisplay: "narrowSymbol" }),
     }).format(value)
 
   try {
@@ -77,6 +79,22 @@ export const formatGainLoss = (
 ): string => {
   const formatted = formatCurrency(Math.abs(value), locale, currency)
   return value >= 0 ? `+${formatted}` : `-${formatted}`
+}
+
+export const formatCompactCurrency = (
+  value: number,
+  locale: string,
+  currency: string,
+): string => {
+  const formatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })
+  return formatter.format(value)
 }
 
 export const formatConvertedCurrency = (

@@ -2,8 +2,7 @@ import codecs
 import logging
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+from aiocache import cached, Cache
 from domain.dezimal import Dezimal
 from domain.instrument import (
     InstrumentDataRequest,
@@ -11,6 +10,7 @@ from domain.instrument import (
     InstrumentOverview,
     InstrumentType,
 )
+from infrastructure.client.http.http_session import get_http_session
 
 
 class FinectClient:
@@ -18,7 +18,7 @@ class FinectClient:
     API_KEY = "BtpdnaHkD4F6L5IIiajyWnlHhkrt8Nu5"
 
     def __init__(self):
-        self._session = requests.Session()
+        self._session = get_http_session()
         self._session.headers.update(
             {
                 "key": codecs.decode(self.API_KEY, "rot_13"),
@@ -28,12 +28,12 @@ class FinectClient:
         )
         self._log = logging.getLogger(__name__)
 
-    def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = self._build_query(request)
         if not query:
             return []
 
-        raw_items = self._search_raw(query)
+        raw_items = await self._search_raw(query)
         results: list[InstrumentOverview] = []
         for item in raw_items:
             overview = self._process_item(item, request)
@@ -84,17 +84,17 @@ class FinectClient:
             type=inferred_type,
         )
 
-    @cached(cache=TTLCache(maxsize=200, ttl=86400))
-    def _search_raw(self, query: str) -> list[dict]:
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def _search_raw(self, query: str) -> list[dict]:
         if not query:
             return []
 
         params = {"q": query}
-        response = self._session.get(
+        response = await self._session.get(
             f"{self.BASE_URL}/search", params=params, timeout=10
         )
         if response.ok:
-            data = response.json()
+            data = await response.json()
             if isinstance(data, dict):
                 items = data.get("data")
                 if isinstance(items, list):
@@ -102,42 +102,41 @@ class FinectClient:
                 return []
             return []
 
+        body = await response.text()
         self._log.error(
             "Finect Client error status=%s body=%s",
-            response.status_code,
-            response.text,
+            response.status,
+            body,
         )
         response.raise_for_status()
         return []
 
-    @cached(cache=TTLCache(maxsize=200, ttl=43200))
-    def get_instrument_info(
+    @cached(cache=Cache.MEMORY, ttl=43200)
+    async def get_instrument_info(
         self, query: str, instrument_type: InstrumentType
     ) -> Optional[InstrumentInfo]:
-        if not query:
-            return None
-
         isin = query.strip()
         params = {"expand": "documents,breakdown,stats/performance"}
         product_type = (
             "funds" if instrument_type == InstrumentType.MUTUAL_FUND else "etfs"
         )
-        response = self._session.get(
+        response = await self._session.get(
             f"{self.BASE_URL}/products/collectives/{product_type}/{isin}",
             params=params,
             timeout=10,
         )
         if not response.ok:
+            body = await response.text()
             self._log.error(
                 "Finect get_instrument_info error status=%s body=%s",
-                response.status_code,
-                response.text,
+                response.status,
+                body,
             )
-            if response.status_code == 404:
+            if response.status == 404:
                 return None
             response.raise_for_status()
 
-        data = response.json()
+        data = await response.json()
         if not isinstance(data, dict):
             return None
 

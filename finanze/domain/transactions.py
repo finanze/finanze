@@ -33,7 +33,7 @@ class TxType(str, Enum):
     FEE = "FEE"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseTx(BaseData):
     id: Optional[UUID]
     ref: str
@@ -45,14 +45,15 @@ class BaseTx(BaseData):
     entity: Entity
     source: DataSource
     product_type: ProductType
+    entity_account_id: Optional[UUID] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseInvestmentTx(BaseTx):
     pass
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AccountTx(BaseTx):
     fees: Dezimal
     retentions: Dezimal
@@ -61,7 +62,7 @@ class AccountTx(BaseTx):
     net_amount: Optional[Dezimal] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class StockTx(BaseInvestmentTx):
     shares: Dezimal
     price: Dezimal
@@ -76,7 +77,7 @@ class StockTx(BaseInvestmentTx):
     equity_type: Optional[EquityType] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CryptoCurrencyTx(BaseInvestmentTx):
     currency_amount: Dezimal
     symbol: str
@@ -88,7 +89,7 @@ class CryptoCurrencyTx(BaseInvestmentTx):
     order_date: Optional[datetime] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FundTx(BaseInvestmentTx):
     shares: Dezimal
     price: Dezimal
@@ -101,28 +102,28 @@ class FundTx(BaseInvestmentTx):
     fund_type: Optional[FundType] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FundPortfolioTx(BaseInvestmentTx):
     portfolio_name: str
     iban: Optional[str] = None
     fees: Dezimal = Dezimal(0)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FactoringTx(BaseInvestmentTx):
     fees: Dezimal
     retentions: Dezimal
     net_amount: Optional[Dezimal] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RealEstateCFTx(BaseInvestmentTx):
     fees: Dezimal
     retentions: Dezimal
     net_amount: Optional[Dezimal] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class DepositTx(BaseInvestmentTx):
     fees: Dezimal
     retentions: Dezimal

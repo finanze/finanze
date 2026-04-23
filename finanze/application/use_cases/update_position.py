@@ -1,15 +1,23 @@
+import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional, Set
 from uuid import uuid4
 
+from dateutil.tz import tzlocal
+
 from application.mixins.atomic_use_case import AtomicUCMixin
+from application.ports.crypto_asset_port import CryptoAssetRegistryPort
+from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_port import EntityPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.real_estate_port import RealEstatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from dateutil.tz import tzlocal
+from domain.constants import SUPPORTED_CURRENCIES
+from domain.crypto import CryptoAsset
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNameAlreadyExists,
@@ -28,6 +36,7 @@ from domain.global_position import (
     ProductType,
     StockInvestments,
     UpdatePositionRequest,
+    CryptoCurrencies,
 )
 from domain.use_cases.update_position import UpdatePosition
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
@@ -40,13 +49,23 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         position_port: PositionPort,
         manual_position_data_port: ManualPositionDataPort,
         virtual_import_registry: VirtualImportRegistry,
+        crypto_asset_registry_port: CryptoAssetRegistryPort,
+        crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
+        real_estate_port: RealEstatePort,
+        loan_calculator: LoanCalculatorPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
         self._entity_port = entity_port
         self._position_port = position_port
         self._manual_position_data_port = manual_position_data_port
         self._virtual_import_registry = virtual_import_registry
+        self._crypto_asset_registry_port = crypto_asset_registry_port
+        self._crypto_asset_info_provider = crypto_asset_info_provider
+        self._real_estate_port = real_estate_port
+        self._loan_calculator = loan_calculator
+
+        self._log = logging.getLogger(__name__)
 
     @staticmethod
     def _build_base_position(
@@ -119,20 +138,32 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     index[entry_id] = entry
         return index
 
-    def _prepare_relationship_mappings(
+    async def _prepare_relationship_mappings(
         self,
         entity: Entity,
         base_position: GlobalPosition,
         request: UpdatePositionRequest,
     ) -> tuple[dict, dict]:
-        ctx = self._build_relationship_context(entity, base_position, request)
+        ctx = await self._build_relationship_context(entity, base_position, request)
 
         new_account_id_map: dict = {}
         new_portfolio_id_map: dict = {}
 
-        self._process_card_account_links(ctx, new_account_id_map)
-        self._process_portfolio_account_links(ctx, new_account_id_map)
-        self._process_fund_portfolio_links(ctx, new_portfolio_id_map)
+        unresolved_card_accs = self._process_card_account_links(ctx, new_account_id_map)
+        unresolved_pf_accs = self._process_portfolio_account_links(
+            ctx, new_account_id_map
+        )
+        unresolved_fund_pfs = self._process_fund_portfolio_links(
+            ctx, new_portfolio_id_map
+        )
+
+        for acc_id in unresolved_card_accs + unresolved_pf_accs:
+            if not await self._position_port.account_exists(acc_id):
+                raise RelatedAccountNotFound(acc_id)
+
+        for pf_id in unresolved_fund_pfs:
+            if not await self._position_port.fund_portfolio_exists(pf_id):
+                raise RelatedFundPortfolioNotFound(pf_id)
 
         if new_account_id_map:
             self._apply_new_account_ids(ctx, new_account_id_map)
@@ -154,7 +185,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         validation_accounts: dict
         validation_portfolios: dict
 
-    def _build_relationship_context(
+    async def _build_relationship_context(
         self,
         entity: Entity,
         base_position: GlobalPosition,
@@ -165,8 +196,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         funds_container = request.products.get(ProductType.FUND)
         cards_container = request.products.get(ProductType.CARD)
 
-        real_position = self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(entities=[entity.id], real=True)
+        real_position = (
+            await self._position_port.get_last_grouped_by_entity(
+                PositionQueryRequest(entities=[entity.id], real=True)
+            )
         ).get(entity)
 
         real_account_ids, real_portfolio_ids = self._collect_real_relationship_ids(
@@ -202,9 +235,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
     @staticmethod
     def _process_card_account_links(
         ctx: "UpdatePositionImpl._RelCtx", new_account_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (ctx.cards_container and hasattr(ctx.cards_container, "entries")):
-            return
+            return unresolved
         for card in ctx.cards_container.entries:
             rel_acc_id = getattr(card, "related_account", None)
             if not rel_acc_id:
@@ -218,17 +252,19 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 ):
                     new_account_id_map[rel_acc_id] = uuid4()
             else:
-                raise RelatedAccountNotFound(rel_acc_id)
+                unresolved.append(rel_acc_id)
+        return unresolved
 
     @staticmethod
     def _process_portfolio_account_links(
         ctx: "UpdatePositionImpl._RelCtx", new_account_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (
             ctx.portfolios_container_req
             and hasattr(ctx.portfolios_container_req, "entries")
         ):
-            return
+            return unresolved
         for pf in ctx.portfolios_container_req.entries:
             acc_id = getattr(pf, "account_id", None)
             if not acc_id:
@@ -252,7 +288,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 and acc_id not in ctx.validation_accounts
                 and acc_id not in ctx.real_account_ids
             ):
-                raise RelatedAccountNotFound(acc_id)
+                unresolved.append(acc_id)
+                continue
             if acc_obj and acc_obj.type != AccountType.FUND_PORTFOLIO:
                 raise ValueError(
                     f"Account {acc_id} linked to portfolio {pf.id} is not of type FUND_PORTFOLIO"
@@ -265,17 +302,19 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 and acc_id not in new_account_id_map
             ):
                 new_account_id_map[acc_id] = uuid4()
+        return unresolved
 
     @staticmethod
     def _process_fund_portfolio_links(
         ctx: "UpdatePositionImpl._RelCtx", new_portfolio_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (
             ctx.funds_container
             and hasattr(ctx.funds_container, "entries")
             and ctx.portfolios_container_req
         ):
-            return
+            return unresolved
         for fund in ctx.funds_container.entries:
             portfolio = getattr(fund, "portfolio", None)
             port_id = getattr(portfolio, "id", None) if portfolio else None
@@ -290,7 +329,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             ):
                 new_portfolio_id_map[port_id] = uuid4()
             elif port_id not in ctx.validation_portfolios:
-                raise RelatedFundPortfolioNotFound(port_id)
+                unresolved.append(port_id)
+        return unresolved
 
     @staticmethod
     def _apply_new_account_ids(
@@ -355,8 +395,14 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
     def _ensure_unique(container) -> None:
         if not (container and hasattr(container, "entries")):
             return
+        container_entries = container.entries
+        if isinstance(container, CryptoCurrencies):
+            if container_entries and hasattr(container_entries[0], "assets"):
+                container_entries = container_entries[0].assets
+            else:
+                container_entries = []
         seen = set()
-        for e in container.entries:
+        for e in container_entries:
             if hasattr(e, "id"):
                 i = getattr(e, "id", None)
                 if i is None:
@@ -419,7 +465,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 continue
             if not (container and hasattr(container, "entries")):
                 continue
-            for entry in container.entries:
+            container_entries = container.entries
+            if isinstance(container, CryptoCurrencies):
+                if container_entries and hasattr(container_entries[0], "assets"):
+                    container_entries = container_entries[0].assets
+                else:
+                    container_entries = []
+            for entry in container_entries:
                 if hasattr(entry, "id"):
                     entry.id = uuid4()
 
@@ -442,22 +494,85 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         )
 
     def _create_manual_position_data_entries(
-        self, position: GlobalPosition, request: UpdatePositionRequest
+        self, position: GlobalPosition
     ) -> list[ManualPositionData]:
         entries = []
-        for product_type, container in request.products.items():
+        for product_type, container in position.products.items():
             if not (container and hasattr(container, "entries")):
                 continue
-            for entry in container.entries:
-                entries.append(
-                    self._map_manual_position_data(entry, position, product_type)
+            container_entries = container.entries
+            if isinstance(container, CryptoCurrencies):
+                if container_entries and hasattr(container_entries[0], "assets"):
+                    container_entries = container_entries[0].assets
+                else:
+                    container_entries = []
+            for entry in container_entries:
+                manual_pos_data = self._map_manual_position_data(
+                    entry, position, product_type
                 )
+                if manual_pos_data:
+                    if (
+                        product_type == ProductType.LOAN
+                        and manual_pos_data.data
+                        and manual_pos_data.data.track
+                        and hasattr(entry, "principal_outstanding")
+                    ):
+                        manual_pos_data.data.tracking_ref_outstanding = (
+                            entry.principal_outstanding
+                        )
+                        manual_pos_data.data.tracking_ref_date = (
+                            self._loan_calculator.next_installment_date(
+                                entry.creation,
+                                entry.maturity,
+                                entry.installment_frequency,
+                                date.today(),
+                            )
+                        )
+                    entries.append(manual_pos_data)
 
         return entries
 
+    async def _process_crypto_assets_in_position(self, position: GlobalPosition):
+        crypto_container = position.products.get(ProductType.CRYPTO)
+        if not (crypto_container and hasattr(crypto_container, "entries")):
+            return
+        for crypto_wallet in crypto_container.entries:
+            if not hasattr(crypto_wallet, "assets"):
+                continue
+            for asset in crypto_wallet.assets:
+                asset_details = await self._crypto_asset_registry_port.get_by_symbol(
+                    asset.symbol
+                )
+                if asset_details is None:
+                    (provider, provider_id) = next(
+                        iter(asset.crypto_asset.external_ids.items()), (None, None)
+                    )
+                    if provider is None or provider_id is None:
+                        self._log.warning(
+                            f"Cannot fetch crypto asset details for asset with symbol {asset.symbol} due to missing external IDs."
+                        )
+                        continue
+                    asset_extended_details = (
+                        await self._crypto_asset_info_provider.get_asset_details(
+                            provider_id=provider_id,
+                            currencies=SUPPORTED_CURRENCIES,
+                            provider=provider,
+                        )
+                    )
+                    asset_details = CryptoAsset(
+                        id=uuid4(),
+                        name=asset_extended_details.name,
+                        symbol=asset_extended_details.symbol,
+                        icon_urls=[asset_extended_details.icon_url],
+                        external_ids=asset.crypto_asset.external_ids,
+                    )
+                    await self._crypto_asset_registry_port.save(asset_details)
+
+                asset.crypto_asset = asset_details
+
     async def execute(self, request: UpdatePositionRequest):
         if request.entity_id:
-            entity = self._entity_port.get_by_id(request.entity_id)
+            entity = await self._entity_port.get_by_id(request.entity_id)
             if entity is None:
                 raise EntityNotFound(request.entity_id)
 
@@ -465,25 +580,40 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             name = request.new_entity_name.strip()
             if not name:
                 raise MissingFieldsError(["new_entity_name"])
-            existing = self._entity_port.get_by_name(name)
+            existing = await self._entity_port.get_by_name(name)
             if existing:
                 raise EntityNameAlreadyExists(name)
+
+            natural_id = None
+            entity_icon_url = None
+            entity_type = EntityType.FINANCIAL_INSTITUTION
+            is_crypto = ProductType.CRYPTO in request.products
+            if is_crypto and request.net_crypto_entity_details:
+                entity_type = EntityType.CRYPTO_WALLET
+                entity_icon_url = request.new_entity_icon_url
+                integration_prefix = (
+                    request.net_crypto_entity_details.provider.value.lower()
+                )
+                natural_id = f"{integration_prefix}:{request.net_crypto_entity_details.provider_asset_id.lower()}"
 
             entity = Entity(
                 id=uuid4(),
                 name=name,
-                natural_id=None,
-                type=EntityType.FINANCIAL_INSTITUTION,
+                natural_id=natural_id,
+                type=entity_type,
                 origin=EntityOrigin.MANUAL,
+                icon_url=entity_icon_url,
             )
-            self._entity_port.insert(entity)
+            await self._entity_port.insert(entity)
         else:
             raise MissingFieldsError(["entity_id", "new_entity_name"])
 
         req_entity_id = entity.id
         now = datetime.now(tzlocal())
-        last_manual_imports = self._virtual_import_registry.get_last_import_records(
-            source=VirtualDataSource.MANUAL
+        last_manual_imports = (
+            await self._virtual_import_registry.get_last_import_records(
+                source=VirtualDataSource.MANUAL
+            )
         )
 
         prior_position_entry = None
@@ -494,25 +624,24 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
         prior_position = None
         if prior_position_entry:
-            prior_position = self._position_port.get_by_id(
+            prior_position = await self._position_port.get_by_id(
                 prior_position_entry.global_position_id
             )
 
         if prior_position_entry:
-            for product_type in request.products.keys():
-                self._manual_position_data_port.delete_by_position_id_and_type(
-                    prior_position_entry.global_position_id, product_type
-                )
+            await self._manual_position_data_port.delete_by_position_id(
+                prior_position_entry.global_position_id
+            )
 
         base_position = self._build_base_position(entity, prior_position, now, request)
-        self._prepare_relationship_mappings(entity, base_position, request)
+        await self._prepare_relationship_mappings(entity, base_position, request)
         self._assign_nested_component_ids(request)
         self._adjust_investment_costs(base_position)
         self._ensure_all_unique(base_position)
         self._regenerate_snapshot_ids(base_position)
-        manual_data_entries = self._create_manual_position_data_entries(
-            base_position, request
-        )
+        manual_data_entries = self._create_manual_position_data_entries(base_position)
+
+        await self._process_crypto_assets_in_position(base_position)
 
         today = now.date()
         is_same_day = (
@@ -521,15 +650,20 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
         if is_same_day:
             import_id = last_manual_imports[0].import_id
-            self._virtual_import_registry.delete_by_import_feature_and_entity(
+            await self._virtual_import_registry.delete_by_import_feature_and_entity(
                 import_id, Feature.POSITION, req_entity_id
             )
             if prior_position_entry:
-                self._position_port.delete_by_id(
-                    prior_position_entry.global_position_id
+                is_shared = await self._virtual_import_registry.is_position_shared(
+                    prior_position_entry.global_position_id, import_id
                 )
-            self._position_port.save(base_position)
-            self._manual_position_data_port.save(manual_data_entries)
+                if not is_shared:
+                    await self._position_port.delete_by_id(
+                        prior_position_entry.global_position_id
+                    )
+            await self._position_port.save(base_position)
+            await self._manual_position_data_port.save(manual_data_entries)
+            await self._sync_linked_loan_flows(base_position)
 
             new_entries = [
                 VirtualDataImport(
@@ -541,12 +675,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     entity_id=req_entity_id,
                 )
             ]
-            self._virtual_import_registry.insert(new_entries)
+            await self._virtual_import_registry.insert(new_entries)
             return
 
         import_id = uuid4()
-        self._position_port.save(base_position)
-        self._manual_position_data_port.save(manual_data_entries)
+        await self._position_port.save(base_position)
+        await self._manual_position_data_port.save(manual_data_entries)
+        await self._sync_linked_loan_flows(base_position)
         cloned_entries = []
 
         for entry in last_manual_imports:
@@ -574,4 +709,11 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             )
         )
 
-        self._virtual_import_registry.insert(cloned_entries)
+        await self._virtual_import_registry.insert(cloned_entries)
+
+    async def _sync_linked_loan_flows(self, position: GlobalPosition):
+        loan_container = position.products.get(ProductType.LOAN)
+        if not loan_container:
+            return
+        for loan in loan_container.entries:
+            await self._real_estate_port.sync_linked_loan_flows(loan)

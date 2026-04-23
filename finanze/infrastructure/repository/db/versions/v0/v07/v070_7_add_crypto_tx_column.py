@@ -13,5 +13,5 @@ class V0707CryptoTxColumn(DBVersionMigration):
     def name(self):
         return "v0.7.0:7_add_crypto_tx_column"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(SQL)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(SQL)

@@ -3,6 +3,8 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
+import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
@@ -13,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { EditDialog } from "@/components/ui/EditDialog"
+import { WalletAddressesDialog } from "@/components/WalletAddressesDialog"
 import {
   ArrowLeft,
   Plus,
@@ -21,9 +24,16 @@ import {
   Wallet,
   Copy,
   Check,
+  Key,
+  List,
 } from "lucide-react"
 import { motion } from "framer-motion"
-import type { Entity, ExchangeRates } from "@/types"
+import type { Entity, ExchangeRates, CryptoWalletConnection } from "@/types"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import {
   CryptoCurrencyWallet,
   ProductType,
@@ -55,6 +65,7 @@ interface WalletAssetView {
 interface WalletEntry {
   wallet: CryptoCurrencyWallet
   connectionId: string | null
+  connection: CryptoWalletConnection | null
   displayName: string
   assets: WalletAssetView[]
   nativeAssets: WalletAssetView[]
@@ -84,6 +95,24 @@ export function ManageWalletsView({
   const [isUpdatingWallet, setIsUpdatingWallet] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showAddressesDialog, setShowAddressesDialog] = useState(false)
+  const [addressesWalletId, setAddressesWalletId] = useState<string | null>(
+    null,
+  )
+  const [addressesWalletName, setAddressesWalletName] = useState("")
+
+  const getWalletAddresses = (
+    wallet: CryptoCurrencyWallet | null | undefined,
+  ): string[] => {
+    return (wallet?.addresses ?? []).filter(Boolean)
+  }
+
+  const getPrimaryAddress = (
+    wallet: CryptoCurrencyWallet | null | undefined,
+  ): string | null => {
+    const addresses = getWalletAddresses(wallet)
+    return addresses.length > 0 ? addresses[0] : null
+  }
 
   const entity: Entity | undefined = entities?.find(e => e.id === entityId)
 
@@ -96,10 +125,13 @@ export function ManageWalletsView({
 
     setIsLoading(true)
 
-    const cryptoProduct =
-      positionsData?.positions[entity.id]?.products[ProductType.CRYPTO]
-    const positionWallets =
-      (cryptoProduct as { entries: CryptoCurrencyWallet[] })?.entries || []
+    const entityPositions = positionsData?.positions[entity.id] ?? []
+    const positionWallets = entityPositions.flatMap(pos => {
+      const cryptoProduct = pos.products[ProductType.CRYPTO]
+      return cryptoProduct && "entries" in cryptoProduct
+        ? (cryptoProduct.entries as CryptoCurrencyWallet[])
+        : []
+    })
 
     const connectedWallets = entity.connected || []
     const combinedWallets: WalletEntry[] = []
@@ -150,13 +182,35 @@ export function ManageWalletsView({
     }
 
     positionWallets.forEach(wallet => {
-      if (!wallet.address) {
+      const walletAddresses = getWalletAddresses(wallet)
+      const normalizedWalletAddresses = walletAddresses.map(address =>
+        address.trim().toLowerCase(),
+      )
+      const walletXpub = wallet.hd_wallet?.xpub?.trim().toLowerCase()
+      const connection = connectedWallets.find(conn => {
+        if (wallet.id && conn.id === wallet.id) {
+          return true
+        }
+
+        const connectionXpub = conn.hd_wallet?.xpub?.trim().toLowerCase()
+        if (walletXpub && connectionXpub && walletXpub === connectionXpub) {
+          return true
+        }
+
+        if (normalizedWalletAddresses.length === 0) {
+          return false
+        }
+
+        const connectionAddresses = conn.addresses ?? []
+        return connectionAddresses.some(address =>
+          normalizedWalletAddresses.includes(address.trim().toLowerCase()),
+        )
+      })
+
+      if (!connection) {
         return
       }
-      const addressKey = wallet.address.toLowerCase()
-      const connection = connectedWallets.find(
-        conn => conn.address.toLowerCase() === addressKey,
-      )
+
       const assets = getWalletAssets(wallet, { hideUnknownTokens })
       const assetViews = assets.map(buildAssetView)
       const nativeAssets = assetViews.filter(item => !item.isToken)
@@ -166,12 +220,18 @@ export function ManageWalletsView({
         (sum, view) => sum + view.initialInvestment,
         0,
       )
+      const primaryAddress = getPrimaryAddress(wallet)
       const displayName =
-        connection?.name || wallet.name || wallet.address || addressKey
+        connection?.name ||
+        wallet.name ||
+        wallet.hd_wallet?.xpub ||
+        primaryAddress ||
+        ""
 
       combinedWallets.push({
         wallet: { ...wallet, name: displayName },
-        connectionId: connection?.id ?? null,
+        connectionId: connection.id,
+        connection,
         displayName,
         assets: assetViews,
         nativeAssets,
@@ -180,31 +240,53 @@ export function ManageWalletsView({
         totalInitialInvestment,
       })
 
-      seenAddresses.add(addressKey)
+      normalizedWalletAddresses.forEach(address => {
+        seenAddresses.add(address)
+      })
     })
 
+    const seenConnectionIds = new Set(
+      combinedWallets.map(w => w.connectionId).filter(Boolean) as string[],
+    )
+
     connectedWallets.forEach(connection => {
-      const addressKey = connection.address.toLowerCase()
-      if (seenAddresses.has(addressKey)) {
+      if (seenConnectionIds.has(connection.id)) {
+        return
+      }
+
+      const connectionAddresses = connection.addresses ?? []
+      const normalizedConnectionAddresses = connectionAddresses.map(address =>
+        address.trim().toLowerCase(),
+      )
+      const alreadySeen = normalizedConnectionAddresses.some(address =>
+        seenAddresses.has(address),
+      )
+      if (alreadySeen) {
         return
       }
 
       const placeholderWallet: CryptoCurrencyWallet = {
         id: connection.id,
-        address: connection.address,
+        addresses: connectionAddresses,
         name: connection.name,
         assets: [],
+        hd_wallet: connection.hd_wallet ?? null,
       }
 
       combinedWallets.push({
         wallet: placeholderWallet,
         connectionId: connection.id,
+        connection,
         displayName: connection.name,
         assets: [],
         nativeAssets: [],
         tokenAssets: [],
         totalValue: 0,
         totalInitialInvestment: 0,
+      })
+
+      normalizedConnectionAddresses.forEach(address => {
+        seenAddresses.add(address)
       })
     })
 
@@ -254,8 +336,7 @@ export function ManageWalletsView({
 
       setWallets(prevWallets =>
         prevWallets.map(entry =>
-          entry.wallet.address?.toLowerCase() ===
-          walletToEdit.wallet.address?.toLowerCase()
+          entry.connectionId === walletToEdit.connectionId
             ? {
                 ...entry,
                 wallet: { ...entry.wallet, name: trimmedName },
@@ -301,9 +382,7 @@ export function ManageWalletsView({
 
       setWallets(prevWallets =>
         prevWallets.filter(
-          entry =>
-            entry.wallet.address?.toLowerCase() !==
-            walletToDelete.wallet.address?.toLowerCase(),
+          entry => entry.connectionId !== walletToDelete.connectionId,
         ),
       )
 
@@ -332,29 +411,11 @@ export function ManageWalletsView({
   const handleCopyAddress = useCallback((address: string) => {
     if (!address) return
 
-    const fallbackCopy = (text: string) => {
-      const textArea = document.createElement("textarea")
-      textArea.value = text
-      textArea.setAttribute("readonly", "")
-      textArea.style.position = "absolute"
-      textArea.style.left = "-9999px"
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textArea)
-    }
-
     const performCopy = async () => {
       try {
-        if (navigator?.clipboard?.writeText) {
-          await navigator.clipboard.writeText(address)
-        } else {
-          fallbackCopy(address)
-        }
-      } catch (error) {
-        console.warn("Failed to copy wallet address", error)
-        fallbackCopy(address)
-      } finally {
+        const ok = await copyToClipboard(address)
+        if (!ok) return
+
         setCopiedAddress(address)
         if (copyTimeoutRef.current) {
           clearTimeout(copyTimeoutRef.current)
@@ -362,6 +423,8 @@ export function ManageWalletsView({
         copyTimeoutRef.current = setTimeout(() => {
           setCopiedAddress(prev => (prev === address ? null : prev))
         }, 1500)
+      } catch (error) {
+        console.warn("Failed to copy wallet address", error)
       }
     }
 
@@ -395,28 +458,28 @@ export function ManageWalletsView({
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <LoadingSpinner size="lg" />
-        <p className="mt-4 text-gray-500 dark:text-gray-400">
-          {t.common.loading}
-        </p>
+        <p className="mt-4 text-muted-foreground">{t.common.loading}</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={onBack}
-            className="p-1 h-8 w-8"
+            className="p-1 h-8 w-8 flex-shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h2 className="text-2xl font-bold">{t.walletManagement.title}</h2>
-            <p className="text-gray-600 dark:text-gray-400">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-2xl font-bold truncate">
+              {t.walletManagement.title}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
               {t.walletManagement.subtitle.replace(
                 "{{entityName}}",
                 entity.name,
@@ -424,20 +487,26 @@ export function ManageWalletsView({
             </p>
           </div>
         </div>
-        <Button onClick={onAddWallet} className="flex items-center gap-2">
+        <Button
+          onClick={onAddWallet}
+          size="sm"
+          className="flex-shrink-0 h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3 sm:gap-2"
+        >
           <Plus className="h-4 w-4" />
-          {t.walletManagement.addWallet}
+          <span className="hidden sm:inline">
+            {t.walletManagement.addWallet}
+          </span>
         </Button>
       </div>
 
       {wallets.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-8 sm:py-12">
           <CardContent>
-            <Wallet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <Wallet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
               {t.walletManagement.noWallets}
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
+            <p className="text-muted-foreground mb-6">
               {t.walletManagement.noWalletsDescription}
             </p>
             <Button
@@ -454,18 +523,27 @@ export function ManageWalletsView({
           variants={container}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6"
         >
           {wallets.map(walletEntry => {
+            const primaryAddress = getPrimaryAddress(walletEntry.wallet)
+            const walletAddresses = getWalletAddresses(walletEntry.wallet)
+            const extraAddressCount =
+              walletAddresses.length > 1 ? walletAddresses.length - 1 : 0
             const walletKey =
               walletEntry.wallet.id ||
               walletEntry.connectionId ||
-              walletEntry.wallet.address
+              primaryAddress
             const hasAssets = walletEntry.assets.length > 0
             const assetCountLabel =
               walletEntry.assets.length === 1
                 ? t.investments.asset
                 : t.investments.assets
+            const hdWallet =
+              walletEntry.connection?.hd_wallet ?? walletEntry.wallet.hd_wallet
+            const isDerived =
+              walletEntry.connection?.address_source === "DERIVED" ||
+              Boolean(hdWallet?.xpub)
 
             return (
               <motion.div key={walletKey} variants={item}>
@@ -474,62 +552,166 @@ export function ManageWalletsView({
                     hasAssets ? "" : "opacity-75 border-dashed"
                   }`}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                          <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div
+                          className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${isDerived ? "bg-amber-100 dark:bg-amber-900/30" : "bg-primary/10"}`}
+                        >
+                          {isDerived ? (
+                            <Key className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
+                          ) : (
+                            <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                          )}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-lg">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CardTitle className="text-sm sm:text-lg truncate">
                               {walletEntry.displayName}
                             </CardTitle>
                             {!hasAssets && (
-                              <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                              <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded flex-shrink-0">
                                 {t.common.noDataAvailable}
                               </span>
                             )}
                           </div>
-                          {walletEntry.wallet.address && (
+                          {isDerived && hdWallet ? (
                             <div className="flex items-center gap-2 group">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                                {walletEntry.wallet.address.slice(0, 8)}...
-                                {walletEntry.wallet.address.slice(-6)}
+                              <p className="text-xs sm:text-sm text-muted-foreground font-mono truncate">
+                                {hdWallet.xpub.slice(0, 12)}...
+                                {hdWallet.xpub.slice(-6)}
                               </p>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
-                                  copiedAddress === walletEntry.wallet.address
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                  copiedAddress === hdWallet.xpub
                                     ? "text-green-600 dark:text-green-400"
-                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    : "text-muted-foreground"
                                 }`}
-                                onClick={() =>
-                                  handleCopyAddress(walletEntry.wallet.address!)
-                                }
+                                onClick={() => handleCopyAddress(hdWallet.xpub)}
                                 title={
-                                  copiedAddress === walletEntry.wallet.address
+                                  copiedAddress === hdWallet.xpub
                                     ? t.common.copied
                                     : t.common.copy
                                 }
                               >
-                                {copiedAddress ===
-                                walletEntry.wallet.address ? (
+                                {copiedAddress === hdWallet.xpub ? (
                                   <Check className="h-3 w-3" />
                                 ) : (
                                   <Copy className="h-3 w-3" />
                                 )}
                               </Button>
                             </div>
-                          )}
+                          ) : primaryAddress ? (
+                            <div className="flex items-center gap-1.5 sm:gap-2 group">
+                              <p className="text-xs sm:text-sm text-muted-foreground font-mono">
+                                {primaryAddress.slice(0, 8)}...
+                                {primaryAddress.slice(-6)}
+                              </p>
+                              {extraAddressCount > 0 && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-xs rounded-full border px-2 py-0.5 text-muted-foreground hover:bg-secondary"
+                                    >
+                                      +{extraAddressCount}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="start"
+                                    sideOffset={8}
+                                    className="w-72 space-y-2 p-3"
+                                  >
+                                    <ul className="space-y-2">
+                                      {walletAddresses.map(address => (
+                                        <li
+                                          key={address}
+                                          className="flex items-center justify-between gap-2"
+                                        >
+                                          <span className="text-xs font-mono text-muted-foreground break-all">
+                                            {address}
+                                          </span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className={`p-1 h-6 w-6 flex-shrink-0 ${
+                                              copiedAddress === address
+                                                ? "text-green-600 dark:text-green-400"
+                                                : "text-muted-foreground"
+                                            }`}
+                                            onClick={() =>
+                                              handleCopyAddress(address)
+                                            }
+                                            title={
+                                              copiedAddress === address
+                                                ? t.common.copied
+                                                : t.common.copy
+                                            }
+                                          >
+                                            {copiedAddress === address ? (
+                                              <Check className="h-3 w-3" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                  copiedAddress === primaryAddress
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-muted-foreground"
+                                }`}
+                                onClick={() =>
+                                  handleCopyAddress(primaryAddress)
+                                }
+                                title={
+                                  copiedAddress === primaryAddress
+                                    ? t.common.copied
+                                    : t.common.copy
+                                }
+                              >
+                                {copiedAddress === primaryAddress ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-0.5 flex-shrink-0">
+                        {isDerived && walletEntry.connectionId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 h-7 w-7 sm:h-8 sm:w-8 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                            onClick={() => {
+                              setAddressesWalletId(walletEntry.connectionId)
+                              setAddressesWalletName(walletEntry.displayName)
+                              setShowAddressesDialog(true)
+                            }}
+                            title={
+                              (t.walletManagement as Record<string, string>)
+                                .viewAddresses
+                            }
+                          >
+                            <List className="h-3 w-3" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="p-1 h-8 w-8"
+                          className="p-1 h-7 w-7 sm:h-8 sm:w-8"
                           onClick={() => handleEditWallet(walletEntry)}
                           disabled={
                             isUpdatingWallet ||
@@ -542,7 +724,7 @@ export function ManageWalletsView({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="p-1 h-8 w-8 text-red-600 hover:text-red-700"
+                          className="p-1 h-7 w-7 sm:h-8 sm:w-8 text-destructive hover:text-destructive"
                           onClick={() => handleDeleteWallet(walletEntry)}
                           disabled={
                             isUpdatingWallet ||
@@ -555,31 +737,33 @@ export function ManageWalletsView({
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                  <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div className="rounded-lg border bg-secondary/50 p-2 sm:p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
                           {t.investments.numberOfAssets}
                         </p>
-                        <p className="mt-1 text-lg font-semibold">
+                        <p className="mt-1 text-base sm:text-lg font-semibold">
                           {walletEntry.assets.length} {assetCountLabel}
                         </p>
                         {!hasAssets && (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {t.common.noDataAvailable}
                           </p>
                         )}
                       </div>
-                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                      <div className="rounded-lg border bg-secondary/50 p-2 sm:p-3">
+                        <p className="text-xs font-medium text-muted-foreground">
                           {t.walletManagement.totalValue}
                         </p>
-                        <p className="mt-1 text-lg font-semibold">
-                          {formatCurrency(
-                            walletEntry.totalValue,
-                            locale,
-                            settings.general.defaultCurrency,
-                          )}
+                        <p className="mt-1 text-base sm:text-lg font-semibold">
+                          <Sensitive>
+                            {formatCurrency(
+                              walletEntry.totalValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                     </div>
@@ -616,6 +800,13 @@ export function ManageWalletsView({
         onCancel={cancelEditWallet}
         isLoading={isUpdatingWallet}
         placeholder={t.walletManagement.walletNamePlaceholder}
+      />
+
+      <WalletAddressesDialog
+        isOpen={showAddressesDialog}
+        onClose={() => setShowAddressesDialog(false)}
+        walletId={addressesWalletId}
+        walletName={addressesWalletName}
       />
     </div>
   )

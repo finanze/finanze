@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import List, Optional, Set
 from uuid import UUID
 
-from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
+
+from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -24,6 +25,7 @@ from domain.transactions import (
     TxType,
 )
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.transaction.queries import TransactionQueries
 
 
 def _map_account_row(row) -> AccountTx:
@@ -33,6 +35,7 @@ def _map_account_row(row) -> AccountTx:
         natural_id=row["entity_natural_id"],
         type=row["entity_type"],
         origin=row["entity_origin"],
+        icon_url=row["icon_url"],
     )
 
     return AccountTx(
@@ -46,6 +49,9 @@ def _map_account_row(row) -> AccountTx:
         entity=entity,
         source=DataSource(row["source"]),
         product_type=ProductType.ACCOUNT,
+        entity_account_id=UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
         fees=Dezimal(row["fees"]),
         retentions=Dezimal(row["retentions"]),
         interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
@@ -64,6 +70,7 @@ def _map_investment_row(
             natural_id=row["entity_natural_id"],
             type=row["entity_type"],
             origin=row["entity_origin"],
+            icon_url=row["icon_url"],
         )
         if row["entity_id"]
         else fallback_entity
@@ -80,6 +87,9 @@ def _map_investment_row(
         "entity": entity,
         "source": DataSource(row["source"]),
         "product_type": ProductType(row["product_type"]),
+        "entity_account_id": UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
     }
 
     if row["product_type"] == ProductType.STOCK_ETF.value:
@@ -93,13 +103,13 @@ def _map_investment_row(
             net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=datetime.fromisoformat(row["order_date"])
-            if row["order_date"]
-            else None,
+            order_date=(
+                datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
+            ),
             linked_tx=row["linked_tx"],
-            equity_type=EquityType(row["product_subtype"])
-            if row["product_subtype"]
-            else None,
+            equity_type=(
+                EquityType(row["product_subtype"]) if row["product_subtype"] else None
+            ),
         )
     elif row["product_type"] == ProductType.CRYPTO.value:
         return CryptoCurrencyTx(
@@ -110,9 +120,9 @@ def _map_investment_row(
             net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=datetime.fromisoformat(row["order_date"])
-            if row["order_date"]
-            else None,
+            order_date=(
+                datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
+            ),
             contract_address=row["asset_contract_address"],
         )
     elif row["product_type"] == ProductType.FUND.value:
@@ -125,12 +135,12 @@ def _map_investment_row(
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=datetime.fromisoformat(row["order_date"])
-            if row["order_date"]
-            else None,
-            fund_type=FundType(row["product_subtype"])
-            if row["product_subtype"]
-            else None,
+            order_date=(
+                datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
+            ),
+            fund_type=(
+                FundType(row["product_subtype"]) if row["product_subtype"] else None
+            ),
         )
     elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
         return FundPortfolioTx(
@@ -168,14 +178,14 @@ class TransactionSQLRepository(TransactionPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, data: Transactions):
+    async def save(self, data: Transactions):
         if data.investment:
-            self._save_investment(data.investment)
+            await self._save_investment(data.investment)
         if data.account:
-            self._save_account(data.account)
+            await self._save_account(data.account)
 
-    def _save_investment(self, txs: List[BaseInvestmentTx]):
-        with self._db_client.tx() as cursor:
+    async def _save_investment(self, txs: List[BaseInvestmentTx]):
+        async with self._db_client.tx() as cursor:
             for tx in txs:
                 entry = {
                     "id": str(tx.id),
@@ -205,6 +215,9 @@ class TransactionSQLRepository(TransactionPort):
                     "portfolio_name": None,
                     "product_subtype": None,
                     "asset_contract_address": None,
+                    "entity_account_id": str(tx.entity_account_id)
+                    if tx.entity_account_id
+                    else None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -218,13 +231,13 @@ class TransactionSQLRepository(TransactionPort):
                             "net_amount": str(tx.net_amount),
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
-                            "order_date": tx.order_date.isoformat()
-                            if tx.order_date
-                            else None,
+                            "order_date": (
+                                tx.order_date.isoformat() if tx.order_date else None
+                            ),
                             "linked_tx": tx.linked_tx,
-                            "product_subtype": tx.equity_type.value
-                            if tx.equity_type
-                            else None,
+                            "product_subtype": (
+                                tx.equity_type.value if tx.equity_type else None
+                            ),
                         }
                     )
                 elif isinstance(tx, CryptoCurrencyTx):
@@ -236,9 +249,9 @@ class TransactionSQLRepository(TransactionPort):
                             "net_amount": str(tx.net_amount),
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
-                            "order_date": tx.order_date.isoformat()
-                            if tx.order_date
-                            else None,
+                            "order_date": (
+                                tx.order_date.isoformat() if tx.order_date else None
+                            ),
                             "asset_contract_address": tx.contract_address,
                         }
                     )
@@ -252,12 +265,12 @@ class TransactionSQLRepository(TransactionPort):
                             "net_amount": str(tx.net_amount),
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
-                            "order_date": tx.order_date.isoformat()
-                            if tx.order_date
-                            else None,
-                            "product_subtype": tx.fund_type.value
-                            if tx.fund_type
-                            else None,
+                            "order_date": (
+                                tx.order_date.isoformat() if tx.order_date else None
+                            ),
+                            "product_subtype": (
+                                tx.fund_type.value if tx.fund_type else None
+                            ),
                         }
                     )
                 elif isinstance(tx, FundPortfolioTx):
@@ -277,32 +290,16 @@ class TransactionSQLRepository(TransactionPort):
                         }
                     )
 
-                cursor.execute(
-                    """
-                    INSERT INTO investment_transactions (id, ref, name, amount, currency, type, date,
-                                                         entity_id, is_real, source, product_type, created_at,
-                                                         isin, ticker, market, shares, price, net_amount,
-                                                         fees, retentions, order_date, linked_tx, interests,
-                                                         iban, portfolio_name, product_subtype, asset_contract_address)
-                    VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
-                            :entity_id, :is_real, :source, :product_type, :created_at,
-                            :isin, :ticker, :market, :shares, :price, :net_amount,
-                            :fees, :retentions, :order_date, :linked_tx, :interests,
-                            :iban, :portfolio_name, :product_subtype, :asset_contract_address)
-                    """,
+                await cursor.execute(
+                    TransactionQueries.INSERT_INVESTMENT,
                     entry,
                 )
 
-    def _save_account(self, txs: List[AccountTx]):
-        with self._db_client.tx() as cursor:
+    async def _save_account(self, txs: List[AccountTx]):
+        async with self._db_client.tx() as cursor:
             for tx in txs:
-                cursor.execute(
-                    """
-                    INSERT INTO account_transactions (id, ref, name, amount, currency, type, date,
-                                                      entity_id, is_real, source, created_at,
-                                                      fees, retentions, interest_rate, avg_balance, net_amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                await cursor.execute(
+                    TransactionQueries.INSERT_ACCOUNT,
                     (
                         str(tx.id),
                         tx.ref,
@@ -320,36 +317,28 @@ class TransactionSQLRepository(TransactionPort):
                         str(tx.interest_rate) if tx.interest_rate else None,
                         str(tx.avg_balance) if tx.avg_balance else None,
                         str(tx.net_amount) if tx.net_amount else None,
+                        str(tx.entity_account_id) if tx.entity_account_id else None,
                     ),
                 )
 
-    def get_all(
+    async def get_all(
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
     ) -> Transactions:
         return Transactions(
-            investment=self._get_investment_txs(real, excluded_entities),
-            account=self._get_account_txs(real, excluded_entities),
+            investment=await self._get_investment_txs(real, excluded_entities),
+            account=await self._get_account_txs(real, excluded_entities),
         )
 
-    def _get_investment_txs(
+    async def _get_investment_txs(
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
     ) -> List[BaseInvestmentTx]:
-        with self._db_client.read() as cursor:
+        async with self._db_client.read() as cursor:
             params: list[str] = []
-            query = """
-                    SELECT it.*,
-                           e.id         AS entity_id,
-                           e.name       AS entity_name,
-                           e.type       as entity_type,
-                           e.origin     as entity_origin,
-                           e.natural_id AS entity_natural_id
-                    FROM investment_transactions it
-                             JOIN entities e ON it.entity_id = e.id
-                    """
+            query = TransactionQueries.INVESTMENT_SELECT_BASE.value
 
             conditions: list[str] = []
             if real is not None:
@@ -364,30 +353,21 @@ class TransactionSQLRepository(TransactionPort):
                 params.extend([str(e) for e in excluded_entities])
 
             if conditions:
-                query += " WHERE " + " AND ".join(conditions)
+                query += " AND " + " AND ".join(conditions)
 
             query += " ORDER BY it.date ASC"
-            cursor.execute(query, tuple(params))
+            await cursor.execute(query, tuple(params))
 
-            return [_map_investment_row(row) for row in cursor.fetchall()]
+            return [_map_investment_row(row) for row in await cursor.fetchall()]
 
-    def _get_account_txs(
+    async def _get_account_txs(
         self,
         real: Optional[bool] = None,
         excluded_entities: Optional[list[UUID]] = None,
     ) -> List[AccountTx]:
-        with self._db_client.read() as cursor:
+        async with self._db_client.read() as cursor:
             params: list[str] = []
-            query = """
-                    SELECT at.*,
-                           e.id         AS entity_id,
-                           e.name       AS entity_name,
-                           e.natural_id AS entity_natural_id,
-                           e.type       as entity_type,
-                           e.origin     as entity_origin
-                    FROM account_transactions at
-                             JOIN entities e ON at.entity_id = e.id
-                    """
+            query = TransactionQueries.ACCOUNT_SELECT_BASE.value
 
             conditions: list[str] = []
             if real is not None:
@@ -402,194 +382,74 @@ class TransactionSQLRepository(TransactionPort):
                 params.extend([str(e) for e in excluded_entities])
 
             if conditions:
-                query += " WHERE " + " AND ".join(conditions)
+                query += " AND " + " AND ".join(conditions)
 
             query += " ORDER BY at.date ASC"
 
-            cursor.execute(query, tuple(params))
-            return [_map_account_row(row) for row in cursor.fetchall()]
+            await cursor.execute(query, tuple(params))
+            return [_map_account_row(row) for row in await cursor.fetchall()]
 
-    def _get_investment_txs_by_entity(self, entity_id: UUID) -> List[BaseInvestmentTx]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT it.*,
-                       e.name       AS entity_name,
-                       e.id         AS entity_id,
-                       e.type       as entity_type,
-                       e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
-                FROM investment_transactions it
-                         JOIN entities e ON it.entity_id = e.id
-                WHERE it.entity_id = ?
-                """,
+    async def _get_investment_txs_by_entity(
+        self, entity_id: UUID
+    ) -> List[BaseInvestmentTx]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.INVESTMENT_SELECT_BY_ENTITY,
                 (str(entity_id),),
             )
-            return [_map_investment_row(row) for row in cursor.fetchall()]
+            return [_map_investment_row(row) for row in await cursor.fetchall()]
 
-    def _get_account_txs_by_entity(self, entity_id: UUID) -> List[AccountTx]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT at.*,
-                       e.id         AS entity_id,
-                       e.name       AS entity_name,
-                       e.natural_id AS entity_natural_id,
-                       e.type       AS entity_type,
-                       e.origin     AS entity_origin
-                FROM account_transactions at
-                         JOIN entities e ON at.entity_id = e.id
-                WHERE at.entity_id = ?
-                """,
+    async def _get_account_txs_by_entity(self, entity_id: UUID) -> List[AccountTx]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.ACCOUNT_SELECT_BY_ENTITY,
                 (str(entity_id),),
             )
-            return [_map_account_row(row) for row in cursor.fetchall()]
+            return [_map_account_row(row) for row in await cursor.fetchall()]
 
-    def get_refs_by_entity(self, entity_id: UUID) -> Set[str]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                           SELECT ref
-                           FROM investment_transactions
-                           WHERE entity_id = ?
-                           UNION
-                           SELECT ref
-                           FROM account_transactions
-                           WHERE entity_id = ?
-                           """,
-                (str(entity_id), str(entity_id)),
+    async def get_refs_by_entity_account(self, entity_account_id: UUID) -> Set[str]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.GET_REFS_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id), str(entity_account_id)),
             )
-            return {row[0] for row in cursor.fetchall()}
+            return {row[0] for row in await cursor.fetchall()}
 
-    def get_by_entity(self, entity_id: UUID) -> Transactions:
+    async def get_by_entity(self, entity_id: UUID) -> Transactions:
         return Transactions(
-            investment=self._get_investment_txs_by_entity(entity_id),
-            account=self._get_account_txs_by_entity(entity_id),
+            investment=await self._get_investment_txs_by_entity(entity_id),
+            account=await self._get_account_txs_by_entity(entity_id),
         )
 
-    def get_by_entity_and_source(
+    async def get_by_entity_and_source(
         self, entity_id: UUID, source: DataSource
     ) -> Transactions:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT it.*,
-                       e.name       AS entity_name,
-                       e.id         AS entity_id,
-                       e.type       as entity_type,
-                       e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
-                FROM investment_transactions it
-                         JOIN entities e ON it.entity_id = e.id
-                WHERE it.entity_id = ? AND it.source = ?
-                """,
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.INVESTMENT_AND_ACCOUNT_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
-            investment = [_map_investment_row(row) for row in cursor.fetchall()]
+            investment = [_map_investment_row(row) for row in await cursor.fetchall()]
 
-            cursor.execute(
-                """
-                SELECT at.*,
-                       e.id         AS entity_id,
-                       e.name       AS entity_name,
-                       e.natural_id AS entity_natural_id,
-                       e.type       AS entity_type,
-                       e.origin     AS entity_origin
-                FROM account_transactions at
-                         JOIN entities e ON at.entity_id = e.id
-                WHERE at.entity_id = ? AND at.source = ?
-                """,
+            await cursor.execute(
+                TransactionQueries.ACCOUNT_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
-            account = [_map_account_row(row) for row in cursor.fetchall()]
+            account = [_map_account_row(row) for row in await cursor.fetchall()]
 
         return Transactions(investment=investment, account=account)
 
-    def get_refs_by_source_type(self, real: bool) -> Set[str]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                           SELECT ref
-                           FROM investment_transactions
-                           WHERE is_real = ?
-                           UNION
-                           SELECT ref
-                           FROM account_transactions
-                           WHERE is_real = ?
-                           """,
+    async def get_refs_by_source_type(self, real: bool) -> Set[str]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.GET_REFS_BY_SOURCE_TYPE,
                 (real, real),
             )
-            return {row[0] for row in cursor.fetchall()}
+            return {row[0] for row in await cursor.fetchall()}
 
-    def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
+    async def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         params = []
-        base_sql = """
-                   SELECT tx.*,
-                          e.name       AS entity_name,
-                          e.type       as entity_type,
-                          e.origin     as entity_origin,
-                          e.natural_id as entity_natural_id
-                   FROM (SELECT id,
-                                ref,
-                                name,
-                                amount,
-                                currency,
-                                type,
-                                date,
-                                entity_id,
-                                is_real,
-                                source,
-                                product_type,
-                                fees,
-                                retentions,
-                                NULL AS interest_rate,
-                                NULL AS avg_balance,
-                                isin,
-                                ticker,
-                                asset_contract_address,
-                                market,
-                                shares,
-                                price,
-                                net_amount,
-                                order_date,
-                                linked_tx,
-                                interests,
-                                iban,
-                                portfolio_name,
-                                product_subtype
-                         FROM investment_transactions
-                         UNION ALL
-                         SELECT id,
-                                ref,
-                                name,
-                                amount,
-                                currency,
-                                type,
-                                date,
-                                entity_id,
-                                is_real,
-                                source,
-                                'ACCOUNT' AS product_type,
-                                fees,
-                                retentions,
-                                interest_rate,
-                                avg_balance,
-                                NULL      AS isin,
-                                NULL      AS ticker,
-                                NULL      AS asset_contract_address,
-                                NULL      AS market,
-                                NULL      AS shares,
-                                NULL      AS price,
-                                net_amount,
-                                NULL      AS order_date,
-                                NULL      AS linked_tx,
-                                NULL      AS interests,
-                                NULL      AS iban,
-                                NULL      AS portfolio_name,
-                                NULL      AS product_subtype
-                         FROM account_transactions) tx
-                            JOIN entities e ON tx.entity_id = e.id
-                   """
+        base_sql = TransactionQueries.GET_BY_FILTERS_BASE.value
 
         conditions = []
         if query.entities:
@@ -622,15 +482,15 @@ class TransactionSQLRepository(TransactionPort):
             )
             params.append(str(query.historic_entry_id))
 
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
         order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
         offset = (query.page - 1) * query.limit
         params.extend([query.limit, offset])
         sql = f"{base_sql} {where_clause} {order_pagination}"
 
-        with self._db_client.read() as cursor:
-            cursor.execute(sql, tuple(params))
-            rows = cursor.fetchall()
+        async with self._db_client.read() as cursor:
+            await cursor.execute(sql, tuple(params))
+            rows = await cursor.fetchall()
 
         tx_list = []
         for row in rows:
@@ -642,75 +502,54 @@ class TransactionSQLRepository(TransactionPort):
 
         return tx_list
 
-    def delete_by_source(self, source: DataSource):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM investment_transactions WHERE source = ?", (source,)
+    async def delete_by_source(self, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_INVESTMENT_BY_SOURCE,
+                (source,),
             )
-            cursor.execute(
-                "DELETE FROM account_transactions WHERE source = ?", (source,)
-            )
-
-    def delete_by_entity_source(self, entity_id: UUID, source: DataSource):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM investment_transactions WHERE entity_id = ? AND source = ?",
-                (
-                    str(entity_id),
-                    source,
-                ),
-            )
-            cursor.execute(
-                "DELETE FROM account_transactions WHERE entity_id = ? AND source = ?",
-                (str(entity_id), source),
+            await cursor.execute(
+                TransactionQueries.DELETE_ACCOUNT_BY_SOURCE,
+                (source,),
             )
 
-    def get_by_id(self, tx_id: UUID) -> Optional[BaseTx]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT it.*,
-                       e.id         AS entity_id,
-                       e.name       AS entity_name,
-                       e.type       AS entity_type,
-                       e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
-                FROM investment_transactions it
-                         JOIN entities e ON it.entity_id = e.id
-                WHERE it.id = ?
-                """,
+    async def get_by_id(self, tx_id: UUID) -> Optional[BaseTx]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.GET_INVESTMENT_BY_ID,
                 (str(tx_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 return _map_investment_row(row)
 
-            cursor.execute(
-                """
-                SELECT at.*,
-                       e.id         AS entity_id,
-                       e.name       AS entity_name,
-                       e.type       AS entity_type,
-                       e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
-                FROM account_transactions at
-                         JOIN entities e ON at.entity_id = e.id
-                WHERE at.id = ?
-                """,
+            await cursor.execute(
+                TransactionQueries.GET_ACCOUNT_BY_ID,
                 (str(tx_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 return _map_account_row(row)
         return None
 
-    def delete_by_id(self, tx_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM investment_transactions WHERE id = ?",
+    async def delete_by_id(self, tx_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_BY_ID_INVESTMENT,
                 (str(tx_id),),
             )
-            cursor.execute(
-                "DELETE FROM account_transactions WHERE id = ?",
+            await cursor.execute(
+                TransactionQueries.DELETE_BY_ID_ACCOUNT,
                 (str(tx_id),),
+            )
+
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_INVESTMENT_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
+            )
+            await cursor.execute(
+                TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
             )

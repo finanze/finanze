@@ -61,7 +61,7 @@ class ImportFileImpl(ImportFile):
             if not template_cfg or not template_cfg.id:
                 return ImportResult(ImportResultCode.INVALID_TEMPLATE)
 
-            template = self._template_port.get_by_id(UUID(template_cfg.id))
+            template = await self._template_port.get_by_id(UUID(template_cfg.id))
             if not template:
                 return ImportResult(
                     ImportResultCode.INVALID_TEMPLATE,
@@ -81,7 +81,7 @@ class ImportFileImpl(ImportFile):
                 return ImportResult(ImportResultCode.INVALID_TEMPLATE)
 
             try:
-                table = self._table_rw_port.parse(request.file)
+                table = await self._table_rw_port.parse(request.file)
             except UnsupportedFileFormat as exc:
                 self._log.warning("Unsupported file provided: %s", exc)
                 return ImportResult(ImportResultCode.UNSUPPORTED_FILE_FORMAT)
@@ -93,7 +93,7 @@ class ImportFileImpl(ImportFile):
                 data=table,
             )
 
-            existing_entities = self._entity_port.get_all()
+            existing_entities = await self._entity_port.get_all()
             existing_entities_by_name = {
                 entity.name: entity for entity in existing_entities
             }
@@ -118,8 +118,10 @@ class ImportFileImpl(ImportFile):
         positions = None
         transactions = None
 
-        last_manual_imports = self._virtual_import_registry.get_last_import_records(
-            source=VirtualDataSource.MANUAL
+        last_manual_imports = (
+            await self._virtual_import_registry.get_last_import_records(
+                source=VirtualDataSource.MANUAL
+            )
         )
         for entry in last_manual_imports:
             virtual_entries.append(
@@ -134,7 +136,7 @@ class ImportFileImpl(ImportFile):
             )
 
         if feature == Feature.POSITION:
-            result = self._template_parser.global_positions(
+            result = await self._template_parser.global_positions(
                 [candidate], existing_entities_by_name
             )
             errors.extend(result.errors)
@@ -142,11 +144,11 @@ class ImportFileImpl(ImportFile):
 
             if not preview:
                 for entity in result.created_entities:
-                    self._entity_port.insert(entity)
+                    await self._entity_port.insert(entity)
                     existing_entities_by_name[entity.name] = entity
 
                 for position in positions or []:
-                    self._position_port.save(position)
+                    await self._position_port.save(position)
                     virtual_entries.append(
                         VirtualDataImport(
                             import_id=import_id,
@@ -159,7 +161,7 @@ class ImportFileImpl(ImportFile):
                     )
 
         elif feature == Feature.TRANSACTIONS:
-            result = self._template_parser.transactions(
+            result = await self._template_parser.transactions(
                 [candidate], existing_entities_by_name
             )
             errors.extend(result.errors)
@@ -167,10 +169,10 @@ class ImportFileImpl(ImportFile):
 
             if not preview:
                 for entity in result.created_entities:
-                    self._entity_port.insert(entity)
+                    await self._entity_port.insert(entity)
 
                 if transactions:
-                    self._transaction_port.save(transactions)
+                    await self._transaction_port.save(transactions)
                     tx_entities = {
                         tx.entity.id
                         for tx in (transactions.investment or [])
@@ -200,7 +202,7 @@ class ImportFileImpl(ImportFile):
             )
 
         if virtual_entries and not preview:
-            self._virtual_import_registry.insert(virtual_entries)
+            await self._virtual_import_registry.insert(virtual_entries)
 
         imported_data = ImportedData(positions=positions, transactions=transactions)
         return ImportResult(

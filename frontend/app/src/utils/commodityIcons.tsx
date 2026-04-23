@@ -11,23 +11,25 @@ export const getActiveCommodityTypes = (
 
   const activeCommodityTypes = new Set<CommodityType>()
 
-  Object.values(positionsData.positions).forEach((entityPosition: any) => {
-    const commodityProduct = entityPosition.products?.COMMODITY
-    if (
-      commodityProduct &&
-      "entries" in commodityProduct &&
-      commodityProduct.entries.length > 0
-    ) {
-      commodityProduct.entries.forEach((commodity: any) => {
-        if (
-          commodity.type &&
-          Object.values(CommodityType).includes(commodity.type)
-        ) {
-          activeCommodityTypes.add(commodity.type as CommodityType)
-        }
-      })
-    }
-  })
+  Object.values(positionsData.positions)
+    .flat()
+    .forEach((entityPosition: any) => {
+      const commodityProduct = entityPosition.products?.COMMODITY
+      if (
+        commodityProduct &&
+        "entries" in commodityProduct &&
+        commodityProduct.entries.length > 0
+      ) {
+        commodityProduct.entries.forEach((commodity: any) => {
+          if (
+            commodity.type &&
+            Object.values(CommodityType).includes(commodity.type)
+          ) {
+            activeCommodityTypes.add(commodity.type as CommodityType)
+          }
+        })
+      }
+    })
 
   return Array.from(activeCommodityTypes)
 }

@@ -6,22 +6,24 @@ from domain.real_estate import (
     SupplyPayload,
 )
 from domain.use_cases.list_real_estate import ListRealEstate
-from flask import jsonify
+from quart import jsonify
 
 
 def _serialize_flow_payload(payload) -> dict:
     """Serialize the payload based on its type."""
     if isinstance(payload, LoanPayload):
-        return {
+        result = {
             "type": payload.type,
             "loan_amount": payload.loan_amount,
             "interest_rate": payload.interest_rate,
             "euribor_rate": payload.euribor_rate,
             "interest_type": payload.interest_type,
             "fixed_years": payload.fixed_years,
+            "fixed_interest_rate": payload.fixed_interest_rate,
             "principal_outstanding": payload.principal_outstanding,
             "monthly_interests": payload.monthly_interests,
         }
+        return result
     elif isinstance(payload, CostPayload) or isinstance(payload, SupplyPayload):
         return {
             "tax_deductible": payload.tax_deductible,
@@ -76,6 +78,7 @@ def _serialize_real_estate(real_estate: RealEstate) -> dict:
                 "periodic_flow_id": str(flow.periodic_flow_id),
                 "flow_subtype": flow.flow_subtype,
                 "description": flow.description,
+                "linked_loan_hash": flow.linked_loan_hash,
                 "payload": _serialize_flow_payload(flow.payload),
                 "periodic_flow": {
                     "id": str(flow.periodic_flow.id),
@@ -128,6 +131,6 @@ def _serialize_real_estate(real_estate: RealEstate) -> dict:
     }
 
 
-def list_real_estate(list_real_estate_uc: ListRealEstate):
-    real_estates = list_real_estate_uc.execute()
+async def list_real_estate(list_real_estate_uc: ListRealEstate):
+    real_estates = await list_real_estate_uc.execute()
     return jsonify([_serialize_real_estate(re) for re in real_estates]), 200

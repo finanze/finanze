@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { useI18n } from "@/i18n"
 import type { AboutAppInfo } from "@/types"
+import { getPlatformInfo } from "@/lib/platform"
 
 export function AboutWindow() {
   const { t } = useI18n()
@@ -9,6 +10,7 @@ export function AboutWindow() {
   const [isLoading, setIsLoading] = useState(true)
 
   const aboutStrings = t.about
+  const plarformInfo = getPlatformInfo()
 
   useEffect(() => {
     let mounted = true
@@ -52,35 +54,35 @@ export function AboutWindow() {
       { label: aboutStrings.version, value: info.version },
     ]
 
-    if (info.electronVersion) {
+    if (plarformInfo.electronVersion) {
       items.push({
         label: aboutStrings.electronVersion,
-        value: info.electronVersion,
+        value: plarformInfo.electronVersion,
       })
     }
 
-    if (info.chromiumVersion) {
+    if (plarformInfo.chromiumVersion) {
       items.push({
         label: aboutStrings.chromiumVersion,
-        value: info.chromiumVersion,
+        value: plarformInfo.chromiumVersion,
       })
     }
 
-    if (info.nodeVersion) {
-      items.push({ label: aboutStrings.nodeVersion, value: info.nodeVersion })
+    if (plarformInfo.nodeVersion) {
+      items.push({
+        label: aboutStrings.nodeVersion,
+        value: plarformInfo.nodeVersion,
+      })
     }
 
     return items
   }, [info, author, aboutStrings])
 
   const platformItems = useMemo(() => {
-    if (!info?.platform) return []
-
-    const { platform } = info
     const platformNames = aboutStrings.platformNames
     const osName =
-      platformNames?.[platform.type as keyof typeof platformNames] ??
-      platform.type
+      platformNames?.[plarformInfo.type as keyof typeof platformNames] ??
+      plarformInfo.type
 
     return [
       {
@@ -89,43 +91,28 @@ export function AboutWindow() {
       },
       {
         label: aboutStrings.architecture,
-        value: platform.arch ?? t.common.notAvailable,
+        value: plarformInfo.arch ?? t.common.notAvailable,
       },
       {
         label: aboutStrings.osVersion,
-        value: platform.osVersion ?? t.common.notAvailable,
+        value: plarformInfo.osVersion ?? t.common.notAvailable,
       },
     ]
   }, [info, aboutStrings, t.common.notAvailable])
-
-  const linkItems = useMemo(() => {
-    if (!info) return []
-
-    const items: { label: string; value: string }[] = []
-
-    if (info.homepage) {
-      items.push({ label: aboutStrings.website, value: info.homepage })
-    }
-
-    if (info.repository) {
-      items.push({ label: aboutStrings.repository, value: info.repository })
-    }
-
-    return items
-  }, [info, aboutStrings.website, aboutStrings.repository])
 
   const handleNavigate = (url: string) => {
     window.open(url, "_blank")
   }
 
   const appName = info?.appName ?? "Finanze"
+  const OFFICIAL_PAGE_URL = "https://finanze.me"
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="flex flex-col items-center text-center space-y-3">
           <img
-            src="finanze.png"
+            src="finanze-app.png"
             alt={aboutStrings.logoAlt.replace("{appName}", appName)}
             className="h-12 w-12 rounded-lg shadow-sm object-cover"
           />
@@ -145,6 +132,13 @@ export function AboutWindow() {
                 ),
               }}
             />
+            <button
+              type="button"
+              onClick={() => handleNavigate(OFFICIAL_PAGE_URL)}
+              className="text-xs font-medium text-primary hover:underline pt-1"
+            >
+              finanze.me
+            </button>
           </div>
         </CardHeader>
 
@@ -193,30 +187,6 @@ export function AboutWindow() {
                         <span className="font-medium text-foreground">
                           {item.value}
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {linkItems.length > 0 && (
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {aboutStrings.linksSection}
-                  </h3>
-                  <div className="space-y-2">
-                    {linkItems.map(link => (
-                      <div key={link.label} className="flex flex-col">
-                        <span className="text-muted-foreground">
-                          {link.label}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleNavigate(link.value)}
-                          className="text-left font-medium text-primary hover:underline break-all"
-                        >
-                          {link.value}
-                        </button>
                       </div>
                     ))}
                   </div>

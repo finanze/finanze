@@ -4,11 +4,13 @@ import { useI18n } from "@/i18n"
 import { MoneyEvent, MoneyEventType } from "@/types"
 import { getMoneyEvents } from "@/services/api"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { BaseCalendar, CalendarDay } from "@/components/ui/BaseCalendar"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { X, CalendarSync, HandCoins, PiggyBank, Landmark } from "lucide-react"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 type EventTypeFilter = {
   [key in MoneyEventType]: boolean
@@ -33,14 +35,22 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
   const [loading, setLoading] = useState(false)
   const [selectedDay, setSelectedDay] =
     useState<CalendarDay<MoneyEvent> | null>(null)
+
+  useModalBackHandler(selectedDay !== null, () => setSelectedDay(null))
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>({
-    [MoneyEventType.CONTRIBUTION]: true,
-    [MoneyEventType.PERIODIC_FLOW]: true,
-    [MoneyEventType.PENDING_FLOW]: true,
-    [MoneyEventType.MATURITY]: true,
+    [MoneyEventType.CONTRIBUTION]: false,
+    [MoneyEventType.PERIODIC_FLOW]: false,
+    [MoneyEventType.PENDING_FLOW]: false,
+    [MoneyEventType.MATURITY]: false,
   })
 
   const filteredEvents = useMemo(() => {
+    const hasSelectedFilters = Object.values(eventTypeFilter).some(Boolean)
+
+    if (!hasSelectedFilters) {
+      return events
+    }
+
     return events.filter(event => eventTypeFilter[event.type])
   }, [events, eventTypeFilter])
 
@@ -264,8 +274,11 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
             variant="outline"
             size="sm"
             onClick={() => toggleEventType(type)}
-            className={`inline-flex items-center gap-1.5 text-xs ${
-              !eventTypeFilter[type] ? "opacity-50" : ""
+            aria-pressed={eventTypeFilter[type]}
+            className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
+              eventTypeFilter[type]
+                ? "border-white bg-white text-black hover:border-white hover:bg-white/90 hover:text-black dark:border-white dark:bg-white dark:text-black dark:hover:bg-white/90"
+                : "bg-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {icon}
@@ -427,12 +440,14 @@ function EventDayDetailModal({
                   <p
                     className={`font-mono text-sm font-semibold flex-shrink-0 ${getAmountColor(event)}`}
                   >
-                    {getAmountPrefix(event)}
-                    {formatCurrency(
-                      Math.abs(event.amount),
-                      locale,
-                      event.currency,
-                    )}
+                    <Sensitive>
+                      {getAmountPrefix(event)}
+                      {formatCurrency(
+                        Math.abs(event.amount),
+                        locale,
+                        event.currency,
+                      )}
+                    </Sensitive>
                   </p>
                 </div>
               </div>

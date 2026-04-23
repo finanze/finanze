@@ -5,6 +5,8 @@ from typing import Any, Dict
 from uuid import UUID
 
 from dateutil.tz import tzlocal
+
+from domain.crypto import CryptoAsset, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import MissingFieldsError
 from domain.fetch_record import DataSource
@@ -16,7 +18,12 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    CreditDetail,
+    Credits,
     Crowdlending,
+    CryptoCurrencies,
+    CryptoCurrencyPosition,
+    CryptoCurrencyWallet,
     Deposit,
     Deposits,
     EquityType,
@@ -28,6 +35,7 @@ from domain.global_position import (
     FundPortfolios,
     FundType,
     InterestType,
+    InstallmentFrequency,
     Loan,
     Loans,
     LoanType,
@@ -39,6 +47,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 
 
 def _uuid(value: Any):
@@ -50,10 +59,13 @@ def _uuid(value: Any):
         return None
 
 
-def _dez(value: Any):
+def _dez(value: Any, round_digits: int | None = None):
     if value is None:
         return None
-    return Dezimal(str(value))
+    d = Dezimal(str(value))
+    if round_digits is not None:
+        d = round(d, round_digits)
+    return d
 
 
 def _date(value: Any):
@@ -81,6 +93,7 @@ def _dt(value: Any):
 def _map_manual_data(entry: dict) -> ManualEntryData:
     return ManualEntryData(
         tracker_key=entry.get("tracker_key"),
+        track=bool(entry.get("track", False)),
     )
 
 
@@ -98,7 +111,7 @@ def _map_accounts(entries: list[dict]) -> Accounts:
                 type=AccountType(e["type"]),
                 name=e.get("name"),
                 iban=e.get("iban"),
-                interest=_dez(e.get("interest")),
+                interest=_dez(e.get("interest"), 6),
                 retained=_dez(e.get("retained")),
                 pending_transfers=_dez(e.get("pending_transfers")),
                 source=DataSource.MANUAL,
@@ -184,6 +197,7 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 else None,
                 portfolio=portfolio,
                 manual_data=_map_manual_data(e["manual_data"]),
+                issuer=resolve_issuer(None, e.get("name")),
                 source=DataSource.MANUAL,
             )
         )
@@ -213,14 +227,14 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
                 amount=_dez(e["amount"]),
                 pending_amount=_dez(e["pending_amount"]),
                 currency=e["currency"],
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 business_type=e.get("business_type", ""),
                 state=e["state"],
                 extended_maturity=_date(e.get("extended_maturity")),
-                extended_interest_rate=_dez(e.get("extended_interest_rate"))
+                extended_interest_rate=_dez(e.get("extended_interest_rate"), 6)
                 if e.get("extended_interest_rate")
                 else None,
                 source=DataSource.MANUAL,
@@ -250,12 +264,12 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
                 name=e["name"],
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 state=e["state"],
-                late_interest_rate=_dez(e.get("late_interest_rate"))
+                late_interest_rate=_dez(e.get("late_interest_rate"), 6)
                 if e.get("late_interest_rate")
                 else None,
                 source=DataSource.MANUAL,
@@ -284,7 +298,7 @@ def _map_deposits(entries: list[dict]) -> Deposits:
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
                 expected_interests=Dezimal(0),
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 creation=_dt(e["creation"]),
                 maturity=_date(e["maturity"]),
                 source=DataSource.MANUAL,
@@ -314,18 +328,24 @@ def _map_loans(entries: list[dict]) -> Loans:
                 type=LoanType(e["type"]),
                 currency=e["currency"],
                 current_installment=_dez(e["current_installment"]),
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 loan_amount=_dez(e["loan_amount"]),
                 creation=_date(e["creation"]),
                 maturity=_date(e["maturity"]),
                 principal_outstanding=_dez(e["principal_outstanding"]),
-                principal_paid=_dez(e.get("principal_paid")),
                 interest_type=InterestType(e.get("interest_type", InterestType.FIXED)),
-                next_payment_date=_date(e.get("next_payment_date")),
-                euribor_rate=_dez(e.get("euribor_rate")),
+                installment_frequency=InstallmentFrequency(
+                    e.get("installment_frequency", InstallmentFrequency.MONTHLY)
+                ),
+                installment_interests=_dez(e.get("installment_interests")),
+                fixed_interest_rate=_dez(e.get("fixed_interest_rate"), 6),
+                euribor_rate=_dez(e.get("euribor_rate"), 6),
                 fixed_years=e.get("fixed_years"),
                 name=e.get("name"),
                 unpaid=_dez(e.get("unpaid")),
+                manual_data=_map_manual_data(e["manual_data"])
+                if e.get("manual_data")
+                else None,
                 source=DataSource.MANUAL,
             )
         )
@@ -349,6 +369,12 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
         init_inv = _dez(e.get("initial_investment"))
         avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
+        equity_type = EquityType(e["type"])
+        issuer = (
+            resolve_issuer(None, e.get("name"))
+            if equity_type == EquityType.ETF
+            else None
+        )
         result.append(
             StockDetail(
                 id=_uuid(e.get("id")),
@@ -361,13 +387,68 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 average_buy_price=avg_buy,
                 market_value=market_value,
                 currency=e["currency"],
-                type=EquityType(e["type"]),
+                type=equity_type,
                 subtype=e.get("subtype"),
                 manual_data=_map_manual_data(e["manual_data"]),
+                issuer=issuer,
                 source=DataSource.MANUAL,
             )
         )
     return StockInvestments(result)
+
+
+def _map_crypto(entries: list[dict]) -> CryptoCurrencies:
+    entries = entries[0].get("assets", []) if entries else []
+    assets = []
+    for e in entries:
+        for req in ("symbol", "name", "amount", "type", "market_value", "currency"):
+            if req not in e:
+                raise MissingFieldsError([req])
+
+        crypto_asset_data = e.get("crypto_asset")
+        if not crypto_asset_data:
+            raise MissingFieldsError(["crypto_asset"])
+
+        external_ids = crypto_asset_data.get("external_ids", {})
+        if not external_ids or not any(v is not None for v in external_ids.values()):
+            raise MissingFieldsError(
+                ["crypto_asset.external_ids with at least one non-null entry"]
+            )
+
+        crypto_asset = CryptoAsset(
+            name=crypto_asset_data.get("name", ""),
+            symbol=crypto_asset_data.get("symbol"),
+            icon_urls=crypto_asset_data.get("icon_urls"),
+            external_ids=external_ids,
+        )
+
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
+        inv_currency = e.get("investment_currency")
+
+        position = CryptoCurrencyPosition(
+            id=_uuid(e.get("id")),
+            symbol=e["symbol"],
+            amount=_dez(e["amount"]),
+            type=CryptoCurrencyType(e["type"]),
+            name=e.get("name"),
+            crypto_asset=crypto_asset,
+            market_value=_dez(e["market_value"]),
+            currency=e["currency"],
+            contract_address=e.get("contract_address"),
+            initial_investment=init_inv,
+            average_buy_price=avg_buy,
+            investment_currency=inv_currency,
+            source=DataSource.MANUAL,
+        )
+
+        assets.append(position)
+
+    wallet = CryptoCurrencyWallet(
+        assets=assets,
+    )
+
+    return CryptoCurrencies([wallet])
 
 
 def _map_crowdlending(entries: list[dict]) -> Crowdlending:
@@ -375,13 +456,35 @@ def _map_crowdlending(entries: list[dict]) -> Crowdlending:
         raise MissingFieldsError(["crowdlending entry"])
     e = entries[0]
     return Crowdlending(
-        id=_uuid(e.get("id")) or UUID(int=0),
+        id=_uuid(e.get("id")),
         total=_dez(e.get("total")),
         weighted_interest_rate=_dez(e.get("weighted_interest_rate")),
         currency=e.get("currency"),
         distribution=e.get("distribution"),
         entries=[],
     )
+
+
+def _map_credits(entries: list[dict]) -> Credits:
+    result = []
+    for e in entries:
+        for req in ("currency", "credit_limit", "drawn_amount", "interest_rate"):
+            if req not in e:
+                raise MissingFieldsError([req])
+        result.append(
+            CreditDetail(
+                id=_uuid(e.get("id")),
+                currency=e["currency"],
+                credit_limit=_dez(e["credit_limit"]),
+                drawn_amount=_dez(e["drawn_amount"]),
+                interest_rate=_dez(e["interest_rate"], 6),
+                name=e.get("name"),
+                pledged_amount=_dez(e.get("pledged_amount")),
+                creation=_date(e["creation"]) if e.get("creation") else None,
+                source=DataSource.MANUAL,
+            )
+        )
+    return Credits(result)
 
 
 _MAPPER_DISPATCH = {
@@ -395,6 +498,8 @@ _MAPPER_DISPATCH = {
     ProductType.LOAN: _map_loans,
     ProductType.STOCK_ETF: _map_stocks,
     ProductType.CROWDLENDING: _map_crowdlending,
+    ProductType.CRYPTO: _map_crypto,
+    ProductType.CREDIT: _map_credits,
 }
 
 

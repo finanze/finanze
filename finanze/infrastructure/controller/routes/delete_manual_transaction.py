@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
-from flask import jsonify
+from quart import jsonify
 
 
 async def delete_manual_transaction(
@@ -9,7 +9,7 @@ async def delete_manual_transaction(
 ):
     try:
         tx_uuid = UUID(tx_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return jsonify(
             {"code": "INVALID_REQUEST", "message": "Invalid transaction ID"}
         ), 400

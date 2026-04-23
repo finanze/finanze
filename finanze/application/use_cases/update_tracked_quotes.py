@@ -35,7 +35,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             raise ExecutionConflict()
 
         async with self._lock:
-            trackable_entries = self._manual_position_data_port.get_trackable()
+            trackable_entries = await self._manual_position_data_port.get_trackable()
             if not trackable_entries:
                 return
 
@@ -43,11 +43,11 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                 "Updating tracked quotes for %d entries", len(trackable_entries)
             )
 
-            fiat_matrix = self._exchange_rate_provider.get_matrix()
+            fiat_matrix = await self._exchange_rate_provider.get_matrix()
 
             for mpd in trackable_entries:
                 try:
-                    self._update_entry_quote(
+                    await self._update_entry_quote(
                         entry_id=mpd.entry_id,
                         product_type=mpd.product_type,
                         tracker_key=mpd.data.tracker_key if mpd.data else None,
@@ -59,11 +59,11 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                     )
                     continue
 
-    def _resolve_entry_info(
+    async def _resolve_entry_info(
         self, entry_id: UUID, product_type: ProductType
     ) -> Optional[tuple[Dezimal, str, InstrumentType]]:
         if product_type == ProductType.STOCK_ETF:
-            stock = self._position_port.get_stock_detail(entry_id)
+            stock = await self._position_port.get_stock_detail(entry_id)
             if not stock:
                 return None
             inst_type = (
@@ -74,7 +74,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             return stock.shares, stock.currency, inst_type
 
         if product_type == ProductType.FUND:
-            fund = self._position_port.get_fund_detail(entry_id)
+            fund = await self._position_port.get_fund_detail(entry_id)
             if not fund:
                 return None
             if fund.type != FundType.MUTUAL_FUND:
@@ -83,11 +83,11 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
 
         return None
 
-    def _fetch_instrument_info(
+    async def _fetch_instrument_info(
         self, tracker_key: str, instrument_type: InstrumentType
     ) -> Optional[InstrumentInfo]:
         req = InstrumentDataRequest(type=instrument_type, ticker=tracker_key)
-        return self._instrument_info_provider.get_info(req)
+        return await self._instrument_info_provider.get_info(req)
 
     def _convert_price_currency(
         self,
@@ -111,7 +111,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                 )
             return None
 
-    def _update_entry_quote(
+    async def _update_entry_quote(
         self,
         entry_id: UUID,
         product_type: ProductType,
@@ -121,12 +121,12 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         if not tracker_key:
             return
 
-        resolved = self._resolve_entry_info(entry_id, product_type)
+        resolved = await self._resolve_entry_info(entry_id, product_type)
         if not resolved:
             return
 
         shares, currency, instrument_type = resolved
-        info = self._fetch_instrument_info(tracker_key, instrument_type)
+        info = await self._fetch_instrument_info(tracker_key, instrument_type)
         if not (info and info.price):
             return
 
@@ -136,4 +136,6 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
 
         market_value = round(shares * price, 4)
 
-        self._position_port.update_market_value(entry_id, product_type, market_value)
+        await self._position_port.update_market_value(
+            entry_id, product_type, market_value
+        )

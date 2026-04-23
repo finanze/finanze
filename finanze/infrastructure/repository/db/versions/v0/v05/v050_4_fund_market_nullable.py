@@ -48,7 +48,7 @@ class V0504(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.5.0:4_fund_market_nullable"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(DDL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

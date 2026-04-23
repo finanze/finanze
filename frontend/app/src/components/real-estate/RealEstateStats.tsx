@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react"
 import { useI18n } from "@/i18n"
 import { Card } from "@/components/ui/Card"
-import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import {
   Popover,
@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import type {
   RealEstateFlow,
   RealEstateFlowSubtype,
@@ -105,6 +106,12 @@ export function RealEstateStats({
         break
       case "WEEKLY":
         amount = amount * 4.33
+        break
+      case "BIWEEKLY":
+        amount = amount * (26 / 12)
+        break
+      case "SEMIMONTHLY":
+        amount = amount * 2
         break
       case "EVERY_TWO_MONTHS":
         amount = amount / 2
@@ -280,53 +287,58 @@ export function RealEstateStats({
   }
 
   return (
-    <Card
-      className={
-        cardClassName ??
-        "p-4 border-gray-200 bg-gray-50 dark:bg-gray-900 dark:border-gray-700"
-      }
-    >
+    <Card className={cardClassName ?? "p-4"}>
       <h4 className="font-medium mb-3">{t.realEstate.summary}</h4>
 
       <div className="grid grid-cols-2 gap-4 text-sm mb-4">
         <div>
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-muted-foreground">
             {t.realEstate.labels.totalPurchaseCost}:
           </span>
           <div className="font-medium">
-            {formatCurrency(purchaseTotal, locale, currency)}
+            <Sensitive>
+              {formatCurrency(purchaseTotal, locale, currency)}
+            </Sensitive>
           </div>
         </div>
         <div>
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-muted-foreground">
             {t.realEstate.labels.estimatedValue}:
           </span>
           <div className="font-medium">
-            {formatCurrency(estimatedMarketValue || 0, locale, currency)}
+            <Sensitive>
+              {formatCurrency(estimatedMarketValue || 0, locale, currency)}
+            </Sensitive>
           </div>
         </div>
         <div>
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-muted-foreground">
             {t.realEstate.labels.equity}:
           </span>
           <div className="font-medium">
-            {formatCurrency(equity || 0, locale, currency)}
+            <Sensitive>
+              {formatCurrency(equity || 0, locale, currency)}
+            </Sensitive>
           </div>
         </div>
         <div>
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-muted-foreground">
             {t.realEstate.loans.capitalContributed}:
           </span>
           <div className="font-medium">
-            {formatCurrency(capitalContributed, locale, currency)}
+            <Sensitive>
+              {formatCurrency(capitalContributed, locale, currency)}
+            </Sensitive>
           </div>
         </div>
         <div>
-          <span className="text-gray-600 dark:text-gray-400">
+          <span className="text-muted-foreground">
             {t.realEstate.loans.totalFinanced}:
           </span>
           <div className="font-medium">
-            {formatCurrency(totalFinanced, locale, currency)}
+            <Sensitive>
+              {formatCurrency(totalFinanced, locale, currency)}
+            </Sensitive>
           </div>
         </div>
       </div>
@@ -339,7 +351,9 @@ export function RealEstateStats({
                 {t.realEstate.labels.totalMonthlyExpenses}
               </span>
               <span className="font-medium text-red-600 text-lg">
-                {formatCurrency(totalMonthlyPayments, locale, currency)}
+                <Sensitive className="text-red-600">
+                  {formatCurrency(totalMonthlyPayments, locale, currency)}
+                </Sensitive>
               </span>
             </div>
           </div>
@@ -348,21 +362,21 @@ export function RealEstateStats({
         <>
           <div className="border-t pt-4 mb-4">
             <div className="flex justify-between items-center mb-3">
-              <h5 className="font-medium text-gray-900 dark:text-white">
+              <h5 className="font-medium text-foreground">
                 {t.realEstate.analysis.profitabilityAnalysis}
               </h5>
-              <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
                 <button
                   type="button"
                   onClick={() => setAnnual(false)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!annual ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm" : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"}`}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!annual ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {t.realEstate.analysis.monthly}
                 </button>
                 <button
                   type="button"
                   onClick={() => setAnnual(true)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${annual ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm" : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"}`}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${annual ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {t.realEstate.analysis.annual}
                 </button>
@@ -378,11 +392,13 @@ export function RealEstateStats({
                     : t.realEstate.labels.monthlyIncome}
                 </span>
                 <span className="font-medium text-green-600 text-lg">
-                  {formatCurrency(
-                    annual ? monthlyIncome * 12 : monthlyIncome,
-                    locale,
-                    currency,
-                  )}
+                  <Sensitive className="text-green-600">
+                    {formatCurrency(
+                      annual ? monthlyIncome * 12 : monthlyIncome,
+                      locale,
+                      currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
             </div>
@@ -396,28 +412,32 @@ export function RealEstateStats({
                     : t.realEstate.labels.totalMonthlyExpenses}
                 </span>
                 <span className="font-medium text-red-600 text-lg">
-                  {formatCurrency(
-                    annual ? totalMonthlyPayments * 12 : totalMonthlyPayments,
-                    locale,
-                    currency,
-                  )}
+                  <Sensitive className="text-red-600">
+                    {formatCurrency(
+                      annual ? totalMonthlyPayments * 12 : totalMonthlyPayments,
+                      locale,
+                      currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
               <div className="text-xs text-red-600 dark:text-red-400 mt-1 flex justify-end">
                 <span>
                   {t.realEstate.labels.taxDeductible}:{" "}
-                  {formatCurrency(
-                    annual ? monthlyTaxDeductible * 12 : monthlyTaxDeductible,
-                    locale,
-                    currency,
-                  )}
+                  <Sensitive className="text-red-600 dark:text-red-400">
+                    {formatCurrency(
+                      annual ? monthlyTaxDeductible * 12 : monthlyTaxDeductible,
+                      locale,
+                      currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
             </div>
 
-            <div className="border-t pt-2 mb-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="border-t pt-2 mb-1 p-3 bg-muted/50 rounded-lg">
               <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <span className="font-medium text-foreground flex items-center gap-2">
                   <Equal className="h-4 w-4" />
                   {annual
                     ? t.realEstate.analysis.annualCashflow
@@ -426,23 +446,27 @@ export function RealEstateStats({
                 <span
                   className={`font-bold text-lg ${netMonthlyProfit >= 0 ? "text-green-600" : "text-red-600"}`}
                 >
-                  {formatCurrency(
-                    annual ? netMonthlyProfit * 12 : netMonthlyProfit,
-                    locale,
-                    currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      annual ? netMonthlyProfit * 12 : netMonthlyProfit,
+                      locale,
+                      currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
-              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex justify-end">
+              <div className="text-xs text-muted-foreground mt-1 flex justify-end">
                 <span>
                   {t.realEstate.labels.taxableAmount}:{" "}
-                  {formatCurrency(
-                    annual
-                      ? Math.max(0, monthlyIncome - monthlyTaxDeductible) * 12
-                      : Math.max(0, monthlyIncome - monthlyTaxDeductible),
-                    locale,
-                    currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      annual
+                        ? Math.max(0, monthlyIncome - monthlyTaxDeductible) * 12
+                        : Math.max(0, monthlyIncome - monthlyTaxDeductible),
+                      locale,
+                      currency,
+                    )}
+                  </Sensitive>
                 </span>
               </div>
             </div>
@@ -457,12 +481,14 @@ export function RealEstateStats({
                     {t.realEstate.labels.roi}
                   </span>
                   <div className="font-bold text-lg text-blue-600 dark:text-blue-400">
-                    {calcROI(
-                      purchaseTotal,
-                      monthlyIncome,
-                      monthlyCosts,
-                    )?.toFixed(2)}
-                    %
+                    <Sensitive className="text-blue-600 dark:text-blue-400">
+                      {calcROI(
+                        purchaseTotal,
+                        monthlyIncome,
+                        monthlyCosts,
+                      )?.toFixed(2)}
+                      %
+                    </Sensitive>
                   </div>
                 </div>
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -492,11 +518,13 @@ export function RealEstateStats({
                     )}
                   </span>
                   <div
-                    className={`font-bold text-lg ${capitalContributed > 0 ? (netMonthlyProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-gray-500"}`}
+                    className={`font-bold text-lg ${capitalContributed > 0 ? (netMonthlyProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground"}`}
                   >
-                    {capitalContributed > 0
-                      ? `${calcCoC(capitalContributed, netMonthlyProfit)!.toFixed(2)}%`
-                      : t.common.notAvailable}
+                    <Sensitive>
+                      {capitalContributed > 0
+                        ? `${calcCoC(capitalContributed, netMonthlyProfit)!.toFixed(2)}%`
+                        : t.common.notAvailable}
+                    </Sensitive>
                   </div>
                 </div>
                 <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
@@ -511,16 +539,18 @@ export function RealEstateStats({
                     {t.realEstate.labels.totalReturn}
                   </span>
                   <div
-                    className={`font-bold text-lg ${capitalContributed > 0 ? "text-teal-600 dark:text-teal-400" : "text-gray-500"}`}
+                    className={`font-bold text-lg ${capitalContributed > 0 ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"}`}
                   >
-                    {capitalContributed > 0
-                      ? `${calcTotalReturn(
-                          capitalContributed,
-                          monthlyIncome,
-                          monthlyCosts,
-                          monthlyLoanInterests,
-                        )!.toFixed(2)}%`
-                      : t.common.notAvailable}
+                    <Sensitive className="text-teal-600 dark:text-teal-400">
+                      {capitalContributed > 0
+                        ? `${calcTotalReturn(
+                            capitalContributed,
+                            monthlyIncome,
+                            monthlyCosts,
+                            monthlyLoanInterests,
+                          )!.toFixed(2)}%`
+                        : t.common.notAvailable}
+                    </Sensitive>
                   </div>
                 </div>
                 <div className="text-xs text-teal-600 dark:text-teal-400 mt-1">
@@ -535,11 +565,13 @@ export function RealEstateStats({
                     {t.realEstate.labels.roe}
                   </span>
                   <div
-                    className={`font-bold text-lg ${equity > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500"}`}
+                    className={`font-bold text-lg ${equity > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-muted-foreground"}`}
                   >
-                    {equity > 0
-                      ? `${(((netMonthlyProfit * 12) / equity) * 100).toFixed(2)}%`
-                      : t.common.notAvailable}
+                    <Sensitive className="text-indigo-600 dark:text-indigo-400">
+                      {equity > 0
+                        ? `${(((netMonthlyProfit * 12) / equity) * 100).toFixed(2)}%`
+                        : t.common.notAvailable}
+                    </Sensitive>
                   </div>
                 </div>
                 <div className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
@@ -555,11 +587,13 @@ export function RealEstateStats({
                       {t.realEstate.labels.netCoC}
                     </span>
                     <div
-                      className={`font-bold text-lg ${capitalContributed > 0 ? (profitAfterTaxAnnual >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-gray-500"}`}
+                      className={`font-bold text-lg ${capitalContributed > 0 ? (profitAfterTaxAnnual >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground"}`}
                     >
-                      {capitalContributed > 0
-                        ? `${calcNetCoC(capitalContributed, profitAfterTaxAnnual)!.toFixed(2)}%`
-                        : t.common.notAvailable}
+                      <Sensitive>
+                        {capitalContributed > 0
+                          ? `${calcNetCoC(capitalContributed, profitAfterTaxAnnual)!.toFixed(2)}%`
+                          : t.common.notAvailable}
+                      </Sensitive>
                     </div>
                   </div>
                   <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
@@ -578,7 +612,7 @@ export function RealEstateStats({
               return showSection
             })() && (
               <div className="border-t pt-4">
-                <h5 className="font-medium mb-3 text-gray-900 dark:text-white">
+                <h5 className="font-medium mb-3 text-foreground">
                   {t.realEstate.analysis.fiscalEstimation}
                 </h5>
                 <div className="space-y-2">
@@ -588,38 +622,30 @@ export function RealEstateStats({
                     </Label>
                     {onChangeMarginalTaxRate ? (
                       <div className="relative w-28">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="99"
-                          step="0.1"
-                          value={
-                            marginalTaxRate ? String(marginalTaxRate * 100) : ""
-                          }
-                          onChange={e => {
-                            const value = e.target.value
+                        <DecimalInput
+                          value={marginalTaxRate ? marginalTaxRate * 100 : ""}
+                          onValueChange={v => {
                             if (!onChangeMarginalTaxRate) return
-                            if (value === "") {
+                            if (v == null) {
                               onChangeMarginalTaxRate(undefined)
                             } else {
-                              const numValue = parseFloat(value)
-                              if (!isNaN(numValue)) {
-                                onChangeMarginalTaxRate(numValue / 100)
-                              }
+                              onChangeMarginalTaxRate(v / 100)
                             }
                           }}
                           placeholder={t.realEstate.placeholders.example24}
                           className="pr-8 h-8 text-sm"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
                           %
                         </span>
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-700 dark:text-gray-300">
-                        {marginalTaxRate !== undefined
-                          ? `${(marginalTaxRate * 100).toFixed(2)}%`
-                          : t.common.notAvailable}
+                      <div className="text-sm text-muted-foreground">
+                        <Sensitive className="text-muted-foreground">
+                          {marginalTaxRate !== undefined
+                            ? `${(marginalTaxRate * 100).toFixed(2)}%`
+                            : t.common.notAvailable}
+                        </Sensitive>
                       </div>
                     )}
                   </div>
@@ -633,16 +659,18 @@ export function RealEstateStats({
                             : t.realEstate.labels.estimatedMonthlyTax}
                         </span>
                         <span className="font-medium text-orange-600">
-                          {formatCurrency(
-                            annual ? taxesAnnual : taxesAnnual / 12,
-                            locale,
-                            currency,
-                          )}
+                          <Sensitive className="text-orange-600">
+                            {formatCurrency(
+                              annual ? taxesAnnual : taxesAnnual / 12,
+                              locale,
+                              currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div className="border-t pt-2 mb-2 p-3 bg-green-50 dark:bg-green-900/20 rounded">
                         <div className="flex justify-between items-center">
-                          <span className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="font-medium text-foreground flex items-center gap-2">
                             <Calculator className="h-4 w-4" />
                             {annual
                               ? t.realEstate.analysis.profitAfterTaxes
@@ -651,21 +679,25 @@ export function RealEstateStats({
                           <span
                             className={`font-bold text-lg ${profitAfterTaxAnnual >= 0 ? "text-green-600" : "text-red-600"}`}
                           >
-                            {formatCurrency(
-                              annual
-                                ? profitAfterTaxAnnual
-                                : profitAfterTaxAnnual / 12,
-                              locale,
-                              currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                annual
+                                  ? profitAfterTaxAnnual
+                                  : profitAfterTaxAnnual / 12,
+                                locale,
+                                currency,
+                              )}
+                            </Sensitive>
                           </span>
                         </div>
                         {/* Break-even (discreet) under NET cashflow */}
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex justify-end">
+                        <div className="text-xs text-muted-foreground mt-1 flex justify-end">
                           <span className="inline-flex items-center gap-1">
                             {labelsAny.breakEven}{" "}
                             {breakEvenMonths ? (
-                              `${Math.ceil(breakEvenMonths)} ${labelsAny.months} (~${(breakEvenYears as number).toFixed(1)} ${labelsAny.years})`
+                              <Sensitive className="text-muted-foreground">
+                                {`${Math.ceil(breakEvenMonths)} ${labelsAny.months} (~${(breakEvenYears as number).toFixed(1)} ${labelsAny.years})`}
+                              </Sensitive>
                             ) : (
                               <>
                                 {t.common.notAvailable}
@@ -695,7 +727,7 @@ export function RealEstateStats({
                       </div>
                     </div>
                   ) : null}
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs text-muted-foreground">
                     {t.realEstate.analysis.loanInterestNote}
                   </div>
                 </div>

@@ -1,0 +1,362 @@
+name: Mobile E2E Tests
+
+on:
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to test'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - ios
+          - android
+
+concurrency:
+  group: mobile-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Setup Python
+        shell: bash
+        run: |
+          brew install pyenv pyenv-virtualenv
+
+          export PYENV_ROOT="$HOME/.pyenv"
+          export PATH="$PYENV_ROOT/bin:$PATH"
+
+          eval "$(pyenv init --path)"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
+
+          pyenv install --skip-existing 3.14.2
+
+          if ! pyenv virtualenvs --bare | grep -q "^finanze-mobile$"; then
+            pyenv virtualenv 3.14.2 finanze-mobile
+          fi
+
+          pyenv activate finanze-mobile
+          pyenv local finanze-mobile
+
+          echo "$PYENV_ROOT/bin" >> $GITHUB_PATH
+          echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
+          echo "$PYENV_ROOT/versions/finanze-mobile/bin" >> $GITHUB_PATH
+
+      - name: Install Python build deps
+        run: pip install python-minifier
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native TLS client (iOS)
+        working-directory: frontend/app
+        run: |
+          bash native/tlsclient/build.sh --platform ios
+          bash native/tlsclient/install.sh
+
+      - name: Setup Pyodide & Python wheels
+        working-directory: frontend/app
+        run: pnpm install:pyodide
+
+      - name: Build mobile web assets
+        working-directory: frontend/app
+        run: pnpm build:mobile
+
+      - name: Sync Capacitor to iOS
+        working-directory: frontend/app
+        run: pnpm exec cap sync ios
+
+      - name: Build iOS app for simulator
+        working-directory: frontend/app/ios/App
+        run: |
+          SIMULATOR=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
+          echo "Building for simulator: $SIMULATOR"
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=$SIMULATOR" \
+            -derivedDataPath ../../build/ios \
+            build \
+            | tail -20
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-app
+          path: frontend/app/build/ios/Build/Products/Debug-iphonesimulator/App.app
+          retention-days: 1
+
+  build-android:
+    name: Build Android App
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/app/pnpm-lock.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14.2
+
+      - name: Install Python build deps
+        run: pip install python-minifier
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'ndk;28.0.13004108'
+
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native TLS client (Android)
+        working-directory: frontend/app
+        run: |
+          bash native/tlsclient/build.sh --platform android
+          bash native/tlsclient/install.sh
+
+      - name: Setup Pyodide & Python wheels
+        working-directory: frontend/app
+        run: pnpm install:pyodide
+
+      - name: Build mobile web assets
+        working-directory: frontend/app
+        run: pnpm build:mobile
+
+      - name: Sync Capacitor to Android
+        working-directory: frontend/app
+        run: pnpm exec cap sync android
+
+      - name: Build Android debug APK
+        working-directory: frontend/app/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-apk
+          path: frontend/app/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+
+  test-ios:
+    name: iOS Tests
+    needs: build-ios
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: e2e/mobile/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: e2e/mobile/pnpm-lock.yaml
+
+      - name: Download iOS app
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-app
+          path: ios-app/App.app
+
+      - name: Verify iOS app
+        run: |
+          echo "Contents of ios-app/:"
+          ls -la ios-app/ || echo "ios-app/ not found"
+          ls -la ios-app/App.app/ || echo "ios-app/App.app/ not found"
+          echo "---"
+          if [ -f "ios-app/App.app/Info.plist" ]; then
+            echo "App.app bundle looks correct (Info.plist found)"
+          else
+            echo "WARNING: Info.plist not found in expected location"
+            find ios-app/ -name "Info.plist" -maxdepth 3 | head -5
+          fi
+
+      - name: Install test dependencies
+        working-directory: e2e/mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver install xcuitest || true
+
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
+          DEVICE_ID=$(xcrun simctl list devices available | grep "$DEVICE_NAME" | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "Booting: $DEVICE_NAME ($DEVICE_ID)"
+          xcrun simctl boot "$DEVICE_ID" || true
+          open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
+          echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
+
+      - name: Pre-build WebDriverAgent
+        env:
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+        run: |
+          WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
+          WDA_DERIVED=$(dirname "$(dirname "$WDA_PROJECT")")
+          echo "Building WDA from: $WDA_PROJECT"
+          echo "Derived data path: $WDA_DERIVED"
+          xcodebuild build-for-testing \
+            -project "$WDA_PROJECT" \
+            -scheme WebDriverAgentRunner \
+            -destination "id=$IOS_DEVICE_UDID" \
+            -derivedDataPath "$WDA_DERIVED" \
+            GCC_TREAT_WARNINGS_AS_ERRORS=0 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | tail -30
+
+      - name: Run iOS tests
+        working-directory: e2e/mobile
+        env:
+          IOS_APP_PATH: ${{ github.workspace }}/ios-app/App.app
+          IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
+          IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+        run: pnpm test:ios
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-test-results
+          path: e2e/mobile/wdio-logs/
+          retention-days: 7
+
+  test-android:
+    name: Android Tests
+    needs: build-android
+    if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: e2e/mobile/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: e2e/mobile/pnpm-lock.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v6
+        with:
+          name: android-apk
+          path: android-apk
+
+      - name: Install test dependencies
+        working-directory: e2e/mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver install uiautomator2 || true
+
+      - name: Run Android tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-test-results
+          path: e2e/mobile/wdio-logs/
+          retention-days: 7

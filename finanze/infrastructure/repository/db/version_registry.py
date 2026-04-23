@@ -106,6 +106,48 @@ from infrastructure.repository.db.versions.v0.v07.v070_8_crypto_initial_investme
 from infrastructure.repository.db.versions.v0.v07.v070_9_clear_sego_txs import (
     V0709ClearSegoTXs,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_0_sys_config import (
+    V0800SysConfig,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_1_add_entity_img import (
+    V0801AddEntityImage,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_2_migrate_applied_at_to_iso import (
+    V0802MigrateAppliedAtToIso,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_3_crypto_addresses import (
+    V0803CryptoAddresses,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_4_remove_hd_wallet_account import (
+    V0804RemoveHdWalletAccount,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_5_degiro import V0805Degiro
+from infrastructure.repository.db.versions.v0.v08.v080_6_add_issuer import (
+    V0806AddIssuer,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_7_public_keychain import (
+    V0807PublicKeychain,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_8_ibkr import V0808IBKR
+from infrastructure.repository.db.versions.v0.v08.v080_9_binance import V0809Binance
+from infrastructure.repository.db.versions.v0.v08.v080_10_entity_accounts import (
+    V0810EntityAccounts,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_11_derivatives import (
+    V0811Derivatives,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_12_ibkr_credentials import (
+    V0812IBKRCredentials,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_13_improved_loans import (
+    V0813ImprovedLoans,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_14_credits import (
+    V0814Credits,
+)
+from infrastructure.repository.db.versions.v0.v08.v080_15_hd_address_balance import (
+    V0815HdAddressBalance,
+)
 
 versions = [
     V0Genesis(),
@@ -152,4 +194,20 @@ versions = [
     V0707CryptoTxColumn(),
     V0708CryptoInitialInvestments(),
     V0709ClearSegoTXs(),
+    V0800SysConfig(),
+    V0801AddEntityImage(),
+    V0802MigrateAppliedAtToIso(),
+    V0803CryptoAddresses(),
+    V0804RemoveHdWalletAccount(),
+    V0805Degiro(),
+    V0806AddIssuer(),
+    V0807PublicKeychain(),
+    V0808IBKR(),
+    V0809Binance(),
+    V0810EntityAccounts(),
+    V0811Derivatives(),
+    V0812IBKRCredentials(),
+    V0813ImprovedLoans(),
+    V0814Credits(),
+    V0815HdAddressBalance(),
 ]

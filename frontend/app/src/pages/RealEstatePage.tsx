@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   RealEstate,
   DeleteRealEstateRequest,
@@ -31,6 +32,7 @@ import { deleteRealEstate, getImageUrl } from "@/services/api"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export default function RealEstatePage() {
   const { t, locale } = useI18n()
@@ -48,6 +50,15 @@ export default function RealEstatePage() {
     null,
   )
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+
+  useModalBackHandler(isFormModalOpen, () => {
+    setIsFormModalOpen(false)
+    setEditingProperty(null)
+  })
+  useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
+  const [imageCacheKeys, setImageCacheKeys] = useState<Record<string, string>>(
+    {},
+  )
 
   // Load real estate data
   useEffect(() => {
@@ -70,15 +81,21 @@ export default function RealEstatePage() {
   useEffect(() => {
     const loadImageUrls = async () => {
       const urlsToLoad: Record<string, string> = {}
+      const nextCacheKeys: Record<string, string> = {}
 
       for (const property of realEstateList) {
-        if (
-          property.basic_info.photo_url &&
-          !imageUrls[property.basic_info.photo_url]
-        ) {
+        const photoUrl = property.basic_info.photo_url
+        if (!photoUrl) {
+          continue
+        }
+        const cacheKey = property.updated_at || String(Date.now())
+        const cacheKeyString = String(cacheKey)
+        const existingKey = imageCacheKeys[photoUrl]
+        if (!existingKey || existingKey !== cacheKeyString) {
           try {
-            const url = await getImageUrl(property.basic_info.photo_url)
-            urlsToLoad[property.basic_info.photo_url] = url
+            const url = await getImageUrl(photoUrl, cacheKeyString)
+            urlsToLoad[photoUrl] = url
+            nextCacheKeys[photoUrl] = cacheKeyString
           } catch (error) {
             console.error("Failed to load image URL:", error)
           }
@@ -87,13 +104,14 @@ export default function RealEstatePage() {
 
       if (Object.keys(urlsToLoad).length > 0) {
         setImageUrls(prev => ({ ...prev, ...urlsToLoad }))
+        setImageCacheKeys(prev => ({ ...prev, ...nextCacheKeys }))
       }
     }
 
     if (realEstateList.length > 0) {
       loadImageUrls()
     }
-  }, [realEstateList, imageUrls])
+  }, [realEstateList, imageUrls, imageCacheKeys])
 
   // Calculate monthly net cashflow for a property (before taxes)
   const calculateMonthlyCashflow = (property: RealEstate) => {
@@ -107,13 +125,19 @@ export default function RealEstatePage() {
       const frequency = flow.periodic_flow.frequency
 
       // Convert to monthly amount
-      let monthlyAmount = 0
+      let monthlyAmount: number
       switch (frequency) {
         case FlowFrequency.DAILY:
           monthlyAmount = amount * 30
           break
         case FlowFrequency.WEEKLY:
           monthlyAmount = amount * 4.33
+          break
+        case FlowFrequency.BIWEEKLY:
+          monthlyAmount = amount * (26 / 12)
+          break
+        case FlowFrequency.SEMIMONTHLY:
+          monthlyAmount = amount * 2
           break
         case FlowFrequency.MONTHLY:
           monthlyAmount = amount
@@ -214,7 +238,7 @@ export default function RealEstatePage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -225,22 +249,31 @@ export default function RealEstatePage() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {t.realEstate.title}
             </h1>
-            <PinAssetButton assetId="real-estate" />
+            <PinAssetButton
+              assetId="real-estate"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
         <Button
           onClick={handleAddProperty}
+          size="sm"
           className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
         >
-          <Plus className="w-4 h-4" />
-          {t.realEstate.addProperty}
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{t.realEstate.addProperty}</span>
         </Button>
       </motion.div>
 
@@ -287,7 +320,10 @@ export default function RealEstatePage() {
                       <img
                         src={imageUrls[property.basic_info.photo_url]}
                         alt={property.basic_info.name}
-                        className="w-full h-48 object-cover"
+                        className="w-full h-48 object-cover select-none"
+                        style={{ WebkitTouchCallout: "none" }}
+                        draggable={false}
+                        onContextMenu={e => e.preventDefault()}
                         onError={e => {
                           const target = e.target as HTMLImageElement
                           target.style.display = "none"
@@ -395,11 +431,13 @@ export default function RealEstatePage() {
                           {t.realEstate.estimatedMarketValue}
                         </span>
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {formatCurrency(
-                            property.valuation_info.estimated_market_value,
-                            locale,
-                            property.currency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              property.valuation_info.estimated_market_value,
+                              locale,
+                              property.currency,
+                            )}
+                          </Sensitive>
                         </div>
                       </div>
 
@@ -411,28 +449,30 @@ export default function RealEstatePage() {
                               {t.realEstate.initialExpenses}
                             </span>
                             <div className="font-semibold text-gray-900 dark:text-white">
-                              {formatCurrency(
-                                property.purchase_info.price +
-                                  property.purchase_info.expenses.reduce(
-                                    (sum, exp) => sum + exp.amount,
-                                    0,
-                                  ) -
-                                  property.flows
-                                    .filter(
-                                      flow =>
-                                        flow.flow_subtype ===
-                                        RealEstateFlowSubtype.LOAN,
-                                    )
-                                    .reduce((sum, flow) => {
-                                      const loanPayload =
-                                        flow.payload as LoanPayload
-                                      return (
-                                        sum + (loanPayload.loan_amount || 0)
+                              <Sensitive>
+                                {formatCurrency(
+                                  property.purchase_info.price +
+                                    property.purchase_info.expenses.reduce(
+                                      (sum, exp) => sum + exp.amount,
+                                      0,
+                                    ) -
+                                    property.flows
+                                      .filter(
+                                        flow =>
+                                          flow.flow_subtype ===
+                                          RealEstateFlowSubtype.LOAN,
                                       )
-                                    }, 0),
-                                locale,
-                                property.currency,
-                              )}
+                                      .reduce((sum, flow) => {
+                                        const loanPayload =
+                                          flow.payload as LoanPayload
+                                        return (
+                                          sum + (loanPayload.loan_amount || 0)
+                                        )
+                                      }, 0),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </div>
                           </div>
                           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
@@ -446,14 +486,16 @@ export default function RealEstatePage() {
                                   : "text-red-600 dark:text-red-400"
                               }`}
                             >
-                              {calculateMonthlyCashflow(property) >= 0
-                                ? "+"
-                                : ""}
-                              {formatCurrency(
-                                calculateMonthlyCashflow(property),
-                                locale,
-                                property.currency,
-                              )}
+                              <Sensitive>
+                                {calculateMonthlyCashflow(property) >= 0
+                                  ? "+"
+                                  : ""}
+                                {formatCurrency(
+                                  calculateMonthlyCashflow(property),
+                                  locale,
+                                  property.currency,
+                                )}
+                              </Sensitive>
                             </div>
                           </div>
                         </div>

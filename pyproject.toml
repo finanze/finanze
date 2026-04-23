@@ -1,11 +1,32 @@
 [project]
 name = "finanze"
 authors = [{ name = "Marcos Alvarez", email = "contact@marcosav.com" }]
-version = "0.7.0"
+version = "0.8.0"
 description = "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dynamic = ["dependencies", "version"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --ignore=tests/e2e"
+pythonpath = ["finanze"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["finanze"]
+omit = ["finanze/__pycache__/*", "tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+

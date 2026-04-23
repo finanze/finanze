@@ -5,7 +5,7 @@ from typing import Optional
 from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
-CURRENT_VERSION = 5
+CURRENT_VERSION = 6
 
 FilterValues = str | list[str]
 
@@ -157,6 +157,7 @@ class DataConfig:
 
 @dataclass
 class Settings:
+    lastUpdate: str
     version: int = CURRENT_VERSION
     general: GeneralConfig = field(default_factory=GeneralConfig)
     data: DataConfig = field(default_factory=DataConfig)

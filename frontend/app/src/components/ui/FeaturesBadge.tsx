@@ -6,6 +6,7 @@ import {
   PopoverContent,
 } from "@/components/ui/Popover"
 import { useI18n } from "@/i18n"
+import { isNativeMobile } from "@/lib/platform"
 import { Sparkles } from "lucide-react"
 import type { Feature } from "@/types"
 import { ProductType } from "@/types/position"
@@ -24,6 +25,17 @@ export function FeaturesBadge({
 }: FeaturesBadgeProps) {
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
+  const isNativeApp = isNativeMobile()
+
+  const handleMouseEnter = () => {
+    if (isNativeApp) return
+    setIsOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    if (isNativeApp) return
+    setIsOpen(false)
+  }
 
   if (features.length === 0) {
     return null
@@ -35,8 +47,8 @@ export function FeaturesBadge({
         <Badge
           variant="secondary"
           className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${className}`}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           <Sparkles className="h-3 w-3 mr-1" />
           {features.length}
@@ -45,8 +57,8 @@ export function FeaturesBadge({
       <PopoverContent
         className="max-w-[280px] p-3 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md shadow-lg"
         sideOffset={4}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <div className="space-y-3">
           <div>

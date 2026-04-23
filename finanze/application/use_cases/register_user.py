@@ -2,6 +2,7 @@ import logging
 import os
 from uuid import uuid4
 
+from application.ports.cloud_register import CloudRegister
 from application.ports.config_port import ConfigPort
 from application.ports.data_manager import DataManager
 from application.ports.datasource_initiator import DatasourceInitiator
@@ -19,32 +20,35 @@ class RegisterUserImpl(RegisterUser):
         data_manager: DataManager,
         config_port: ConfigPort,
         sheets_initiator: SheetsInitiator,
+        cloud_register: CloudRegister,
     ):
         self._source_initiator = source_initiator
         self._data_manager = data_manager
         self._config_port = config_port
         self._sheets_initiator = sheets_initiator
+        self._cloud_register = cloud_register
         self._log = logging.getLogger(__name__)
 
-    def execute(self, login_request: LoginRequest):
+    async def execute(self, login_request: LoginRequest):
         if self._source_initiator.unlocked:
             raise ValueError("Cannot register users while logged in")
 
         if (
-            len(self._data_manager.get_users()) > 0
+            len(await self._data_manager.get_users()) > 0
             and os.environ.get("MULTI_USER") != "1"
         ):
             raise ValueError("Currently, only one user is supported.")
 
         user_reg = UserRegistration(id=uuid4(), username=login_request.username)
-        user = self._data_manager.create_user(user_reg)
-        self._data_manager.set_last_user(user)
+        user = await self._data_manager.create_user(user_reg)
+        await self._data_manager.set_last_user(user)
 
-        self._config_port.connect(user)
+        await self._config_port.connect(user)
         self._sheets_initiator.connect(user)
+        await self._cloud_register.connect(user)
         params = DatasourceInitParams(
             user=user,
             password=login_request.password,
             context=DatasourceInitContext(config=self._config_port),
         )
-        self._source_initiator.initialize(params)
+        await self._source_initiator.initialize(params)

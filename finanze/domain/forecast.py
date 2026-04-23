@@ -13,6 +13,7 @@ class ForecastRequest:
     avg_annual_market_increase: Optional[Dezimal] = None
     avg_annual_crypto_increase: Optional[Dezimal] = None
     avg_annual_commodity_increase: Optional[Dezimal] = None
+    include_real_estate_taxes: bool = True
 
 
 @dataclass
