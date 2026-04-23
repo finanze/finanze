@@ -54,6 +54,7 @@ import {
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { cn } from "@/lib/utils"
+import { saveBlobToDevice } from "@/lib/mobile"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
 import { Button } from "@/components/ui/Button"
@@ -93,6 +94,7 @@ import {
   FileImportPreviewDialog,
   type FileImportPreviewStrings,
 } from "@/components/FileImportPreviewDialog"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 const EXPORT_SECTIONS = [
   "position",
@@ -334,10 +336,11 @@ export default function ExportPage() {
     fetchEntities,
     entities,
     externalIntegrations,
+    fetchExternalIntegrations,
     saveSettings,
     fetchSettings,
   } = useAppContext()
-  const { refreshData } = useFinancialData()
+  const { refreshData, invalidateTransactionsCache } = useFinancialData()
   const [activeTab, setActiveTab] = useState<"export" | "import">("export")
   const [successAnimation, setSuccessAnimation] = useState(false)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
@@ -452,10 +455,31 @@ export default function ExportPage() {
     useState<ImportedData | null>(null)
   const [showImportPreviewDialog, setShowImportPreviewDialog] = useState(false)
 
+  useModalBackHandler(isTemplateDialogOpen, () =>
+    setIsTemplateDialogOpen(false),
+  )
+  useModalBackHandler(showImportPreviewDialog, () =>
+    setShowImportPreviewDialog(false),
+  )
+  useModalBackHandler(showImportConfirm, () => setShowImportConfirm(false))
+  useModalBackHandler(showErrorDetails, () => setShowErrorDetails(false))
+  useModalBackHandler(showExportConfig, () => setShowExportConfig(false))
+  useModalBackHandler(showImportConfig, () => setShowImportConfig(false))
+  useModalBackHandler(isFileExportDialogOpen, () =>
+    setIsFileExportDialogOpen(false),
+  )
+  useModalBackHandler(isFileImportDialogOpen, () =>
+    setIsFileImportDialogOpen(false),
+  )
+
   useEffect(() => {
     setFileExportNumberFormat(defaultNumberFormat)
     setFileImportNumberFormat(defaultNumberFormat)
   }, [defaultNumberFormat])
+
+  useEffect(() => {
+    fetchExternalIntegrations()
+  }, [fetchExternalIntegrations])
 
   const renderFileExportFeatureSelector = () => {
     return (
@@ -585,14 +609,22 @@ export default function ExportPage() {
     setIsFileExporting(true)
     try {
       const result = await exportFile(payload)
-      const blobUrl = URL.createObjectURL(result.blob)
-      const anchor = document.createElement("a")
-      anchor.href = blobUrl
-      anchor.download = result.filename ?? "export"
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(blobUrl)
+      const filename = result.filename ?? "export"
+      const saved = await saveBlobToDevice({
+        blob: result.blob,
+        filename,
+        contentType: result.contentType,
+      })
+      if (!saved) {
+        const blobUrl = URL.createObjectURL(result.blob)
+        const anchor = document.createElement("a")
+        anchor.href = blobUrl
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(blobUrl)
+      }
       showToast(t.export.file.toast.success, "success")
       setIsFileExportDialogOpen(false)
       resetFileExportForm()
@@ -812,6 +844,7 @@ export default function ExportPage() {
       setShowImportPreviewDialog(false)
       setImportPreviewData(null)
       resetFileImportForm()
+      invalidateTransactionsCache()
       await Promise.all([fetchEntities(), refreshData()])
     } catch (error) {
       console.error("File import error:", error)
@@ -996,12 +1029,11 @@ export default function ExportPage() {
   }, [t])
 
   const featureLabels = useMemo(() => {
-    const labels = (t.features as Record<string, string>) ?? {}
     return {
-      POSITION: labels.POSITION ?? "POSITION",
-      AUTO_CONTRIBUTIONS: labels.AUTO_CONTRIBUTIONS ?? "AUTO_CONTRIBUTIONS",
-      TRANSACTIONS: labels.TRANSACTIONS ?? "TRANSACTIONS",
-      HISTORIC: labels.HISTORIC ?? "HISTORIC",
+      POSITION: t.features.POSITION,
+      AUTO_CONTRIBUTIONS: t.features.AUTO_CONTRIBUTIONS,
+      TRANSACTIONS: t.features.TRANSACTIONS,
+      HISTORIC: t.features.HISTORIC,
     }
   }, [t])
 
@@ -1019,9 +1051,7 @@ export default function ExportPage() {
   )
 
   const templateFieldLabels = useMemo(
-    () =>
-      ((t.export?.templates?.fieldLabels ?? {}) as Record<string, string>) ??
-      {},
+    () => (t.export?.templates?.fieldLabels ?? {}) as Record<string, string>,
     [t],
   )
 
@@ -1950,6 +1980,8 @@ export default function ExportPage() {
   )
   const isGoogleSheetsIntegrationEnabled =
     googleSheetsIntegration?.status === ExternalIntegrationStatus.ON
+  const isGoogleSheetsIntegrationAvailable =
+    googleSheetsIntegration?.available ?? true
   const canExport = isGoogleSheetsIntegrationEnabled && hasSheetSections
   const canImport = isGoogleSheetsIntegrationEnabled && hasImportSections
   const sheetsConfigured = hasSheetSections
@@ -2064,7 +2096,7 @@ export default function ExportPage() {
 
   const handleConfirmImport = async () => {
     setIsImporting(true)
-    let result: ManualImportResult | null = null
+    let result: ManualImportResult | null
 
     try {
       result = await runManualImport()
@@ -2086,9 +2118,13 @@ export default function ExportPage() {
 
       if (gotData) {
         setImportSuccessAnimation(true)
-        try {
-          await Promise.all([fetchEntities(), refreshData()])
-        } finally {
+      }
+
+      invalidateTransactionsCache()
+      try {
+        await Promise.all([fetchEntities(), refreshData()])
+      } finally {
+        if (gotData) {
           setTimeout(() => {
             setImportSuccessAnimation(false)
           }, 2000)
@@ -2439,7 +2475,7 @@ export default function ExportPage() {
               <LayoutTemplate className="h-5 w-5 text-primary" />
               <CardTitle>{cardTitle}</CardTitle>
             </div>
-            <Badge variant="outline">
+            <Badge variant="outline" className="text-center">
               {isLoading ? (
                 <span className="flex items-center gap-1 text-xs">
                   <LoadingSpinner className="h-4 w-4" />
@@ -2475,7 +2511,9 @@ export default function ExportPage() {
             <FileText className="mr-2 h-5 w-5 text-primary" />
             <CardTitle>{t.export.file.cardTitle}</CardTitle>
           </div>
-          <Badge variant="secondary">{t.export.file.singleRunBadge}</Badge>
+          <Badge variant="secondary" className="text-center">
+            {t.export.file.singleRunBadge}
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
           {t.export.file.cardDescription}
@@ -2502,7 +2540,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2526,7 +2564,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2567,7 +2606,7 @@ export default function ExportPage() {
               )}
             >
               {exportState.isExporting && (
-                <LoadingSpinner className="mr-2 h-5 w-5" />
+                <LoadingSpinner className="mr-2 h-5 w-5 text-current" />
               )}
               {successAnimation ? (
                 <motion.div
@@ -2598,7 +2637,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}
@@ -2606,7 +2647,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsImportCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2630,7 +2671,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2698,7 +2740,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}
@@ -2713,7 +2757,7 @@ export default function ExportPage() {
             <FileUp className="mr-2 h-5 w-5 text-primary" />
             <CardTitle>{t.export.fileImport.cardTitle}</CardTitle>
           </div>
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="text-center">
             {t.export.fileImport.singleRunBadge}
           </Badge>
         </div>
@@ -4312,7 +4356,7 @@ export default function ExportPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                <CardFooter className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -4326,7 +4370,7 @@ export default function ExportPage() {
                   <Button
                     onClick={handleFileExport}
                     disabled={isFileExporting}
-                    className="w-full sm:w-auto"
+                    className="whitespace-nowrap"
                   >
                     {isFileExporting ? (
                       <LoadingSpinner className="mr-2 h-4 w-4" />
@@ -4755,7 +4799,7 @@ export default function ExportPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                <CardFooter className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -4769,7 +4813,7 @@ export default function ExportPage() {
                   <Button
                     onClick={() => handleFileImport()}
                     disabled={isFileImporting}
-                    className="w-full sm:w-auto"
+                    className="whitespace-nowrap"
                   >
                     {isFileImporting ? (
                       <LoadingSpinner className="mr-2 h-4 w-4" />
@@ -4790,53 +4834,55 @@ export default function ExportPage() {
   }
 
   return (
-    <motion.div
-      className="space-y-8"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-    >
-      <Tabs
-        value={activeTab}
-        onValueChange={value => setActiveTab(value as "export" | "import")}
-        className="space-y-6"
+    <>
+      <motion.div
+        className="space-y-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-3xl font-bold">{t.export.title}</h1>
-          <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 backdrop-blur self-center shadow-sm md:ml-auto md:self-auto">
-            <TabsTrigger
-              value="export"
-              className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-            >
-              <FileUp className="mr-2 h-4 w-4" />
-              {t.export.tabs.export}
-            </TabsTrigger>
-            <TabsTrigger
-              value="import"
-              className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {t.export.tabs.import}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="export" className="space-y-6">
-          {renderTemplatesCard(TemplateType.EXPORT)}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {renderFileExportCard()}
-            {renderGoogleSheetsCard()}
+        <Tabs
+          value={activeTab}
+          onValueChange={value => setActiveTab(value as "export" | "import")}
+          className="space-y-6"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-3xl font-bold">{t.export.title}</h1>
+            <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 backdrop-blur self-center shadow-sm md:ml-auto md:self-auto">
+              <TabsTrigger
+                value="export"
+                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
+              >
+                <FileUp className="mr-2 h-4 w-4" />
+                {t.export.tabs.export}
+              </TabsTrigger>
+              <TabsTrigger
+                value="import"
+                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {t.export.tabs.import}
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </TabsContent>
 
-        <TabsContent value="import" className="space-y-6">
-          {renderTemplatesCard(TemplateType.IMPORT)}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {renderFileImportCard()}
-            {renderGoogleSheetsImportCard()}
-          </div>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="export" className="space-y-6">
+            {renderTemplatesCard(TemplateType.EXPORT)}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {renderFileExportCard()}
+              {renderGoogleSheetsCard()}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="import" className="space-y-6">
+            {renderTemplatesCard(TemplateType.IMPORT)}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {renderFileImportCard()}
+              {renderGoogleSheetsImportCard()}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
 
       {renderFileExportDialog()}
       {renderFileImportDialog()}
@@ -4881,6 +4927,6 @@ export default function ExportPage() {
             : t.importErrors.description
         }
       />
-    </motion.div>
+    </>
   )
 }

@@ -5,7 +5,12 @@ from uuid import UUID
 
 from domain.auto_contributions import AutoContributions
 from domain.entity import Feature
-from domain.entity_login import LoginOptions, LoginResultCode, TwoFactor
+from domain.entity_login import (
+    LoginConfirmationType,
+    LoginOptions,
+    LoginResultCode,
+    TwoFactor,
+)
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.transactions import Transactions
@@ -36,6 +41,7 @@ class FetchResultCode(str, Enum):
     NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE"
     NOT_CONNECTED = "NOT_CONNECTED"
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
+    CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE"
     UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR"
 
 
@@ -46,11 +52,13 @@ class FetchOptions:
 
 @dataclass
 class FetchRequest:
-    entity_id: Optional[UUID]
     features: list[Feature]
+    entity_id: Optional[UUID] = None
+    entity_account_id: Optional[UUID] = None
     two_factor: Optional[TwoFactor] = None
     login_options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     fetch_options: Optional[FetchOptions] = field(default_factory=FetchOptions)
+    credentials: Optional[dict] = None
 
 
 @dataclass
@@ -66,14 +74,17 @@ class FetchResult:
     code: FetchResultCode
     data: Optional[FetchedData | list[FetchedData]] = None
     details: Optional[dict] = None
+    confirmation_type: Optional[LoginConfirmationType] = None
 
 
 FETCH_BAD_LOGIN_CODES = {
+    LoginResultCode.COOLDOWN: FetchResultCode.COOLDOWN,
     LoginResultCode.INVALID_CODE: FetchResultCode.INVALID_CODE,
     LoginResultCode.INVALID_CREDENTIALS: FetchResultCode.INVALID_CREDENTIALS,
     LoginResultCode.LOGIN_REQUIRED: FetchResultCode.LOGIN_REQUIRED,
     LoginResultCode.MANUAL_LOGIN: FetchResultCode.MANUAL_LOGIN,
     LoginResultCode.NO_CREDENTIALS_AVAILABLE: FetchResultCode.NO_CREDENTIALS_AVAILABLE,
+    LoginResultCode.CURRENTLY_UNAVAILABLE: FetchResultCode.CURRENTLY_UNAVAILABLE,
     LoginResultCode.UNEXPECTED_ERROR: FetchResultCode.UNEXPECTED_LOGIN_ERROR,
     LoginResultCode.NOT_LOGGED: FetchResultCode.NOT_LOGGED,
 }

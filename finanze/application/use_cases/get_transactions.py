@@ -9,10 +9,12 @@ class GetTransactionsImpl(GetTransactions):
         self._transaction_port = transaction_port
         self._entity_port = entity_port
 
-    def execute(self, query: TransactionQueryRequest) -> TransactionsResult:
-        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+    async def execute(self, query: TransactionQueryRequest) -> TransactionsResult:
+        excluded_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
 
         query.excluded_entities = excluded_entities
-        txs = self._transaction_port.get_by_filters(query)
+        txs = await self._transaction_port.get_by_filters(query)
 
         return TransactionsResult(transactions=txs)

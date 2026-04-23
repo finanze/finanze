@@ -1,7 +1,8 @@
-import { DataSource, EntityOrigin } from "."
+import { DataSource, EntityOrigin, HDWallet } from "."
 
 export interface ManualEntryData {
   tracker_key?: string | null
+  track?: boolean
 }
 
 export enum ProductType {
@@ -19,6 +20,7 @@ export enum ProductType {
   CRYPTO = "CRYPTO",
   COMMODITY = "COMMODITY",
   BOND = "BOND",
+  CREDIT = "CREDIT",
   DERIVATIVE = "DERIVATIVE",
 }
 
@@ -44,6 +46,17 @@ export enum InterestType {
   FIXED = "FIXED",
   VARIABLE = "VARIABLE",
   MIXED = "MIXED",
+}
+
+export enum InstallmentFrequency {
+  WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  SEMIMONTHLY = "SEMIMONTHLY",
+  MONTHLY = "MONTHLY",
+  BIMONTHLY = "BIMONTHLY",
+  QUARTERLY = "QUARTERLY",
+  SEMIANNUAL = "SEMIANNUAL",
+  YEARLY = "YEARLY",
 }
 
 export interface Account {
@@ -83,12 +96,17 @@ export interface Loan {
   principal_outstanding: number
   principal_paid: number | null
   interest_type: InterestType
+  installment_frequency?: InstallmentFrequency
+  installment_interests?: number | null
+  fixed_interest_rate?: number | null
   euribor_rate?: number | null
   fixed_years?: number | null
   name?: string | null
   creation: string
   maturity: string
   unpaid?: number | null
+  hash?: string
+  manual_data?: ManualEntryData | null
   source: DataSource
 }
 
@@ -112,6 +130,7 @@ export interface StockDetail {
   subtype?: string | null
   info_sheet_url?: string | null
   manual_data?: ManualEntryData | null
+  issuer?: string | null
   source: DataSource
 }
 
@@ -155,6 +174,7 @@ export interface FundDetail {
   portfolio?: FundPortfolio | null
   info_sheet_url?: string | null
   manual_data?: ManualEntryData | null
+  issuer?: string | null
   source: DataSource
 }
 
@@ -263,6 +283,7 @@ export interface CryptoAsset {
   symbol: string
   icon_urls?: string[] | null
   external_ids?: Record<string, string> | null
+  contract_address?: string | null
 }
 
 export interface CryptoCurrencyPosition {
@@ -278,13 +299,15 @@ export interface CryptoCurrencyPosition {
   initial_investment?: number | null
   average_buy_price?: number | null
   investment_currency?: string | null
+  source: DataSource
 }
 
 export interface CryptoCurrencyWallet {
   id?: string | null
-  address?: string | null
+  addresses?: string[] | null
   name?: string | null
   assets?: CryptoCurrencyPosition[] | null
+  hd_wallet: HDWallet | null
 }
 
 export interface CryptoCurrencies {
@@ -340,6 +363,76 @@ export interface Commodities {
   entries: Commodity[]
 }
 
+export enum DerivativeContractType {
+  PERPETUAL = "PERPETUAL",
+  FUTURES = "FUTURES",
+  KNOCK_OUT = "KNOCK_OUT",
+  FACTOR = "FACTOR",
+  WARRANT = "WARRANT",
+  OPTIONS = "OPTIONS",
+  CFD = "CFD",
+  OTHER = "OTHER",
+}
+
+export enum PositionDirection {
+  LONG = "LONG",
+  SHORT = "SHORT",
+}
+
+export enum MarginType {
+  CROSS = "CROSS",
+  ISOLATED = "ISOLATED",
+}
+
+export interface DerivativeDetail {
+  id: string
+  symbol: string
+  underlying_asset: ProductType
+  contract_type: DerivativeContractType
+  direction: PositionDirection
+  size: number
+  entry_price: number
+  currency: string
+  mark_price?: number | null
+  market_value?: number | null
+  unrealized_pnl?: number | null
+  leverage?: number | null
+  margin?: number | null
+  margin_type?: MarginType | null
+  liquidation_price?: number | null
+  isin?: string | null
+  strike_price?: number | null
+  knock_out_price?: number | null
+  ratio?: number | null
+  issuer?: string | null
+  underlying_symbol?: string | null
+  underlying_isin?: string | null
+  expiry?: string | null
+  name?: string | null
+  initial_investment?: number | null
+  source: DataSource
+}
+
+export interface DerivativePositions {
+  entries: DerivativeDetail[]
+}
+
+export interface CreditDetail {
+  id: string
+  currency: string
+  credit_limit: number
+  drawn_amount: number
+  interest_rate: number
+  name?: string | null
+  pledged_amount?: number | null
+  creation?: string | null
+  source: DataSource
+}
+
+export interface Credits {
+  entries: CreditDetail[]
+}
+
 export type ProductPosition =
   | Accounts
   | Cards
@@ -353,6 +446,8 @@ export type ProductPosition =
   | Crowdlending
   | CryptoCurrencies
   | Commodities
+  | Credits
+  | DerivativePositions
 
 export type ProductPositions = Record<ProductType, ProductPosition>
 export type PartialProductPositions = Partial<
@@ -371,10 +466,11 @@ export interface GlobalPosition {
   date: string
   products: ProductPositions
   source: DataSource
+  entity_account_id?: string | null
 }
 
 export interface EntitiesPosition {
-  positions: Record<string, GlobalPosition>
+  positions: Record<string, GlobalPosition[]>
 }
 
 export interface PositionQueryRequest {
@@ -384,5 +480,10 @@ export interface PositionQueryRequest {
 export interface UpdatePositionRequest {
   entity_id?: string | null
   new_entity_name?: string | null
+  new_entity_icon_url?: string | null
+  net_crypto_entity_details?: {
+    provider_asset_id: string
+    provider: string
+  } | null
   products: PartialProductPositions
 }

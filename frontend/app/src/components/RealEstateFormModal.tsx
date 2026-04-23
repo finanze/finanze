@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
-import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { UnassignedFlowsDialog } from "@/components/ui/UnassignedFlowsDialog"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import {
   Popover,
   PopoverTrigger,
@@ -30,14 +31,23 @@ import {
   Receipt,
   Zap,
   Home,
+  Landmark,
   Calculator,
   Percent,
   Info,
+  Link,
+  Unlink,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/formatters"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import RealEstateStats from "@/components/real-estate/RealEstateStats"
-import { getCurrencySymbol } from "@/lib/utils"
+import { getCurrencySymbol, cn } from "@/lib/utils"
 import {
   RealEstate,
   CreateRealEstateRequest,
@@ -62,6 +72,7 @@ import {
 } from "@/services/api"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
+import { compressImageForUpload } from "@/lib/mobile"
 
 interface RealEstateFormModalProps {
   isOpen: boolean
@@ -114,8 +125,13 @@ export function RealEstateFormModal({
 }: RealEstateFormModalProps) {
   const { t, locale } = useI18n()
   const { settings, showToast } = useAppContext()
-  const { periodicFlows, positionsData, refreshFlows, refreshRealEstate } =
-    useFinancialData()
+  const {
+    periodicFlows,
+    positionsData,
+    refreshFlows,
+    refreshRealEstate,
+    ensurePeriodicFlows,
+  } = useFinancialData()
 
   const initialFormData: FormData = {
     currency: settings.general.defaultCurrency,
@@ -167,9 +183,16 @@ export function RealEstateFormModal({
     number | null
   >(null)
   const [tempRentPercentage, setTempRentPercentage] = useState("")
+  const [loanPercentagePopoverOpen, setLoanPercentagePopoverOpen] = useState<
+    number | null
+  >(null)
+  const [tempLoanPercentage, setTempLoanPercentage] = useState("")
   const [calculatingLoanIndex, setCalculatingLoanIndex] = useState<
     number | null
   >(null)
+  const [unlinkConfirmIndex, setUnlinkConfirmIndex] = useState<number | null>(
+    null,
+  )
   const [amortizationsExpanded, setAmortizationsExpanded] = useState(false)
 
   // Track existing periodic flow ids already linked in the form to avoid suggesting them again
@@ -257,6 +280,12 @@ export function RealEstateFormModal({
   }
 
   useEffect(() => {
+    if (isOpen) {
+      ensurePeriodicFlows()
+    }
+  }, [isOpen, ensurePeriodicFlows])
+
+  useEffect(() => {
     const getLoanSuggestionsFromPositions = (): PeriodicFlow[] => {
       if (!positionsData?.positions) {
         return []
@@ -264,46 +293,48 @@ export function RealEstateFormModal({
 
       const loanSuggestions: PeriodicFlow[] = []
 
-      Object.values(positionsData.positions).forEach(globalPosition => {
-        if (
-          globalPosition.products &&
-          globalPosition.products[ProductType.LOAN]
-        ) {
-          const loanProducts = globalPosition.products[
-            ProductType.LOAN
-          ] as Loans
+      Object.values(positionsData.positions)
+        .flat()
+        .forEach(globalPosition => {
+          if (
+            globalPosition.products &&
+            globalPosition.products[ProductType.LOAN]
+          ) {
+            const loanProducts = globalPosition.products[
+              ProductType.LOAN
+            ] as Loans
 
-          if (loanProducts && loanProducts.entries) {
-            loanProducts.entries.forEach(loan => {
-              if (
-                !loan ||
-                typeof loan.current_installment !== "number" ||
-                loan.current_installment <= 0
-              ) {
-                return
-              }
+            if (loanProducts && loanProducts.entries) {
+              loanProducts.entries.forEach(loan => {
+                if (
+                  !loan ||
+                  typeof loan.current_installment !== "number" ||
+                  loan.current_installment <= 0
+                ) {
+                  return
+                }
 
-              const sinceDate =
-                loan.creation ||
-                loan.next_payment_date ||
-                new Date().toISOString().split("T")[0]
+                const sinceDate =
+                  loan.creation ||
+                  loan.next_payment_date ||
+                  new Date().toISOString().split("T")[0]
 
-              loanSuggestions.push({
-                id: `loan-suggestion-${loan.id}`,
-                name: loan.name || t.realEstate.flows.genericNames.mortgage,
-                flow_type: FlowType.EXPENSE,
-                amount: loan.current_installment,
-                frequency: FlowFrequency.MONTHLY,
-                category: t.realEstate.flows.categories.loans,
-                enabled: true,
-                since: sinceDate,
-                until: loan.maturity || "",
-                currency: loan.currency,
+                loanSuggestions.push({
+                  id: `loan-suggestion-${loan.id}`,
+                  name: loan.name || t.realEstate.flows.genericNames.mortgage,
+                  flow_type: FlowType.EXPENSE,
+                  amount: loan.current_installment,
+                  frequency: FlowFrequency.MONTHLY,
+                  category: t.realEstate.flows.categories.loans,
+                  enabled: true,
+                  since: sinceDate,
+                  until: loan.maturity || "",
+                  currency: loan.currency,
+                })
               })
-            })
+            }
           }
-        }
-      })
+        })
 
       return loanSuggestions
     }
@@ -516,8 +547,9 @@ export function RealEstateFormModal({
                     const loanId = flow.id?.replace("loan-suggestion-", "")
                     let loanData: any = null
                     if (positionsData?.positions) {
-                      Object.values(positionsData.positions).forEach(
-                        globalPosition => {
+                      Object.values(positionsData.positions)
+                        .flat()
+                        .forEach(globalPosition => {
                           if (
                             globalPosition.products &&
                             globalPosition.products[ProductType.LOAN]
@@ -534,8 +566,7 @@ export function RealEstateFormModal({
                               }
                             }
                           }
-                        },
-                      )
+                        })
                     }
                     if (loanData) {
                       console.log(
@@ -552,12 +583,18 @@ export function RealEstateFormModal({
                           new Date().toISOString().split("T")[0],
                         principal_outstanding:
                           loanData.principal_outstanding || 0,
-                        euribor_rate: loanData.euribor_rate || null,
+                        euribor_rate: loanData.euribor_rate ?? null,
                         interest_type: loanData.interest_type || "FIXED",
-                        fixed_years: loanData.fixed_years || null,
-                        principal_paid: loanData.principal_paid || null,
-                        monthly_interests: loanData.monthly_interests || null,
-                        monthly_payment: loanData.current_installment || null,
+                        fixed_years: loanData.fixed_years ?? null,
+                        fixed_interest_rate:
+                          loanData.fixed_interest_rate ?? null,
+                        principal_paid: loanData.principal_paid ?? null,
+                        monthly_interests:
+                          loanData.installment_interests ?? null,
+                        monthly_payment: loanData.current_installment ?? null,
+                        linked_loan_hash: loanData.hash ?? null,
+                        installment_frequency:
+                          loanData.installment_frequency ?? "MONTHLY",
                       }
                     } else {
                       console.log("No loan data found for loan ID:", loanId)
@@ -576,6 +613,12 @@ export function RealEstateFormModal({
                   }
                 })()
               : {},
+    }
+
+    // Move linked_loan_hash from payload to flow level
+    if ((newFlow.payload as any)?.linked_loan_hash) {
+      newFlow.linked_loan_hash = (newFlow.payload as any).linked_loan_hash
+      delete (newFlow.payload as any).linked_loan_hash
     }
 
     setFormData(prev => ({
@@ -623,7 +666,10 @@ export function RealEstateFormModal({
           },
         })
         if (property.basic_info.photo_url) {
-          getImageUrl(property.basic_info.photo_url)
+          getImageUrl(
+            property.basic_info.photo_url,
+            property.updated_at || Date.now(),
+          )
             .then(fullUrl => {
               setPhotoPreview(fullUrl)
             })
@@ -659,6 +705,76 @@ export function RealEstateFormModal({
     setHasUnsavedChanges(true)
   }
 
+  // Auto-calculate monthly interests for linked loans with empty monthly_interests
+  useEffect(() => {
+    const linkedLoansToCalc = formData.flows
+      .map((flow, idx) => ({ flow, idx }))
+      .filter(({ flow }) => {
+        if (flow.flow_subtype !== RealEstateFlowSubtype.LOAN) return false
+        const payload = flow.payload as any
+        return flow.linked_loan_hash && payload?.monthly_interests == null
+      })
+
+    if (linkedLoansToCalc.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      for (const { flow, idx } of linkedLoansToCalc) {
+        if (cancelled) return
+        const loanPayload = flow.payload as any
+        const startStr =
+          flow.periodic_flow?.since || new Date().toISOString().split("T")[0]
+        const endStr =
+          flow.periodic_flow?.until && flow.periodic_flow.until.trim() !== ""
+            ? flow.periodic_flow.until
+            : startStr
+
+        const req: LoanCalculationRequest = {
+          interest_rate: loanPayload.interest_rate || 0,
+          interest_type: loanPayload.interest_type || "FIXED",
+          euribor_rate: loanPayload.euribor_rate ?? undefined,
+          fixed_years: loanPayload.fixed_years ?? undefined,
+          fixed_interest_rate: loanPayload.fixed_interest_rate ?? undefined,
+          start: startStr,
+          end: endStr,
+        }
+
+        if (
+          loanPayload.principal_outstanding &&
+          loanPayload.principal_outstanding > 0
+        ) {
+          req.principal_outstanding = loanPayload.principal_outstanding
+        } else if (loanPayload.loan_amount && loanPayload.loan_amount > 0) {
+          req.loan_amount = loanPayload.loan_amount
+        } else {
+          continue
+        }
+
+        try {
+          const result = await calculateLoan(req)
+          if (cancelled) return
+          setFormData(prev => {
+            const flows = [...prev.flows]
+            const f = { ...flows[idx] }
+            const payload = { ...(f.payload as any) }
+            if (result.current_installment_interests != null) {
+              payload.monthly_interests = result.current_installment_interests
+            }
+            f.payload = payload
+            flows[idx] = f
+            return { ...prev, flows }
+          })
+        } catch {
+          // Silently ignore — not critical
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [formData.flows.map(f => f.linked_loan_hash).join(",")])
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -666,17 +782,18 @@ export function RealEstateFormModal({
     }))
   }
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setPhoto(file)
-      const reader = new FileReader()
-      reader.onload = e => {
-        setPhotoPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-      setHasUnsavedChanges(true)
+    if (!file) return
+
+    const processedFile = await compressImageForUpload(file)
+    setPhoto(processedFile)
+    const reader = new FileReader()
+    reader.onload = e => {
+      setPhotoPreview(e.target?.result as string)
     }
+    reader.readAsDataURL(processedFile)
+    setHasUnsavedChanges(true)
   }
 
   const addPurchaseExpense = () => {
@@ -727,6 +844,23 @@ export function RealEstateFormModal({
   const openPercentagePopover = (expenseIndex: number) => {
     setPercentagePopoverOpen(expenseIndex)
     setTempPercentage("")
+  }
+
+  const calculateLoanAmountFromPercentage = (percentage: number) => {
+    const purchasePrice = formData.purchase_info.price || 0
+    return (purchasePrice * percentage) / 100
+  }
+
+  const applyLoanPercentage = (flowIndex: number, percentage: number) => {
+    const calculatedAmount = calculateLoanAmountFromPercentage(percentage)
+    updateFlowPayload(flowIndex, "loan_amount", calculatedAmount)
+    setLoanPercentagePopoverOpen(null)
+    setTempLoanPercentage("")
+  }
+
+  const openLoanPercentagePopover = (flowIndex: number) => {
+    setLoanPercentagePopoverOpen(flowIndex)
+    setTempLoanPercentage("")
   }
 
   const calculateAmountFromRentPercentage = (percentage: number) => {
@@ -1065,8 +1199,9 @@ export function RealEstateFormModal({
 
       // Process flows to set proper names and categories
       const processedFlows = formData.flows.map(flow => {
+        let processedFlow = flow
         if (flow.description?.trim()) {
-          return {
+          processedFlow = {
             ...flow,
             periodic_flow: flow.periodic_flow
               ? {
@@ -1077,7 +1212,19 @@ export function RealEstateFormModal({
               : undefined,
           } as RealEstateFlow
         }
-        return flow
+
+        // For linked loans, no payload needed — backend injects real data on read
+        if (
+          processedFlow.flow_subtype === RealEstateFlowSubtype.LOAN &&
+          processedFlow.linked_loan_hash
+        ) {
+          processedFlow = {
+            ...processedFlow,
+            payload: {},
+          }
+        }
+
+        return processedFlow
       })
 
       const processedFormData = {
@@ -1155,13 +1302,15 @@ export function RealEstateFormModal({
     }
   }
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (hasUnsavedChanges) {
       setShowUnsavedDialog(true)
     } else {
       onClose()
     }
-  }
+  }, [hasUnsavedChanges, onClose])
+
+  useModalBackHandler(isOpen, handleClose)
 
   const getFrequencyLabel = (
     freq?: FlowFrequency | string,
@@ -1171,6 +1320,8 @@ export function RealEstateFormModal({
     const labels: Record<string, string> = {
       DAILY: t.realEstate.frequency.daily,
       WEEKLY: t.realEstate.frequency.weekly,
+      BIWEEKLY: t.realEstate.frequency.biweekly,
+      SEMIMONTHLY: t.realEstate.frequency.semimonthly,
       MONTHLY: t.realEstate.frequency.monthly,
       EVERY_TWO_MONTHS: t.realEstate.frequency.bimonthly,
       QUARTERLY: t.realEstate.frequency.quarterly,
@@ -1200,34 +1351,28 @@ export function RealEstateFormModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[50] p-2"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           <motion.div
-            className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[60] shadow-xl flex flex-col"
+            className="bg-card text-card-foreground rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[80] shadow-xl flex flex-col"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 rounded-t-lg">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">
                   {property
                     ? t.realEstate.editProperty
                     : t.realEstate.addProperty}
                 </h2>
-                <Button variant="ghost" size="sm" onClick={handleClose}>
-                  <X size={20} />
-                </Button>
               </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              <Card className="p-4">
+              <div>
                 <button
                   type="button"
                   onClick={() => toggleSection("basic")}
@@ -1284,7 +1429,7 @@ export function RealEstateFormModal({
                         />
                         <label
                           htmlFor="photo-upload"
-                          className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                          className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-input rounded-md text-foreground bg-background hover:bg-accent hover:text-accent-foreground"
                         >
                           <Upload size={16} />
                           {t.common.upload}
@@ -1293,7 +1438,10 @@ export function RealEstateFormModal({
                           <img
                             src={photoPreview}
                             alt="Preview"
-                            className="w-16 h-16 rounded-lg object-cover"
+                            className="w-16 h-16 rounded-lg object-cover select-none"
+                            style={{ WebkitTouchCallout: "none" }}
+                            draggable={false}
+                            onContextMenu={e => e.preventDefault()}
                           />
                         )}
                       </div>
@@ -1353,8 +1501,8 @@ export function RealEstateFormModal({
                       <div>
                         <Label>{t.realEstate.basicInfo.bedrooms}</Label>
                         <Input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           value={formData.basic_info.bedrooms || ""}
                           onChange={e =>
                             handleInputChange(
@@ -1369,8 +1517,8 @@ export function RealEstateFormModal({
                       <div>
                         <Label>{t.realEstate.basicInfo.bathrooms}</Label>
                         <Input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           value={formData.basic_info.bathrooms || ""}
                           onChange={e =>
                             handleInputChange(
@@ -1385,9 +1533,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("location")}
@@ -1437,9 +1585,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("purchase")}
@@ -1475,16 +1623,10 @@ export function RealEstateFormModal({
                         <span className="text-gray-400 ml-1">*</span>
                       </Label>
                       <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
                           value={formData.purchase_info.price || ""}
-                          onChange={e =>
-                            handleInputChange(
-                              "purchase_info.price",
-                              parseFloat(e.target.value) || null,
-                            )
+                          onValueChange={v =>
+                            handleInputChange("purchase_info.price", v)
                           }
                           className={`pr-12 ${hasValidationError("purchase_info.price") ? "border-red-500" : ""}`}
                         />
@@ -1505,16 +1647,20 @@ export function RealEstateFormModal({
                             onClick={e => handleSuggestionClick(e, "purchase")}
                             className="text-xs"
                           >
-                            <Lightbulb size={14} className="mr-1" />
-                            {t.realEstate.buttons.suggest}
+                            <Lightbulb size={14} className="sm:mr-1" />
+                            <span className="hidden sm:inline">
+                              {t.realEstate.buttons.suggest}
+                            </span>
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             onClick={addPurchaseExpense}
                           >
-                            <Plus size={16} className="mr-1" />
-                            {t.realEstate.purchase.addExpense}
+                            <Plus size={16} className="sm:mr-1" />
+                            <span className="hidden sm:inline">
+                              {t.realEstate.purchase.addExpense}
+                            </span>
                           </Button>
                         </div>
                       </div>
@@ -1598,21 +1744,18 @@ export function RealEstateFormModal({
                               </div>
                               <div className="w-32">
                                 <div className="relative">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
+                                  <DecimalInput
                                     placeholder={
                                       t.realEstate.placeholders.amount
                                     }
                                     value={expense.amount || ""}
-                                    onChange={e => {
+                                    onValueChange={v => {
                                       const newExpenses = [
                                         ...formData.purchase_info.expenses,
                                       ]
                                       newExpenses[index] = {
                                         ...expense,
-                                        amount: parseFloat(e.target.value) || 0,
+                                        amount: v ?? 0,
                                       }
                                       handleInputChange(
                                         "purchase_info.expenses",
@@ -1660,14 +1803,9 @@ export function RealEstateFormModal({
                                         }
                                       </Label>
                                       <div className="mt-1">
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          step="0.01"
+                                        <DecimalInput
                                           value={tempPercentage}
-                                          onChange={e =>
-                                            setTempPercentage(e.target.value)
-                                          }
+                                          onStringChange={setTempPercentage}
                                           placeholder="0.00"
                                           className="text-sm"
                                         />
@@ -1675,10 +1813,16 @@ export function RealEstateFormModal({
                                     </div>
                                     <div className="text-xs text-gray-500">
                                       {tempPercentage &&
-                                        !isNaN(parseFloat(tempPercentage)) && (
+                                        !isNaN(
+                                          parseFloat(
+                                            tempPercentage.replace(",", "."),
+                                          ),
+                                        ) && (
                                           <>
-                                            {parseFloat(tempPercentage)}%{" "}
-                                            {t.realEstate.purchase.of}{" "}
+                                            {parseFloat(
+                                              tempPercentage.replace(",", "."),
+                                            )}
+                                            % {t.realEstate.purchase.of}{" "}
                                             {formatCurrency(
                                               formData.purchase_info.price || 0,
                                               locale,
@@ -1687,7 +1831,12 @@ export function RealEstateFormModal({
                                             ={" "}
                                             {formatCurrency(
                                               calculateAmountFromPercentage(
-                                                parseFloat(tempPercentage),
+                                                parseFloat(
+                                                  tempPercentage.replace(
+                                                    ",",
+                                                    ".",
+                                                  ),
+                                                ),
                                               ),
                                               locale,
                                               formData.currency,
@@ -1698,8 +1847,9 @@ export function RealEstateFormModal({
                                     <Button
                                       type="button"
                                       onClick={() => {
-                                        const percentage =
-                                          parseFloat(tempPercentage)
+                                        const percentage = parseFloat(
+                                          tempPercentage.replace(",", "."),
+                                        )
                                         if (!isNaN(percentage)) {
                                           applyPercentageToExpense(
                                             index,
@@ -1709,7 +1859,11 @@ export function RealEstateFormModal({
                                       }}
                                       disabled={
                                         !tempPercentage ||
-                                        isNaN(parseFloat(tempPercentage))
+                                        isNaN(
+                                          parseFloat(
+                                            tempPercentage.replace(",", "."),
+                                          ),
+                                        )
                                       }
                                       className="w-full"
                                       size="sm"
@@ -1746,9 +1900,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("valuation")}
@@ -1784,17 +1938,14 @@ export function RealEstateFormModal({
                         <span className="text-gray-400 ml-1">*</span>
                       </Label>
                       <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
                           value={
                             formData.valuation_info.estimated_market_value || ""
                           }
-                          onChange={e =>
+                          onValueChange={v =>
                             handleInputChange(
                               "valuation_info.estimated_market_value",
-                              parseFloat(e.target.value) || null,
+                              v,
                             )
                           }
                           className={`pr-12 ${hasValidationError("valuation_info.estimated_market_value") ? "border-red-500" : ""}`}
@@ -1807,26 +1958,18 @@ export function RealEstateFormModal({
                     <div>
                       <Label>{t.realEstate.valuation.annualAppreciation}</Label>
                       <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
+                        <DecimalInput
                           value={
                             typeof formData.valuation_info
                               .annual_appreciation === "number"
-                              ? String(
-                                  formData.valuation_info.annual_appreciation *
-                                    100,
-                                )
+                              ? formData.valuation_info.annual_appreciation *
+                                100
                               : ""
                           }
-                          onChange={e =>
+                          onValueChange={v =>
                             handleInputChange(
                               "valuation_info.annual_appreciation",
-                              e.target.value === ""
-                                ? null
-                                : (parseFloat(e.target.value) || 0) / 100,
+                              v != null ? v / 100 : null,
                             )
                           }
                           className="pr-8"
@@ -1842,8 +1985,10 @@ export function RealEstateFormModal({
                       <div className="flex items-center justify-between mb-2">
                         <Label>{t.realEstate.valuation.valuations}</Label>
                         <Button type="button" size="sm" onClick={addValuation}>
-                          <Plus size={16} className="mr-1" />
-                          {t.realEstate.valuation.addValuation}
+                          <Plus size={16} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.valuation.addValuation}
+                          </span>
                         </Button>
                       </div>
 
@@ -1870,21 +2015,18 @@ export function RealEstateFormModal({
                                   placeholder={t.realEstate.placeholders.date}
                                 />
                                 <div className="relative flex-1">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
+                                  <DecimalInput
                                     placeholder={
                                       t.realEstate.placeholders.value
                                     }
                                     value={valuation.amount || ""}
-                                    onChange={e => {
+                                    onValueChange={v => {
                                       const newValuations = [
                                         ...formData.valuation_info.valuations,
                                       ]
                                       newValuations[index] = {
                                         ...valuation,
-                                        amount: parseFloat(e.target.value) || 0,
+                                        amount: v ?? 0,
                                       }
                                       handleInputChange(
                                         "valuation_info.valuations",
@@ -1933,9 +2075,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("loans")}
@@ -1979,8 +2121,10 @@ export function RealEstateFormModal({
                           onClick={e => handleSuggestionClick(e, "loans")}
                           className="text-xs"
                         >
-                          <Lightbulb size={14} className="mr-1" />
-                          {t.realEstate.buttons.suggest}
+                          <Lightbulb size={14} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.buttons.suggest}
+                          </span>
                         </Button>
                         <Button
                           type="button"
@@ -1988,8 +2132,10 @@ export function RealEstateFormModal({
                           onClick={() => addFlow(RealEstateFlowSubtype.LOAN)}
                           className="bg-white dark:bg-gray-100 hover:bg-gray-100 dark:hover:bg-gray-200 text-black border border-gray-300 dark:border-gray-400 shadow-sm"
                         >
-                          <Plus size={16} className="mr-1" />
-                          {t.realEstate.loans.addLoan}
+                          <Plus size={16} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.loans.addLoan}
+                          </span>
                         </Button>
                       </div>
                     </div>
@@ -2051,16 +2197,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "loans",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -2079,6 +2233,11 @@ export function RealEstateFormModal({
                                           {t.realEstate.loans.existingLoan}
                                         </span>
                                       )}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
                                       {isGeneric
@@ -2091,6 +2250,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return (
@@ -2118,10 +2302,11 @@ export function RealEstateFormModal({
                             f => f === flow,
                           )
                           const loanPayload = flow.payload as any
+                          const isLinked = !!flow.linked_loan_hash
                           return (
                             <div
                               key={originalIndex}
-                              className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                              className={`border rounded-lg p-4 ${isLinked ? "border-blue-300 dark:border-blue-600 bg-blue-50/30 dark:bg-blue-950/20" : "border-gray-200 dark:border-gray-700"}`}
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
                                 <div className="flex items-end gap-2 flex-1 mr-2">
@@ -2214,8 +2399,31 @@ export function RealEstateFormModal({
                                   <Button
                                     type="button"
                                     size="sm"
+                                    variant={isLinked ? "outline" : "ghost"}
+                                    onClick={() => {
+                                      if (isLinked) {
+                                        setUnlinkConfirmIndex(originalIndex)
+                                      }
+                                    }}
+                                    className={`mt-0 sm:mt-6 ${isLinked ? "border-blue-400 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40" : "text-gray-400 hover:text-gray-600"}`}
+                                    title={
+                                      isLinked
+                                        ? t.realEstate.linkedToPosition
+                                        : t.realEstate.notLinked
+                                    }
+                                  >
+                                    {isLinked ? (
+                                      <Link size={16} />
+                                    ) : (
+                                      <Unlink size={16} />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
                                     disabled={
-                                      calculatingLoanIndex === originalIndex
+                                      calculatingLoanIndex === originalIndex ||
+                                      isLinked
                                     }
                                     onClick={async () => {
                                       try {
@@ -2241,6 +2449,9 @@ export function RealEstateFormModal({
                                             undefined,
                                           fixed_years:
                                             loanPayload.fixed_years ??
+                                            undefined,
+                                          fixed_interest_rate:
+                                            loanPayload.fixed_interest_rate ??
                                             undefined,
                                           start: startStr,
                                           end: endStr,
@@ -2276,7 +2487,7 @@ export function RealEstateFormModal({
                                           const payload: LoanPayload = {
                                             ...(f.payload as LoanPayload),
                                             monthly_interests:
-                                              result.current_monthly_interests ??
+                                              result.current_installment_interests ??
                                               null,
                                           }
 
@@ -2301,11 +2512,11 @@ export function RealEstateFormModal({
                                           if (f.periodic_flow) {
                                             const pf = { ...f.periodic_flow }
                                             if (
-                                              typeof result.current_monthly_payment ===
+                                              typeof result.current_installment_payment ===
                                               "number"
                                             ) {
                                               pf.amount =
-                                                result.current_monthly_payment
+                                                result.current_installment_payment
                                             }
                                             f.periodic_flow = pf
                                           }
@@ -2343,7 +2554,7 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.labels.monthlyPayment}
@@ -2352,18 +2563,13 @@ export function RealEstateFormModal({
                                     </span>
                                   </Label>
                                   <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                    <DecimalInput
                                       value={flow.periodic_flow?.amount || ""}
-                                      onChange={e =>
-                                        updateFlowAmount(
-                                          originalIndex,
-                                          parseFloat(e.target.value) || 0,
-                                        )
+                                      onValueChange={v =>
+                                        updateFlowAmount(originalIndex, v ?? 0)
                                       }
-                                      className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""}`}
+                                      disabled={isLinked}
+                                      className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""} ${isLinked ? "opacity-60" : ""}`}
                                     />
                                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                       {getCurrencySymbol(formData.currency)}
@@ -2392,21 +2598,19 @@ export function RealEstateFormModal({
                                     </Popover>
                                   </Label>
                                   <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                    <DecimalInput
                                       value={
                                         loanPayload.monthly_interests || ""
                                       }
-                                      onChange={e =>
+                                      onValueChange={v =>
                                         updateFlowPayload(
                                           originalIndex,
                                           "monthly_interests",
-                                          parseFloat(e.target.value) || null,
+                                          v,
                                         )
                                       }
-                                      className="pr-12"
+                                      disabled={isLinked}
+                                      className={`pr-12 ${isLinked ? "opacity-60" : ""}`}
                                     />
                                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                       {getCurrencySymbol(formData.currency)}
@@ -2415,29 +2619,83 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              {isLinked &&
+                                flow.periodic_flow?.frequency &&
+                                flow.periodic_flow.frequency !==
+                                  FlowFrequency.MONTHLY && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                      <Label>
+                                        {
+                                          t.realEstate.loans
+                                            .installmentFrequencyLabel
+                                        }
+                                      </Label>
+                                      <select
+                                        value={flow.periodic_flow.frequency}
+                                        disabled
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 opacity-60"
+                                      >
+                                        {Object.values(FlowFrequency).map(
+                                          freq => (
+                                            <option key={freq} value={freq}>
+                                              {getFrequencyLabel(freq)}
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.loanTypeLabel}
                                   </Label>
-                                  <select
-                                    value={loanPayload.type || "MORTGAGE"}
-                                    onChange={e =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "type",
-                                        e.target.value,
+                                  <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                                    {[
+                                      {
+                                        value: "MORTGAGE",
+                                        label: t.realEstate.loans.mortgage,
+                                        icon: <Home className="h-3 w-3" />,
+                                      },
+                                      {
+                                        value: "STANDARD",
+                                        label: t.realEstate.loans.standard,
+                                        icon: <Landmark className="h-3 w-3" />,
+                                      },
+                                    ].map(option => {
+                                      const isActive =
+                                        (loanPayload.type || "MORTGAGE") ===
+                                        option.value
+                                      return (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          disabled={isLinked}
+                                          onClick={() =>
+                                            updateFlowPayload(
+                                              originalIndex,
+                                              "type",
+                                              option.value,
+                                            )
+                                          }
+                                          className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all inline-flex items-center gap-1.5",
+                                            isActive
+                                              ? "bg-foreground text-background border-foreground"
+                                              : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                                            isLinked &&
+                                              "opacity-60 cursor-not-allowed",
+                                          )}
+                                        >
+                                          {option.icon}
+                                          {option.label}
+                                        </button>
                                       )
-                                    }
-                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                                  >
-                                    <option value="STANDARD">
-                                      {t.realEstate.loans.standard}
-                                    </option>
-                                    <option value="MORTGAGE">
-                                      {t.realEstate.loans.mortgage}
-                                    </option>
-                                  </select>
+                                    })}
+                                  </div>
                                 </div>
                                 <div>
                                   <Label className="inline-flex items-center gap-1">
@@ -2460,24 +2718,170 @@ export function RealEstateFormModal({
                                       </PopoverContent>
                                     </Popover>
                                   </Label>
-                                  <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={loanPayload.loan_amount || ""}
-                                      onChange={e =>
-                                        updateFlowPayload(
-                                          originalIndex,
-                                          "loan_amount",
-                                          parseFloat(e.target.value) || null,
-                                        )
+                                  <div className="flex gap-2 items-end">
+                                    <div className="relative flex-1">
+                                      <DecimalInput
+                                        value={loanPayload.loan_amount || ""}
+                                        onValueChange={v =>
+                                          updateFlowPayload(
+                                            originalIndex,
+                                            "loan_amount",
+                                            v,
+                                          )
+                                        }
+                                        disabled={isLinked}
+                                        className={`pr-12 ${isLinked ? "opacity-60" : ""}`}
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                                        {getCurrencySymbol(formData.currency)}
+                                      </span>
+                                    </div>
+                                    <Popover
+                                      open={
+                                        loanPercentagePopoverOpen ===
+                                        originalIndex
                                       }
-                                      className="pr-12"
-                                    />
-                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                      {getCurrencySymbol(formData.currency)}
-                                    </span>
+                                      onOpenChange={open => {
+                                        if (!open) {
+                                          setLoanPercentagePopoverOpen(null)
+                                          setTempLoanPercentage("")
+                                        }
+                                      }}
+                                    >
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            openLoanPercentagePopover(
+                                              originalIndex,
+                                            )
+                                          }
+                                          disabled={isLinked}
+                                          className="hover:bg-blue-50 hover:text-blue-600 h-10"
+                                          title={
+                                            t.realEstate.purchase
+                                              .calculateByPercentage
+                                          }
+                                        >
+                                          <Percent size={16} />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-64">
+                                        <div className="space-y-3">
+                                          <div>
+                                            <Label className="text-sm font-medium">
+                                              {
+                                                t.realEstate.purchase
+                                                  .percentageOfPurchasePrice
+                                              }
+                                            </Label>
+                                            <div className="mt-1">
+                                              <DecimalInput
+                                                value={tempLoanPercentage}
+                                                onStringChange={
+                                                  setTempLoanPercentage
+                                                }
+                                                placeholder="0.00"
+                                                className="text-sm"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            {[70, 80, 90].map(pct => (
+                                              <Button
+                                                key={pct}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() =>
+                                                  applyLoanPercentage(
+                                                    originalIndex,
+                                                    pct,
+                                                  )
+                                                }
+                                              >
+                                                {pct}%
+                                              </Button>
+                                            ))}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            {tempLoanPercentage &&
+                                              !isNaN(
+                                                parseFloat(
+                                                  tempLoanPercentage.replace(
+                                                    ",",
+                                                    ".",
+                                                  ),
+                                                ),
+                                              ) && (
+                                                <>
+                                                  {parseFloat(
+                                                    tempLoanPercentage.replace(
+                                                      ",",
+                                                      ".",
+                                                    ),
+                                                  )}
+                                                  % {t.realEstate.purchase.of}{" "}
+                                                  {formatCurrency(
+                                                    formData.purchase_info
+                                                      .price || 0,
+                                                    locale,
+                                                    formData.currency,
+                                                  )}{" "}
+                                                  ={" "}
+                                                  {formatCurrency(
+                                                    calculateLoanAmountFromPercentage(
+                                                      parseFloat(
+                                                        tempLoanPercentage.replace(
+                                                          ",",
+                                                          ".",
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    locale,
+                                                    formData.currency,
+                                                  )}
+                                                </>
+                                              )}
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            onClick={() => {
+                                              const percentage = parseFloat(
+                                                tempLoanPercentage.replace(
+                                                  ",",
+                                                  ".",
+                                                ),
+                                              )
+                                              if (!isNaN(percentage)) {
+                                                applyLoanPercentage(
+                                                  originalIndex,
+                                                  percentage,
+                                                )
+                                              }
+                                            }}
+                                            disabled={
+                                              !tempLoanPercentage ||
+                                              isNaN(
+                                                parseFloat(
+                                                  tempLoanPercentage.replace(
+                                                    ",",
+                                                    ".",
+                                                  ),
+                                                ),
+                                              )
+                                            }
+                                            className="w-full"
+                                            size="sm"
+                                          >
+                                            {t.realEstate.purchase.apply}
+                                          </Button>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
                                   </div>
                                 </div>
                                 <div>
@@ -2502,21 +2906,19 @@ export function RealEstateFormModal({
                                     </Popover>
                                   </Label>
                                   <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                    <DecimalInput
                                       value={
                                         loanPayload.principal_outstanding || ""
                                       }
-                                      onChange={e =>
+                                      onValueChange={v =>
                                         updateFlowPayload(
                                           originalIndex,
                                           "principal_outstanding",
-                                          parseFloat(e.target.value) || 0,
+                                          v ?? 0,
                                         )
                                       }
-                                      className="pr-12"
+                                      disabled={isLinked}
+                                      className={`pr-12 ${isLinked ? "opacity-60" : ""}`}
                                     />
                                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                       {getCurrencySymbol(formData.currency)}
@@ -2525,65 +2927,86 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.interestTypeLabel}
                                   </Label>
-                                  <select
-                                    value={loanPayload.interest_type || "FIXED"}
-                                    onChange={e =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "interest_type",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                                  >
-                                    <option value="FIXED">
-                                      {t.realEstate.loans.interestTypes.fixed}
-                                    </option>
-                                    <option value="VARIABLE">
+                                  <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                                    {[
                                       {
-                                        t.realEstate.loans.interestTypes
-                                          .variable
-                                      }
-                                    </option>
-                                    <option value="MIXED">
-                                      {t.realEstate.loans.interestTypes.mixed}
-                                    </option>
-                                  </select>
+                                        value: "FIXED",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .fixed,
+                                      },
+                                      {
+                                        value: "VARIABLE",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .variable,
+                                      },
+                                      {
+                                        value: "MIXED",
+                                        label:
+                                          t.realEstate.loans.interestTypes
+                                            .mixed,
+                                      },
+                                    ].map(option => {
+                                      const isActive =
+                                        (loanPayload.interest_type ||
+                                          "FIXED") === option.value
+                                      return (
+                                        <button
+                                          key={option.value}
+                                          type="button"
+                                          disabled={isLinked}
+                                          onClick={() =>
+                                            updateFlowPayload(
+                                              originalIndex,
+                                              "interest_type",
+                                              option.value,
+                                            )
+                                          }
+                                          className={cn(
+                                            "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                            isActive
+                                              ? "bg-foreground text-background border-foreground"
+                                              : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                                            isLinked &&
+                                              "opacity-60 cursor-not-allowed",
+                                          )}
+                                        >
+                                          {option.label}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.interestRateLabel}
                                   </Label>
                                   <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                    <DecimalInput
                                       value={
                                         loanPayload.interest_rate
-                                          ? (
-                                              Math.round(
-                                                loanPayload.interest_rate *
-                                                  10000,
-                                              ) / 100
-                                            ).toString()
+                                          ? Math.round(
+                                              loanPayload.interest_rate * 10000,
+                                            ) / 100
                                           : ""
                                       }
-                                      onChange={e =>
+                                      onValueChange={v =>
                                         updateFlowPayload(
                                           originalIndex,
                                           "interest_rate",
-                                          Math.round(
-                                            parseFloat(e.target.value) * 100,
-                                          ) / 10000 || 0,
+                                          v != null
+                                            ? Math.round(v * 100) / 10000
+                                            : 0,
                                         )
                                       }
-                                      className="pr-8"
+                                      disabled={isLinked}
+                                      className={`pr-8 ${isLinked ? "opacity-60" : ""}`}
                                     />
                                     <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                       %
@@ -2597,25 +3020,21 @@ export function RealEstateFormModal({
                                       {t.realEstate.loans.euriborRate}
                                     </Label>
                                     <div className="relative">
-                                      <Input
-                                        type="number"
-                                        step="0.01"
+                                      <DecimalInput
                                         value={
                                           loanPayload.euribor_rate
-                                            ? (
-                                                loanPayload.euribor_rate * 100
-                                              ).toString()
+                                            ? loanPayload.euribor_rate * 100
                                             : ""
                                         }
-                                        onChange={e =>
+                                        onValueChange={v =>
                                           updateFlowPayload(
                                             originalIndex,
                                             "euribor_rate",
-                                            parseFloat(e.target.value) / 100 ||
-                                              null,
+                                            v != null ? v / 100 : null,
                                           )
                                         }
-                                        className="pr-8"
+                                        disabled={isLinked}
+                                        className={`pr-8 ${isLinked ? "opacity-60" : ""}`}
                                       />
                                       <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                         %
@@ -2629,22 +3048,61 @@ export function RealEstateFormModal({
                                       {t.realEstate.loans.fixedYearsLabel}
                                     </Label>
                                     <Input
-                                      type="number"
-                                      min="0"
+                                      type="text"
+                                      inputMode="numeric"
                                       value={loanPayload.fixed_years || ""}
                                       onChange={e =>
                                         updateFlowPayload(
                                           originalIndex,
                                           "fixed_years",
-                                          parseFloat(e.target.value) || null,
+                                          parseFloat(
+                                            e.target.value.replace(",", "."),
+                                          ) || null,
                                         )
                                       }
+                                      disabled={isLinked}
+                                      className={isLinked ? "opacity-60" : ""}
                                     />
+                                  </div>
+                                ) : null}
+                                {loanPayload.interest_type === "MIXED" ? (
+                                  <div>
+                                    <Label>
+                                      {t.realEstate.loans
+                                        .fixedInterestRateLabel ||
+                                        "Fixed interest rate"}
+                                    </Label>
+                                    <div className="relative">
+                                      <DecimalInput
+                                        value={
+                                          loanPayload.fixed_interest_rate
+                                            ? Math.round(
+                                                loanPayload.fixed_interest_rate *
+                                                  10000,
+                                              ) / 100
+                                            : ""
+                                        }
+                                        onValueChange={v =>
+                                          updateFlowPayload(
+                                            originalIndex,
+                                            "fixed_interest_rate",
+                                            v != null
+                                              ? Math.round(v * 100) / 10000
+                                              : null,
+                                          )
+                                        }
+                                        disabled={isLinked}
+                                        className={`pr-8 ${isLinked ? "opacity-60" : ""}`}
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                                        %
+                                      </span>
+                                    </div>
                                   </div>
                                 ) : null}
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.fromLabel}
@@ -2671,13 +3129,14 @@ export function RealEstateFormModal({
                                       }))
                                       setHasUnsavedChanges(true)
                                     }}
-                                    className={
+                                    disabled={isLinked}
+                                    className={`${
                                       hasValidationError(
                                         `flow.${originalIndex}.since`,
                                       )
                                         ? "border-red-500"
-                                        : undefined
-                                    }
+                                        : ""
+                                    } ${isLinked ? "opacity-60" : ""}`}
                                   />
                                 </div>
                                 <div>
@@ -2706,13 +3165,14 @@ export function RealEstateFormModal({
                                       }))
                                       setHasUnsavedChanges(true)
                                     }}
-                                    className={
+                                    disabled={isLinked}
+                                    className={`${
                                       hasValidationError(
                                         `flow.${originalIndex}.until`,
                                       )
                                         ? "border-red-500"
-                                        : undefined
-                                    }
+                                        : ""
+                                    } ${isLinked ? "opacity-60" : ""}`}
                                   />
                                 </div>
                               </div>
@@ -2731,9 +3191,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("costs")}
@@ -2777,8 +3237,10 @@ export function RealEstateFormModal({
                           onClick={e => handleSuggestionClick(e, "costs")}
                           className="text-xs"
                         >
-                          <Lightbulb size={14} className="mr-1" />
-                          {t.realEstate.buttons.suggest}
+                          <Lightbulb size={14} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.buttons.suggest}
+                          </span>
                         </Button>
                         <Button
                           type="button"
@@ -2786,8 +3248,10 @@ export function RealEstateFormModal({
                           onClick={() => addFlow(RealEstateFlowSubtype.COST)}
                           className="bg-white dark:bg-gray-100 hover:bg-gray-100 dark:hover:bg-gray-200 text-black border border-gray-300 dark:border-gray-400 shadow-sm"
                         >
-                          <Plus size={16} className="mr-1" />
-                          {t.realEstate.flows.addExpense}
+                          <Plus size={16} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.flows.addExpense}
+                          </span>
                         </Button>
                       </div>
                     </div>
@@ -2843,16 +3307,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "costs",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -2865,6 +3337,11 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <div className="text-sm font-medium text-white">
                                       {flow.name}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-300">
                                       {isGeneric
@@ -2877,6 +3354,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return flow.flow_type === FlowType.EXPENSE
@@ -3016,15 +3518,12 @@ export function RealEstateFormModal({
                                       </span>
                                     </Label>
                                     <div className="relative">
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
+                                      <DecimalInput
                                         value={flow.periodic_flow?.amount || ""}
-                                        onChange={e =>
+                                        onValueChange={v =>
                                           updateFlowAmount(
                                             originalIndex,
-                                            parseFloat(e.target.value) || 0,
+                                            v ?? 0,
                                           )
                                         }
                                         className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""}`}
@@ -3076,15 +3575,10 @@ export function RealEstateFormModal({
                                               }
                                             </Label>
                                             <div className="mt-1">
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
+                                              <DecimalInput
                                                 value={tempRentPercentage}
-                                                onChange={e =>
-                                                  setTempRentPercentage(
-                                                    e.target.value,
-                                                  )
+                                                onStringChange={
+                                                  setTempRentPercentage
                                                 }
                                                 placeholder="0.00"
                                                 className="text-sm"
@@ -3094,11 +3588,19 @@ export function RealEstateFormModal({
                                           <div className="text-xs text-gray-500">
                                             {tempRentPercentage &&
                                               !isNaN(
-                                                parseFloat(tempRentPercentage),
+                                                parseFloat(
+                                                  tempRentPercentage.replace(
+                                                    ",",
+                                                    ".",
+                                                  ),
+                                                ),
                                               ) && (
                                                 <>
                                                   {parseFloat(
-                                                    tempRentPercentage,
+                                                    tempRentPercentage.replace(
+                                                      ",",
+                                                      ".",
+                                                    ),
                                                   )}
                                                   % {t.realEstate.purchase.of}{" "}
                                                   {formatCurrency(
@@ -3113,7 +3615,10 @@ export function RealEstateFormModal({
                                                   {formatCurrency(
                                                     calculateAmountFromRentPercentage(
                                                       parseFloat(
-                                                        tempRentPercentage,
+                                                        tempRentPercentage.replace(
+                                                          ",",
+                                                          ".",
+                                                        ),
                                                       ),
                                                     ),
                                                     locale,
@@ -3125,8 +3630,12 @@ export function RealEstateFormModal({
                                           <Button
                                             type="button"
                                             onClick={() => {
-                                              const percentage =
-                                                parseFloat(tempRentPercentage)
+                                              const percentage = parseFloat(
+                                                tempRentPercentage.replace(
+                                                  ",",
+                                                  ".",
+                                                ),
+                                              )
                                               if (!isNaN(percentage)) {
                                                 applyRentPercentageToFlow(
                                                   originalIndex,
@@ -3137,7 +3646,12 @@ export function RealEstateFormModal({
                                             disabled={
                                               !tempRentPercentage ||
                                               isNaN(
-                                                parseFloat(tempRentPercentage),
+                                                parseFloat(
+                                                  tempRentPercentage.replace(
+                                                    ",",
+                                                    ".",
+                                                  ),
+                                                ),
                                               )
                                             }
                                             className="w-full"
@@ -3199,6 +3713,24 @@ export function RealEstateFormModal({
                                     <option value={FlowFrequency.YEARLY}>
                                       {t.realEstate.frequency.yearly}
                                     </option>
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.BIWEEKLY && (
+                                      <option value={FlowFrequency.BIWEEKLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .biweekly
+                                        }
+                                      </option>
+                                    )}
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.SEMIMONTHLY && (
+                                      <option value={FlowFrequency.SEMIMONTHLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .semimonthly
+                                        }
+                                      </option>
+                                    )}
                                   </select>
                                 </div>
 
@@ -3238,9 +3770,9 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
-              <Card className="p-4">
+              <div className="border-t border-border pt-6">
                 <button
                   type="button"
                   onClick={() => toggleSection("utilities")}
@@ -3284,8 +3816,10 @@ export function RealEstateFormModal({
                           onClick={e => handleSuggestionClick(e, "utilities")}
                           className="text-xs"
                         >
-                          <Lightbulb size={14} className="mr-1" />
-                          {t.realEstate.buttons.suggest}
+                          <Lightbulb size={14} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.buttons.suggest}
+                          </span>
                         </Button>
                         <Button
                           type="button"
@@ -3293,8 +3827,10 @@ export function RealEstateFormModal({
                           onClick={() => addFlow(RealEstateFlowSubtype.SUPPLY)}
                           className="bg-white dark:bg-gray-100 hover:bg-gray-100 dark:hover:bg-gray-200 text-black border border-gray-300 dark:border-gray-400 shadow-sm"
                         >
-                          <Plus size={16} className="mr-1" />
-                          {t.realEstate.flows.addSupply}
+                          <Plus size={16} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.flows.addSupply}
+                          </span>
                         </Button>
                       </div>
                     </div>
@@ -3354,16 +3890,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "utilities",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -3377,6 +3921,11 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <div className="text-sm font-medium text-white">
                                       {flow.name}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-300">
                                       {isGeneric
@@ -3389,6 +3938,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return flow.flow_type === FlowType.EXPENSE
@@ -3531,16 +4105,10 @@ export function RealEstateFormModal({
                                     </span>
                                   </Label>
                                   <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                    <DecimalInput
                                       value={flow.periodic_flow?.amount || ""}
-                                      onChange={e =>
-                                        updateFlowAmount(
-                                          originalIndex,
-                                          parseFloat(e.target.value) || 0,
-                                        )
+                                      onValueChange={v =>
+                                        updateFlowAmount(originalIndex, v ?? 0)
                                       }
                                       className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""}`}
                                     />
@@ -3601,6 +4169,24 @@ export function RealEstateFormModal({
                                     <option value={FlowFrequency.YEARLY}>
                                       {t.realEstate.frequency.yearly}
                                     </option>
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.BIWEEKLY && (
+                                      <option value={FlowFrequency.BIWEEKLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .biweekly
+                                        }
+                                      </option>
+                                    )}
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.SEMIMONTHLY && (
+                                      <option value={FlowFrequency.SEMIMONTHLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .semimonthly
+                                        }
+                                      </option>
+                                    )}
                                   </select>
                                 </div>
 
@@ -3640,10 +4226,10 @@ export function RealEstateFormModal({
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
 
               {formData.basic_info.is_rented && (
-                <Card className="p-4">
+                <div className="border-t border-border pt-6">
                   <button
                     type="button"
                     onClick={() => toggleSection("rent")}
@@ -3687,8 +4273,10 @@ export function RealEstateFormModal({
                             onClick={e => handleSuggestionClick(e, "rent")}
                             className="text-xs"
                           >
-                            <Lightbulb size={14} className="mr-1" />
-                            {t.realEstate.buttons.suggest}
+                            <Lightbulb size={14} className="sm:mr-1" />
+                            <span className="hidden sm:inline">
+                              {t.realEstate.buttons.suggest}
+                            </span>
                           </Button>
                           <Button
                             type="button"
@@ -3696,8 +4284,10 @@ export function RealEstateFormModal({
                             onClick={() => addFlow(RealEstateFlowSubtype.RENT)}
                             className="bg-white dark:bg-gray-100 hover:bg-gray-100 dark:hover:bg-gray-200 text-black border border-gray-300 dark:border-gray-400 shadow-sm"
                           >
-                            <Plus size={16} className="mr-1" />
-                            {t.realEstate.flows.addRental}
+                            <Plus size={16} className="sm:mr-1" />
+                            <span className="hidden sm:inline">
+                              {t.realEstate.flows.addRental}
+                            </span>
                           </Button>
                         </div>
                       </div>
@@ -3706,26 +4296,18 @@ export function RealEstateFormModal({
                         <div>
                           <Label>{t.realEstate.rent.vacancyRate}</Label>
                           <div className="relative">
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.1"
+                            <DecimalInput
                               value={
                                 typeof formData.rental_data?.vacancy_rate ===
                                 "number"
-                                  ? String(
-                                      (formData.rental_data?.vacancy_rate ||
-                                        0) * 100,
-                                    )
+                                  ? (formData.rental_data?.vacancy_rate || 0) *
+                                    100
                                   : ""
                               }
-                              onChange={e =>
+                              onValueChange={v =>
                                 handleInputChange(
                                   "rental_data.vacancy_rate",
-                                  e.target.value === ""
-                                    ? null
-                                    : (parseFloat(e.target.value) || 0) / 100,
+                                  v != null ? v / 100 : null,
                                 )
                               }
                               className="pr-8"
@@ -3787,16 +4369,24 @@ export function RealEstateFormModal({
                                   flow.frequency,
                                   true,
                                 )
+                                const isCurrencyMismatch =
+                                  !flow.id?.startsWith("generic-") &&
+                                  flow.currency !== formData.currency
 
                                 const iconName = getSuggestionIconName(
                                   flow,
                                   "rent",
                                 )
-                                return (
+
+                                const content = (
                                   <div
                                     key={`${flow.id}-${index}`}
-                                    className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                    onClick={() => applyFlowSuggestion(flow)}
+                                    className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                    onClick={
+                                      isCurrencyMismatch
+                                        ? undefined
+                                        : () => applyFlowSuggestion(flow)
+                                    }
                                   >
                                     <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                       <Icon
@@ -3810,6 +4400,11 @@ export function RealEstateFormModal({
                                     <div className="flex-1">
                                       <div className="text-sm font-medium text-white">
                                         {flow.name}
+                                        {isCurrencyMismatch && (
+                                          <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                            {flow.currency}
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="text-xs text-gray-300">
                                         {isGeneric
@@ -3822,6 +4417,36 @@ export function RealEstateFormModal({
                                     </div>
                                   </div>
                                 )
+
+                                if (isCurrencyMismatch) {
+                                  return (
+                                    <TooltipProvider
+                                      key={`${flow.id}-${index}`}
+                                    >
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          {content}
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side="top"
+                                          className="max-w-xs"
+                                        >
+                                          {t.realEstate.suggestions.currencyMismatch
+                                            .replace(
+                                              "{currency}",
+                                              flow.currency,
+                                            )
+                                            .replace(
+                                              "{propertyCurrency}",
+                                              formData.currency,
+                                            )}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )
+                                }
+
+                                return content
                               })}
                             {availableFlows.filter(
                               flow =>
@@ -3961,15 +4586,12 @@ export function RealEstateFormModal({
                                       </span>
                                     </Label>
                                     <div className="relative">
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
+                                      <DecimalInput
                                         value={flow.periodic_flow?.amount || ""}
-                                        onChange={e =>
+                                        onValueChange={v =>
                                           updateFlowAmount(
                                             originalIndex,
-                                            parseFloat(e.target.value) || 0,
+                                            v ?? 0,
                                           )
                                         }
                                         className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""}`}
@@ -4034,11 +4656,11 @@ export function RealEstateFormModal({
                       </div>
                     </div>
                   )}
-                </Card>
+                </div>
               )}
 
               {formData.basic_info.is_rented && (
-                <Card className="p-4">
+                <div className="border-t border-border pt-6">
                   <button
                     type="button"
                     className="flex items-center justify-between w-full text-left"
@@ -4086,8 +4708,10 @@ export function RealEstateFormModal({
                             ])
                           }}
                         >
-                          <Plus size={16} className="mr-1" />{" "}
-                          {t.realEstate.amortizations.add}
+                          <Plus size={16} className="sm:mr-1" />
+                          <span className="hidden sm:inline">
+                            {t.realEstate.amortizations.add}
+                          </span>
                         </Button>
                       </div>
                       <div className="mt-4 space-y-2">
@@ -4132,14 +4756,10 @@ export function RealEstateFormModal({
                               <div className="col-span-12 sm:col-span-6 md:col-span-3">
                                 <Label>{t.realEstate.amortizations.base}</Label>
                                 <div className="relative">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
+                                  <DecimalInput
                                     value={a.base_amount || ""}
-                                    onChange={e => {
-                                      const base =
-                                        parseFloat(e.target.value) || 0
+                                    onValueChange={v => {
+                                      const base = v ?? 0
                                       const list = [
                                         ...(formData.rental_data
                                           ?.amortizations || []),
@@ -4168,15 +4788,10 @@ export function RealEstateFormModal({
                                   {t.realEstate.amortizations.percentage}
                                 </Label>
                                 <div className="relative">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.1"
+                                  <DecimalInput
                                     value={a.percentage || ""}
-                                    onChange={e => {
-                                      const pct =
-                                        parseFloat(e.target.value) || 0
+                                    onValueChange={v => {
+                                      const pct = v ?? 0
                                       const list = [
                                         ...(formData.rental_data
                                           ?.amortizations || []),
@@ -4205,14 +4820,10 @@ export function RealEstateFormModal({
                                   {t.realEstate.amortizations.annual}
                                 </Label>
                                 <div className="relative">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
+                                  <DecimalInput
                                     value={a.amount || ""}
-                                    onChange={e => {
-                                      const amt =
-                                        parseFloat(e.target.value) || 0
+                                    onValueChange={v => {
+                                      const amt = v ?? 0
                                       const list = [
                                         ...(formData.rental_data
                                           ?.amortizations || []),
@@ -4270,7 +4881,7 @@ export function RealEstateFormModal({
                       </div>
                     </>
                   )}
-                </Card>
+                </div>
               )}
 
               <RealEstateStats
@@ -4290,11 +4901,11 @@ export function RealEstateFormModal({
                 onChangeMarginalTaxRate={val =>
                   handleInputChange("rental_data.marginal_tax_rate", val)
                 }
-                cardClassName="p-4 border-gray-200 bg-gray-50 dark:bg-gray-900 dark:border-gray-700"
+                cardClassName="p-4 -mx-4 rounded-none border-x-0"
               />
             </div>
 
-            <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-6 rounded-b-lg">
+            <div className="flex-shrink-0 border-t border-border p-2 rounded-b-lg">
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={handleClose}>
                   {t.common.cancel}
@@ -4317,6 +4928,30 @@ export function RealEstateFormModal({
               onClose()
             }}
             onCancel={() => setShowUnsavedDialog(false)}
+          />
+
+          <ConfirmationDialog
+            isOpen={unlinkConfirmIndex !== null}
+            title={t.realEstate.modals.unlinkLoanTitle}
+            message={t.realEstate.modals.unlinkLoanMessage}
+            warning={t.realEstate.modals.unlinkLoanWarning}
+            confirmText={t.realEstate.modals.unlinkLoanConfirm}
+            cancelText={t.realEstate.modals.unlinkLoanCancel}
+            onConfirm={() => {
+              if (unlinkConfirmIndex !== null) {
+                setFormData(prev => ({
+                  ...prev,
+                  flows: prev.flows.map((flow, i) =>
+                    i === unlinkConfirmIndex
+                      ? { ...flow, linked_loan_hash: null }
+                      : flow,
+                  ),
+                }))
+                setHasUnsavedChanges(true)
+              }
+              setUnlinkConfirmIndex(null)
+            }}
+            onCancel={() => setUnlinkConfirmIndex(null)}
           />
 
           <UnassignedFlowsDialog

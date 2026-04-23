@@ -1,9 +1,14 @@
 import argparse
 import logging
+import os
+import socket
 from pathlib import Path
+
+import uvicorn
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.cancel_entity_login import CancelEntityLoginImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.calculate_savings import CalculateSavingsImpl
@@ -19,9 +24,13 @@ from application.use_cases.connect_external_integration import (
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.create_template import CreateTemplateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.get_crypto_wallet_addresses import (
+    GetCryptoWalletAddressesImpl,
+)
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
+from application.use_cases.derive_crypto_addresses import DeriveCryptoAddressesImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.delete_template import DeleteTemplateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
@@ -40,8 +49,13 @@ from application.use_cases.get_available_entities import GetAvailableEntitiesImp
 from application.use_cases.get_available_external_entities import (
     GetAvailableExternalEntitiesImpl,
 )
+from application.use_cases.get_backup_settings import GetBackupSettingsImpl
+from application.use_cases.get_backups import GetBackupsImpl
+from application.use_cases.get_cloud_auth import GetCloudAuthImpl
 from application.use_cases.get_contributions import GetContributionsImpl
+from application.use_cases.get_crypto_asset_details import GetCryptoAssetDetailsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
+from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
@@ -55,13 +69,17 @@ from application.use_cases.get_status import GetStatusImpl
 from application.use_cases.get_template_fields import GetTemplateFieldsImpl
 from application.use_cases.get_templates import GetTemplatesImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.handle_cloud_auth import HandleCloudAuthImpl
+from application.use_cases.import_backup import ImportBackupImpl
 from application.use_cases.import_file import ImportFileImpl
 from application.use_cases.import_sheets import ImportSheetsImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
+from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
@@ -71,12 +89,18 @@ from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
+from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
+from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
-from domain.exception.exceptions import UserNotFound
+from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
+from infrastructure.client.cloud.backup.backup_client import BackupClient
+from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
+    HttpFileTransferStrategy,
+)
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
@@ -88,9 +112,14 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
     LitecoinFetcher,
 )
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
+from infrastructure.client.entity.exchange.binance.binance_fetcher import (
+    BinanceFetcher,
+)
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
+from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
+from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import IBKRFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
@@ -112,6 +141,9 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
     UrbanitaeFetcher,
 )
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
+from infrastructure.client.features.feature_flag_client import FeatureFlagClient
+from infrastructure.client.interests.ecb_client import ECBClient
+from infrastructure.client.keychain.public_keychain_client import PublicKeychainClient
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
 )
@@ -119,13 +151,24 @@ from infrastructure.client.instrument.instrument_provider_adapter import (
     InstrumentProviderAdapter,
 )
 from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetInfoClient
+from infrastructure.client.rates.crypto.file_coingecko_strategy import (
+    FileCoinGeckoCacheStrategy,
+)
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
+from infrastructure.cloud.backup.backup_processor_adapter import (
+    BackupProcessorAdapter,
+)
+from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
-from infrastructure.config.server_details_adapter import ArgparseServerDetailsAdapter
-from infrastructure.controller.config import flask
+from infrastructure.config.server_details_adapter import ServerDetailsAdapter
+from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
-from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.crypto.public_key_derivation_adapter import (
+    PublicKeyDerivationAdapter,
+)
+from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
+from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
@@ -140,11 +183,14 @@ from infrastructure.repository import (
 from infrastructure.repository.credentials.credentials_repository import (
     CredentialsRepository,
 )
+from infrastructure.repository.entity_account.entity_account_repository import (
+    EntityAccountRepository,
+)
 from infrastructure.repository.crypto.crypto_asset_repository import (
     CryptoAssetRegistryRepository,
 )
-from infrastructure.repository.crypto.crypto_wallet_connection_repository import (
-    CryptoWalletConnectionRepository,
+from infrastructure.repository.crypto.crypto_wallet_repository import (
+    CryptoWalletRepository,
 )
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
@@ -158,11 +204,15 @@ from infrastructure.repository.earnings_expenses.periodic_flow_repository import
 from infrastructure.repository.entity.external_entity_repository import (
     ExternalEntityRepository,
 )
+from infrastructure.calculations.loan_calculator import LoanCalculator
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
+)
+from infrastructure.repository.keychain.public_keychain_repository import (
+    PublicKeychainRepository,
 )
 from infrastructure.repository.position.manual_position_data_repository import (
     ManualPositionDataSQLRepository,
@@ -183,70 +233,85 @@ from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
 from infrastructure.user_files.user_data_manager import UserDataManager
-from waitress import serve
 
 
 class FinanzeServer:
     def __init__(self, args: argparse.Namespace):
-        self.args = args
+        self._args = args
+        self._quart_app = None
+        self._db_client = None
         self._log = logging.getLogger(__name__)
+
+    async def _init(self):
+        args = self._args
+        self._check_port()
 
         self._log.info("Initializing components...")
 
-        self.db_client = DBClient()
-        self.db_manager = DBManager(self.db_client)
-        self.data_manager = UserDataManager(self.args.data_dir)
+        self._db_client = DBClient()
+        db_client = self._db_client
+        db_manager = DBManager(db_client)
+        data_manager = UserDataManager(args.data_dir)
 
-        static_upload_dir = self.args.data_dir / Path("static")
+        static_upload_dir = args.data_dir / Path("static")
 
-        self.config_loader = ConfigLoader()
-        self.sheets_initiator = SheetsServiceLoader()
-        self.etherscan_client = EtherscanClient()
-        self.ethplorer_client = EthplorerClient()
-        self.gocardless_client = GoCardlessClient(port=self.args.port)
+        config_loader = ConfigLoader()
+        sheets_initiator = SheetsServiceLoader()
+        cloud_register = CloudDataRegister()
+        etherscan_client = EtherscanClient()
+        ethplorer_client = EthplorerClient()
+        gocardless_client = GoCardlessClient(port=args.port)
 
-        self.crypto_entity_fetchers = {
+        crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
             domain.native_entities.ETHEREUM: EthereumFetcher(
-                self.etherscan_client, self.ethplorer_client
+                etherscan_client, ethplorer_client
             ),
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
-            domain.native_entities.BSC: BSCFetcher(
-                self.etherscan_client, self.ethplorer_client
-            ),
+            domain.native_entities.BSC: BSCFetcher(etherscan_client, ethplorer_client),
         }
 
-        self.financial_entity_fetchers = {
-            domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
-            domain.native_entities.UNICAJA: UnicajaFetcher(),
-            domain.native_entities.URBANITAE: UrbanitaeFetcher(),
-            domain.native_entities.WECITY: WecityFetcher(),
-            domain.native_entities.SEGO: SegoFetcher(),
-            domain.native_entities.MINTOS: MintosFetcher(),
-            domain.native_entities.F24: F24Fetcher(),
-            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
-            domain.native_entities.ING: INGFetcher(),
-            domain.native_entities.CAJAMAR: CajamarFetcher(),
+        if os.getenv("E2E_TEST_MODE", "").strip() == "1":
+            from e2e.test_mode import get_e2e_financial_fetchers
+
+            self._log.warning("E2E TEST MODE ACTIVE - using mock fetchers")
+            financial_entity_fetchers = get_e2e_financial_fetchers()
+        else:
+            financial_entity_fetchers = {
+                domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
+                domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
+                domain.native_entities.UNICAJA: UnicajaFetcher(),
+                domain.native_entities.URBANITAE: UrbanitaeFetcher(),
+                domain.native_entities.WECITY: WecityFetcher(),
+                domain.native_entities.SEGO: SegoFetcher(),
+                domain.native_entities.MINTOS: MintosFetcher(),
+                domain.native_entities.F24: F24Fetcher(),
+                domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
+                domain.native_entities.ING: INGFetcher(),
+                domain.native_entities.CAJAMAR: CajamarFetcher(),
+                domain.native_entities.DEGIRO: DegiroFetcher(),
+                domain.native_entities.IBKR: IBKRFetcher(),
+                domain.native_entities.BINANCE: BinanceFetcher(),
+            }
+
+        external_entity_fetchers = {
+            ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),
         }
 
-        self.external_entity_fetchers = {
-            ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(self.gocardless_client),
+        external_integrations = {
+            ExternalIntegrationId.GOOGLE_SHEETS: sheets_initiator,
+            ExternalIntegrationId.ETHERSCAN: etherscan_client,
+            ExternalIntegrationId.GOCARDLESS: gocardless_client,
+            ExternalIntegrationId.ETHPLORER: ethplorer_client,
         }
 
-        self.external_integrations = {
-            ExternalIntegrationId.GOOGLE_SHEETS: self.sheets_initiator,
-            ExternalIntegrationId.ETHERSCAN: self.etherscan_client,
-            ExternalIntegrationId.GOCARDLESS: self.gocardless_client,
-            ExternalIntegrationId.ETHPLORER: self.ethplorer_client,
-        }
-
-        self.sheets_adapter = SheetsAdapter(self.sheets_initiator)
+        sheets_adapter = SheetsAdapter(sheets_initiator)
+        csv_tsv_adapter = CSVFileTableAdapter()
         table_rw_adapter = TableRWDispatcher(
             {
-                FileFormat.CSV: CSVFileTableAdapter(),
-                FileFormat.TSV: CSVFileTableAdapter(),
+                FileFormat.CSV: csv_tsv_adapter,
+                FileFormat.TSV: csv_tsv_adapter,
                 FileFormat.XLSX: XLSXFileTableAdapter(),
             }
         )
@@ -254,114 +319,138 @@ class FinanzeServer:
         template_processor = TemplatedDataGenerator()
         template_parser = TemplateDataParser()
 
-        position_repository = PositionRepository(client=self.db_client)
+        position_repository = PositionRepository(client=db_client)
         manual_position_data_repository = ManualPositionDataSQLRepository(
-            client=self.db_client
+            client=db_client
         )
-        auto_contrib_repository = AutoContributionsRepository(client=self.db_client)
-        transaction_repository = TransactionRepository(client=self.db_client)
-        historic_repository = HistoricRepository(client=self.db_client)
-        entity_repository = EntityRepository(client=self.db_client)
-        sessions_repository = SessionsRepository(client=self.db_client)
-        virtual_import_registry = VirtualImportRepository(client=self.db_client)
-        crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
-            client=self.db_client
-        )
-        crypto_asset_repository = CryptoAssetRegistryRepository(client=self.db_client)
-        last_fetches_repository = LastFetchesRepository(client=self.db_client)
+        auto_contrib_repository = AutoContributionsRepository(client=db_client)
+        transaction_repository = TransactionRepository(client=db_client)
+        historic_repository = HistoricRepository(client=db_client)
+        entity_repository = EntityRepository(client=db_client)
+        sessions_repository = SessionsRepository(client=db_client)
+        virtual_import_registry = VirtualImportRepository(client=db_client)
+        crypto_wallet_repository = CryptoWalletRepository(client=db_client)
+        crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
+        last_fetches_repository = LastFetchesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
-            client=self.db_client
+            client=db_client
         )
-        periodic_flow_repository = PeriodicFlowRepository(client=self.db_client)
-        pending_flow_repository = PendingFlowRepository(client=self.db_client)
-        real_estate_repository = RealEstateRepository(client=self.db_client)
-        external_entity_repository = ExternalEntityRepository(client=self.db_client)
-        template_repository = TemplateRepository(client=self.db_client)
+        periodic_flow_repository = PeriodicFlowRepository(client=db_client)
+        pending_flow_repository = PendingFlowRepository(client=db_client)
+        real_estate_repository = RealEstateRepository(client=db_client)
+        external_entity_repository = ExternalEntityRepository(client=db_client)
+        template_repository = TemplateRepository(client=db_client)
+        entity_account_repository = EntityAccountRepository(client=db_client)
+
+        public_keychain_data_repository = PublicKeychainRepository(client=db_client)
+        public_keychain_fetcher_client = PublicKeychainClient()
+        public_keychain = PublicKeychainAdapter(
+            data_port=public_keychain_data_repository,
+            fetcher_port=public_keychain_fetcher_client,
+        )
 
         file_storage_repository = LocalFileStorage(
             upload_dir=static_upload_dir, static_url_prefix="/static"
         )
-        exchange_rate_storage = ExchangeRateFileStorage(self.args.data_dir)
+        exchange_rate_storage = ExchangeRateFileStorage(args.data_dir)
 
         exchange_rate_client = ExchangeRateClient()
-        crypto_asset_info_client = CryptoAssetInfoClient()
+        ecb_client = ECBClient()
+        crypto_asset_info_client = CryptoAssetInfoClient(
+            coingecko_strategy=FileCoinGeckoCacheStrategy(str(args.data_dir))
+        )
         metal_price_client = MetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
+        public_key_derivation = PublicKeyDerivationAdapter()
 
-        credentials_storage_mode = self.args.credentials_storage_mode
-        if credentials_storage_mode == "DB":
-            credentials_port = CredentialsRepository(client=self.db_client)
-        elif credentials_storage_mode == "ENV":
-            credentials_port = CredentialsReader()
-        else:
-            raise ValueError(
-                f"Invalid credentials storage mode: {credentials_storage_mode}"
-            )
+        credentials_port = CredentialsRepository(client=db_client)
 
-        transaction_handler = TransactionHandler(client=self.db_client)
+        transaction_handler = TransactionHandler(client=db_client)
 
         user_login = UserLoginImpl(
-            self.db_manager,
-            self.data_manager,
-            self.config_loader,
-            self.sheets_initiator,
+            db_manager,
+            data_manager,
+            config_loader,
+            sheets_initiator,
+            cloud_register,
         )
         register_user = RegisterUserImpl(
-            self.db_manager,
-            self.data_manager,
-            self.config_loader,
-            self.sheets_initiator,
+            db_manager,
+            data_manager,
+            config_loader,
+            sheets_initiator,
+            cloud_register,
         )
-        change_user_password = ChangeUserPasswordImpl(
-            self.db_manager, self.data_manager
-        )
-        server_options_port = ArgparseServerDetailsAdapter(self.args)
+        change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
+        server_options_port = ServerDetailsAdapter(args)
+        if os.getenv("ENV_FF"):
+            feature_flag_port = EnvFeatureFlagAdapter()
+        else:
+            users = await data_manager.get_users()
+            feature_flag_port = FeatureFlagClient(
+                operative_system=server_options_port.get_os(), users=users
+            )
+            await feature_flag_port.load()
+
         get_status = GetStatusImpl(
-            self.db_manager,
-            self.data_manager,
+            db_manager,
+            data_manager,
             server_options_port,
+            feature_flag_port,
         )
         user_logout = UserLogoutImpl(
-            self.db_manager, self.config_loader, self.sheets_initiator
+            db_manager,
+            config_loader,
+            sheets_initiator,
+            cloud_register,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
             entity_repository,
             external_entity_repository,
             credentials_port,
-            crypto_wallet_connections_repository,
+            crypto_wallet_repository,
             last_fetches_repository,
             virtual_import_registry,
+            financial_entity_fetchers,
+            external_entity_fetchers,
+            entity_account_repository,
         )
+        loan_calculator = LoanCalculator()
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
             auto_contrib_repository,
             transaction_repository,
             historic_repository,
-            self.financial_entity_fetchers,
-            self.config_loader,
+            financial_entity_fetchers,
+            config_loader,
             credentials_port,
             sessions_repository,
             last_fetches_repository,
             crypto_asset_repository,
             crypto_asset_info_client,
             transaction_handler,
+            public_keychain,
+            entity_account_repository,
+            loan_calculator,
+            real_estate_repository,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
-            self.crypto_entity_fetchers,
-            crypto_wallet_connections_repository,
+            crypto_entity_fetchers,
+            crypto_wallet_repository,
             crypto_asset_repository,
             crypto_asset_info_client,
             last_fetches_repository,
             external_integration_repository,
             transaction_handler,
+            public_key_derivation,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
             entity_repository,
             external_entity_repository,
             position_repository,
-            self.external_entity_fetchers,
+            external_entity_fetchers,
             external_integration_repository,
             last_fetches_repository,
             transaction_handler,
@@ -371,13 +460,13 @@ class FinanzeServer:
             auto_contrib_repository,
             transaction_repository,
             historic_repository,
-            self.sheets_adapter,
+            sheets_adapter,
             last_fetches_repository,
             external_integration_repository,
             entity_repository,
             template_repository,
             template_processor,
-            self.config_loader,
+            config_loader,
         )
         export_file = ExportFileImpl(
             position_repository,
@@ -392,10 +481,10 @@ class FinanzeServer:
         import_sheets = ImportSheetsImpl(
             position_repository,
             transaction_repository,
-            self.sheets_adapter,
+            sheets_adapter,
             entity_repository,
             external_integration_repository,
-            self.config_loader,
+            config_loader,
             virtual_import_registry,
             template_repository,
             template_parser,
@@ -412,16 +501,25 @@ class FinanzeServer:
             transaction_handler_port=transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
-            self.financial_entity_fetchers,
+            financial_entity_fetchers,
             credentials_port,
             sessions_repository,
             transaction_handler,
+            public_keychain,
+            entity_account_repository,
         )
+        cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
         disconnect_entity = DisconnectEntityImpl(
-            credentials_port, sessions_repository, transaction_handler
+            credentials_port,
+            sessions_repository,
+            transaction_handler,
+            entity_account_repository,
+            transaction_repository,
+            auto_contrib_repository,
+            historic_repository,
         )
-        get_settings = GetSettingsImpl(self.config_loader)
-        update_settings = UpdateSettingsImpl(self.config_loader)
+        get_settings = GetSettingsImpl(config_loader)
+        update_settings = UpdateSettingsImpl(config_loader)
         get_entities_position = GetPositionImpl(position_repository, entity_repository)
         get_contributions = GetContributionsImpl(
             auto_contrib_repository, entity_repository
@@ -440,36 +538,44 @@ class FinanzeServer:
         connect_external_entity = ConnectExternalEntityImpl(
             entity_repository,
             external_entity_repository,
-            self.external_entity_fetchers,
+            external_entity_fetchers,
             external_integration_repository,
-            file_storage_repository,
         )
         complete_external_entity_connection = CompleteExternalEntityConnectionImpl(
             external_entity_repository,
-            self.external_entity_fetchers,
+            external_entity_fetchers,
             external_integration_repository,
         )
         delete_external_entity = DeleteExternalEntityImpl(
             external_entity_repository,
-            self.external_entity_fetchers,
+            external_entity_fetchers,
             external_integration_repository,
         )
         get_available_external_entities = GetAvailableExternalEntitiesImpl(
             entity_repository,
             external_entity_repository,
-            self.external_entity_fetchers,
+            external_entity_fetchers,
             external_integration_repository,
         )
         connect_crypto_wallet = ConnectCryptoWalletImpl(
-            crypto_wallet_connections_repository,
-            self.crypto_entity_fetchers,
+            crypto_wallet_repository,
+            crypto_entity_fetchers,
             external_integration_repository,
+            public_key_derivation,
+            transaction_handler,
         )
         update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
-            crypto_wallet_connections_repository
+            crypto_wallet_repository
         )
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
-            crypto_wallet_connections_repository
+            crypto_wallet_repository
+        )
+        get_crypto_wallet_addresses = GetCryptoWalletAddressesImpl(
+            crypto_wallet_repository
+        )
+        derive_crypto_addresses = DeriveCryptoAddressesImpl(
+            public_key_derivation,
+            entity_repository,
         )
         save_commodities = SaveCommoditiesImpl(
             position_repository,
@@ -479,11 +585,11 @@ class FinanzeServer:
             transaction_handler,
         )
         get_external_integrations = GetExternalIntegrationsImpl(
-            external_integration_repository
+            external_integration_repository, external_integrations
         )
         connect_external_integrations = ConnectExternalIntegrationImpl(
             external_integration_repository,
-            self.external_integrations,
+            external_integrations,
         )
         disconnect_external_integrations = DisconnectExternalIntegrationImpl(
             external_integration_repository
@@ -491,6 +597,10 @@ class FinanzeServer:
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
         get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
+        search_crypto_assets = SearchCryptoAssetsImpl(crypto_asset_info_client)
+        get_crypto_asset_details = GetCryptoAssetDetailsImpl(
+            crypto_asset_info_client, entity_repository
+        )
 
         save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
@@ -526,9 +636,12 @@ class FinanzeServer:
             transaction_handler,
             file_storage_repository,
         )
-        list_real_estate = ListRealEstateImpl(real_estate_repository)
-        calculate_loan = CalculateLoanImpl()
+        list_real_estate = ListRealEstateImpl(
+            real_estate_repository, position_repository
+        )
+        calculate_loan = CalculateLoanImpl(loan_calculator)
         calculate_savings = CalculateSavingsImpl()
+        get_euribor_rates = GetEuriborRatesImpl(ecb_client)
         forecast = ForecastImpl(
             position_port=position_repository,
             auto_contributions_port=auto_contrib_repository,
@@ -548,7 +661,11 @@ class FinanzeServer:
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             virtual_import_registry=virtual_import_registry,
+            crypto_asset_registry_port=crypto_asset_repository,
+            crypto_asset_info_provider=crypto_asset_info_client,
             transaction_handler_port=transaction_handler,
+            real_estate_port=real_estate_repository,
+            loan_calculator=loan_calculator,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
@@ -573,21 +690,73 @@ class FinanzeServer:
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
         )
+        update_tracked_loans = UpdateTrackedLoansImpl(
+            position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
+            loan_calculator=loan_calculator,
+            real_estate_port=real_estate_repository,
+        )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)
         delete_template = DeleteTemplateImpl(template_repository)
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
 
+        backup_processor = BackupProcessorAdapter()
+        backup_repository = BackupClient(HttpFileTransferStrategy())
+
+        backupable_ports = {
+            BackupFileType.DATA: db_manager,
+            BackupFileType.CONFIG: config_loader,
+        }
+        upload_backup = UploadBackupImpl(
+            data_initiator=db_manager,
+            backupable_ports=backupable_ports,
+            backup_processor=backup_processor,
+            backup_repository=backup_repository,
+            backup_local_registry=cloud_register,
+            cloud_register=cloud_register,
+        )
+        import_backup = ImportBackupImpl(
+            data_initiator=db_manager,
+            backupable_ports=backupable_ports,
+            backup_processor=backup_processor,
+            backup_repository=backup_repository,
+            backup_local_registry=cloud_register,
+            cloud_register=cloud_register,
+        )
+        get_backups = GetBackupsImpl(
+            backupable_ports=backupable_ports,
+            backup_repository=backup_repository,
+            backup_local_registry=cloud_register,
+            cloud_register=cloud_register,
+        )
+
+        handle_cloud_auth = HandleCloudAuthImpl(
+            cloud_register=cloud_register,
+        )
+
+        get_cloud_auth = GetCloudAuthImpl(
+            cloud_register=cloud_register,
+        )
+
+        get_backup_settings = GetBackupSettingsImpl(
+            backup_settings_port=cloud_register,
+        )
+
+        save_backup_settings = SaveBackupSettingsImpl(
+            backup_settings_port=cloud_register,
+        )
+
         self._log.info("Initial component setup completed.")
 
-        self._init_user(args, user_login)
+        auto_log = await self._init_user(args, user_login)
 
         self._log.info("Setting up REST API...")
 
-        self.flask_app = flask(static_upload_dir)
-        register_routes(
-            self.flask_app,
+        self._quart_app = quart(static_upload_dir)
+        await register_routes(
+            self._quart_app,
             user_login,
             register_user,
             change_user_password,
@@ -600,6 +769,7 @@ class FinanzeServer:
             import_sheets,
             import_file,
             add_entity_credentials,
+            cancel_entity_login,
             get_status,
             user_logout,
             get_settings,
@@ -618,6 +788,8 @@ class FinanzeServer:
             connect_crypto_wallet,
             update_crypto_wallet,
             delete_crypto_wallet,
+            get_crypto_wallet_addresses,
+            derive_crypto_addresses,
             save_commodities,
             get_external_integrations,
             connect_external_integrations,
@@ -643,38 +815,71 @@ class FinanzeServer:
             get_instruments,
             get_instrument_info,
             update_tracked_quotes,
+            update_tracked_loans,
+            search_crypto_assets,
+            get_crypto_asset_details,
             create_template,
             update_template,
             delete_template,
             get_templates,
             get_template_fields,
+            upload_backup,
+            import_backup,
+            get_backups,
+            handle_cloud_auth,
+            get_cloud_auth,
+            get_backup_settings,
+            save_backup_settings,
+            get_euribor_rates,
         )
 
         self._log.info("Warming up exchange rates...")
-        get_exchange_rates.execute(initial_load=True)
+        await get_exchange_rates.execute(initial_load=not auto_log)
 
         self._log.info("Completed.")
 
-    def _init_user(self, args, user_login: UserLoginImpl):
+    async def _init_user(self, args, user_login: UserLoginImpl) -> bool:
         if args.logged_username and args.logged_password:
             self._log.info("User provided, logging in...")
             try:
-                user_login.execute(
+                await user_login.execute(
                     LoginRequest(args.logged_username, args.logged_password)
                 )
-            except UserNotFound:
-                self._log.warning(
-                    f"User {args.logged_username} not found during login."
-                )
+                return True
+            except Exception as e:
+                self._log.error(f"Failed to login user: {e}")
+                raise
+        return False
 
-    def run(self):
-        self._log.info(f"Starting Finanze server on port {self.args.port}...")
+    async def run(self):
+        self._log.info(f"Initializing Finanze server on port {self._args.port}...")
         try:
-            serve(self.flask_app, host="0.0.0.0", port=self.args.port)
+            await self._init()
         except OSError as e:
-            self._log.error(f"Could not start server on port {self.args.port}: {e}")
+            if "Port" in str(e):
+                self._log.error(f"Initialization failed: {e}")
+                return
+            else:
+                raise
+
+        self._log.info("Starting server...")
+
+        config = uvicorn.Config(
+            self._quart_app,
+            host="0.0.0.0",
+            port=self._args.port,
+            log_config=None,
+            log_level=None,
+            access_log=True,
+        )
+        server = uvicorn.Server(config)
+
+        try:
+            await server.serve()
+        except OSError as e:
+            self._log.error(f"Could not start server on port {self._args.port}: {e}")
             if e.errno == 48:
-                self._log.info(f"Port {self.args.port} is already in use.")
+                self._log.info(f"Port {self._args.port} is already in use.")
             else:
                 raise
         except Exception:
@@ -684,5 +889,11 @@ class FinanzeServer:
             raise
         finally:
             self._log.info("Finanze server shutting down.")
-            if self.db_client and self.db_client.silent_close():
+            if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    def _check_port(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            used = s.connect_ex(("localhost", self._args.port)) == 0
+            if used:
+                raise OSError(f"Port {self._args.port} is already in use.")

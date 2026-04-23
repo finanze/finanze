@@ -2,7 +2,7 @@ from domain.external_entity import ExternalEntityCandidatesQuery
 from domain.use_cases.get_available_external_entities import (
     GetAvailableExternalEntities,
 )
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def get_available_external_entities(

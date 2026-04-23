@@ -20,6 +20,6 @@ class V0606(DBVersionMigration):
     def name(self):
         return "v0.6.0:6_migrate_equity_types"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(UPDATE_RV)
-        cursor.execute(UPDATE_ETF)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(UPDATE_RV)
+        await cursor.execute(UPDATE_ETF)

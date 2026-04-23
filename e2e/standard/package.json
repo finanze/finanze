@@ -1,0 +1,16 @@
+{
+    "name": "finanze-e2e",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "playwright test",
+        "test:headed": "playwright test --headed",
+        "test:ui": "playwright test --ui",
+        "test:debug": "playwright test --debug"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.50.0",
+        "@types/node": "^25.5.0"
+    },
+    "packageManager": "pnpm@10.32.1"
+}

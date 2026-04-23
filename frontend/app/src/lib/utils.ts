@@ -7,31 +7,17 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getCurrencySymbol(currency: string): string {
   if (!currency) return ""
-  switch (currency) {
-    case "EUR":
-      return "€"
-    case "USD":
-      return "$"
-    case "GBP":
-      return "£"
-    case "JPY":
-      return "¥"
-    case "CNY":
-      return "¥"
-    case "CAD":
-      return "C$"
-    case "AUD":
-      return "A$"
-    case "CHF":
-      return "CHF"
-    case "SEK":
-      return "kr"
-    case "NOK":
-      return "kr"
-    case "DKK":
-      return "kr"
-    default:
-      return currency
+  try {
+    const part = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    })
+      .formatToParts(0)
+      .find(p => p.type === "currency")
+    return part?.value || currency
+  } catch {
+    return currency
   }
 }
 

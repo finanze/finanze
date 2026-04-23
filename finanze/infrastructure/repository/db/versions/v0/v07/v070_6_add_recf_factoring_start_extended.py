@@ -34,11 +34,11 @@ class V0706RECFAndFactoringFields(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.7.0:6_add_recf_factoring_start_extended"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)
 
         update_statements = self.parse_block(UPDATE)
         for statement in update_statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

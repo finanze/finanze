@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
 import {
   getIconForTxType,
@@ -75,6 +77,11 @@ export function TransactionsCalendarView({
   const { t, locale } = useI18n()
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [showYearPicker, setShowYearPicker] = useState(false)
+
+  useModalBackHandler(selectedDayIndex !== null, () =>
+    setSelectedDayIndex(null),
+  )
+  useModalBackHandler(showYearPicker, () => setShowYearPicker(false))
 
   const transactionsByDate = useMemo(() => {
     const map = new Map<string, TransactionItem[]>()
@@ -592,7 +599,7 @@ function DayDetailModal({
             {stockTx.isin && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-                {stockTx.isin}
+                <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
             {stockTx.shares !== undefined && stockTx.shares !== null && (
@@ -608,23 +615,27 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.price}:
                 </span>{" "}
-                {formatCurrency(
-                  stockTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {stockTx.fees !== undefined && stockTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  stockTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {stockTx.retentions !== undefined && stockTx.retentions > 0 && (
@@ -632,12 +643,14 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  stockTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {stockTx.market && (
@@ -659,7 +672,7 @@ function DayDetailModal({
             {fundTx.isin && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
-                {fundTx.isin}
+                <span className="font-mono">{fundTx.isin}</span>
               </div>
             )}
             {fundTx.shares !== undefined && fundTx.shares !== null && (
@@ -675,23 +688,27 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.price}:
                 </span>{" "}
-                {formatCurrency(
-                  fundTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {fundTx.fees !== undefined && fundTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  fundTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {fundTx.retentions !== undefined && fundTx.retentions > 0 && (
@@ -699,12 +716,14 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  fundTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {fundTx.market && (
@@ -728,18 +747,20 @@ function DayDetailModal({
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  fpTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    fpTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {fpTx.iban && (
               <div className={`${detailRowClass} break-all`}>
                 <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
-                {fpTx.iban}
+                <span className="font-mono">{fpTx.iban}</span>
               </div>
             )}
             {fpTx.portfolio_name && (
@@ -763,23 +784,27 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.grossAmount}:
                 </span>{" "}
-                {formatCurrency(
-                  tx.amount,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    tx.amount,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.fees !== undefined && accountTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  accountTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    accountTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.retentions !== undefined && accountTx.retentions > 0 && (
@@ -787,12 +812,14 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  accountTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    accountTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {accountTx.interest_rate !== undefined &&
@@ -801,7 +828,9 @@ function DayDetailModal({
                   <span className={detailLabelClass}>
                     {t.transactions.interestRate}:
                   </span>{" "}
-                  {(accountTx.interest_rate * 100).toFixed(2)}%
+                  <Sensitive>
+                    {(accountTx.interest_rate * 100).toFixed(2)}%
+                  </Sensitive>
                 </div>
               )}
             {accountTx.avg_balance !== undefined &&
@@ -810,12 +839,14 @@ function DayDetailModal({
                   <span className={detailLabelClass}>
                     {t.transactions.avgBalance}:
                   </span>{" "}
-                  {formatCurrency(
-                    accountTx.avg_balance,
-                    locale,
-                    settings.general.defaultCurrency,
-                    tx.currency,
-                  )}
+                  <Sensitive>
+                    {formatCurrency(
+                      accountTx.avg_balance,
+                      locale,
+                      settings.general.defaultCurrency,
+                      tx.currency,
+                    )}
+                  </Sensitive>
                 </div>
               )}
           </div>
@@ -831,12 +862,14 @@ function DayDetailModal({
             {simpleTx.fees !== undefined && simpleTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  simpleTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    simpleTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {simpleTx.retentions !== undefined && simpleTx.retentions > 0 && (
@@ -844,12 +877,14 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  simpleTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    simpleTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </div>
@@ -881,23 +916,27 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.price}:
                 </span>{" "}
-                {formatCurrency(
-                  cryptoTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {cryptoTx.fees != null && cryptoTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  cryptoTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
             {cryptoTx.retentions != null && cryptoTx.retentions > 0 && (
@@ -905,12 +944,14 @@ function DayDetailModal({
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
-                {formatCurrency(
-                  cryptoTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    cryptoTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
               </div>
             )}
           </div>
@@ -928,7 +969,7 @@ function DayDetailModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -993,7 +1034,7 @@ function DayDetailModal({
                 <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center justify-between gap-2 pr-1.5">
                         <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
                           {tx.name}
                         </p>
@@ -1006,17 +1047,19 @@ function DayDetailModal({
                                 : "text-gray-900 dark:text-gray-100"
                           }`}
                         >
-                          {getTransactionDisplayType(tx.type) === "in"
-                            ? "+"
-                            : tx.type === TxType.FEE
-                              ? "-"
-                              : ""}
-                          {formatCurrency(
-                            tx.net_amount ?? tx.amount,
-                            locale,
-                            settings.general.defaultCurrency,
-                            tx.currency,
-                          )}
+                          <Sensitive>
+                            {getTransactionDisplayType(tx.type) === "in"
+                              ? "+"
+                              : tx.type === TxType.FEE
+                                ? "-"
+                                : ""}
+                            {formatCurrency(
+                              tx.net_amount ?? tx.amount,
+                              locale,
+                              settings.general.defaultCurrency,
+                              tx.currency,
+                            )}
+                          </Sensitive>
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">

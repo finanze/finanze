@@ -188,6 +188,17 @@ export interface ManualDepositTransactionPayload extends ManualTransactionBasePa
   retentions?: number
 }
 
+export interface ManualCryptoCurrencyTransactionPayload extends ManualTransactionBasePayload {
+  product_type: ProductType.CRYPTO
+  symbol: string
+  currency_amount: number
+  price: number
+  fees?: number
+  retentions?: number
+  order_date?: string
+  contract_address?: string
+}
+
 export type ManualTransactionPayload =
   | ManualAccountTransactionPayload
   | ManualStockTransactionPayload
@@ -196,6 +207,7 @@ export type ManualTransactionPayload =
   | ManualFactoringTransactionPayload
   | ManualRealEstateTransactionPayload
   | ManualDepositTransactionPayload
+  | ManualCryptoCurrencyTransactionPayload
 
 // Transactions container
 export interface Transactions {

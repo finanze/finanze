@@ -1,0 +1,29 @@
+{
+    "name": "finanze-mobile-e2e",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@10.32.1",
+    "scripts": {
+        "test:ios": "wdio run wdio.ios.conf.ts",
+        "test:android": "wdio run wdio.android.conf.ts",
+        "local:ios": "./run-local.sh ios",
+        "local:android": "./run-local.sh android",
+        "local:both": "./run-local.sh both"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^25.6.0",
+        "@wdio/appium-service": "^9.0.0",
+        "@wdio/cli": "^9.0.0",
+        "@wdio/globals": "^9.27.0",
+        "@wdio/local-runner": "^9.0.0",
+        "@wdio/mocha-framework": "^9.0.0",
+        "@wdio/spec-reporter": "^9.0.0",
+        "@wdio/types": "^9.27.0",
+        "appium": "^2.0.0",
+        "appium-uiautomator2-driver": "^3.0.0",
+        "appium-xcuitest-driver": "^7.0.0",
+        "ts-node": "^10.9.0",
+        "typescript": "^5.0.0"
+    }
+}

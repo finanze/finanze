@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import {
   Card,
   CardHeader,
@@ -33,6 +34,8 @@ export function EditDialog({
   isLoading = false,
   placeholder,
 }: EditDialogProps) {
+  useModalBackHandler(isOpen, onCancel)
+
   if (!isOpen) return null
 
   return (

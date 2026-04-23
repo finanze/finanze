@@ -4,7 +4,7 @@ import {
   usePinnedShortcuts,
   type PinnedShortcutId,
 } from "@/context/PinnedShortcutsContext"
-import { Pin, PinOff } from "lucide-react"
+import { Pin } from "lucide-react"
 import { useI18n } from "@/i18n"
 
 type Breakpoint = "sm" | "md" | "lg" | "xl"
@@ -42,11 +42,18 @@ export const PinAssetButton: React.FC<Props> = ({
       }}
       title={pinned ? t.common.unpinAsset : t.common.pinAsset}
     >
-      {pinned ? (
-        <PinOff size={16} className="mr-1" />
-      ) : (
-        <Pin size={16} className="mr-1" />
-      )}
+      <Pin
+        size={16}
+        className={
+          size === "icon"
+            ? pinned
+              ? "fill-current"
+              : ""
+            : pinned
+              ? "mr-1 fill-current"
+              : "mr-1"
+        }
+      />
       <span className={labelClassName}>
         {pinned ? t.common.unpin : t.common.pin}
       </span>

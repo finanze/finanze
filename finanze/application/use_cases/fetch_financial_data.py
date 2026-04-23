@@ -12,10 +12,14 @@ from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
+from application.ports.entity_account_port import EntityAccountPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
+from application.ports.public_keychain_loader import PublicKeychainLoader
+from application.ports.real_estate_port import RealEstatePort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
@@ -42,6 +46,7 @@ from domain.global_position import (
     ProductType,
     RealEstateCFDetail,
 )
+from domain.loan_calculator import LoanCalculationParams
 from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
@@ -170,6 +175,10 @@ class FetchFinancialDataImpl(FetchFinancialData):
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
+        keychain_loader: PublicKeychainLoader,
+        entity_account_port: EntityAccountPort,
+        loan_calculator: LoanCalculatorPort,
+        real_estate_port: RealEstatePort,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -183,42 +192,59 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._transaction_handler_port = transaction_handler_port
+        self._keychain_loader = keychain_loader
+        self._entity_account_port = entity_account_port
+        self._loan_calculator = loan_calculator
+        self._real_estate_port = real_estate_port
 
         self._locks: dict[UUID, Lock] = {}
 
         self._log = logging.getLogger(__name__)
 
-    def _get_lock(self, entity_id: UUID) -> Lock:
-        if entity_id not in self._locks:
-            self._locks[entity_id] = asyncio.Lock()
-        return self._locks[entity_id]
+    def _get_lock(self, entity_account_id: UUID) -> Lock:
+        if entity_account_id not in self._locks:
+            self._locks[entity_account_id] = asyncio.Lock()
+        return self._locks[entity_account_id]
 
     async def execute(self, fetch_request: FetchRequest) -> FetchResult:
-        entity_id = fetch_request.entity_id
+        entity_account_id = fetch_request.entity_account_id
+
+        account = await self._entity_account_port.get_by_id(entity_account_id)
+        if not account:
+            return FetchResult(FetchResultCode.NOT_CONNECTED)
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
+            account.entity_id,
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
         )
         if not entity:
-            raise EntityNotFound(entity_id)
+            raise EntityNotFound(account.entity_id)
 
         features = fetch_request.features
 
         if features and not all(f in entity.features for f in features):
             return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
 
-        lock = self._get_lock(entity_id)
+        lock = self._get_lock(account.entity_id)
 
         if lock.locked():
             raise ExecutionConflict()
 
         async with lock:
-            last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
+            last_fetch = await self._last_fetches_port.get_by_entity_account_id(
+                entity_account_id
+            )
             result = handle_cooldown(last_fetch, POSITION_UPDATE_COOLDOWN_SECONDS)
             if result:
                 return result
 
-            credentials = self._credentials_port.get(entity.id)
+            credentials = await self._credentials_port.get(entity_account_id)
+            # Incorporate any extra credentials from the request (e.g., for manual login)
+            extra_credentials = fetch_request.credentials or {}
+            for cred_name, cred_value in extra_credentials.items():
+                credentials[cred_name] = cred_value
+
             if credentials is None:
                 return FetchResult(FetchResultCode.NO_CREDENTIALS_AVAILABLE)
 
@@ -232,24 +258,31 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
             specific_fetcher = self._entity_fetchers[entity]
 
-            stored_session = self._sessions_port.get(entity.id)
+            keychain = await self._keychain_loader.load()
+
+            stored_session = await self._sessions_port.get(entity_account_id)
             login_request = EntityLoginParams(
                 credentials=credentials,
                 two_factor=fetch_request.two_factor,
                 options=fetch_request.login_options,
                 session=stored_session,
+                keychain=keychain,
             )
             login_result = await specific_fetcher.login(login_request)
             login_result_code = login_result.code
             login_message = login_result.message
+            details = login_result.details or {}
 
             if login_result_code == LoginResultCode.CODE_REQUESTED:
+                details = {"message": login_message}
+                if login_result.process_id:
+                    details["processId"] = login_result.process_id
+                if login_result.challenge_type:
+                    details["challengeType"] = login_result.challenge_type
                 return FetchResult(
                     FetchResultCode.CODE_REQUESTED,
-                    details={
-                        "message": login_message,
-                        "processId": login_result.process_id,
-                    },
+                    details=details,
+                    confirmation_type=login_result.confirmation_type,
                 )
 
             elif login_result_code == LoginResultCode.MANUAL_LOGIN:
@@ -259,8 +292,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
 
             elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
-                self._credentials_port.update_expiration(
-                    entity.id, datetime.now(tzlocal())
+                await self._credentials_port.update_expiration(
+                    entity_account_id, datetime.now(tzlocal())
                 )
                 return FetchResult(
                     FETCH_BAD_LOGIN_CODES[login_result_code],
@@ -273,23 +306,29 @@ class FetchFinancialDataImpl(FetchFinancialData):
             ]:
                 return FetchResult(
                     FETCH_BAD_LOGIN_CODES[login_result_code],
-                    details={"message": login_message},
+                    details={"message": login_message, **details},
                 )
 
             elif login_result_code == LoginResultCode.CREATED:
-                self._credentials_port.update_last_usage(entity.id)
-                self._credentials_port.update_expiration(entity.id, None)
+                await self._credentials_port.update_last_usage(entity_account_id)
+                await self._credentials_port.update_expiration(entity_account_id, None)
 
                 session = login_result.session
                 if session:
-                    self._sessions_port.delete(entity.id)
-                    self._sessions_port.save(entity.id, session)
+                    await self._sessions_port.delete(entity_account_id)
+                    await self._sessions_port.save(
+                        entity_account_id, entity.id, session
+                    )
 
             if not features:
                 features = DEFAULT_FEATURES
 
             return await self.get_data(
-                entity, features, specific_fetcher, fetch_request.fetch_options
+                entity,
+                features,
+                specific_fetcher,
+                fetch_request.fetch_options,
+                entity_account_id=entity_account_id,
             )
 
     async def get_data(
@@ -298,56 +337,85 @@ class FetchFinancialDataImpl(FetchFinancialData):
         features: List[Feature],
         specific_fetcher: FinancialEntityFetcher,
         options: FetchOptions,
+        entity_account_id: UUID,
     ) -> FetchResult:
         position = None
         if Feature.POSITION in features:
             position = await specific_fetcher.global_position()
-            self._enrich_crypto_assets(position)
+            position.entity_account_id = entity_account_id
+            await self._enrich_crypto_assets(position)
+            await self._enrich_loans(position)
 
         auto_contributions = None
         if Feature.AUTO_CONTRIBUTIONS in features:
             auto_contributions = await specific_fetcher.auto_contributions()
+            if auto_contributions:
+                for contrib in auto_contributions.periodic:
+                    contrib.entity_account_id = entity_account_id
 
         transactions = None
         historical_position = None
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
             if not options.deep:
-                registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
+                registered_txs = (
+                    await self._transaction_port.get_refs_by_entity_account(
+                        entity_account_id
+                    )
+                )
 
             transactions = await specific_fetcher.transactions(registered_txs, options)
 
-            if transactions and Feature.HISTORIC in features:
-                historical_position = await specific_fetcher.historical_position()
+            if transactions:
+                for tx in transactions.investment or []:
+                    tx.entity_account_id = entity_account_id
+                for tx in transactions.account or []:
+                    tx.entity_account_id = entity_account_id
+
+                if Feature.HISTORIC in features:
+                    historical_position = await specific_fetcher.historical_position()
+
+        old_position_id = None
+        if position and position.entity_account_id:
+            old_position_id = await self._position_port.get_latest_real_position_id(
+                position.entity_account_id
+            )
 
         async with self._transaction_handler_port.start():
             if position:
-                self._position_port.save(position)
+                await self._position_port.save(position)
+                await self._migrate_stale_references(old_position_id, position)
+                await self._sync_linked_loan_flows(position)
 
             if auto_contributions:
-                self._auto_contr_repository.save(
+                await self._auto_contr_repository.save(
                     entity.id, auto_contributions, DataSource.REAL
                 )
 
             if Feature.TRANSACTIONS in features and options.deep:
-                self._transaction_port.delete_by_entity_source(
-                    entity.id, DataSource.REAL
+                await self._transaction_port.delete_by_entity_account_id(
+                    entity_account_id
                 )
 
             historic = None
             if transactions:
-                self._transaction_port.save(transactions)
+                await self._transaction_port.save(transactions)
 
                 if Feature.HISTORIC in features:
-                    historic_entries = self.build_historic(
-                        entity, historical_position, specific_fetcher
+                    historic_entries = await self.build_historic(
+                        entity,
+                        historical_position,
+                        specific_fetcher,
+                        entity_account_id=entity_account_id,
                     )
                     historic = Historic(historic_entries)
 
-                    self._historic_port.delete_by_entity(entity.id)
-                    self._historic_port.save(historic.entries)
+                    await self._historic_port.delete_by_entity_account_id(
+                        entity_account_id
+                    )
+                    await self._historic_port.save(historic.entries)
 
-            self._update_last_fetch(entity.id, features)
+            await self._update_last_fetch(entity.id, features, entity_account_id)
 
             data = FetchedData(
                 position=position,
@@ -358,7 +426,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             return FetchResult(FetchResultCode.COMPLETED, data=data)
 
     def _compute_historic_entry(
-        self, entity, inv, txs_by_name
+        self, entity, inv, txs_by_name, entity_account_id: UUID = None
     ) -> Optional[BaseHistoricEntry]:
         inv_name = inv["name"]
         related_inv_txs = txs_by_name[inv_name]
@@ -405,6 +473,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             "entity": entity,
             "product_type": product_type,
             "related_txs": related_inv_txs,
+            "entity_account_id": entity_account_id,
         }
 
         if product_type == ProductType.REAL_ESTATE_CF:
@@ -428,17 +497,18 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         return None
 
-    def build_historic(
+    async def build_historic(
         self,
         entity: Entity,
         historical_position: HistoricalPosition,
         specific_fetcher: FinancialEntityFetcher,
+        entity_account_id: UUID = None,
     ) -> list[BaseHistoricEntry]:
         investments_by_name = _historic_inv_by_name(historical_position)
 
         investments = list(investments_by_name.values())
 
-        related_txs = self._transaction_port.get_by_entity(entity.id)
+        related_txs = await self._transaction_port.get_by_entity(entity.id)
         txs_by_name = {}
         for tx in related_txs.investment:
             if tx.name in txs_by_name:
@@ -453,7 +523,9 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 self._log.warning(f"No txs for investment {inv_name}")
                 continue
 
-            historic_entry = self._compute_historic_entry(entity, inv, txs_by_name)
+            historic_entry = self._compute_historic_entry(
+                entity, inv, txs_by_name, entity_account_id=entity_account_id
+            )
             if historic_entry is None:
                 continue
 
@@ -461,30 +533,136 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         return historic_entries
 
-    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+    async def _update_last_fetch(
+        self,
+        entity_id: UUID,
+        features: List[Feature],
+        entity_account_id: UUID,
+    ):
         now = datetime.now(tzlocal())
         records = []
         for feature in features:
-            records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
-        self._last_fetches_port.save(records)
+            records.append(
+                FetchRecord(
+                    entity_id=entity_id,
+                    feature=feature,
+                    date=now,
+                    entity_account_id=entity_account_id,
+                )
+            )
+        await self._last_fetches_port.save(records)
 
-    def _enrich_crypto_assets(self, position: GlobalPosition):
+    async def _enrich_crypto_assets(self, position: GlobalPosition):
         crypto_entries = position.products.get(ProductType.CRYPTO)
         if not crypto_entries:
             return
 
         for wallet_entry in crypto_entries.entries:
             for crypto_entry in wallet_entry.assets:
-                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                asset_details = await self._crypto_asset_registry_port.get_by_symbol(
                     crypto_entry.symbol
                 )
                 if asset_details is None:
-                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
-                        crypto_entry.symbol
+                    candidate_assets = (
+                        await self._crypto_asset_info_provider.get_by_symbol(
+                            crypto_entry.symbol
+                        )
                     )
                     if candidate_assets:
                         asset_info = candidate_assets[0]
                         asset_info.id = uuid4()
-                        self._crypto_asset_registry_port.save(asset_info)
+                        await self._crypto_asset_registry_port.save(asset_info)
+                        crypto_entry.crypto_asset = asset_info
+                else:
+                    crypto_entry.crypto_asset = asset_details
 
-                crypto_entry.crypto_asset = asset_details
+    async def _enrich_loans(self, position: GlobalPosition):
+        loan_container = position.products.get(ProductType.LOAN)
+        if not loan_container or not loan_container.entries:
+            return
+
+        for loan in loan_container.entries:
+            if loan.installment_interests is not None:
+                continue
+            try:
+                params = LoanCalculationParams(
+                    loan_amount=None,
+                    interest_rate=loan.interest_rate,
+                    interest_type=loan.interest_type,
+                    euribor_rate=loan.euribor_rate,
+                    fixed_years=loan.fixed_years,
+                    start=loan.creation,
+                    end=loan.maturity,
+                    principal_outstanding=loan.principal_outstanding,
+                    fixed_interest_rate=loan.fixed_interest_rate,
+                    installment_frequency=loan.installment_frequency,
+                )
+                result = await self._loan_calculator.calculate(params)
+                loan.installment_interests = result.current_installment_interests
+            except Exception:
+                self._log.error(
+                    "Could not compute installment_interests for loan %s %s",
+                    loan.name,
+                    loan.id,
+                )
+
+    async def _sync_linked_loan_flows(self, position: GlobalPosition):
+        loans_container = position.products.get(ProductType.LOAN)
+        if not loans_container:
+            return
+        for loan in loans_container.entries:
+            await self._real_estate_port.sync_linked_loan_flows(loan)
+
+    async def _migrate_stale_references(
+        self,
+        old_position_id,
+        new_position: GlobalPosition,
+    ):
+        if old_position_id is None:
+            return
+
+        old_accounts = await self._position_port.get_account_iban_index(old_position_id)
+        new_accounts_by_iban: dict[str, "UUID"] = {}
+        accounts_container = new_position.products.get(ProductType.ACCOUNT)
+        if accounts_container and hasattr(accounts_container, "entries"):
+            for acc in accounts_container.entries:
+                iban = getattr(acc, "iban", None)
+                if iban and iban.strip():
+                    new_accounts_by_iban[iban.strip()] = acc.id
+
+        account_mapping = {}
+        for old_id, old_iban in old_accounts.items():
+            if not old_iban or not old_iban.strip():
+                continue
+            new_id = new_accounts_by_iban.get(old_iban.strip())
+            if new_id and old_id != new_id:
+                account_mapping[old_id] = new_id
+
+        old_portfolios = await self._position_port.get_portfolio_name_index(
+            old_position_id
+        )
+        new_portfolios_by_name: dict[str, "UUID"] = {}
+        portfolios_container = new_position.products.get(ProductType.FUND_PORTFOLIO)
+        if portfolios_container and hasattr(portfolios_container, "entries"):
+            for pf in portfolios_container.entries:
+                name = getattr(pf, "name", None)
+                if name and name.strip():
+                    new_portfolios_by_name[name.strip()] = pf.id
+
+        portfolio_mapping = {}
+        for old_id, old_name in old_portfolios.items():
+            if not old_name or not old_name.strip():
+                continue
+            new_id = new_portfolios_by_name.get(old_name.strip())
+            if new_id and old_id != new_id:
+                portfolio_mapping[old_id] = new_id
+
+        if account_mapping or portfolio_mapping:
+            self._log.info(
+                "Migrating stale references: %d account(s), %d portfolio(s)",
+                len(account_mapping),
+                len(portfolio_mapping),
+            )
+            await self._position_port.migrate_references(
+                account_mapping, portfolio_mapping
+            )

@@ -6,5 +6,5 @@ from domain.template_fields import FieldGroup
 
 class GetTemplateFields(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self) -> dict[Feature, list[FieldGroup]]:
+    async def execute(self) -> dict[Feature, list[FieldGroup]]:
         raise NotImplementedError

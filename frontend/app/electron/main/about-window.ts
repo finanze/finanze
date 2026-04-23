@@ -40,10 +40,6 @@ export function getAboutInfo(): AboutAppInfo {
     author,
     repository,
     homepage: config.packageMetadata.homepage ?? null,
-    electronVersion: process.versions.electron ?? null,
-    chromiumVersion: process.versions.chrome ?? null,
-    nodeVersion: process.versions.node ?? null,
-    platform: config.platformInfo,
   }
 }
 
@@ -65,7 +61,7 @@ export function createAboutWindow(
 
   aboutWindow = new BrowserWindow({
     width: 440,
-    height: 560,
+    height: 605,
     resizable: false,
     minimizable: false,
     maximizable: false,

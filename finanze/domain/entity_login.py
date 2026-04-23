@@ -4,15 +4,30 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from domain.native_entity import EntityCredentials
+from domain.public_keychain import PublicKeychain
+
+
+class LoginConfirmationType(str, Enum):
+    IN_APP = "IN_APP"
+    CHALLENGE = "CHALLENGE"
+
+
+class ChallengeType(str, Enum):
+    RECAPTCHA = "RECAPTCHA"
+    AWSWAF = "AWSWAF"
 
 
 class LoginResultCode(str, Enum):
     # Success
     CREATED = "CREATED"
     RESUMED = "RESUMED"
+
+    # Cooldown
+    COOLDOWN = "COOLDOWN"
 
     # Flow deferral
     CODE_REQUESTED = "CODE_REQUESTED"
@@ -24,6 +39,9 @@ class LoginResultCode(str, Enum):
     # Bad user input
     INVALID_CODE = "INVALID_CODE"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+
+    # Other unexpected-unsuccessful-controlled results
+    CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE"
 
     # Not setup
     NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE"
@@ -45,14 +63,18 @@ class EntityLoginResult:
     code: LoginResultCode
     message: Optional[str] = None
     details: Optional[dict] = None
+    confirmation_type: Optional[LoginConfirmationType] = None
+    challenge_type: Optional[ChallengeType] = None
     process_id: Optional[str] = None
     session: Optional[EntitySession] = None
+    entity_account_id: Optional[UUID] = None
 
 
 @dataclass
 class TwoFactor:
     code: Optional[str] = None
     process_id: Optional[str] = None
+    token: Optional[str] = None
 
 
 @dataclass
@@ -67,11 +89,14 @@ class EntityLoginRequest:
     credentials: EntityCredentials
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
+    entity_account_id: Optional[UUID] = None
+    account_name: Optional[str] = None
 
 
-@dataclass
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class EntityLoginParams:
     credentials: EntityCredentials
+    keychain: PublicKeychain
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None
@@ -79,4 +104,4 @@ class EntityLoginParams:
 
 @dataclass
 class EntityDisconnectRequest:
-    entity_id: UUID
+    entity_account_id: UUID

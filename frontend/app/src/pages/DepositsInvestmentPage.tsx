@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useRef, useCallback } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { DataSource, EntityOrigin, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
   calculateInvestmentDistribution,
@@ -20,7 +21,11 @@ import { ProductType, type Deposit } from "@/types/position"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
   Calendar,
+  ChevronDown,
+  Layers,
   Percent,
   TrendingUp,
   Pencil,
@@ -28,11 +33,10 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
-import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { Entity } from "@/types"
@@ -72,7 +76,7 @@ interface DepositsViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: DepositPosition[]
@@ -95,100 +99,96 @@ export default function DepositsInvestmentPage() {
 
     const deposits: DepositPosition[] = []
 
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      const depositProduct = entityPosition.products[ProductType.DEPOSIT]
-      if (
-        depositProduct &&
-        "entries" in depositProduct &&
-        depositProduct.entries.length > 0
-      ) {
-        const entityName = entityPosition.entity?.name || "Unknown"
-        const entityId = entityPosition.entity?.id || null
-        const entityOrigin = entityPosition.entity?.origin ?? null
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const depositProduct = entityPosition.products[ProductType.DEPOSIT]
+        if (
+          depositProduct &&
+          "entries" in depositProduct &&
+          depositProduct.entries.length > 0
+        ) {
+          const entityName = entityPosition.entity?.name || t.common.unknown
+          const entityId = entityPosition.entity?.id || null
+          const entityOrigin = entityPosition.entity?.origin ?? null
 
-        depositProduct.entries.forEach((deposit: any, index: number) => {
-          const entryId = deposit.id ? String(deposit.id) : undefined
-          const amount = Number(deposit.amount ?? 0)
-          const expectedInterestsRaw =
-            deposit.expected_interests != null
-              ? Number(deposit.expected_interests)
-              : 0
-          const hasExpectedInterests =
-            Number.isFinite(expectedInterestsRaw) && expectedInterestsRaw !== 0
-          const expectedInterests = hasExpectedInterests
-            ? expectedInterestsRaw
-            : null
-          const convertedAmount = convertCurrency(
-            amount,
-            deposit.currency,
-            settings.general.defaultCurrency,
-            exchangeRates,
-          )
-
-          const convertedExpectedAmount =
-            expectedInterests != null
-              ? convertCurrency(
-                  expectedInterests,
-                  deposit.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
+          depositProduct.entries.forEach((deposit: any, index: number) => {
+            const entryId = deposit.id ? String(deposit.id) : undefined
+            const amount = Number(deposit.amount ?? 0)
+            const expectedInterestsRaw =
+              deposit.expected_interests != null
+                ? Number(deposit.expected_interests)
+                : 0
+            const hasExpectedInterests =
+              Number.isFinite(expectedInterestsRaw) &&
+              expectedInterestsRaw !== 0
+            const expectedInterests = hasExpectedInterests
+              ? expectedInterestsRaw
               : null
-
-          deposits.push({
-            id:
-              entryId ??
-              `${entityId ?? "entity"}-deposit-${deposit.name ?? index}`,
-            entryId,
-            name: deposit.name ?? "—",
-            entity: entityName,
-            entityId,
-            entityOrigin,
-            amount,
-            convertedAmount,
-            expectedInterests,
-            convertedExpectedAmount,
-            formattedAmount: formatCurrency(amount, locale, deposit.currency),
-            formattedConvertedAmount: formatCurrency(
-              convertedAmount,
-              locale,
+            const convertedAmount = convertCurrency(
+              amount,
+              deposit.currency,
               settings.general.defaultCurrency,
-            ),
-            formattedExpectedAmount:
-              convertedExpectedAmount != null
-                ? formatCurrency(
-                    convertedExpectedAmount,
-                    locale,
+              exchangeRates,
+            )
+
+            const convertedExpectedAmount =
+              expectedInterests != null
+                ? convertCurrency(
+                    expectedInterests,
+                    deposit.currency,
                     settings.general.defaultCurrency,
+                    exchangeRates,
                   )
-                : null,
-            interest_rate: Number(deposit.interest_rate ?? 0),
-            maturity: deposit.maturity || "",
-            creation: deposit.creation || "",
-            currency: deposit.currency,
-            source:
-              (deposit.source as DataSource | undefined) ?? DataSource.REAL,
+                : null
+
+            deposits.push({
+              id:
+                entryId ??
+                `${entityId ?? "entity"}-deposit-${deposit.name ?? index}`,
+              entryId,
+              name: deposit.name ?? "—",
+              entity: entityName,
+              entityId,
+              entityOrigin,
+              amount,
+              convertedAmount,
+              expectedInterests,
+              convertedExpectedAmount,
+              formattedAmount: formatCurrency(amount, locale, deposit.currency),
+              formattedConvertedAmount: formatCurrency(
+                convertedAmount,
+                locale,
+                settings.general.defaultCurrency,
+              ),
+              formattedExpectedAmount:
+                convertedExpectedAmount != null
+                  ? formatCurrency(
+                      convertedExpectedAmount,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )
+                  : null,
+              interest_rate: Number(deposit.interest_rate ?? 0),
+              maturity: deposit.maturity || "",
+              creation: deposit.creation || "",
+              currency: deposit.currency,
+              source:
+                (deposit.source as DataSource | undefined) ?? DataSource.REAL,
+            })
           })
-        })
-      }
-    })
+        }
+      })
 
     return deposits
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
   // Get entity options for the filter - only entities with deposits
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithDeposits = new Set(
       allDepositPositions.map(position => position.entityId).filter(Boolean),
     )
-    return (
-      entities
-        ?.filter(entity => entitiesWithDeposits.has(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) ?? []
-    )
+    return entities?.filter(entity => entitiesWithDeposits.has(entity.id)) ?? []
   }, [entities, allDepositPositions])
 
   if (isLoading) {
@@ -205,7 +205,7 @@ export default function DepositsInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         entities={entities ?? []}
@@ -221,7 +221,7 @@ function DepositsViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -232,6 +232,7 @@ function DepositsViewContent({
   const {
     drafts,
     isEditMode,
+    enterEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -245,6 +246,17 @@ function DepositsViewContent({
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<"amount" | "start" | "maturity">(
+    "amount",
+  )
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const entityOriginMap = useMemo(() => {
     const map: Record<string, EntityOrigin | null> = {}
@@ -398,11 +410,6 @@ function DepositsViewContent({
     [displayPositions],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const weightedAverageInterest = useMemo(() => {
     if (displayPositions.length === 0) return 0
     const totalWeightedInterest = displayPositions.reduce((sum, position) => {
@@ -421,11 +428,26 @@ function DepositsViewContent({
 
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) =>
-          (b.position.convertedAmount || 0) - (a.position.convertedAmount || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number | string
+        let bVal: number | string
+        switch (sortBy) {
+          case "start":
+            aVal = a.position.creation || ""
+            bVal = b.position.creation || ""
+            break
+          case "maturity":
+            aVal = a.position.maturity || ""
+            bVal = b.position.maturity || ""
+            break
+          default:
+            aVal = a.position.convertedAmount || 0
+            bVal = b.position.convertedAmount || 0
+        }
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+        return sortOrder === "desc" ? -cmp : cmp
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
@@ -447,24 +469,32 @@ function DepositsViewContent({
       className="space-y-6"
     >
       <motion.div variants={fadeListItem} className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={navigateBack}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={navigateBack}
+            >
               <ArrowLeft size={20} />
             </Button>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{t.common.deposits}</h1>
-              <PinAssetButton assetId="deposits" />
+              <PinAssetButton
+                assetId="deposits"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
-          <ManualPositionsControls className="self-start sm:self-auto" />
+          <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
       <motion.div variants={fadeListItem}>
         <InvestmentFilters
-          entityOptions={entityOptions}
+          filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
         />
@@ -492,68 +522,8 @@ function DepositsViewContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.dashboard.investedAmount}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.weightedAverageInterest}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {weightedAverageInterest.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t.investments.annually}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.expectedProfit}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(
-                        totalExpectedReturn,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -563,11 +533,108 @@ function DepositsViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                    {
+                      icon: <Percent className="h-3 w-3" />,
+                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                      sensitive: true,
+                    },
+                    {
+                      icon: <TrendingUp className="h-3 w-3" />,
+                      value: formatCurrency(
+                        totalExpectedReturn,
+                        locale,
+                        defaultCurrency,
+                      ),
+                      sensitive: true,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      totalValue > 0
+                        ? (totalExpectedReturn / totalValue) * 100
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.investedAmount,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalExpectedReturn > 0
+                        ? [
+                            {
+                              label: t.investments.expectedProfit,
+                              value: formatCurrency(
+                                totalExpectedReturn,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    { value: "start", label: t.investments.sortStart },
+                    { value: "maturity", label: t.investments.sortMaturity },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
-            <div className="space-y-4 pb-6">
+            <div className="space-y-4">
               {sortedDisplayItems.map(item => {
                 const { position, manualDraft, isManual, isDirty } = item
                 if (item.originalId && isEntryDeleted(item.originalId)) {
@@ -575,6 +642,7 @@ function DepositsViewContent({
                 }
 
                 const identifier = position.name || item.key
+                const isExpanded = expandedCards[item.key] ?? false
 
                 const percentageOfDeposits =
                   totalValue > 0
@@ -600,45 +668,6 @@ function DepositsViewContent({
 
                 const showActions = isEditMode && isManual
 
-                const entitySummaryBadge = (
-                  <EntityBadge
-                    key="entity"
-                    name={position.entity}
-                    origin={position.entityOrigin}
-                    className="text-xs"
-                    title={position.entity}
-                    onClick={() => {
-                      const targetId = position.entityId
-                        ? position.entityId
-                        : (entities.find(e => e.name === position.entity)?.id ??
-                          position.entity)
-                      setSelectedEntities(prev =>
-                        targetId && prev.includes(targetId)
-                          ? prev
-                          : targetId
-                            ? [...prev, targetId]
-                            : prev,
-                      )
-                    }}
-                  />
-                )
-
-                const summaryItems: React.ReactNode[] = [
-                  entitySummaryBadge,
-                  <div key="interest" className="flex items-center gap-2">
-                    <Percent
-                      size={14}
-                      className="text-gray-400 dark:text-gray-500"
-                    />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      {(position.interest_rate * 100).toFixed(2)}%
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.investments.annually}
-                    </span>
-                  </div>,
-                ]
-
                 return (
                   <Card
                     key={item.key}
@@ -648,151 +677,234 @@ function DepositsViewContent({
                       }
                     }}
                     className={cn(
-                      "p-6 border-l-4 transition-colors",
+                      "border-l-4 transition-colors overflow-hidden",
                       highlightClass,
                     )}
                     style={{ borderLeftColor: borderColor }}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <h3 className="font-semibold text-lg">
+                    <div
+                      className="flex items-start justify-between gap-3 p-4 cursor-pointer hover:bg-accent/40 transition-colors"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      onClick={e => {
+                        if (
+                          (e.target as HTMLElement).closest("[data-no-expand]")
+                        )
+                          return
+                        toggleCardExpanded(item.key)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleCardExpanded(item.key)
+                        }
+                      }}
+                    >
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-base sm:text-lg leading-tight">
                             {position.name}
                           </h3>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {position.source &&
-                              position.source !== DataSource.REAL && (
-                                <SourceBadge
-                                  source={position.source}
-                                  title={t.management?.source}
-                                  className="text-[0.65rem]"
-                                />
-                              )}
-                            {isDirty && (
-                              <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
-                                {manualTranslate("management.unsavedChanges")}
-                              </span>
+                          <EntityBadge
+                            name={position.entity}
+                            origin={position.entityOrigin}
+                            className="text-xs"
+                            title={position.entity}
+                            data-no-expand
+                            onClick={() => {
+                              const targetId = position.entityId
+                                ? position.entityId
+                                : (entities.find(
+                                    e => e.name === position.entity,
+                                  )?.id ?? position.entity)
+                              setSelectedEntities(prev =>
+                                targetId && prev.includes(targetId)
+                                  ? prev
+                                  : targetId
+                                    ? [...prev, targetId]
+                                    : prev,
+                              )
+                            }}
+                          />
+                          {position.source &&
+                            position.source !== DataSource.REAL && (
+                              <SourceBadge
+                                source={position.source}
+                                title={t.management?.source}
+                                className="text-[0.65rem]"
+                                onClick={() => enterEditMode()}
+                              />
                             )}
-                          </div>
+                          {isDirty && (
+                            <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
+                              {manualTranslate("management.unsavedChanges")}
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                          {summaryItems.map((item, index) => (
-                            <React.Fragment key={index}>
-                              {index > 0 && (
-                                <span className="text-gray-400 dark:text-gray-500">
-                                  •
-                                </span>
-                              )}
-                              {item}
-                            </React.Fragment>
-                          ))}
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp
-                              size={12}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.investment}
-                            </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.creation, locale)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Calendar
-                              size={14}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.maturity}
-                            </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.maturity, locale)}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                          <Percent
+                            size={12}
+                            className="text-gray-400 dark:text-gray-500"
+                          />
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            <Sensitive>
+                              {(position.interest_rate * 100).toFixed(2)}%
+                            </Sensitive>
+                          </span>
+                          <span className="text-gray-400 dark:text-gray-500">
+                            ·
+                          </span>
+                          <Calendar
+                            size={12}
+                            className="text-gray-400 dark:text-gray-500"
+                          />
+                          <span>{formatDate(position.maturity, locale)}</span>
                         </div>
                       </div>
 
-                      <div className="text-left sm:text-right space-y-1 flex-shrink-0">
-                        <div className="text-2xl font-bold">
-                          {position.formattedAmount}
-                        </div>
-                        {position.currency !== defaultCurrency && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {position.formattedConvertedAmount}
+                      <div className="flex items-start gap-2 flex-shrink-0">
+                        <div className="text-right space-y-0.5">
+                          <div className="text-base sm:text-lg font-semibold leading-tight">
+                            <Sensitive>{position.formattedAmount}</Sensitive>
                           </div>
-                        )}
-                        {position.formattedExpectedAmount && (
-                          <div className="text-sm">
-                            <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                              <span className="text-gray-500 dark:text-gray-400">
-                                {t.investments.expected}
-                              </span>
-                              <span className="font-medium text-green-600 dark:text-green-400">
-                                {position.formattedExpectedAmount}
-                                {expectedReturnPct !== null && (
-                                  <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                    ({expectedReturnPct.toFixed(2)}%)
-                                  </span>
-                                )}
-                              </span>
+                          {position.currency !== defaultCurrency && (
+                            <div className="text-xs text-muted-foreground">
+                              <Sensitive>
+                                {position.formattedConvertedAmount}
+                              </Sensitive>
                             </div>
-                          </div>
-                        )}
-                        <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {percentageOfDeposits.toFixed(1)}%
-                          </span>
-                          {" " +
-                            t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.deposits.toLowerCase(),
-                            )}
+                          )}
+                          {position.formattedExpectedAmount && (
+                            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                              <Sensitive>
+                                {position.formattedExpectedAmount}
+                              </Sensitive>
+                            </div>
+                          )}
                         </div>
-                        {showActions && (
-                          <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  editByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  editByLocalId(manualDraft.localId)
-                                } else if (item.originalId) {
-                                  editByOriginalId(item.originalId)
-                                }
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              {t.common.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  deleteByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  deleteByLocalId(manualDraft.localId)
-                                } else if (item.originalId) {
-                                  deleteByOriginalId(item.originalId)
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 text-muted-foreground transition-transform duration-200 mt-1",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
                       </div>
                     </div>
+
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500 pt-2">
+                              <div className="flex items-center gap-2">
+                                <Calendar
+                                  size={12}
+                                  className="text-gray-400 dark:text-gray-500"
+                                />
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  {t.investments.investment}
+                                </span>
+                                <span className="text-gray-900 dark:text-gray-100">
+                                  {formatDate(position.creation, locale)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <Calendar
+                                  size={14}
+                                  className="text-gray-400 dark:text-gray-500"
+                                />
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  {t.investments.maturity}
+                                </span>
+                                <span className="text-gray-900 dark:text-gray-100">
+                                  {formatDate(position.maturity, locale)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {position.formattedExpectedAmount && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  {t.investments.expected}
+                                </span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                  <Sensitive>
+                                    {position.formattedExpectedAmount}
+                                  </Sensitive>
+                                  {expectedReturnPct !== null && (
+                                    <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                      <Sensitive>
+                                        ({expectedReturnPct.toFixed(2)}%)
+                                      </Sensitive>
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="font-medium text-blue-600 dark:text-blue-400">
+                                <Sensitive>
+                                  {percentageOfDeposits.toFixed(1)}%
+                                </Sensitive>
+                              </span>
+                              {" " +
+                                t.investments.ofInvestmentType.replace(
+                                  "{type}",
+                                  t.common.deposits.toLowerCase(),
+                                )}
+                            </div>
+
+                            {showActions && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-2"
+                                  onClick={() => {
+                                    if (manualDraft?.originalId) {
+                                      editByOriginalId(manualDraft.originalId)
+                                    } else if (manualDraft) {
+                                      editByLocalId(manualDraft.localId)
+                                    } else if (item.originalId) {
+                                      editByOriginalId(item.originalId)
+                                    }
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  {t.common.edit}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-500 hover:text-red-600"
+                                  onClick={() => {
+                                    if (manualDraft?.originalId) {
+                                      deleteByOriginalId(manualDraft.originalId)
+                                    } else if (manualDraft) {
+                                      deleteByLocalId(manualDraft.localId)
+                                    } else if (item.originalId) {
+                                      deleteByOriginalId(item.originalId)
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}

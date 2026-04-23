@@ -2,7 +2,6 @@ import React from "react"
 import { useI18n } from "@/i18n"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
 import {
   CalendarSync,
   HandCoins,
@@ -10,12 +9,14 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
 import type { PinnedShortcutId } from "@/context/PinnedShortcutsContext"
 import { EventsCalendarView } from "@/components/EventsCalendarView"
 
 export default function ManagementPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const { isPinned } = usePinnedShortcuts()
 
   type ManagementRoute = {
     path: string
@@ -64,21 +65,43 @@ export default function ManagementPage() {
     ],
   )
 
+  const sortedRoutes = React.useMemo(() => {
+    return managementRoutes
+      .map(route => ({ ...route, pinned: isPinned(route.assetId) }))
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+  }, [managementRoutes, isPinned])
+
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t.management.title}</h1>
+        <h1 className="text-3xl font-bold">{t.management.title}</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {managementRoutes.map(route => (
+        {sortedRoutes.map(route => (
           <Card
             key={route.path}
             className="relative p-6 transition-all cursor-pointer group hover:shadow-lg"
             onClick={() => navigate(route.path)}
           >
-            <div className="absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100">
-              <PinAssetButton assetId={route.assetId} />
+            <div
+              className={`absolute top-0 right-0 transition-opacity ${
+                route.pinned
+                  ? "opacity-100"
+                  : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              }`}
+            >
+              <div className="h-9 w-9 rounded-full flex items-center justify-center">
+                <PinAssetButton
+                  assetId={route.assetId}
+                  size="icon"
+                  className={
+                    route.pinned
+                      ? "hover:bg-transparent focus-visible:bg-transparent active:bg-transparent rotate-[10deg]"
+                      : "text-gray-400 md:text-current hover:bg-transparent focus-visible:bg-transparent active:bg-transparent"
+                  }
+                />
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-lg ${route.color}`}>
@@ -91,24 +114,18 @@ export default function ManagementPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {route.description}
                 </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-3 p-0 h-auto text-primary hover:text-primary/80"
-                  onClick={e => {
-                    e.stopPropagation()
-                    navigate(route.path)
-                  }}
-                >
-                  {t.common.viewDetails} →
-                </Button>
               </div>
             </div>
           </Card>
         ))}
       </div>
 
-      <EventsCalendarView />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Upcoming events</h2>
+        </div>
+        <EventsCalendarView />
+      </div>
     </div>
   )
 }

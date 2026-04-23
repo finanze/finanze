@@ -14,6 +14,7 @@ from domain.global_position import (
     CardType,
     EquityType,
     FundType,
+    InstallmentFrequency,
     InterestType,
     LoanType,
     ProductType,
@@ -228,6 +229,22 @@ FIXED_YEARS = TemplateField(
     type=TemplateFieldType.INTEGER,
 )
 UNPAID = TemplateField(key="unpaid", field="unpaid", type=TemplateFieldType.DECIMAL)
+INSTALLMENT_FREQUENCY = TemplateField(
+    key="installment_frequency",
+    field="installment_frequency",
+    type=TemplateFieldType.ENUM,
+    enum=InstallmentFrequency,
+)
+INSTALLMENT_INTERESTS = TemplateField(
+    key="installment_interests",
+    field="installment_interests",
+    type=TemplateFieldType.DECIMAL,
+)
+FIXED_INTEREST_RATE = TemplateField(
+    key="fixed_interest_rate",
+    field="fixed_interest_rate",
+    type=TemplateFieldType.DECIMAL,
+)
 
 LOAN_FIELDS = FieldGroup(
     feature=Feature.POSITION,
@@ -248,6 +265,9 @@ LOAN_FIELDS = FieldGroup(
         EURIBOR_RATE,
         FIXED_YEARS,
         UNPAID,
+        INSTALLMENT_FREQUENCY,
+        INSTALLMENT_INTERESTS,
+        FIXED_INTEREST_RATE,
         PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],

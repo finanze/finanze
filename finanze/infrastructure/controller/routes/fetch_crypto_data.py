@@ -3,11 +3,11 @@ from uuid import UUID
 from domain.entity import Feature
 from domain.fetch_result import FetchOptions, FetchRequest
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def fetch_crypto_data(fetch_crypto_data_uc: FetchCryptoData):
-    body = request.json
+    body = await request.get_json()
 
     entity = body.get("entity", None)
     if entity:

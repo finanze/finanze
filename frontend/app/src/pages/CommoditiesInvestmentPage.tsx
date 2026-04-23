@@ -6,15 +6,29 @@ import {
   ArrowLeft,
   Plus,
   Save,
-  Edit,
-  ChevronDown,
-  ChevronUp,
+  Edit3,
   Trash2,
+  X,
+  Layers,
+  Scale,
+  TrendingUp,
+  TrendingDown,
+  MoreVertical,
+  ChevronDown,
+  Pencil,
+  Loader2,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/Card"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
@@ -26,14 +40,23 @@ import {
   WeightUnit,
   ProductType,
   Commodities,
+  COMMODITY_SYMBOLS,
 } from "@/types/position"
 import { CommodityRegister } from "@/types"
 import { saveCommodity } from "@/services/api"
 import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
 import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
 import { cn, getCurrencySymbol } from "@/lib/utils"
-import { formatCurrency, formatPercentage } from "@/lib/formatters"
+import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 interface CommodityEntry extends Commodity {
   isExpanded: boolean
@@ -70,10 +93,28 @@ export default function CommoditiesInvestmentPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingCommodityId, setEditingCommodityId] = useState<string | null>(
+    null,
+  )
+  const [editingDraft, setEditingDraft] = useState<CommodityEntry | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, { name?: string; amount?: string }>
   >({})
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+
+  useModalBackHandler(showAddForm, () => setShowAddForm(false))
+  useModalBackHandler(!!editingCommodityId, () => setEditingCommodityId(null))
+  useModalBackHandler(!!deleteTarget, () => setDeleteTarget(null))
+  useModalBackHandler(showDiscardConfirm, () => setShowDiscardConfirm(false))
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const [newEntry, setNewEntry] = useState<Partial<CommodityRegister>>({
     name: "",
@@ -98,25 +139,27 @@ export default function CommoditiesInvestmentPage() {
   const getAllCommodityEntries = (): CommodityEntry[] => {
     if (!positionsData?.positions) return []
     const all: CommodityEntry[] = []
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition?.products[ProductType.COMMODITY]) {
-        const commodityProduct = entityPosition.products[
-          ProductType.COMMODITY
-        ] as Commodities
-        if (
-          "entries" in commodityProduct &&
-          commodityProduct.entries.length > 0
-        ) {
-          all.push(
-            ...commodityProduct.entries.map(c => ({
-              ...c,
-              isExpanded: false,
-              isModified: false,
-            })),
-          )
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        if (entityPosition?.products[ProductType.COMMODITY]) {
+          const commodityProduct = entityPosition.products[
+            ProductType.COMMODITY
+          ] as Commodities
+          if (
+            "entries" in commodityProduct &&
+            commodityProduct.entries.length > 0
+          ) {
+            all.push(
+              ...commodityProduct.entries.map(c => ({
+                ...c,
+                isExpanded: false,
+                isModified: false,
+              })),
+            )
+          }
         }
-      }
-    })
+      })
     return all
   }
 
@@ -146,11 +189,6 @@ export default function CommoditiesInvestmentPage() {
     const converted = convertWeight(amount, unit, displayUnit as WeightUnit)
     return `${converted.toFixed(2)} ${t.enums.weightUnit[displayUnit as WeightUnit]}`
   }
-
-  const toggleExpanded = (id: string) =>
-    setCommodities(prev =>
-      prev.map(c => (c.id === id ? { ...c, isExpanded: !c.isExpanded } : c)),
-    )
 
   const updateCommodity = (id: string, field: keyof Commodity, value: any) => {
     setCommodities(prev =>
@@ -213,6 +251,55 @@ export default function CommoditiesInvestmentPage() {
     setHasChanges(true)
   }
 
+  const editingCommodity = useMemo(() => {
+    if (!editingCommodityId) return null
+    return commodities.find(c => c.id === editingCommodityId) || null
+  }, [commodities, editingCommodityId])
+
+  useEffect(() => {
+    if (!editingCommodity) {
+      setEditingDraft(null)
+      return
+    }
+    setEditingDraft({ ...editingCommodity })
+  }, [editingCommodity])
+
+  const updateDraftField = (
+    field: keyof Commodity,
+    value: Commodity[keyof Commodity],
+  ) => {
+    setEditingDraft(prev => (prev ? { ...prev, [field]: value } : prev))
+    setFieldErrors(prev => {
+      if (!editingCommodityId) return prev
+      const copy = { ...prev }
+      const ce = copy[editingCommodityId] ? { ...copy[editingCommodityId] } : {}
+      if (field === "name" && ce.name) delete ce.name
+      if (field === "amount" && ce.amount) delete ce.amount
+      if (Object.keys(ce).length) copy[editingCommodityId] = ce
+      else delete copy[editingCommodityId]
+      return copy
+    })
+  }
+
+  const handleSaveEdit = () => {
+    if (!editingCommodity || !editingDraft) return
+    updateCommodity(editingCommodity.id, "name", editingDraft.name)
+    updateCommodity(editingCommodity.id, "amount", editingDraft.amount)
+    updateCommodity(editingCommodity.id, "unit", editingDraft.unit)
+    updateCommodity(
+      editingCommodity.id,
+      "initial_investment",
+      editingDraft.initial_investment,
+    )
+    updateCommodity(
+      editingCommodity.id,
+      "average_buy_price",
+      editingDraft.average_buy_price,
+    )
+    updateCommodity(editingCommodity.id, "currency", editingDraft.currency)
+    setEditingCommodityId(null)
+  }
+
   const saveChanges = async () => {
     if (!hasChanges) return
     const errors: Record<string, { name?: string; amount?: string }> = {}
@@ -257,6 +344,12 @@ export default function CommoditiesInvestmentPage() {
       setIsSaving(false)
     }
   }
+
+  const discardChanges = useCallback(() => {
+    setCommodities(getAllCommodityEntries())
+    setHasChanges(false)
+    setFieldErrors({})
+  }, [positionsData])
 
   const aggregates = useMemo(() => {
     const byCurrency: Record<string, number> = {}
@@ -345,11 +438,6 @@ export default function CommoditiesInvestmentPage() {
     [commoditiesWithComputed],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const percentageChange = useMemo(() => {
     if (!totalInitialInvestmentConverted) return null
     if (totalInitialInvestmentConverted === 0) return null
@@ -409,6 +497,45 @@ export default function CommoditiesInvestmentPage() {
     return lookup
   }, [commoditiesWithComputed])
 
+  const commodityPricePerUnit = useMemo(() => {
+    const prices: Partial<Record<CommodityType, number>> = {}
+    if (!exchangeRates) return prices
+    const rates = exchangeRates[defaultCurrency]
+    if (!rates) return prices
+    Object.values(CommodityType).forEach(type => {
+      const symbol = COMMODITY_SYMBOLS[type]
+      const rate = rates[symbol]
+      if (rate && rate > 0) {
+        const pricePerTroyOunce = 1 / rate
+        const unitMultiplier = convertWeight(
+          1,
+          displayUnit as WeightUnit,
+          WeightUnit.TROY_OUNCE,
+        )
+        prices[type] = pricePerTroyOunce * unitMultiplier
+      }
+    })
+    return prices
+  }, [exchangeRates, defaultCurrency, displayUnit])
+
+  const groupedSorted = useMemo(() => {
+    const typeTotals = new Map<CommodityType, number>()
+    commoditiesWithComputed.forEach(c => {
+      const value =
+        c.convertedMarket !== null
+          ? c.convertedMarket
+          : c.valueForDistribution || 0
+      typeTotals.set(c.type, (typeTotals.get(c.type) || 0) + value)
+    })
+    return Object.entries(grouped)
+      .map(([type, list]) => ({
+        type: type as CommodityType,
+        list,
+        groupTotal: typeTotals.get(type as CommodityType) || 0,
+      }))
+      .sort((a, b) => b.groupTotal - a.groupTotal)
+  }, [grouped, commoditiesWithComputed])
+
   const groupRefs = useRef<
     Partial<Record<CommodityType, HTMLDivElement | null>>
   >({})
@@ -449,310 +576,391 @@ export default function CommoditiesInvestmentPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="p-1 h-8 w-8"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            {t.commodityManagement.title}
-            <PinAssetButton assetId="commodities" />
-          </h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" /> {t.common.add}
-          </Button>
+    <>
+      <div className="space-y-6 w-full">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 h-8 w-8"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={20} />
+              </Button>
+              <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
+                {t.commodityManagement.title}
+                <PinAssetButton
+                  assetId="commodities"
+                  size="icon"
+                  className="hidden md:inline-flex"
+                />
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{t.common.add}</span>
+              </Button>
+            </div>
+          </div>
           {hasChanges && (
-            <Button
-              size="sm"
-              onClick={saveChanges}
-              disabled={isSaving}
-              className="flex items-center gap-2"
-            >
-              <Save className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+                  {t.common.editing}
+                </span>
+                <span className="text-blue-300 dark:text-blue-600">·</span>
+                <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+                  {t.management.unsavedChanges}
+                </span>
+                <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                <Button
+                  size="sm"
+                  onClick={() => setShowDiscardConfirm(true)}
+                  disabled={isSaving}
+                  className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="hidden sm:inline ml-1">
+                    {t.common.cancel}
+                  </span>
+                </Button>
+                <Button
+                  data-testid="save-commodities"
+                  size="sm"
+                  onClick={saveChanges}
+                  disabled={isSaving}
+                  className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="h-3 w-3" />
+                  )}
+                  <span className="hidden sm:inline ml-1">{t.common.save}</span>
+                </Button>
+              </div>
+            </div>
           )}
         </div>
-      </div>
 
-      {commodities.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-          <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.commodities}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex justify-between items-baseline">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  {percentageChange !== null && (
-                    <p
-                      className={`text-sm font-medium ${
-                        percentageChange === 0
-                          ? "text-gray-500 dark:text-gray-400"
-                          : percentageChange > 0
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {percentageChange > 0
-                        ? "+"
-                        : percentageChange < 0
-                          ? "-"
-                          : ""}
-                      {formatPercentage(Math.abs(percentageChange), locale)}
-                    </p>
-                  )}
-                </div>
-                {totalInitialInvestmentConverted > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.dashboard.investedAmount}{" "}
-                    {formatCurrency(
-                      totalInitialInvestmentConverted,
-                      locale,
-                      defaultCurrency,
-                    )}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.investments.numberOfAssets}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">{commodities.length}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {commodities.length === 1
-                    ? t.investments.asset
-                    : t.investments.assets}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.commodityManagement.kpis.totalWeight}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">
-                  {aggregates.totalWeight.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
-            <InvestmentDistributionChart
-              data={chartData}
-              title={t.common.distribution}
-              locale={locale}
-              currency={defaultCurrency}
-              hideLegend
-              containerClassName="overflow-visible w-full"
-              variant="bare"
-              onSliceClick={handleSliceClick}
-            />
-          </div>
-        </div>
-      )}
+        {commodities.length > 0 && (
+          <Card className="-mx-6 rounded-none border-x-0">
+            <CardContent className="pt-6">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={defaultCurrency}
+                hideLegend
+                containerClassName="overflow-visible w-full"
+                variant="bare"
+                onSliceClick={handleSliceClick}
+                toggleConfig={{
+                  activeView: "asset",
+                  onViewChange: () => {},
+                  options: [{ value: "asset", label: t.investments.byAsset }],
+                }}
+                badges={[
+                  {
+                    icon: <Layers className="h-3 w-3" />,
+                    value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
+                  },
+                  {
+                    icon: <Scale className="h-3 w-3" />,
+                    value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
+                    sensitive: true,
+                  },
+                ]}
+                centerContent={{
+                  rawValue: totalValue,
+                  gainPercentage:
+                    totalInitialInvestmentConverted > 0
+                      ? (percentageChange ?? undefined)
+                      : undefined,
+                  infoRows: [
+                    {
+                      label: t.dashboard.totalValue,
+                      value: formatCurrency(
+                        totalValue,
+                        locale,
+                        defaultCurrency,
+                      ),
+                    },
+                    ...(totalInitialInvestmentConverted > 0
+                      ? [
+                          {
+                            label: t.dashboard.investedAmount,
+                            value: formatCurrency(
+                              totalInitialInvestmentConverted,
+                              locale,
+                              defaultCurrency,
+                            ),
+                          },
+                          {
+                            label: t.investments.sortAbsoluteGain,
+                            value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
+                              totalValue - totalInitialInvestmentConverted,
+                              locale,
+                              defaultCurrency,
+                            )}`,
+                            valueClassName:
+                              totalValue - totalInitialInvestmentConverted >= 0
+                                ? "text-green-500"
+                                : "text-red-500",
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <AnimatePresence>
         {showAddForm && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
           >
-            <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  {t.commodityManagement.addEntry}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">{t.commodityManagement.name}</Label>
-                    <Input
-                      id="name"
-                      value={newEntry.name}
-                      onChange={e =>
-                        setNewEntry(p => ({ ...p, name: e.target.value }))
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
+            >
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col relative">
+                <CardHeader className="pr-12">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CommodityIcon
+                      type={
+                        (newEntry.type || CommodityType.GOLD) as CommodityType
                       }
-                      placeholder={t.commodityManagement.namePlaceholder}
+                      size="sm"
                     />
+                    {t.commodityManagement.addEntry}
+                  </CardTitle>
+                </CardHeader>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAddForm(false)}
+                  className="absolute top-4 right-4"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardContent className="space-y-4 flex-1 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">{t.commodityManagement.name}</Label>
+                      <Input
+                        id="name"
+                        value={newEntry.name}
+                        onChange={e =>
+                          setNewEntry(p => ({ ...p, name: e.target.value }))
+                        }
+                        placeholder={t.commodityManagement.namePlaceholder}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="type">{t.commodityManagement.type}</Label>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(CommodityType).map(type => {
+                          const isActive = newEntry.type === type
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => setNewEntry(p => ({ ...p, type }))}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              <CommodityIcon
+                                type={type}
+                                size="sm"
+                                className="w-4 h-4 text-[0.5rem]"
+                              />
+                              {t.enums.commodityType[type]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">
+                        {t.commodityManagement.amount}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id="amount"
+                          className={newEntry.unit ? "pr-10" : undefined}
+                          value={newEntry.amount || ""}
+                          onValueChange={v =>
+                            setNewEntry(p => ({
+                              ...p,
+                              amount: v ?? 0,
+                            }))
+                          }
+                          onFocus={e => {
+                            if (e.target.value === "0") e.target.select()
+                          }}
+                        />
+                        {newEntry.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {t.enums.weightUnit[newEntry.unit]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="unit">{t.commodityManagement.unit}</Label>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(WeightUnit).map(u => {
+                          const isActive = newEntry.unit === u
+                          return (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() =>
+                                setNewEntry(p => ({ ...p, unit: u }))
+                              }
+                              className={cn(
+                                "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              {t.enums.weightUnitName[u]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="type">{t.commodityManagement.type}</Label>
-                    <select
-                      id="type"
-                      value={newEntry.type}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          type: e.target.value as CommodityType,
-                        }))
-                      }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none"
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-5">
+                      <Label htmlFor="initial_investment">
+                        {t.commodityManagement.initialInvestment}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id="initial_investment"
+                          className={newEntry.currency ? "pr-10" : undefined}
+                          value={newEntry.initial_investment || ""}
+                          onValueChange={v =>
+                            setNewEntry(p => ({
+                              ...p,
+                              initial_investment: v,
+                            }))
+                          }
+                        />
+                        {newEntry.currency && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(newEntry.currency)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-5">
+                      <Label htmlFor="average_buy_price">
+                        {t.commodityManagement.averageBuyPrice}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id="average_buy_price"
+                          className={newEntry.currency ? "pr-14" : undefined}
+                          value={newEntry.average_buy_price || ""}
+                          onValueChange={v =>
+                            setNewEntry(p => ({
+                              ...p,
+                              average_buy_price: v,
+                            }))
+                          }
+                        />
+                        {newEntry.currency && newEntry.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(newEntry.currency)}/
+                            {t.enums.weightUnit[newEntry.unit]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="currency">
+                        {t.commodityManagement.currency}
+                      </Label>
+                      <select
+                        id="currency"
+                        value={newEntry.currency || ""}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            currency: e.target.value || null,
+                          }))
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
+                      >
+                        {supportedCurrencies.map(c => (
+                          <option key={c} value={c}>
+                            {getCurrencySymbol(c)} {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddForm(false)}
                     >
-                      {Object.values(CommodityType).map(type => (
-                        <option key={type} value={type}>
-                          {t.enums.commodityType[type]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="amount">
-                      {t.commodityManagement.amount}
-                    </Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.0001"
-                      value={newEntry.amount || ""}
-                      onChange={e => {
-                        const value = e.target.value
-                        setNewEntry(p => ({
-                          ...p,
-                          amount: value === "" ? 0 : parseFloat(value) || 0,
-                        }))
-                      }}
-                      onFocus={e => {
-                        if (e.target.value === "0") e.target.select()
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="unit">{t.commodityManagement.unit}</Label>
-                    <select
-                      id="unit"
-                      value={newEntry.unit}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          unit: e.target.value as WeightUnit,
-                        }))
+                      {t.common.cancel}
+                    </Button>
+                    <Button
+                      onClick={addNewEntry}
+                      disabled={
+                        !newEntry.name ||
+                        !newEntry.amount ||
+                        newEntry.amount <= 0
                       }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2.5rem]"
                     >
-                      {Object.values(WeightUnit).map(u => (
-                        <option key={u} value={u}>
-                          {t.enums.weightUnitName[u]}
-                        </option>
-                      ))}
-                    </select>
+                      {t.common.add}
+                    </Button>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-5">
-                    <Label htmlFor="initial_investment">
-                      {t.commodityManagement.initialInvestment}{" "}
-                      {newEntry.currency &&
-                        `(${getCurrencySymbol(newEntry.currency)})`}
-                    </Label>
-                    <Input
-                      id="initial_investment"
-                      type="number"
-                      step="0.01"
-                      value={newEntry.initial_investment || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          initial_investment:
-                            parseFloat(e.target.value) || null,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="md:col-span-5">
-                    <Label htmlFor="average_buy_price">
-                      {t.commodityManagement.averageBuyPrice}{" "}
-                      {newEntry.currency &&
-                        newEntry.unit &&
-                        `(${getCurrencySymbol(newEntry.currency)}/${t.enums.weightUnit[newEntry.unit]})`}
-                    </Label>
-                    <Input
-                      id="average_buy_price"
-                      type="number"
-                      step="0.01"
-                      value={newEntry.average_buy_price || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          average_buy_price: parseFloat(e.target.value) || null,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="currency">
-                      {t.commodityManagement.currency}
-                    </Label>
-                    <select
-                      id="currency"
-                      value={newEntry.currency || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          currency: e.target.value || null,
-                        }))
-                      }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
-                    >
-                      {supportedCurrencies.map(c => (
-                        <option key={c} value={c}>
-                          {getCurrencySymbol(c)} {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAddForm(false)}
-                  >
-                    {t.common.cancel}
-                  </Button>
-                  <Button
-                    onClick={addNewEntry}
-                    disabled={
-                      !newEntry.name || !newEntry.amount || newEntry.amount <= 0
-                    }
-                  >
-                    {t.common.add}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {commodities.length === 0 ? (
-        <Card className="p-14 text-center flex flex-col items-center gap-4">
+        <Card className="mt-6 p-14 text-center flex flex-col items-center gap-4">
           <CommodityIconsStack
             size="lg"
             overlap="md"
@@ -770,10 +978,10 @@ export default function CommoditiesInvestmentPage() {
           variants={fadeListContainer}
           initial="hidden"
           animate="show"
-          className="space-y-6"
+          className="mt-6 space-y-6"
         >
-          {Object.entries(grouped).map(([type, list]) => {
-            const typedType = type as CommodityType
+          {groupedSorted.map(({ type, list, groupTotal }) => {
+            const typedType = type
             const isGroupHighlighted = highlightedType === typedType
             return (
               <motion.div
@@ -788,10 +996,30 @@ export default function CommoditiesInvestmentPage() {
                     "outline outline-2 outline-primary/60 outline-offset-4 rounded-lg",
                 )}
               >
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <CommodityIcon type={typedType} size="md" />{" "}
-                  {t.enums.commodityType[typedType]}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <CommodityIcon type={typedType} size="md" />{" "}
+                    {t.enums.commodityType[typedType]}
+                    {commodityPricePerUnit[typedType] != null &&
+                      commodityPricePerUnit[typedType]! > 0 && (
+                        <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+                          {formatCurrency(
+                            commodityPricePerUnit[typedType]!,
+                            locale,
+                            defaultCurrency,
+                          )}
+                          /{t.enums.weightUnit[displayUnit as WeightUnit]}
+                        </span>
+                      )}
+                  </h3>
+                  {groupTotal > 0 && (
+                    <span className="text-xl font-bold">
+                      <Sensitive>
+                        {formatCurrency(groupTotal, locale, defaultCurrency)}
+                      </Sensitive>
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-1 items-start">
                   {list.map(c => {
                     const details = commodityDetailsLookup[c.id]
@@ -811,258 +1039,226 @@ export default function CommoditiesInvestmentPage() {
                         ? formatCurrency(entryValue, locale, defaultCurrency)
                         : null
 
+                    const hasRoi =
+                      details &&
+                      details.convertedMarket !== null &&
+                      details.convertedInitial > 0
+                    const roiAmount = hasRoi
+                      ? details.convertedMarket! - details.convertedInitial
+                      : null
+                    const roiPercent =
+                      hasRoi && details.convertedInitial > 0
+                        ? ((details.convertedMarket! -
+                            details.convertedInitial) /
+                            details.convertedInitial) *
+                          100
+                        : null
+
+                    const isExpanded = expandedCards[c.id] ?? false
+
                     return (
                       <Card
                         key={c.id}
-                        className={`transition-all hover:shadow-md ${c.isModified ? "ring-2 ring-blue-500" : ""} ${c.isExpanded ? "h-auto" : "h-fit"}`}
+                        className={cn(
+                          "transition-all overflow-hidden",
+                          c.isModified && "ring-2 ring-blue-500",
+                        )}
                       >
-                        <CardContent
-                          className={`p-4 ${c.isExpanded ? "h-auto" : "h-fit"}`}
+                        <div
+                          className="p-4 cursor-pointer hover:bg-accent/40 transition-colors"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          onClick={e => {
+                            if (
+                              (e.target as HTMLElement).closest(
+                                "[data-no-expand]",
+                              )
+                            )
+                              return
+                            toggleCardExpanded(c.id)
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              toggleCardExpanded(c.id)
+                            }
+                          }}
                         >
-                          <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => toggleExpanded(c.id)}
-                          >
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-                                {c.name}
-                              </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                {formatWeight(c.amount, c.unit)}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                  {c.name}
+                                </h4>
+                                {c.isModified && (
+                                  <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                                <Sensitive>
+                                  {formatWeight(c.amount, c.unit)}
+                                </Sensitive>
                               </p>
-                              {formattedEntryValue && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  {formattedEntryValue}
-                                </p>
-                              )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {c.isModified && (
-                                <Edit className="h-4 w-4 text-blue-500" />
-                              )}
-                              {c.isExpanded ? (
-                                <ChevronUp className="h-4 w-4 text-gray-400" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4 text-gray-400" />
-                              )}
+                            <div className="flex items-start gap-1 flex-shrink-0">
+                              <div className="text-right">
+                                {formattedEntryValue && (
+                                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                                    <Sensitive>{formattedEntryValue}</Sensitive>
+                                  </p>
+                                )}
+                                {roiPercent !== null && (
+                                  <p
+                                    className={cn(
+                                      "text-xs font-medium",
+                                      roiPercent >= 0
+                                        ? "text-green-500"
+                                        : "text-red-500",
+                                    )}
+                                  >
+                                    <Sensitive>
+                                      {roiPercent >= 0 ? "+" : ""}
+                                      {roiPercent.toFixed(2)}%
+                                    </Sensitive>
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-center">
+                                <div data-no-expand>
+                                  <Popover
+                                    open={openPopoverId === c.id}
+                                    onOpenChange={open =>
+                                      setOpenPopoverId(open ? c.id : null)
+                                    }
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                        type="button"
+                                      >
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      align="end"
+                                      sideOffset={8}
+                                      className="w-44 p-2 space-y-1"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenPopoverId(null)
+                                          setEditingCommodityId(c.id)
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                                      >
+                                        <Edit3 className="h-3.5 w-3.5" />
+                                        {t.common.edit}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenPopoverId(null)
+                                          requestDeleteCommodity(c)
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        {t.common.delete}
+                                      </button>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                                <ChevronDown
+                                  className={cn(
+                                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                                    isExpanded && "rotate-180",
+                                  )}
+                                />
+                              </div>
                             </div>
                           </div>
-                          <AnimatePresence>
-                            {c.isExpanded && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3"
-                              >
-                                <div className="flex items-end gap-2">
-                                  <div className="flex-1">
-                                    <Label
-                                      htmlFor={`name-${c.id}`}
-                                      className="text-xs"
-                                    >
-                                      {t.commodityManagement.name}
-                                    </Label>
-                                    <Input
-                                      id={`name-${c.id}`}
-                                      value={c.name}
-                                      onChange={e =>
-                                        updateCommodity(
-                                          c.id,
-                                          "name",
-                                          e.target.value,
-                                        )
-                                      }
+                        </div>
+
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2, ease: "easeInOut" }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-4 pt-1 space-y-2 border-t border-border">
+                                {roiAmount !== null && roiPercent !== null && (
+                                  <div className="flex items-center justify-between text-sm pt-2">
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {t.investments.sortAbsoluteGain}
+                                    </span>
+                                    <div
                                       className={cn(
-                                        "h-8 text-sm",
-                                        fieldErrors[c.id]?.name &&
-                                          "border-red-500",
+                                        "flex items-center gap-1 font-medium",
+                                        roiAmount >= 0
+                                          ? "text-green-500"
+                                          : "text-red-500",
                                       )}
-                                    />
-                                    {fieldErrors[c.id]?.name && (
-                                      <p className="text-red-500 text-xs mt-1">
-                                        {fieldErrors[c.id].name}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={e => {
-                                      e.stopPropagation()
-                                      requestDeleteCommodity(c)
-                                    }}
-                                    className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label
-                                      htmlFor={`amount-${c.id}`}
-                                      className="text-xs"
                                     >
-                                      {t.commodityManagement.amount}
-                                    </Label>
-                                    <Input
-                                      id={`amount-${c.id}`}
-                                      type="number"
-                                      step="0.0001"
-                                      value={c.amount || ""}
-                                      onChange={e => {
-                                        const v = e.target.value
-                                        updateCommodity(
-                                          c.id,
-                                          "amount",
-                                          v === "" ? 0 : parseFloat(v) || 0,
-                                        )
-                                      }}
-                                      onFocus={e => {
-                                        if (e.target.value === "0")
-                                          e.target.select()
-                                      }}
-                                      className={cn(
-                                        "h-8 text-sm",
-                                        fieldErrors[c.id]?.amount &&
-                                          "border-red-500",
-                                      )}
-                                    />
-                                    {fieldErrors[c.id]?.amount && (
-                                      <p className="text-red-500 text-xs mt-1">
-                                        {fieldErrors[c.id].amount}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div>
-                                    <Label
-                                      htmlFor={`unit-${c.id}`}
-                                      className="text-xs"
-                                    >
-                                      {t.commodityManagement.unit}
-                                    </Label>
-                                    <select
-                                      value={c.unit}
-                                      onChange={e =>
-                                        updateCommodity(
-                                          c.id,
-                                          "unit",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2rem]"
-                                    >
-                                      {Object.values(WeightUnit).map(u => (
-                                        <option key={u} value={u}>
-                                          {t.enums.weightUnitName[u]}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                                {(c.initial_investment !== null ||
-                                  c.average_buy_price !== null ||
-                                  c.currency) && (
-                                  <div className="space-y-2">
-                                    <div className="grid grid-cols-12 gap-2">
-                                      <div className="col-span-5">
-                                        <Label
-                                          htmlFor={`initial-investment-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {
-                                            t.commodityManagement
-                                              .initialInvestment
-                                          }{" "}
-                                          {c.currency &&
-                                            `(${getCurrencySymbol(c.currency)})`}
-                                        </Label>
-                                        <Input
-                                          id={`initial-investment-${c.id}`}
-                                          type="number"
-                                          step="0.01"
-                                          value={c.initial_investment || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "initial_investment",
-                                              parseFloat(e.target.value) ||
-                                                null,
-                                            )
-                                          }
-                                          className="h-8 text-sm"
-                                        />
-                                      </div>
-                                      <div className="col-span-5">
-                                        <Label
-                                          htmlFor={`average-buy-price-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {
-                                            t.commodityManagement
-                                              .averageBuyPrice
-                                          }{" "}
-                                          {c.currency &&
-                                            c.unit &&
-                                            `(${getCurrencySymbol(c.currency)}/${t.enums.weightUnit[c.unit]})`}
-                                        </Label>
-                                        <Input
-                                          id={`average-buy-price-${c.id}`}
-                                          type="number"
-                                          step="0.01"
-                                          value={c.average_buy_price || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "average_buy_price",
-                                              parseFloat(e.target.value) ||
-                                                null,
-                                            )
-                                          }
-                                          className="h-8 text-sm"
-                                        />
-                                      </div>
-                                      <div className="col-span-2">
-                                        <Label
-                                          htmlFor={`currency-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {t.commodityManagement.currency}
-                                        </Label>
-                                        <select
-                                          value={c.currency || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "currency",
-                                              e.target.value || null,
-                                            )
-                                          }
-                                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2rem]"
-                                        >
-                                          {supportedCurrencies.map(cur => (
-                                            <option key={cur} value={cur}>
-                                              {getCurrencySymbol(cur)}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
+                                      <Sensitive>
+                                        {roiAmount >= 0 ? (
+                                          <TrendingUp size={14} />
+                                        ) : (
+                                          <TrendingDown size={14} />
+                                        )}
+                                        <span>
+                                          {roiAmount >= 0 ? "+" : ""}
+                                          {formatCurrency(
+                                            roiAmount,
+                                            locale,
+                                            defaultCurrency,
+                                          )}
+                                        </span>
+                                        <span className="text-xs opacity-80">
+                                          ({roiPercent >= 0 ? "+" : ""}
+                                          {roiPercent.toFixed(2)}%)
+                                        </span>
+                                      </Sensitive>
                                     </div>
                                   </div>
                                 )}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-3">
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
-                              {percentageOfPortfolio.toFixed(1)}%
-                            </span>{" "}
-                            {t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.commodities.toLowerCase(),
-                            )}
-                          </div>
-                        </CardContent>
+                                {details && details.convertedInitial > 0 && (
+                                  <div className="flex items-center justify-between text-sm pt-2">
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {t.commodityManagement.initialInvestment}
+                                    </span>
+                                    <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                      <Sensitive>
+                                        {formatCurrency(
+                                          details.convertedInitial,
+                                          locale,
+                                          defaultCurrency,
+                                        )}
+                                      </Sensitive>
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    <Sensitive>
+                                      {percentageOfPortfolio.toFixed(1)}%
+                                    </Sensitive>
+                                  </span>{" "}
+                                  {t.investments.ofInvestmentType.replace(
+                                    "{type}",
+                                    t.common.commodities.toLowerCase(),
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </Card>
                     )
                   })}
@@ -1072,8 +1268,219 @@ export default function CommoditiesInvestmentPage() {
           })}
         </motion.div>
       )}
+      <AnimatePresence>
+        {editingCommodity && editingDraft && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
+            >
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col relative">
+                <CardHeader className="pr-12">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CommodityIcon type={editingCommodity.type} size="sm" />
+                    {editingCommodity.name}
+                  </CardTitle>
+                </CardHeader>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setEditingCommodityId(null)}
+                  className="absolute top-4 right-4"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardContent className="space-y-4 flex-1 overflow-y-auto">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor={`name-${editingCommodity.id}`}>
+                        {t.commodityManagement.name}
+                      </Label>
+                      <Input
+                        id={`name-${editingCommodity.id}`}
+                        value={editingDraft.name}
+                        onChange={e => updateDraftField("name", e.target.value)}
+                        className={cn(
+                          fieldErrors[editingCommodity.id]?.name &&
+                            "border-red-500",
+                        )}
+                      />
+                      {fieldErrors[editingCommodity.id]?.name && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fieldErrors[editingCommodity.id].name}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => requestDeleteCommodity(editingCommodity)}
+                      className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor={`amount-${editingCommodity.id}`}>
+                        {t.commodityManagement.amount}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id={`amount-${editingCommodity.id}`}
+                          value={editingDraft.amount || ""}
+                          onValueChange={v =>
+                            updateDraftField("amount", v ?? 0)
+                          }
+                          onFocus={e => {
+                            if (e.target.value === "0") e.target.select()
+                          }}
+                          className={cn(
+                            editingDraft.unit && "pr-10",
+                            fieldErrors[editingCommodity.id]?.amount &&
+                              "border-red-500",
+                          )}
+                        />
+                        {editingDraft.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {t.enums.weightUnit[editingDraft.unit]}
+                          </span>
+                        )}
+                      </div>
+                      {fieldErrors[editingCommodity.id]?.amount && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fieldErrors[editingCommodity.id].amount}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor={`unit-${editingCommodity.id}`}>
+                        {t.commodityManagement.unit}
+                      </Label>
+                      <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+                        {Object.values(WeightUnit).map(u => {
+                          const isActive = editingDraft.unit === u
+                          return (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => updateDraftField("unit", u)}
+                              className={cn(
+                                "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                                isActive
+                                  ? "bg-foreground text-background border-foreground"
+                                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              {t.enums.weightUnitName[u]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-5">
+                      <Label
+                        htmlFor={`initial-investment-${editingCommodity.id}`}
+                      >
+                        {t.commodityManagement.initialInvestment}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id={`initial-investment-${editingCommodity.id}`}
+                          className={
+                            editingDraft.currency ? "pr-10" : undefined
+                          }
+                          value={editingDraft.initial_investment || ""}
+                          onValueChange={v =>
+                            updateDraftField("initial_investment", v)
+                          }
+                        />
+                        {editingDraft.currency && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(editingDraft.currency)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-5">
+                      <Label
+                        htmlFor={`average-buy-price-${editingCommodity.id}`}
+                      >
+                        {t.commodityManagement.averageBuyPrice}
+                      </Label>
+                      <div className="relative">
+                        <DecimalInput
+                          id={`average-buy-price-${editingCommodity.id}`}
+                          className={
+                            editingDraft.currency ? "pr-14" : undefined
+                          }
+                          value={editingDraft.average_buy_price || ""}
+                          onValueChange={v =>
+                            updateDraftField("average_buy_price", v)
+                          }
+                        />
+                        {editingDraft.currency && editingDraft.unit && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                            {getCurrencySymbol(editingDraft.currency)}/
+                            {t.enums.weightUnit[editingDraft.unit]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor={`currency-${editingCommodity.id}`}>
+                        {t.commodityManagement.currency}
+                      </Label>
+                      <select
+                        id={`currency-${editingCommodity.id}`}
+                        value={editingDraft.currency || ""}
+                        onChange={e =>
+                          updateDraftField("currency", e.target.value || null)
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
+                      >
+                        {supportedCurrencies.map(cur => (
+                          <option key={cur} value={cur}>
+                            {getCurrencySymbol(cur)} {cur}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingCommodityId(null)}
+                    className="whitespace-nowrap"
+                  >
+                    {t.common.cancel}
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    className="whitespace-nowrap"
+                  >
+                    {t.common.save}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {deleteTarget && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-[19000] p-4">
           <Card className="max-w-sm w-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">
@@ -1103,6 +1510,18 @@ export default function CommoditiesInvestmentPage() {
           </Card>
         </div>
       )}
-    </div>
+      <ConfirmationDialog
+        isOpen={showDiscardConfirm}
+        title={t.management.manualPositions.shared.discardChangesTitle}
+        message={t.management.manualPositions.shared.discardChangesMessage}
+        confirmText={t.common.discard}
+        cancelText={t.common.cancel}
+        onConfirm={() => {
+          setShowDiscardConfirm(false)
+          discardChanges()
+        }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
+    </>
   )
 }

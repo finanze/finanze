@@ -23,6 +23,7 @@ import {
   CreditCard,
   WalletMinimal,
   FlaskConical,
+  ChartCandlestick,
 } from "lucide-react"
 import { TxType } from "@/types/transactions"
 import { AccountType, ProductType } from "@/types/position"
@@ -40,6 +41,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   CRYPTO: "#f97316", // Equivalent to text-orange-500
   COMMODITY: "#eab308", // Equivalent to text-yellow-500
   PENDING_FLOWS: "#14b8a6", // Equivalent to text-teal-500
+  CREDIT: "#f43f5e", // Equivalent to text-rose-500
 }
 
 export function getPieSliceColorForAssetType(type: string): string {
@@ -51,44 +53,129 @@ export function getIconForAssetType(
   size: string = "h-4 w-4",
   color: string | null = null,
 ): JSX.Element {
+  const hasHexColor = Boolean(color && color.startsWith("#"))
+  const hasCustomClass = Boolean(color && !hasHexColor && color !== "")
+  const useDefaultColor = color == null
+
+  const getIconClass = (defaultClass: string) =>
+    `${size} ${useDefaultColor ? defaultClass : hasCustomClass ? color : ""}`
+
+  const hexColor = hasHexColor ? (color as string) : undefined
+  const iconStyle = hexColor ? { color: hexColor } : undefined
+
   switch (type) {
     case "STOCK_ETF":
-      return <BarChart3 className={`${size} ${color ?? "text-blue-500"}`} />
+      return (
+        <ChartCandlestick
+          className={getIconClass("text-blue-500")}
+          style={iconStyle}
+        />
+      )
     case "FUND":
-      return <BarChart3 className={`${size} ${color ?? "text-cyan-500"}`} />
+      return (
+        <BarChart3
+          className={getIconClass("text-cyan-500")}
+          style={iconStyle}
+        />
+      )
     case "FUND_PORTFOLIO":
       return (
-        <WalletMinimal className={`${size} ${color ?? "text-fuchsia-500"}`} />
+        <WalletMinimal
+          className={getIconClass("text-fuchsia-500")}
+          style={iconStyle}
+        />
       )
     case "REAL_ESTATE_CF":
-      return <Building2 className={`${size} ${color ?? "text-green-500"}`} />
+      return (
+        <Building2
+          className={getIconClass("text-green-500")}
+          style={iconStyle}
+        />
+      )
     case "REAL_ESTATE":
-      return <House className={`${size} ${color ?? "text-emerald-600"}`} />
+      return (
+        <House className={getIconClass("text-emerald-600")} style={iconStyle} />
+      )
     case "FACTORING":
-      return <Briefcase className={`${size} ${color ?? "text-amber-500"}`} />
+      return (
+        <Briefcase
+          className={getIconClass("text-amber-500")}
+          style={iconStyle}
+        />
+      )
     case "DEPOSIT":
-      return <Landmark className={`${size} ${color ?? "text-purple-500"}`} />
+      return (
+        <Landmark
+          className={getIconClass("text-purple-500")}
+          style={iconStyle}
+        />
+      )
     case "CASH":
     case "ACCOUNT":
-      return <Banknote className={`${size} ${color ?? "text-gray-500"}`} />
+      return (
+        <Banknote className={getIconClass("text-gray-500")} style={iconStyle} />
+      )
     case "CROWDLENDING":
-      return <Coins className={`${size} ${color ?? "text-pink-500"}`} />
+      return (
+        <Coins className={getIconClass("text-pink-500")} style={iconStyle} />
+      )
     case "CRYPTO":
-      return <Bitcoin className={`${size} ${color ?? "text-orange-500"}`} />
+      return (
+        <Bitcoin
+          className={getIconClass("text-orange-500")}
+          style={iconStyle}
+        />
+      )
     case "COMMODITY":
-      return <Gem className={`${size} ${color ?? "text-yellow-500"}`} />
+      return (
+        <Gem className={getIconClass("text-yellow-500")} style={iconStyle} />
+      )
     case "PENDING_FLOWS":
-      return <HandCoins className={`${size} ${color ?? "text-teal-500"}`} />
+      return (
+        <HandCoins
+          className={getIconClass("text-teal-500")}
+          style={iconStyle}
+        />
+      )
     case "BOND":
-      return <FileText className={`${size} ${color ?? "text-indigo-500"}`} />
+      return (
+        <FileText
+          className={getIconClass("text-indigo-500")}
+          style={iconStyle}
+        />
+      )
     case "DERIVATIVE":
-      return <FlaskConical className={`${size} ${color ?? "text-brown-500"}`} />
+      return (
+        <FlaskConical
+          className={getIconClass("text-brown-500")}
+          style={iconStyle}
+        />
+      )
+    case "CREDIT":
+      return (
+        <HandCoins
+          className={getIconClass("text-rose-500")}
+          style={iconStyle}
+        />
+      )
     case "CARD":
-      return <CreditCard className={`${size} ${color ?? "text-orange-500"}`} />
+      return (
+        <CreditCard
+          className={getIconClass("text-orange-500")}
+          style={iconStyle}
+        />
+      )
     case "LOAN":
-      return <HandCoins className={`${size} ${color ?? "text-teal-500"}`} />
+      return (
+        <HandCoins
+          className={getIconClass("text-teal-500")}
+          style={iconStyle}
+        />
+      )
     default:
-      return <Coins className={`${size} ${color ?? "text-gray-500"}`} />
+      return (
+        <Coins className={getIconClass("text-gray-500")} style={iconStyle} />
+      )
   }
 }
 
@@ -158,6 +245,8 @@ export const getProductTypeColor = (type: ProductType): string => {
       return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
     case ProductType.DERIVATIVE:
       return "bg-brown-100 text-brown-800 dark:bg-brown-900 dark:text-brown-100"
+    case ProductType.CREDIT:
+      return "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100"
     case ProductType.CARD:
       return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
     case ProductType.LOAN:

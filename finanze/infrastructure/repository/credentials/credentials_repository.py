@@ -3,9 +3,11 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from application.ports.credentials_port import CredentialsPort
 from dateutil.tz import tzlocal
+
+from application.ports.credentials_port import CredentialsPort
 from domain.native_entity import EntityCredentials, FinancialEntityCredentialsEntry
+from infrastructure.repository.credentials.queries import CredentialQueries
 from infrastructure.repository.db.client import DBClient
 
 
@@ -13,24 +15,25 @@ class CredentialsRepository(CredentialsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT credentials FROM entity_credentials WHERE entity_id = ?",
-                (str(entity_id),),
+    async def get(self, entity_account_id: UUID) -> Optional[EntityCredentials]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                CredentialQueries.GET_BY_ACCOUNT,
+                (str(entity_account_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 return EntityCredentials(**json.loads(row["credentials"]))
 
             return None
 
-    def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM entity_credentials")
+    async def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(CredentialQueries.GET_ALL)
             return [
                 FinancialEntityCredentialsEntry(
                     entity_id=UUID(row["entity_id"]),
+                    entity_account_id=UUID(row["entity_account_id"]),
                     created_at=datetime.fromisoformat(row["created_at"]),
                     last_used_at=datetime.fromisoformat(row["last_used_at"])
                     if row["last_used_at"]
@@ -39,51 +42,54 @@ class CredentialsRepository(CredentialsPort):
                     if row["expiration"]
                     else None,
                 )
-                for row in cursor.fetchall()
+                for row in await cursor.fetchall()
             ]
 
-    def save(self, entity_id: UUID, credentials: EntityCredentials):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO entity_credentials (entity_id, credentials, last_used_at, created_at)
-                VALUES (?, ?, ?, ?)
-                """,
+    async def save(
+        self, entity_account_id: UUID, entity_id: UUID, credentials: EntityCredentials
+    ):
+        now = datetime.now(tzlocal()).isoformat()
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.INSERT,
                 (
+                    str(entity_account_id),
                     str(entity_id),
                     json.dumps(credentials),
-                    datetime.now(tzlocal()).isoformat(),
-                    datetime.now(tzlocal()).isoformat(),
+                    now,
+                    now,
                 ),
             )
 
-    def delete(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM entity_credentials WHERE entity_id = ?", (str(entity_id),)
+    async def delete(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.DELETE_BY_ACCOUNT,
+                (str(entity_account_id),),
             )
 
-    def update_last_usage(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE entity_credentials
-                SET last_used_at = ?
-                WHERE entity_id = ?
-                """,
-                (datetime.now(tzlocal()).isoformat(), str(entity_id)),
+    async def delete_by_entity_id(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.DELETE_BY_ENTITY,
+                (str(entity_id),),
             )
 
-    def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE entity_credentials
-                SET expiration = ?
-                WHERE entity_id = ?
-                """,
+    async def update_last_usage(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.UPDATE_LAST_USED_AT,
+                (datetime.now(tzlocal()).isoformat(), str(entity_account_id)),
+            )
+
+    async def update_expiration(
+        self, entity_account_id: UUID, expiration: Optional[datetime]
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.UPDATE_EXPIRATION,
                 (
                     expiration.isoformat() if expiration is not None else None,
-                    str(entity_id),
+                    str(entity_account_id),
                 ),
             )

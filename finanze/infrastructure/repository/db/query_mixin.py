@@ -7,9 +7,12 @@ class QueryMixin:
                 if not line.strip().startswith("--") and line.strip() != ""
             ]
         )
-        statements = [
-            statement.strip()
-            for statement in ddl_without_comments.split(";")
-            if statement.strip()
-        ]
+        statements: list[str] = []
+        for raw in ddl_without_comments.split(";"):
+            stmt = raw.strip()
+            if not stmt:
+                continue
+            if stmt.startswith("--"):
+                continue
+            statements.append(stmt)
         return statements

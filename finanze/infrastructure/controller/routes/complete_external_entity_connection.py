@@ -6,7 +6,7 @@ from domain.external_entity import CompleteExternalEntityLinkRequest
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
-from flask import request
+from quart import request
 
 logger = logging.getLogger(__name__)
 

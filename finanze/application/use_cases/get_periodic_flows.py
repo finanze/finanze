@@ -40,6 +40,26 @@ def get_next_date(flow: PeriodicFlow) -> Optional[date]:
             else since_date + timedelta(weeks=weeks_passed + 2)
         )
 
+    elif flow.frequency == FlowFrequency.BIWEEKLY:
+        days_since = (today - since_date).days
+        periods_passed = days_since // 14
+        next_date = since_date + timedelta(weeks=(periods_passed + 1) * 2)
+        next_date = (
+            next_date
+            if next_date > today
+            else since_date + timedelta(weeks=(periods_passed + 2) * 2)
+        )
+
+    elif flow.frequency == FlowFrequency.SEMIMONTHLY:
+        days_since = (today - since_date).days
+        periods_passed = days_since // 15
+        next_date = since_date + timedelta(days=(periods_passed + 1) * 15)
+        next_date = (
+            next_date
+            if next_date > today
+            else since_date + timedelta(days=(periods_passed + 2) * 15)
+        )
+
     elif flow.frequency in frequency_delta_map:
         delta = frequency_delta_map[flow.frequency]
         next_date = since_date
@@ -56,8 +76,8 @@ class GetPeriodicFlowsImpl(GetPeriodicFlows):
     def __init__(self, periodic_flow_port: PeriodicFlowPort):
         self._periodic_flow_port = periodic_flow_port
 
-    def execute(self) -> list[PeriodicFlow]:
-        flows = self._periodic_flow_port.get_all()
+    async def execute(self) -> list[PeriodicFlow]:
+        flows = await self._periodic_flow_port.get_all()
         filled_flows = [
             PeriodicFlow(
                 id=flow.id,
@@ -72,6 +92,7 @@ class GetPeriodicFlowsImpl(GetPeriodicFlows):
                 until=flow.until,
                 icon=flow.icon,
                 linked=flow.linked,
+                real_estate_flow=flow.real_estate_flow,
                 next_date=get_next_date(flow),
                 max_amount=flow.max_amount,
             )

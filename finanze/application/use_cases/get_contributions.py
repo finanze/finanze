@@ -62,11 +62,13 @@ class GetContributionsImpl(GetContributions):
         self._auto_contributions_port = auto_contributions_port
         self._entity_port = entity_port
 
-    def execute(self, query: ContributionQueryRequest) -> EntityContributions:
-        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+    async def execute(self, query: ContributionQueryRequest) -> EntityContributions:
+        excluded_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
 
         query.excluded_entities = excluded_entities
-        data = self._auto_contributions_port.get_all_grouped_by_entity(query)
+        data = await self._auto_contributions_port.get_all_grouped_by_entity(query)
 
         contributions: dict[str, AutoContributions] = {}
         for entity, contrib in data.items():
@@ -88,6 +90,8 @@ class GetContributionsImpl(GetContributions):
                         active=pc.active,
                         source=pc.source,
                         next_date=_next_contribution_date(pc),
+                        entity=pc.entity,
+                        entity_account_id=pc.entity_account_id,
                     )
                 )
             contributions[str(entity.id)] = AutoContributions(periodic=updated_periodic)

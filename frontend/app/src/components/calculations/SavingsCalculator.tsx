@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { Switch } from "@/components/ui/Switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -37,6 +38,7 @@ import {
 } from "recharts"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { calculateSavings } from "@/services/api"
 import {
   SavingsPeriodicity,
@@ -173,7 +175,7 @@ export function SavingsCalculator() {
     }
 
     // Years mode calculates the years, so it's optional in that case
-    const yearsNum = parseInt(years)
+    const yearsNum = parseInt(years.replace(",", "."))
     if (mode !== "years" && (!years || isNaN(yearsNum) || yearsNum <= 0)) {
       errors.years = true
       hasErrors = true
@@ -185,7 +187,7 @@ export function SavingsCalculator() {
     > = {}
 
     const scenarioRequests = scenarios.map(s => {
-      const annualPerf = parseFloat(s.annualReturn)
+      const annualPerf = parseFloat(s.annualReturn.replace(",", "."))
       if (isNaN(annualPerf) || s.annualReturn === "") {
         scenarioErrors[s.id] = { ...scenarioErrors[s.id], annualReturn: true }
         hasErrors = true
@@ -195,11 +197,11 @@ export function SavingsCalculator() {
       // In years mode, both contribution and target are required
       const contribution =
         (mode === "contribution" || mode === "years") && s.contribution
-          ? parseFloat(s.contribution)
+          ? parseFloat(s.contribution.replace(",", "."))
           : null
       const target =
         (mode === "target" || mode === "years") && s.targetAmount
-          ? parseFloat(s.targetAmount)
+          ? parseFloat(s.targetAmount.replace(",", "."))
           : null
 
       if (
@@ -248,10 +250,10 @@ export function SavingsCalculator() {
       enableRetirement && (withdrawalAmount || withdrawalYears)
         ? {
             withdrawal_amount: withdrawalAmount
-              ? parseFloat(withdrawalAmount)
+              ? parseFloat(withdrawalAmount.replace(",", "."))
               : null,
             withdrawal_years: withdrawalYears
-              ? parseInt(withdrawalYears)
+              ? parseInt(withdrawalYears.replace(",", "."))
               : null,
           }
         : null
@@ -278,7 +280,7 @@ export function SavingsCalculator() {
     }
 
     const request: SavingsCalculationRequest = {
-      base_amount: baseAmount ? parseFloat(baseAmount) : 0,
+      base_amount: baseAmount ? parseFloat(baseAmount.replace(",", ".")) : 0,
       years: mode === "years" ? null : yearsNum,
       periodicity,
       scenarios: scenarioRequests,
@@ -292,7 +294,7 @@ export function SavingsCalculator() {
       setCalculatedParams({
         years: mode === "years" ? null : yearsNum,
         periodicity,
-        baseAmount: baseAmount ? parseFloat(baseAmount) : 0,
+        baseAmount: baseAmount ? parseFloat(baseAmount.replace(",", ".")) : 0,
         enableRetirement,
       })
       if (response.scenarios.length > 0) {
@@ -563,16 +565,20 @@ export function SavingsCalculator() {
                 {scenarioName}
               </CardTitle>
               <span className="text-xs sm:text-sm text-muted-foreground shrink-0">
-                {(scenario.annual_market_performance * 100).toFixed(1)}%
+                <Sensitive>
+                  {(scenario.annual_market_performance * 100).toFixed(1)}%
+                </Sensitive>
               </span>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <span className="text-base sm:text-lg font-semibold">
-                {formatCurrency(
-                  scenario.final_balance,
-                  locale,
-                  defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    scenario.final_balance,
+                    locale,
+                    defaultCurrency,
+                  )}
+                </Sensitive>
               </span>
               {expandedScenario === scenario.scenario_id ? (
                 <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -644,11 +650,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.totalContributions}
                     </p>
                     <p className="font-medium">
-                      {formatCurrency(
-                        scenario.total_contributions,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.total_contributions,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -657,11 +665,13 @@ export function SavingsCalculator() {
                     </p>
                     <p className="font-medium text-green-600 dark:text-green-400">
                       +
-                      {formatCurrency(
-                        scenario.total_revaluation,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.total_revaluation,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -669,11 +679,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.periodicContribution}
                     </p>
                     <p className="font-medium">
-                      {formatCurrency(
-                        scenario.periodic_contribution,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.periodic_contribution,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -681,11 +693,13 @@ export function SavingsCalculator() {
                       {t.calculations.savings.finalBalance}
                     </p>
                     <p className="font-semibold text-primary">
-                      {formatCurrency(
-                        scenario.final_balance,
-                        locale,
-                        defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {formatCurrency(
+                          scenario.final_balance,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                 </div>
@@ -702,11 +716,13 @@ export function SavingsCalculator() {
                           {t.calculations.savings.withdrawalPerPeriod}
                         </p>
                         <p className="font-medium">
-                          {formatCurrency(
-                            scenario.retirement.withdrawal_amount,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              scenario.retirement.withdrawal_amount,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                       <div className="space-y-1">
@@ -725,11 +741,13 @@ export function SavingsCalculator() {
                           {t.calculations.savings.totalWithdrawn}
                         </p>
                         <p className="font-medium">
-                          {formatCurrency(
-                            scenario.retirement.total_withdrawn,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              scenario.retirement.total_withdrawn,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </p>
                       </div>
                     </div>
@@ -858,7 +876,9 @@ export function SavingsCalculator() {
               />
               <span className="text-muted-foreground/80">{item.name}:</span>
               <span className="font-medium text-foreground/90">
-                {formatCurrency(item.value, locale, defaultCurrency)}
+                <Sensitive>
+                  {formatCurrency(item.value, locale, defaultCurrency)}
+                </Sensitive>
               </span>
             </div>
           ))}
@@ -1034,7 +1054,7 @@ export function SavingsCalculator() {
     <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-1 space-y-4">
-          <Card>
+          <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
@@ -1053,13 +1073,10 @@ export function SavingsCalculator() {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     {currencySymbol}
                   </span>
-                  <Input
+                  <DecimalInput
                     id="baseAmount"
-                    type="number"
-                    min="0"
-                    step="100"
                     value={baseAmount}
-                    onChange={e => setBaseAmount(e.target.value)}
+                    onStringChange={value => setBaseAmount(value)}
                     placeholder={t.calculations.savings.baseAmountPlaceholder}
                     className="pl-8"
                   />
@@ -1071,9 +1088,8 @@ export function SavingsCalculator() {
                   <Label htmlFor="years">{t.calculations.savings.years}</Label>
                   <Input
                     id="years"
-                    type="number"
-                    min="1"
-                    max="100"
+                    type="text"
+                    inputMode="numeric"
                     value={years}
                     onChange={e => {
                       setYears(e.target.value)
@@ -1171,7 +1187,7 @@ export function SavingsCalculator() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -1229,16 +1245,11 @@ export function SavingsCalculator() {
                         {t.calculations.savings.annualReturn}
                       </Label>
                       <div className="relative">
-                        <Input
-                          type="number"
-                          step="0.1"
+                        <DecimalInput
+                          allowNegative
                           value={scenario.annualReturn}
-                          onChange={e => {
-                            updateScenario(
-                              scenario.id,
-                              "annualReturn",
-                              e.target.value,
-                            )
+                          onStringChange={value => {
+                            updateScenario(scenario.id, "annualReturn", value)
                             if (
                               fieldErrors.scenarios?.[scenario.id]?.annualReturn
                             ) {
@@ -1279,17 +1290,10 @@ export function SavingsCalculator() {
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                             {currencySymbol}
                           </span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="50"
+                          <DecimalInput
                             value={scenario.contribution}
-                            onChange={e => {
-                              updateScenario(
-                                scenario.id,
-                                "contribution",
-                                e.target.value,
-                              )
+                            onStringChange={value => {
+                              updateScenario(scenario.id, "contribution", value)
                               if (
                                 fieldErrors.scenarios?.[scenario.id]
                                   ?.contribution
@@ -1328,17 +1332,10 @@ export function SavingsCalculator() {
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                             {currencySymbol}
                           </span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1000"
+                          <DecimalInput
                             value={scenario.targetAmount}
-                            onChange={e => {
-                              updateScenario(
-                                scenario.id,
-                                "targetAmount",
-                                e.target.value,
-                              )
+                            onStringChange={value => {
+                              updateScenario(scenario.id, "targetAmount", value)
                               if (
                                 fieldErrors.scenarios?.[scenario.id]
                                   ?.targetAmount
@@ -1379,7 +1376,7 @@ export function SavingsCalculator() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -1403,13 +1400,10 @@ export function SavingsCalculator() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                       {currencySymbol}
                     </span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="100"
+                    <DecimalInput
                       value={withdrawalAmount}
-                      onChange={e => {
-                        setWithdrawalAmount(e.target.value)
+                      onStringChange={value => {
+                        setWithdrawalAmount(value)
                         if (fieldErrors.retirement?.withdrawalAmount) {
                           setFieldErrors(prev => ({
                             ...prev,
@@ -1436,9 +1430,8 @@ export function SavingsCalculator() {
                     {t.calculations.savings.withdrawalYears}
                   </Label>
                   <Input
-                    type="number"
-                    min="1"
-                    max="50"
+                    type="text"
+                    inputMode="numeric"
                     value={withdrawalYears}
                     onChange={e => {
                       setWithdrawalYears(e.target.value)
@@ -1500,29 +1493,35 @@ export function SavingsCalculator() {
         <div className="lg:col-span-2 space-y-4">
           {result ? (
             <>
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader className="px-3 sm:px-4 py-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-sm sm:text-base">
                       {t.calculations.savings.simulation}
                     </CardTitle>
-                    <div className="flex gap-1 sm:gap-2">
-                      <Button
-                        variant={chartView === "yearly" ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs sm:text-sm px-2 sm:px-3"
+                    <div className="inline-flex rounded-md border border-border overflow-hidden">
+                      <button
+                        className={cn(
+                          "px-2.5 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors",
+                          chartView === "yearly"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:text-foreground",
+                        )}
                         onClick={() => setChartView("yearly")}
                       >
                         {t.calculations.savings.yearlyView}
-                      </Button>
-                      <Button
-                        variant={chartView === "period" ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs sm:text-sm px-2 sm:px-3"
+                      </button>
+                      <button
+                        className={cn(
+                          "px-2.5 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors border-l border-border",
+                          chartView === "period"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:text-foreground",
+                        )}
                         onClick={() => setChartView("period")}
                       >
                         {t.calculations.savings.periodView}
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </CardHeader>
@@ -1810,20 +1809,20 @@ export function SavingsCalculator() {
             </>
           ) : (
             <div className="space-y-4 select-none pointer-events-none">
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader className="px-3 sm:px-4 py-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-sm sm:text-base font-medium text-muted-foreground/30">
                       {t.calculations.savings.simulation}
                     </span>
-                    <div className="flex gap-2">
-                      <div className="h-8 px-3 rounded-md bg-muted/20 flex items-center">
-                        <span className="text-xs text-muted-foreground/25">
+                    <div className="inline-flex rounded-md border border-border/20 overflow-hidden">
+                      <div className="px-2.5 sm:px-3 py-1 bg-muted/20">
+                        <span className="text-xs sm:text-sm text-muted-foreground/25">
                           {t.calculations.savings.yearlyView}
                         </span>
                       </div>
-                      <div className="h-8 px-3 rounded-md bg-muted/10 flex items-center">
-                        <span className="text-xs text-muted-foreground/20">
+                      <div className="px-2.5 sm:px-3 py-1 bg-muted/10 border-l border-border/20">
+                        <span className="text-xs sm:text-sm text-muted-foreground/20">
                           {t.calculations.savings.periodView}
                         </span>
                       </div>

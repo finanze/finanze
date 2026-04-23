@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
@@ -9,7 +10,18 @@ from domain.transactions import BaseInvestmentTx
 from pydantic.dataclasses import dataclass
 
 
-@dataclass
+class HistoricSortBy(str, Enum):
+    MATURITY = "maturity"
+    LAST_INVEST_DATE = "last_invest_date"
+    INVESTED = "invested"
+
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+@dataclass(kw_only=True)
 class BaseHistoricEntry:
     id: UUID
     name: str
@@ -28,9 +40,10 @@ class BaseHistoricEntry:
     entity: Entity
     product_type: ProductType
     related_txs: list[BaseInvestmentTx]
+    entity_account_id: Optional[UUID] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FactoringEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     gross_interest_rate: Dezimal
@@ -38,7 +51,7 @@ class FactoringEntry(BaseHistoricEntry):
     type: str
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RealEstateCFEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     maturity: date
@@ -57,3 +70,7 @@ class HistoricQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     product_types: Optional[list[ProductType]] = None
+    page: int = 1
+    limit: int = 20
+    sort_by: HistoricSortBy = HistoricSortBy.MATURITY
+    sort_order: SortOrder = SortOrder.DESC

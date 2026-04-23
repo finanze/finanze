@@ -49,9 +49,10 @@ export function EntityRefreshDropdown() {
     [entities],
   )
 
-  // Separate financial institutions and crypto wallets
   const financialEntities = connectedEntities.filter(
-    entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+    entity =>
+      entity.type === EntityType.FINANCIAL_INSTITUTION ||
+      entity.type === EntityType.CRYPTO_EXCHANGE,
   )
   // Only include crypto entities that have connected wallets
   const cryptoEntities = connectedEntities.filter(
@@ -72,10 +73,13 @@ export function EntityRefreshDropdown() {
       for (const entity of connectedEntities) {
         try {
           if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
-            const src = await getImageUrl(
-              `/static/entities/logos/${entity.id}.png`,
-            )
-            images[entity.id] = src
+            if (entity.icon_url) {
+              images[entity.id] = entity.icon_url
+            } else {
+              images[entity.id] = await getImageUrl(
+                `/static/entities/logos/${entity.id}.png`,
+              )
+            }
           } else {
             images[entity.id] = `entities/${entity.id}.png`
           }
@@ -338,20 +342,21 @@ export function EntityRefreshDropdown() {
                               </PopoverContent>
                             </Popover>
                           )}
-                          {fetchingEntityIds.includes(entity.id) ? (
-                            <div className="p-1.5">
-                              <LoadingSpinner size="sm" className="p-1.5" />
-                            </div>
-                          ) : (
-                            <button
-                              onClick={e => handleRefreshEntity(entity, e)}
-                              disabled={refreshCooldown}
-                              className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                              aria-label={`Refresh ${entity.name}`}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </button>
-                          )}
+                          {entity.fetchable &&
+                            (fetchingEntityIds.includes(entity.id) ? (
+                              <div className="p-1.5">
+                                <LoadingSpinner size="sm" className="p-1.5" />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => handleRefreshEntity(entity, e)}
+                                disabled={refreshCooldown}
+                                className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                                aria-label={`Refresh ${entity.name}`}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </button>
+                            ))}
                         </div>
                       </div>
                     )

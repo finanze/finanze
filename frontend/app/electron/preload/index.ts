@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { ProgressInfo, UpdateInfo } from "electron-updater"
+import { getRendererPlatformInfo } from "../shared/platform"
 import type {
   ThemeMode,
   AboutAppInfo,
@@ -20,11 +21,13 @@ function createIpcListener<T>(channel: string) {
   }
 }
 
+const platformInfo = getRendererPlatformInfo()
+
+contextBridge.exposeInMainWorld("platform", platformInfo)
+
 contextBridge.exposeInMainWorld("ipcAPI", {
   apiUrl: () =>
     ipcRenderer.invoke("api-url") as Promise<{ url: string; custom: boolean }>,
-
-  platform: () => ipcRenderer.invoke("platform"),
 
   changeThemeMode: (mode: ThemeMode) =>
     ipcRenderer.send("theme-mode-change", mode),
@@ -96,5 +99,57 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     })
 
     return () => ipcRenderer.removeAllListeners("completed-external-login")
+  },
+
+  onOAuthCallback: (
+    callback: (tokens: {
+      access_token: string
+      refresh_token: string
+      type?: string
+    }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners("oauth-callback")
+
+    ipcRenderer.on("oauth-callback", (_, tokens) => {
+      callback(tokens)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback")
+  },
+
+  onOAuthCallbackError: (
+    callback: (payload: {
+      error: string
+      error_description: string | null
+      error_code: string | null
+    }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners("oauth-callback-error")
+
+    ipcRenderer.on("oauth-callback-error", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback-error")
+  },
+
+  onOAuthCallbackCode: (callback: (payload: { code: string }) => void) => {
+    ipcRenderer.removeAllListeners("oauth-callback-code")
+
+    ipcRenderer.on("oauth-callback-code", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback-code")
+  },
+
+  onOAuthCallbackUrl: (callback: (payload: { url: string }) => void) => {
+    ipcRenderer.removeAllListeners("oauth-callback-url")
+
+    ipcRenderer.on("oauth-callback-url", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback-url")
   },
 } as const)

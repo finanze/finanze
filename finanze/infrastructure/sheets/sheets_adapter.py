@@ -14,7 +14,7 @@ class SheetsAdapter(SheetsPort):
 
         self._log = logging.getLogger(__name__)
 
-    def update(
+    async def update(
         self,
         table: list[list[str]],
         credentials: ExternalIntegrationPayload,
@@ -42,7 +42,7 @@ class SheetsAdapter(SheetsPort):
 
         request.execute()
 
-    def read(
+    async def read(
         self, credentials: ExternalIntegrationPayload, params: SheetParams
     ) -> list[list[str]]:
         sheet_id = params.spreadsheet_id

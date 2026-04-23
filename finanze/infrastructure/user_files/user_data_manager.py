@@ -22,9 +22,8 @@ class UserDataManager(DataManager):
         os.makedirs(self._profiles_dir, exist_ok=True)
 
         self._profiles_data: Dict[str, Any] = {}
-        self._load_profiles()
-
         self._log = logging.getLogger(__name__)
+        self._load_profiles()
 
     def _load_profiles(self):
         default_data = {"last_logged": None, "profiles": []}
@@ -48,14 +47,14 @@ class UserDataManager(DataManager):
             ):
                 self._profiles_data = data
             else:
-                self._log.warn(
+                self._log.warning(
                     f"Warning: '{self._profiles_json_path}' is malformed. Initializing with default data."
                 )
                 self._profiles_data = default_data
                 self._save_profiles()
 
         except (FileNotFoundError, json.JSONDecodeError, IOError) as e:
-            self._log.warn(
+            self._log.warning(
                 f"Warning: Could not read/parse '{self._profiles_json_path}': {e}. Initializing with default data."
             )
             self._profiles_data = default_data
@@ -70,7 +69,6 @@ class UserDataManager(DataManager):
             self._log.error(
                 f"Error: Could not save profiles to '{self._profiles_json_path}': {e}"
             )
-            pass
 
     def _profile_to_user(self, profile_data: Dict[str, Any]) -> User:
         user_id = uuid.UUID(profile_data["id"])
@@ -85,7 +83,7 @@ class UserDataManager(DataManager):
             path=Path(os.path.join(self._profiles_dir, str(user_id))),
         )
 
-    def get_last_user(self) -> Optional[User]:
+    async def get_last_user(self) -> Optional[User]:
         last_logged_id_str = self._profiles_data.get("last_logged")
         if not last_logged_id_str:
             return None
@@ -96,7 +94,7 @@ class UserDataManager(DataManager):
 
         return None
 
-    def set_last_user(self, user: User):
+    async def set_last_user(self, user: User):
         user_id_str = str(user.id)
         self._profiles_data["last_logged"] = user_id_str
 
@@ -107,20 +105,20 @@ class UserDataManager(DataManager):
 
         self._save_profiles()
 
-    def get_users(self) -> List[User]:
+    async def get_users(self) -> List[User]:
         return [
             self._profile_to_user(p_data)
             for p_data in self._profiles_data.get("profiles", [])
         ]
 
-    def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username: str) -> Optional[User]:
         for profile_data in self._profiles_data.get("profiles", []):
             if profile_data.get("name") == username:
                 return self._profile_to_user(profile_data)
         return None
 
-    def create_user(self, user: UserRegistration) -> User:
-        if self.get_user(user.username):
+    async def create_user(self, user: UserRegistration) -> User:
+        if await self.get_user(user.username):
             raise UserAlreadyExists(
                 f"User with username '{user.username}' already exists."
             )
@@ -141,7 +139,7 @@ class UserDataManager(DataManager):
 
         return self._profile_to_user(profile_data)
 
-    def update_user(self, user: User):
+    async def update_user(self, user: User):
         user_id_str = str(user.id)
         profile_found = False
         for profile in self._profiles_data.get("profiles", []):

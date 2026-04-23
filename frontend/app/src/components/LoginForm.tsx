@@ -1,12 +1,17 @@
 import type React from "react"
 import { useState, useEffect } from "react"
-import { ArrowRight, Clock, X } from "lucide-react"
+import { ArrowRight, Clock, LockKeyhole, Plus, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
@@ -20,6 +25,8 @@ export function LoginForm() {
     resetState,
   } = useEntityWorkflow()
   const [credentials, setCredentials] = useState<Record<string, string>>({})
+  const [showAccountName, setShowAccountName] = useState(false)
+  const [accountName, setAccountName] = useState("")
   const { t } = useI18n()
 
   useEffect(() => {
@@ -48,7 +55,7 @@ export function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    login(credentials)
+    login(credentials, undefined, accountName || undefined)
   }
 
   const handleCancel = () => {
@@ -83,8 +90,28 @@ export function LoginForm() {
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-center">
-          {t.login.enterCredentials} {selectedEntity.name}
+        <CardTitle className="flex items-center justify-center gap-2">
+          <span>
+            {t.login.enterCredentials} {selectedEntity.name}
+          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              >
+                <LockKeyhole className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 text-sm" side="bottom">
+              <p className="font-medium text-green-600 dark:text-green-400 mb-1">
+                {t.login.credentialsSecurityTitle}
+              </p>
+              <p className="text-muted-foreground">
+                {t.login.credentialsSecurityBody}
+              </p>
+            </PopoverContent>
+          </Popover>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -97,8 +124,9 @@ export function LoginForm() {
                   ? "email"
                   : "text"
 
-            // Get localized placeholder from i18n
+            // Get localized placeholder: prefer field-specific name, then generic type name
             const placeholder =
+              (t.login as any).credentialFields?.[key] ||
               t.login.credentials[type as keyof typeof t.login.credentials] ||
               key
 
@@ -116,6 +144,27 @@ export function LoginForm() {
               </div>
             )
           })}
+          {!showAccountName ? (
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowAccountName(true)}
+            >
+              <Plus className="h-3 w-3" />
+              {t.login.addAccountName}
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="accountName">{t.login.addAccountName}</Label>
+              <Input
+                id="accountName"
+                type="text"
+                placeholder={t.login.accountNamePlaceholder}
+                value={accountName}
+                onChange={e => setAccountName(e.target.value)}
+              />
+            </div>
+          )}
           {showTransactionsLoadingNotice && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
               <Clock className="mt-[2px] h-4 w-4 flex-shrink-0" />

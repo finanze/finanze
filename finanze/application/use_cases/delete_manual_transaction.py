@@ -24,7 +24,7 @@ class DeleteManualTransactionImpl(DeleteManualTransaction, AtomicUCMixin):
         self._helper = ManualTransactionVirtualImportHelper(virtual_import_registry)
 
     async def execute(self, tx_id: UUID):
-        existing = self._transaction_port.get_by_id(tx_id)
+        existing = await self._transaction_port.get_by_id(tx_id)
         if existing is None:
             raise TransactionNotFound(tx_id)
 
@@ -33,12 +33,12 @@ class DeleteManualTransactionImpl(DeleteManualTransaction, AtomicUCMixin):
 
         entity_id = existing.entity.id
 
-        self._transaction_port.delete_by_id(tx_id)
+        await self._transaction_port.delete_by_id(tx_id)
 
-        manual_remaining = self._transaction_port.get_by_entity_and_source(
+        manual_remaining = await self._transaction_port.get_by_entity_and_source(
             entity_id, DataSource.MANUAL
         )
 
         has_transactions = bool(manual_remaining.account + manual_remaining.investment)
 
-        self._helper.refresh(entity_id, has_transactions=has_transactions)
+        await self._helper.refresh(entity_id, has_transactions=has_transactions)

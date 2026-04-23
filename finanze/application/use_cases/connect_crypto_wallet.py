@@ -2,44 +2,54 @@ from logging import Logger
 from uuid import uuid4
 
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.crypto_wallet_port import CryptoWalletPort
 from application.ports.external_integration_port import ExternalIntegrationPort
+from application.ports.public_key_derivation import PublicKeyDerivation
+from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.use_cases.derive_crypto_addresses import get_coin_type_from_entity_id
 from domain import native_entities
 from domain.crypto import (
     ConnectCryptoWallet as ConnectCryptoWalletRequest,
+    AddressSource,
 )
 from domain.crypto import (
     CryptoFetchRequest,
-    CryptoWalletConnection,
+    CryptoWallet,
     CryptoWalletConnectionFailureCode,
     CryptoWalletConnectionResult,
+    HDWallet,
 )
 from domain.entity import Entity, EntityType
 from domain.exception.exceptions import (
-    AddressNotFound,
     EntityNotFound,
     TooManyRequests,
 )
 from domain.external_integration import (
     ExternalIntegrationType,
 )
+from domain.native_entity import NativeCryptoWalletEntity
+from domain.public_key import AddressDerivationRequest
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 
 
 class ConnectCryptoWalletImpl(ConnectCryptoWallet):
     def __init__(
         self,
-        crypto_wallet_connections_port: CryptoWalletConnectionPort,
+        crypto_wallet_port: CryptoWalletPort,
         entity_fetchers: dict[Entity, CryptoEntityFetcher],
         external_integration_port: ExternalIntegrationPort,
+        public_key_derivation: PublicKeyDerivation,
+        transaction_handler_port: TransactionHandlerPort,
     ):
-        self._crypto_wallet_connections_port = crypto_wallet_connections_port
+        self._crypto_wallet_port = crypto_wallet_port
         self._entity_fetchers = entity_fetchers
         self._external_integration_port = external_integration_port
+        self._public_key_derivation = public_key_derivation
+        self._transaction_handler_port = transaction_handler_port
 
         self._log = Logger(__name__)
 
-    def execute(
+    async def execute(
         self, request: ConnectCryptoWalletRequest
     ) -> CryptoWalletConnectionResult:
         entity_id = request.entity_id
@@ -48,54 +58,52 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
         if not entity:
             raise EntityNotFound(entity_id)
 
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.CRYPTO_PROVIDER
+        if request.address_source == AddressSource.MANUAL:
+            return await self._connect_manual(entity, request)
+        else:
+            return await self._connect_derived(entity, request)
+
+    async def _connect_manual(
+        self, entity: NativeCryptoWalletEntity, request: ConnectCryptoWalletRequest
+    ) -> CryptoWalletConnectionResult:
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.CRYPTO_PROVIDER
+            )
         )
 
         failed_addresses = {}
-
         specific_fetcher = self._entity_fetchers[entity]
-
-        name_counter = 1
 
         for address in request.addresses:
             existing_wallet = (
-                self._crypto_wallet_connections_port.get_by_entity_and_address(
-                    entity_id, address
+                await self._crypto_wallet_port.exists_by_entity_and_address(
+                    entity.id, address
                 )
             )
             if existing_wallet:
                 failed_addresses[address] = (
                     CryptoWalletConnectionFailureCode.ADDRESS_ALREADY_EXISTS
                 )
-                continue
 
+        if failed_addresses:
+            return CryptoWalletConnectionResult(failed=failed_addresses)
+
+        for address in request.addresses:
             try:
-                specific_fetcher.fetch(
+                result = await specific_fetcher.fetch(
                     CryptoFetchRequest(
-                        address=address, integrations=enabled_integrations
+                        addresses=[address], integrations=enabled_integrations
                     )
                 )
-
-                if name_counter == 1:
-                    wallet_name = request.name
-                else:
-                    wallet_name = f"{request.name} {name_counter}"
-
-                wallet = CryptoWalletConnection(
-                    id=uuid4(),
-                    entity_id=request.entity_id,
-                    address=address,
-                    name=wallet_name,
-                )
-                self._crypto_wallet_connections_port.insert(wallet)
-
-                name_counter += 1
-
-            except AddressNotFound:
-                failed_addresses[address] = (
-                    CryptoWalletConnectionFailureCode.ADDRESS_NOT_FOUND
-                )
+                if (
+                    not result.results
+                    or address not in result.results
+                    or not result.results[address]
+                ):
+                    failed_addresses[address] = (
+                        CryptoWalletConnectionFailureCode.ADDRESS_NOT_FOUND
+                    )
             except TooManyRequests:
                 failed_addresses[address] = (
                     CryptoWalletConnectionFailureCode.TOO_MANY_REQUESTS
@@ -106,4 +114,67 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                     CryptoWalletConnectionFailureCode.UNEXPECTED_ERROR
                 )
 
-        return CryptoWalletConnectionResult(failed=failed_addresses)
+        if failed_addresses:
+            return CryptoWalletConnectionResult(failed=failed_addresses)
+
+        wallet = CryptoWallet(
+            id=uuid4(),
+            entity_id=request.entity_id,
+            addresses=request.addresses,
+            address_source=AddressSource.MANUAL,
+            name=request.name,
+            hd_wallet=None,
+        )
+
+        async with self._transaction_handler_port.start():
+            await self._crypto_wallet_port.insert(wallet)
+
+        return CryptoWalletConnectionResult(failed={})
+
+    async def _connect_derived(
+        self, entity: NativeCryptoWalletEntity, request: ConnectCryptoWalletRequest
+    ) -> CryptoWalletConnectionResult:
+        if await self._crypto_wallet_port.exists_by_entity_and_xpub(
+            entity.id, request.xpub
+        ):
+            return CryptoWalletConnectionResult(
+                failed={
+                    request.xpub: CryptoWalletConnectionFailureCode.XPUB_ALREADY_EXISTS
+                }
+            )
+
+        coin_type = get_coin_type_from_entity_id(entity.id)
+
+        derivation_request = AddressDerivationRequest(
+            xpub=request.xpub,
+            coin=coin_type,
+            receiving_range=(0, 1),
+            change_range=(0, 1),
+            script_type=request.script_type,
+        )
+
+        derived_result = self._public_key_derivation.calculate(derivation_request)
+
+        wallet_id = uuid4()
+
+        wallet = CryptoWallet(
+            id=wallet_id,
+            entity_id=request.entity_id,
+            addresses=[],
+            address_source=AddressSource.DERIVED,
+            name=request.name,
+            hd_wallet=None,
+        )
+
+        hd_wallet = HDWallet(
+            xpub=request.xpub,
+            addresses=[],
+            script_type=derived_result.script_type,
+            coin_type=derived_result.coin,
+        )
+
+        async with self._transaction_handler_port.start():
+            await self._crypto_wallet_port.insert(wallet)
+            await self._crypto_wallet_port.insert_hd_wallet(wallet_id, hd_wallet)
+
+        return CryptoWalletConnectionResult(failed={})

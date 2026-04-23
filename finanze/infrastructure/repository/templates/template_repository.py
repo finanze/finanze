@@ -10,6 +10,7 @@ from domain.global_position import ProductType
 from domain.template import Template, TemplatedField
 from domain.template_type import TemplateType
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.templates.queries import TemplateQueries
 
 
 def _serialize_fields(fields: list[TemplatedField]) -> str:
@@ -83,14 +84,11 @@ class TemplateRepository(TemplatePort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, template: Template):
+    async def save(self, template: Template):
         now = datetime.now(tzlocal())
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO templates (id, name, feature, type, fields, products, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TemplateQueries.INSERT,
                 (
                     str(template.id),
                     template.name,
@@ -103,15 +101,11 @@ class TemplateRepository(TemplatePort):
                 ),
             )
 
-    def update(self, template: Template):
+    async def update(self, template: Template):
         now = datetime.now(tzlocal())
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE templates
-                SET name = ?, feature = ?, type = ?, fields = ?, products = ?, updated_at = ?
-                WHERE id = ?
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TemplateQueries.UPDATE,
                 (
                     template.name,
                     template.feature.value,
@@ -123,35 +117,33 @@ class TemplateRepository(TemplatePort):
                 ),
             )
 
-    def delete(self, template_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute("DELETE FROM templates WHERE id = ?", (str(template_id),))
+    async def delete(self, template_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(TemplateQueries.DELETE_BY_ID, (str(template_id),))
 
-    def get_by_id(self, template_id: UUID) -> Template | None:
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM templates WHERE id = ?", (str(template_id),))
-            row = cursor.fetchone()
+    async def get_by_id(self, template_id: UUID) -> Template | None:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(TemplateQueries.GET_BY_ID, (str(template_id),))
+            row = await cursor.fetchone()
             if row is None:
                 return None
             return _map_row(row)
 
-    def get_by_type(self, template_type: TemplateType) -> list[Template]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM templates WHERE type = ?", (template_type.value,)
-            )
-            rows = cursor.fetchall()
+    async def get_by_type(self, template_type: TemplateType) -> list[Template]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(TemplateQueries.GET_BY_TYPE, (template_type.value,))
+            rows = await cursor.fetchall()
             return [_map_row(r) for r in rows] if rows else []
 
-    def get_by_name_and_type(
+    async def get_by_name_and_type(
         self, name: str, template_type: TemplateType
     ) -> Template | None:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM templates WHERE name = ? AND type = ?",
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TemplateQueries.GET_BY_NAME_AND_TYPE,
                 (name, template_type.value),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row is None:
                 return None
             return _map_row(row)

@@ -3,9 +3,10 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -27,6 +28,8 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    CreditDetail,
+    Credits,
     Deposit,
     Deposits,
     EquityType,
@@ -41,6 +44,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
     AccountTx,
@@ -57,6 +61,14 @@ from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client impo
 
 DATE_FORMAT = "%Y-%m-%d"
 ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+def _parse_datetime(value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError, TypeError:
+        return datetime.strptime(value, ISO_DATE_TIME_FORMAT)
+
 
 FUND_INVESTMENT_TXS = [
     "INVESTMENT_FUNDS_SUBSCRIPTION",
@@ -97,46 +109,7 @@ BEGINNING = date.fromisocalendar(2018, 1, 1)
 ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 
-
-def _get_stock_investments(broker_investments) -> list[StockDetail]:
-    stock_list = []
-    if broker_investments:
-        for stock in broker_investments["investmentList"]:
-            product_type = (
-                EquityType.STOCK
-                if stock.get("brokerProductType") == "RV"
-                else EquityType.ETF
-            )
-            origin_currency_liquidation_value = Dezimal(
-                stock.get("originCurrencyLiquidationValue")
-            )
-            shares = Dezimal(stock.get("shares"))
-            market_value = Dezimal(origin_currency_liquidation_value * shares)
-
-            stock_list.append(
-                StockDetail(
-                    id=uuid4(),
-                    name=stock["investmentName"],
-                    ticker=stock.get("ticker", ""),
-                    isin=stock["isin"],
-                    market=stock["marketCode"],
-                    shares=shares,
-                    initial_investment=round(
-                        Dezimal(stock["initialInvestmentCurrency"]), 4
-                    ),
-                    average_buy_price=round(
-                        Dezimal(stock["initialInvestmentCurrency"])
-                        / Dezimal(stock["shares"]),
-                        4,
-                    ),
-                    market_value=round(market_value, 4),
-                    currency=stock["liquidationValueCurrency"],
-                    type=product_type,
-                    subtype=stock.get("activeTypeCode"),
-                )
-            )
-
-    return stock_list
+ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
 
 
 def _map_deposit_tx(
@@ -206,27 +179,31 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         two_factor = login_params.two_factor
 
         username, password = credentials["user"], credentials["password"]
-        process_id, code = None, None
+        process_id, code, token = None, None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
+            token = two_factor.token
 
-        return self._client.login(
+        return await self._client.login(
             username,
             password,
             login_options=login_params.options,
+            session=login_params.session,
             process_id=process_id,
             code=code,
+            captcha_token=token,
+            keychain=login_params.keychain,
         )
 
     async def global_position(self) -> GlobalPosition:
-        # maintenance = self._client.check_maintenance()
+        # maintenance = await self._client.check_maintenance()
 
-        account_entries = self.fetch_accounts()
+        account_entries = await self.fetch_accounts()
         accounts = [account for _, account, _ in account_entries]
 
-        cards_data = self.fetch_cards(account_entries)
+        cards_data = await self.fetch_cards(account_entries)
 
-        product_positions = self.fetch_investments(account_entries)
+        product_positions = await self.fetch_investments(account_entries)
 
         product_positions[ProductType.ACCOUNT] = Accounts(accounts)
         product_positions[ProductType.CARD] = Cards(cards_data)
@@ -238,12 +215,12 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         )
 
     async def auto_contributions(self) -> AutoContributions:
-        return self.fetch_auto_contributions()
+        return await self.fetch_auto_contributions()
 
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        accounts = self._get_active_owned_accounts()
+        accounts = await self._get_active_owned_accounts()
 
         target_accounts = [
             account
@@ -262,14 +239,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             creation_date = datetime.fromisoformat(account["creationDate"]).date()
             if creation_date < min_creation_date:
                 min_creation_date = creation_date
-            related_security_account_id = self._get_related_security_account(
-                account_id
+            related_security_account_id = (
+                await self._get_related_security_account(account_id)
             )["accountId"]
-            investment_txs += self._get_investment_txs(
+            investment_txs += await self._get_investment_txs(
                 registered_txs, related_security_account_id, creation_date
             )
 
-            account_related_txs = self._classify_account_txs(
+            account_related_txs = await self._classify_account_txs(
                 account, registered_txs, related_security_account_id, creation_date
             )
             investment_txs += account_related_txs["deposit"]
@@ -277,7 +254,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             account_txs += account_related_txs["interests"]
 
         pension_fund_txs = []
-        pension_fund_accounts = self._client.get_pension_accounts()
+        pension_fund_accounts = await self._client.get_pension_accounts()
         for pension_account in pension_fund_accounts:
             pension_account_id = pension_account["accountId"]
             holders = pension_account.get("holders", [])
@@ -286,7 +263,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 continue
 
             try:
-                pension_fund_txs += self._fetch_pension_fund_txs(
+                pension_fund_txs += await self._fetch_pension_fund_txs(
                     pension_account_id, registered_txs, min_creation_date
                 )
             except Exception as e:
@@ -296,20 +273,20 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    def _get_investment_txs(
+    async def _get_investment_txs(
         self, registered_txs, related_security_account_id, min_date: date
     ):
         fund_txs, stock_txs = [], []
 
         try:
-            fund_txs = self.fetch_fund_txs(
+            fund_txs = await self.fetch_fund_txs(
                 related_security_account_id, registered_txs, min_date
             )
         except Exception as e:
             self._log.exception(f"Error getting fund txs: {e}")
 
         try:
-            stock_txs = self.fetch_stock_txs(
+            stock_txs = await self.fetch_stock_txs(
                 related_security_account_id, registered_txs, min_date
             )
         except Exception as e:
@@ -319,8 +296,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return investment_txs
 
-    def _get_related_security_account(self, account_id: str) -> Optional[dict]:
-        security_accounts = self._client.get_security_accounts()
+    async def _get_related_security_account(self, account_id: str) -> Optional[dict]:
+        security_accounts = await self._client.get_security_accounts()
 
         for security_account in security_accounts:
             if security_account["cashAccountId"] == account_id:
@@ -328,9 +305,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return None
 
-    def _get_active_owned_accounts(self) -> list[dict]:
+    async def _get_active_owned_accounts(self) -> list[dict]:
         found = []
-        accounts = self._client.get_cash_accounts()
+        accounts = await self._client.get_cash_accounts()
 
         for account in accounts:
             active = account.get("status") == "ACTIVE" or account.get("active")
@@ -349,7 +326,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return found
 
-    def _classify_account_txs(
+    async def _classify_account_txs(
         self, account: dict, registered_txs, related_security_account_id, min_date: date
     ):
         account_id = account["accountId"]
@@ -357,7 +334,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         portfolio_account_details = {}
 
         if account_type == "CASH_PORTFOLIO":
-            portfolio_account_details = self._client.get_security_account_details(
+            portfolio_account_details = await self._client.get_security_account_details(
                 related_security_account_id
             )
 
@@ -374,8 +351,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         from_date += timedelta(days=1)
         while from_date > min_date:
             from_date -= ACCOUNT_TX_FETCH_STEP
-            raw_txs = self._client.get_account_movements(
-                account_id, from_date, to_date
+            raw_txs = (
+                await self._client.get_account_movements(account_id, from_date, to_date)
             )["flowList"]
 
             for tx in raw_txs:
@@ -385,9 +362,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
-                tx_date = datetime.fromtimestamp(tx["operationDate"] / 1000).replace(
-                    tzinfo=tzlocal()
-                )
+                raw_op_date = tx["operationDate"]
+                if isinstance(raw_op_date, str):
+                    tx_date = _parse_datetime(raw_op_date).astimezone(tzlocal())
+                else:
+                    tx_date = datetime.fromtimestamp(raw_op_date / 1000).replace(
+                        tzinfo=tzlocal()
+                    )
                 currency = tx["currency"]
                 name = tx["concept"].strip()
                 amount = abs(Dezimal(tx["amount"]))
@@ -396,6 +377,21 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     if raw_tx_type == "ABONO LIQUIDAC DEPO":
                         related_deposit_data = tx.get("depositSettlementDetails")
                         if not related_deposit_data:
+                            self._log.warning(
+                                f"No associated deposit data found for deposit maturity of tx {ref}, simulating full repayment"
+                            )
+                            deposit_txs.append(
+                                _map_deposit_tx(
+                                    ref,
+                                    TxType.REPAYMENT,
+                                    name,
+                                    amount,
+                                    amount,
+                                    Dezimal(0),
+                                    tx_date,
+                                    currency,
+                                )
+                            )
                             continue
 
                         deposit_amount = Dezimal(related_deposit_data["amount"])
@@ -502,8 +498,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return result
 
-    def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
-        accounts = self._get_active_owned_accounts()
+    async def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
+        accounts = await self._get_active_owned_accounts()
         self._log.debug(f"Found {len(accounts)} active owned accounts")
 
         accounts_with_security = []
@@ -522,12 +518,12 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             self._log.debug(f"Processing account {alias} ({account_id})")
 
             accounts_version = 3 if no_id else 2
-            current_interest_rate = self._get_account_remuneration(
+            current_interest_rate = await self._get_account_remuneration(
                 account_id, version=accounts_version
             )
             security_account = None
             if not no_id:
-                security_account = self._get_related_security_account(account_id)
+                security_account = await self._get_related_security_account(account_id)
 
             if security_account:
                 self._log.debug(
@@ -558,10 +554,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return accounts_with_security
 
-    def _get_account_remuneration(self, account_id, version: int = 2) -> Dezimal:
+    async def _get_account_remuneration(self, account_id, version: int = 2) -> Dezimal:
         current_interest_rate = Dezimal(0)
         try:
-            remuneration_details = self._client.get_account_remuneration(
+            remuneration_details = await self._client.get_account_remuneration(
                 account_id, version=version
             )
 
@@ -590,14 +586,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return current_interest_rate
 
-    def fetch_cards(self, accounts: list[tuple]) -> list[Card]:
+    async def fetch_cards(self, accounts: list[tuple]) -> list[Card]:
         cards = []
 
         for raw_account, account, _ in accounts:
             account_id = raw_account.get("accountId")
             if not account_id or account_id == "null":
                 continue
-            raw_cards = self._client.get_cards(account_id=account_id)
+            raw_cards = await self._client.get_cards(account_id=account_id)
             credit_card = next(
                 (card for card in raw_cards if card["cardType"] == "CREDIT"), None
             )
@@ -606,7 +602,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
 
             if credit_card:
-                credit_card_tx = self._client.get_card_totals(credit_card["cardId"])
+                credit_card_tx = await self._client.get_card_totals(
+                    credit_card["cardId"]
+                )
                 credit_pan = credit_card["pan"].split(" ")[-1]
                 credit_active = credit_card["status"] == "ACTIVATE"
                 credit_limit = credit_card_tx.get("limit")
@@ -627,7 +625,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             if debit_card:
                 debit_pan = debit_card["pan"].split(" ")[-1]
-                debit_card_totals = self._client.get_card_totals(debit_card["cardId"])
+                debit_card_totals = await self._client.get_card_totals(
+                    debit_card["cardId"]
+                )
                 debit_active = debit_card["status"] == "ACTIVATE"
                 disposable = debit_card_totals.get("disposable")
                 used = debit_card_totals.get("consumedMonth") or 0
@@ -647,8 +647,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return cards
 
-    def fetch_deposits(self) -> Deposits:
-        deposits_raw = self._client.get_deposits()
+    async def fetch_deposits(self) -> Deposits:
+        deposits_raw = await self._client.get_deposits()
         if not deposits_raw:
             return Deposits([])
 
@@ -660,20 +660,59 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 currency="EUR",
                 expected_interests=round(Dezimal(deposit["grossInterest"]), 2),
                 interest_rate=round(Dezimal(deposit["tae"]) / 100, 4),
-                maturity=datetime.strptime(
-                    deposit["expirationDate"], ISO_DATE_TIME_FORMAT
-                ).date(),
-                creation=datetime.strptime(
-                    deposit["creationDate"], ISO_DATE_TIME_FORMAT
-                ),
+                maturity=_parse_datetime(deposit["expirationDate"]).date(),
+                creation=_parse_datetime(deposit["creationDate"]),
             )
             for deposit in deposits_raw
         ]
 
         return Deposits(deposit_list)
 
-    def fetch_investments(self, account_entries: list[tuple]) -> ProductPositions:
-        deposits = self.fetch_deposits()
+    async def fetch_credits(self) -> Credits:
+        try:
+            credit_accounts_raw = await self._client.get_credit_accounts()
+        except Exception as e:
+            self._log.exception(f"Error fetching credit accounts: {e}")
+            return Credits([])
+
+        credit_list = []
+        for credit in credit_accounts_raw:
+            if not credit.get("enabled"):
+                continue
+
+            lending_request = credit.get("lendingRequest", {})
+            interest_rate = Dezimal(lending_request.get("tin", 0)) / 100
+
+            guarantees = lending_request.get("guarantees", [])
+            pledged_amount = None
+            if guarantees:
+                pledged_amount = sum(
+                    (Dezimal(g.get("currentAmount", 0)) for g in guarantees),
+                    Dezimal(0),
+                )
+
+            creation = None
+            raw_create_date = lending_request.get("createDate")
+            if raw_create_date:
+                creation = datetime.fromisoformat(raw_create_date).date()
+
+            credit_list.append(
+                CreditDetail(
+                    id=uuid4(),
+                    currency="EUR",
+                    credit_limit=Dezimal(credit.get("creditLimit", 0)),
+                    drawn_amount=Dezimal(credit.get("currentAmount", 0)),
+                    interest_rate=round(interest_rate, 6),
+                    name=credit.get("alias"),
+                    pledged_amount=pledged_amount,
+                    creation=creation,
+                )
+            )
+
+        return Credits(credit_list)
+
+    async def fetch_investments(self, account_entries: list[tuple]) -> ProductPositions:
+        deposits = await self.fetch_deposits()
 
         funds = []
         stocks = []
@@ -684,7 +723,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             security_account_id = security_account.get("accountId")
             self._log.debug(f"Fetching securities account {security_account_id}")
 
-            security_account_details = self._client.get_security_account_details(
+            security_account_details = await self._client.get_security_account_details(
                 security_account_id
             )
             investments = security_account_details.get(
@@ -692,11 +731,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
 
             broker_investments = investments.get("BROKER")
-            found_stocks = _get_stock_investments(broker_investments)
+            found_stocks = await self._get_stock_investments(broker_investments)
             self._log.debug(f"Found {len(found_stocks)} stocks")
             stocks += found_stocks
 
-            found_funds = self._get_fund_investments(investments, security_account_id)
+            found_funds = await self._get_fund_investments(
+                investments, security_account_id
+            )
             self._log.debug(f"Found {len(found_funds)} funds")
             funds += found_funds
 
@@ -710,7 +751,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 f"Fetching portfolio securities account {portfolio_security_account_id}"
             )
 
-            portfolio_account_details = self._client.get_security_account_details(
+            portfolio_account_details = await self._client.get_security_account_details(
                 portfolio_security_account_id
             )
             portfolio_account_investments = portfolio_account_details.get(
@@ -719,7 +760,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             portfolio_id = uuid4()
 
-            portfolio_funds = self._get_fund_investments(
+            portfolio_funds = await self._get_fund_investments(
                 portfolio_account_investments,
                 portfolio_security_account_id,
                 portfolio_id,
@@ -744,7 +785,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             funds += portfolio_funds
 
-        pension_fund_accounts = self._client.get_pension_accounts()
+        pension_fund_accounts = await self._client.get_pension_accounts()
         for pension_account in pension_fund_accounts:
             pension_account_id = pension_account["accountId"]
             holders = pension_account.get("holders", [])
@@ -752,11 +793,11 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             if not user_is_owner:
                 continue
 
-            raw_pension_investments = self._client.get_pension_account_details(
+            raw_pension_investments = await self._client.get_pension_account_details(
                 pension_account_id
             )
 
-            pension_fund_data = self._get_pension_fund_investment(
+            pension_fund_data = await self._get_pension_fund_investment(
                 raw_pension_investments, pension_account_id
             )
 
@@ -768,21 +809,25 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             ProductType.FUND: FundInvestments(funds),
             ProductType.FUND_PORTFOLIO: FundPortfolios(portfolio_cash_accounts),
             ProductType.DEPOSIT: deposits,
+            ProductType.CREDIT: await self.fetch_credits(),
         }
 
-    def _get_pension_fund_investment(
+    async def _get_pension_fund_investment(
         self, investments, pension_account_id
     ) -> list[FundDetail]:
         fund_list = []
 
         for fund in investments:
             dgs_code = fund.get("dgsCode")
-            fund_details = self._client.get_fund_details(dgs_code)
+            fund_details = await self._client.get_fund_details(dgs_code)
 
             name = fund_details.get("name") or fund.get("name")
 
             raw_asset_type = fund_details.get("assetType")
             asset_type = _parse_asset_type(raw_asset_type)
+
+            raw_issuer = fund_details.get("agent")
+            issuer = resolve_issuer(raw_issuer, name)
 
             key_info_sheet = fund_details.get("urlKiid")
 
@@ -800,17 +845,18 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     type=FundType.PENSION_FUND,
                     asset_type=asset_type,
                     info_sheet_url=key_info_sheet,
+                    issuer=issuer,
                     source=DataSource.REAL,
                 )
             )
 
         return fund_list
 
-    def _fetch_pension_fund_txs(
+    async def _fetch_pension_fund_txs(
         self, pension_account_id: str, registered_txs: set[str], min_date: date
     ) -> list[FundTx]:
         fund_txs = []
-        raw_fund_orders = self._client.get_pension_plan_orders(
+        raw_fund_orders = await self._client.get_pension_plan_orders(
             pension_account_id=pension_account_id, from_date=min_date
         )
 
@@ -830,7 +876,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
                 continue
 
-            raw_order_details = self._client.get_pension_plan_order_details(
+            raw_order_details = await self._client.get_pension_plan_order_details(
                 pension_account_id, ref
             )
             order_date = datetime.strptime(order["orderDate"], DATE_FORMAT)
@@ -927,21 +973,22 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             source=DataSource.REAL,
         )
 
-    def fetch_auto_contributions(self) -> AutoContributions:
-        auto_contributions = self._client.get_auto_contributions()
+    async def fetch_auto_contributions(self) -> AutoContributions:
+        auto_contributions = await self._client.get_auto_contributions()
 
         periodic_contributions = [
             self._map_periodic_contribution(auto_contribution)
             for auto_contribution in auto_contributions
-            if auto_contribution["contributionType"] == "ONE_DATE"
+            if auto_contribution.get("contributionType") == "ONE_DATE"
+            and auto_contribution.get("status") in ACTIVE_CONTRIBUTION_STATUSES
         ]
 
         return AutoContributions(periodic=periodic_contributions)
 
-    def fetch_fund_txs(
+    async def fetch_fund_txs(
         self, securities_account_id: str, registered_txs: set[str], min_date: date
     ) -> list[FundTx]:
-        raw_fund_orders = self._client.get_fund_orders(
+        raw_fund_orders = await self._client.get_fund_orders(
             securities_account_id=securities_account_id, from_date=min_date
         )
 
@@ -971,12 +1018,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
                 continue
 
-            raw_order_details = self._client.get_fund_order_details(
+            raw_order_details = await self._client.get_fund_order_details(
                 securities_account_id, ref
             )
-            order_date = datetime.strptime(
-                raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
-            )
+            order_date = _parse_datetime(raw_order_details["orderDate"])
             execution_op, execution_date = None, None
 
             shares = Dezimal(raw_order_details.get("executedShares") or 0)
@@ -988,18 +1033,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             fees = Dezimal(raw_order_details.get("commissions") or 0)
 
             if raw_order_details.get("executionDate"):
-                execution_date = datetime.strptime(
-                    raw_order_details.get("executionDate"), ISO_DATE_TIME_FORMAT
-                )
+                execution_date = _parse_datetime(raw_order_details["executionDate"])
 
             linked_ops = raw_order_details.get("relatedOperations", [])
             if linked_ops:
                 ops_amount, ops_net_amount, ops_fees, counted_shares = (Dezimal(0),) * 4
                 execution_op = linked_ops[0]
                 if execution_op and execution_op.get("executionDate"):
-                    execution_date = datetime.strptime(
-                        execution_op.get("executionDate"), ISO_DATE_TIME_FORMAT
-                    )
+                    execution_date = _parse_datetime(execution_op["executionDate"])
 
                 if execution_op:
                     price = Dezimal(execution_op.get("liquidationValue") or 0)
@@ -1063,7 +1104,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return fund_txs
 
-    def fetch_stock_txs(
+    async def fetch_stock_txs(
         self, securities_account_id: str, registered_txs: set[str], min_date: date
     ) -> list[StockTx]:
         stock_txs = []
@@ -1072,7 +1113,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         from_date += timedelta(days=1)
         while from_date > min_date:
             from_date -= STOCKS_TX_FETCH_STEP
-            raw_txs = self._client.get_stock_orders(
+            raw_txs = await self._client.get_stock_orders(
                 securities_account_id=securities_account_id,
                 from_date=from_date,
                 to_date=to_date,
@@ -1102,10 +1143,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     )
                     continue
 
-                raw_order_details = self._client.get_stock_order_details(ref)
-                order_date = datetime.strptime(
-                    raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
-                )
+                raw_order_details = await self._client.get_stock_order_details(ref)
+                order_date = _parse_datetime(raw_order_details["orderDate"])
 
                 if not raw_order_details.get("executedShares"):
                     continue
@@ -1127,9 +1166,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         raw_order_details.get("tradeCommissions") or 0
                     ) + Dezimal(raw_order_details.get("otherCommissions") or 0)
 
-                execution_date = datetime.strptime(
-                    raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT
-                )
+                execution_date = _parse_datetime(raw_order_details["executionDate"])
 
                 shares = Dezimal(raw_order_details.get("executedShares") or 0)
                 price = Dezimal(raw_order_details.get("priceCurrency") or 0)
@@ -1163,7 +1200,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return stock_txs
 
-    def _get_fund_investments(
+    async def _get_fund_investments(
         self, investments, security_account_id, portfolio_id=None
     ) -> list[FundDetail]:
         fund_list = []
@@ -1175,12 +1212,18 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             for fund in category_investment_data.get("investmentList", []):
                 isin = fund.get("isin")
-                fund_details = self._client.get_fund_details(isin)
+                fund_details = await self._client.get_fund_details(isin)
+                name = fund.get("investmentName") or fund_details.get(
+                    "name", "Unknown Fund"
+                )
                 raw_asset_type = fund_details.get("assetType")
                 asset_type = _parse_asset_type(raw_asset_type)
 
+                raw_issuer = fund_details.get("agent")
+                issuer = resolve_issuer(raw_issuer, name)
+
                 key_info_sheet = fund_details.get("urlKiid")
-                added_values = self._client.get_fund_added_values(
+                added_values = await self._client.get_fund_added_values(
                     security_account_id, isin
                 )
                 standard_initial_investment = Dezimal(fund["initialInvestmentCurrency"])
@@ -1210,9 +1253,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 fund_list.append(
                     FundDetail(
                         id=uuid4(),
-                        name=fund["investmentName"],
+                        name=name,
                         isin=isin,
-                        market=fund["marketCode"],
+                        market=fund.get("marketCode"),
                         shares=shares,
                         initial_investment=initial_investment,
                         average_buy_price=round(
@@ -1224,6 +1267,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         asset_type=asset_type,
                         currency=fund.get("liquidationValueCurrency", "EUR"),
                         info_sheet_url=key_info_sheet,
+                        issuer=issuer,
                         portfolio=FundPortfolio(id=portfolio_id)
                         if portfolio_id
                         else None,
@@ -1231,3 +1275,62 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
 
         return fund_list
+
+    async def _get_stock_investments(self, broker_investments) -> list[StockDetail]:
+        stock_list = []
+        if broker_investments:
+            for stock in broker_investments["investmentList"]:
+                product_type = (
+                    EquityType.STOCK
+                    if stock.get("brokerProductType") == "RV"
+                    else EquityType.ETF
+                )
+                origin_currency_liquidation_value = Dezimal(
+                    stock.get("originCurrencyLiquidationValue")
+                )
+                shares = Dezimal(stock.get("shares"))
+                market_value = Dezimal(origin_currency_liquidation_value * shares)
+                isin = stock.get("isin")
+                market_id = stock.get("marketCode")
+                name = stock.get("investmentName")
+                stock_id = stock.get("stockId")
+
+                issuer, info_sheet_url = None, None
+                if stock_id is not None and product_type == EquityType.ETF:
+                    try:
+                        etf_details = await self._client.get_stock_details(stock_id)
+                        long_name = etf_details.get("name")
+                        info_sheet_url = etf_details.get("urlKiid")
+                        issuer = resolve_issuer(None, long_name, name)
+                        name = long_name or name
+                    except Exception as e:
+                        self._log.exception(
+                            f"Error getting ETF details for {isin} in market {market_id}: {e}"
+                        )
+
+                stock_list.append(
+                    StockDetail(
+                        id=uuid4(),
+                        name=name,
+                        ticker=stock.get("ticker", ""),
+                        isin=isin,
+                        market=market_id,
+                        shares=shares,
+                        initial_investment=round(
+                            Dezimal(stock["initialInvestmentCurrency"]), 4
+                        ),
+                        average_buy_price=round(
+                            Dezimal(stock["initialInvestmentCurrency"])
+                            / Dezimal(stock["shares"]),
+                            4,
+                        ),
+                        market_value=round(market_value, 4),
+                        currency=stock["liquidationValueCurrency"],
+                        type=product_type,
+                        subtype=stock.get("activeTypeCode"),
+                        issuer=issuer,
+                        info_sheet_url=info_sheet_url,
+                    )
+                )
+
+        return stock_list

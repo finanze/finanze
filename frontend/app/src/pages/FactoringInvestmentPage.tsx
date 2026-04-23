@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { DataSource, EntityOrigin, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   convertCurrency,
   getEntitiesWithProductType,
@@ -29,6 +30,8 @@ import { ProductType, type FactoringDetail } from "@/types/position"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
   Calendar,
   Percent,
   TrendingUp,
@@ -42,17 +45,16 @@ import {
   FilterX,
   Clock,
   Info,
+  Layers,
+  ChevronDown,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
-  ManualPositionsUnsavedNotice,
+  ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -62,8 +64,8 @@ import {
 } from "@/components/manual/manualDisplayUtils"
 import type { Entity } from "@/types"
 import { EntityBadge } from "@/components/ui/EntityBadge"
-import { getHistoric } from "@/services/api"
-import type { HistoricQueryRequest, FactoringEntry } from "@/types/historic"
+import type { FactoringEntry, HistoricSortBy } from "@/types/historic"
+import { useHistoricPagination } from "@/hooks/useHistoricPagination"
 
 interface FactoringPosition extends Record<string, unknown> {
   id: string
@@ -133,7 +135,7 @@ interface FactoringViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: FactoringPosition[]
@@ -143,11 +145,17 @@ interface FactoringViewContentProps {
   historicEntries: FactoringEntry[]
   isHistoricVisible: boolean
   isHistoricLoading: boolean
+  isHistoricLoadingMore: boolean
   hasHistoricLoaded: boolean
   historicError: string | null
+  historicSortBy: HistoricSortBy
+  historicSortOrder: "asc" | "desc"
+  onSetHistoricSortBy: (_sortBy: HistoricSortBy) => void
+  onSetHistoricSortOrder: (_order: "asc" | "desc") => void
   onToggleHistoric: () => void
   onReloadHistoric: () => void
   historicSectionRef: React.RefObject<HTMLDivElement | null>
+  historicSentinelRef: (_el: HTMLDivElement | null) => void
 }
 
 export default function FactoringInvestmentPage() {
@@ -158,12 +166,13 @@ export default function FactoringInvestmentPage() {
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [isHistoricVisible, setIsHistoricVisible] = useState(false)
-  const [historicEntries, setHistoricEntries] = useState<FactoringEntry[]>([])
-  const [isHistoricLoading, setIsHistoricLoading] = useState(false)
-  const [hasHistoricLoaded, setHasHistoricLoaded] = useState(false)
-  const [historicError, setHistoricError] = useState<string | null>(null)
-  const historicFilterKeyRef = useRef<string>("")
   const historicSectionRef = useRef<HTMLDivElement | null>(null)
+
+  const historic = useHistoricPagination({
+    productType: ProductType.FACTORING,
+    selectedEntities,
+    isVisible: isHistoricVisible,
+  })
 
   // Get all factoring positions
   const allFactoringPositions = useMemo<FactoringPosition[]>(() => {
@@ -171,195 +180,119 @@ export default function FactoringInvestmentPage() {
 
     const factoring: FactoringPosition[] = []
 
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      const factoringProduct = entityPosition.products[ProductType.FACTORING]
-      if (
-        factoringProduct &&
-        "entries" in factoringProduct &&
-        factoringProduct.entries.length > 0
-      ) {
-        const entityName = entityPosition.entity?.name || "Unknown"
-        const entityOrigin = entityPosition.entity?.origin ?? null
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const factoringProduct = entityPosition.products[ProductType.FACTORING]
+        if (
+          factoringProduct &&
+          "entries" in factoringProduct &&
+          factoringProduct.entries.length > 0
+        ) {
+          const entityName = entityPosition.entity?.name || t.common.unknown
+          const entityOrigin = entityPosition.entity?.origin ?? null
 
-        factoringProduct.entries.forEach((factor: any) => {
-          const convertedAmount = convertCurrency(
-            factor.amount,
-            factor.currency,
-            settings.general.defaultCurrency,
-            exchangeRates,
-          )
-
-          // Profitability provided as decimal (e.g. 0.1 = 10%)
-          const profitabilityDecimal = !isNaN(factor.profitability)
-            ? factor.profitability
-            : null
-          const rawProfit =
-            profitabilityDecimal !== null
-              ? factor.amount * profitabilityDecimal
-              : null
-          const expectedAtMaturity =
-            rawProfit !== null ? factor.amount + rawProfit : null
-          const convertedExpectedAmount =
-            expectedAtMaturity !== null
-              ? convertCurrency(
-                  expectedAtMaturity,
-                  factor.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const convertedProfit =
-            rawProfit !== null
-              ? convertCurrency(
-                  rawProfit,
-                  factor.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const profitabilityPct =
-            profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
-
-          const entryId = factor.id ? String(factor.id) : undefined
-          const source =
-            (factor.source as DataSource | undefined) ?? DataSource.REAL
-
-          factoring.push({
-            ...(factor as FactoringPosition),
-            entryId,
-            entity: entityName,
-            entityId: entityPosition.entity?.id,
-            entityOrigin,
-            convertedAmount,
-            convertedExpectedAmount,
-            formattedAmount: formatCurrency(
+          factoringProduct.entries.forEach((factor: any) => {
+            const convertedAmount = convertCurrency(
               factor.amount,
-              locale,
               factor.currency,
-            ),
-            formattedConvertedAmount: formatCurrency(
-              convertedAmount,
-              locale,
               settings.general.defaultCurrency,
-            ),
-            formattedExpectedAmount: convertedExpectedAmount
-              ? formatCurrency(
-                  convertedExpectedAmount,
-                  locale,
-                  settings.general.defaultCurrency,
-                )
-              : null,
-            convertedProfit,
-            formattedProfit: convertedProfit
-              ? formatCurrency(
-                  convertedProfit,
-                  locale,
-                  settings.general.defaultCurrency,
-                )
-              : null,
-            profitabilityPct,
-            source,
+              exchangeRates,
+            )
+
+            // Profitability provided as decimal (e.g. 0.1 = 10%)
+            const profitabilityDecimal = !isNaN(factor.profitability)
+              ? factor.profitability
+              : null
+            const rawProfit =
+              profitabilityDecimal !== null
+                ? factor.amount * profitabilityDecimal
+                : null
+            const expectedAtMaturity =
+              rawProfit !== null ? factor.amount + rawProfit : null
+            const convertedExpectedAmount =
+              expectedAtMaturity !== null
+                ? convertCurrency(
+                    expectedAtMaturity,
+                    factor.currency,
+                    settings.general.defaultCurrency,
+                    exchangeRates,
+                  )
+                : null
+            const convertedProfit =
+              rawProfit !== null
+                ? convertCurrency(
+                    rawProfit,
+                    factor.currency,
+                    settings.general.defaultCurrency,
+                    exchangeRates,
+                  )
+                : null
+            const profitabilityPct =
+              profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
+
+            const entryId = factor.id ? String(factor.id) : undefined
+            const source =
+              (factor.source as DataSource | undefined) ?? DataSource.REAL
+
+            factoring.push({
+              ...(factor as FactoringPosition),
+              entryId,
+              entity: entityName,
+              entityId: entityPosition.entity?.id,
+              entityOrigin,
+              convertedAmount,
+              convertedExpectedAmount,
+              formattedAmount: formatCurrency(
+                factor.amount,
+                locale,
+                factor.currency,
+              ),
+              formattedConvertedAmount: formatCurrency(
+                convertedAmount,
+                locale,
+                settings.general.defaultCurrency,
+              ),
+              formattedExpectedAmount: convertedExpectedAmount
+                ? formatCurrency(
+                    convertedExpectedAmount,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+              convertedProfit,
+              formattedProfit: convertedProfit
+                ? formatCurrency(
+                    convertedProfit,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+              profitabilityPct,
+              source,
+            })
           })
-        })
-      }
-    })
+        }
+      })
 
     return factoring
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
   // Get entity options for the filter
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithFactoring = getEntitiesWithProductType(
       positionsData,
       ProductType.FACTORING,
     )
     return (
-      entities
-        ?.filter(entity => entitiesWithFactoring.includes(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => entitiesWithFactoring.includes(entity.id)) ??
+      []
     )
   }, [entities, positionsData])
 
-  const fetchErrorMessage = t.common.fetchError
-
-  const loadHistoricEntries = useCallback(async () => {
-    if (isHistoricLoading) {
-      return
-    }
-
-    const filterKey =
-      selectedEntities.length > 0 ? selectedEntities.join("|") : "ALL"
-
-    setIsHistoricLoading(true)
-    setHistoricError(null)
-    setHasHistoricLoaded(false)
-    setHistoricEntries([])
-
-    try {
-      const response = await getHistoric({
-        product_types: [ProductType.FACTORING],
-        entities: selectedEntities.length > 0 ? selectedEntities : undefined,
-      } satisfies HistoricQueryRequest)
-
-      const entries = Array.isArray(response.entries)
-        ? (response.entries.filter(
-            entry => entry.product_type === ProductType.FACTORING,
-          ) as FactoringEntry[])
-        : []
-
-      setHistoricEntries(entries)
-      historicFilterKeyRef.current = filterKey
-      setHasHistoricLoaded(true)
-    } catch (error) {
-      console.error("Failed to load factoring historic entries", error)
-      const message = error instanceof Error ? error.message : fetchErrorMessage
-      historicFilterKeyRef.current = filterKey
-      setHistoricError(message)
-    } finally {
-      setIsHistoricLoading(false)
-    }
-  }, [fetchErrorMessage, isHistoricLoading, selectedEntities])
-
   const handleToggleHistoric = useCallback(() => {
-    if (!isHistoricVisible) {
-      setHistoricError(null)
-    }
-
     setIsHistoricVisible(prev => !prev)
-  }, [isHistoricVisible])
-
-  const handleReloadHistoric = useCallback(() => {
-    void loadHistoricEntries()
-  }, [loadHistoricEntries])
-
-  useEffect(() => {
-    if (!isHistoricVisible || isHistoricLoading) {
-      return
-    }
-
-    const filterKey =
-      selectedEntities.length > 0 ? selectedEntities.join("|") : "ALL"
-
-    if (hasHistoricLoaded && filterKey === historicFilterKeyRef.current) {
-      return
-    }
-
-    if (historicError && filterKey === historicFilterKeyRef.current) {
-      return
-    }
-
-    void loadHistoricEntries()
-  }, [
-    isHistoricVisible,
-    isHistoricLoading,
-    hasHistoricLoaded,
-    selectedEntities,
-    historicError,
-    loadHistoricEntries,
-  ])
+  }, [])
 
   useEffect(() => {
     if (!isHistoricVisible) {
@@ -388,21 +321,27 @@ export default function FactoringInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         positions={allFactoringPositions}
         entities={entities ?? []}
         defaultCurrency={settings.general.defaultCurrency}
         exchangeRates={exchangeRates}
-        historicEntries={historicEntries}
+        historicEntries={historic.entries as FactoringEntry[]}
         isHistoricVisible={isHistoricVisible}
-        isHistoricLoading={isHistoricLoading}
-        hasHistoricLoaded={hasHistoricLoaded}
-        historicError={historicError}
+        isHistoricLoading={historic.isLoading}
+        isHistoricLoadingMore={historic.isLoadingMore}
+        hasHistoricLoaded={historic.hasLoaded}
+        historicError={historic.error}
+        historicSortBy={historic.sortBy}
+        historicSortOrder={historic.sortOrder}
+        onSetHistoricSortBy={historic.setSortBy}
+        onSetHistoricSortOrder={historic.setSortOrder}
         onToggleHistoric={handleToggleHistoric}
-        onReloadHistoric={handleReloadHistoric}
+        onReloadHistoric={historic.reload}
         historicSectionRef={historicSectionRef}
+        historicSentinelRef={historic.sentinelRef}
       />
     </ManualPositionsManager>
   )
@@ -412,7 +351,7 @@ function FactoringViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -422,16 +361,23 @@ function FactoringViewContent({
   historicEntries,
   isHistoricVisible,
   isHistoricLoading,
+  isHistoricLoadingMore,
   hasHistoricLoaded,
   historicError,
+  historicSortBy,
+  historicSortOrder,
+  onSetHistoricSortBy,
+  onSetHistoricSortOrder,
   onToggleHistoric,
   onReloadHistoric,
   historicSectionRef,
+  historicSentinelRef,
 }: FactoringViewContentProps) {
   const navigate = useNavigate()
   const {
     drafts,
     isEditMode,
+    enterEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -445,9 +391,20 @@ function FactoringViewContent({
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<"amount" | "start" | "maturity">(
+    "amount",
+  )
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [expandedHistoricEntries, setExpandedHistoricEntries] = useState<
     Record<string, boolean>
   >({})
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const entityOriginMap = useMemo(() => {
     const map: Record<string, EntityOrigin | null> = {}
@@ -867,11 +824,6 @@ function FactoringViewContent({
     [displayPositions],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const { weightedAverageInterest, weightedAverageProfitability, totalProfit } =
     useMemo(() => {
       if (displayPositions.length === 0) {
@@ -910,11 +862,26 @@ function FactoringViewContent({
 
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) =>
-          (b.position.convertedAmount || 0) - (a.position.convertedAmount || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number | string
+        let bVal: number | string
+        switch (sortBy) {
+          case "start":
+            aVal = a.position.last_invest_date || ""
+            bVal = b.position.last_invest_date || ""
+            break
+          case "maturity":
+            aVal = a.position.maturity || ""
+            bVal = b.position.maturity || ""
+            break
+          default:
+            aVal = a.position.convertedAmount || 0
+            bVal = b.position.convertedAmount || 0
+        }
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+        return sortOrder === "desc" ? -cmp : cmp
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
@@ -936,25 +903,30 @@ function FactoringViewContent({
       className="space-y-6"
     >
       <motion.div variants={fadeListItem} className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={navigateBack}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={navigateBack}
+            >
               <ArrowLeft size={20} />
             </Button>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{t.common.factoring}</h1>
-              <PinAssetButton assetId="factoring" />
+              <PinAssetButton
+                assetId="factoring"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
-          <ManualPositionsControls className="self-start sm:self-auto" />
+          <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
-        <ManualPositionsUnsavedNotice />
+        <ManualPositionsEditBanner />
       </motion.div>
 
-      <motion.div
-        variants={fadeListItem}
-        className="pb-6 border-b border-gray-200 dark:border-gray-800"
-      >
+      <motion.div variants={fadeListItem}>
         <div className="flex flex-wrap gap-4 xl:flex-nowrap xl:items-center xl:justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-[200px]">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -962,10 +934,10 @@ function FactoringViewContent({
               <span>{t.transactions.filters}</span>
             </div>
             <div className="w-full sm:max-w-xs">
-              <MultiSelect
-                options={entityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={setSelectedEntities}
               />
             </div>
             {selectedEntities.length > 0 && (
@@ -1018,70 +990,8 @@ function FactoringViewContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.dashboard.investedAmount}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.weightedAverageInterest}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {weightedAverageInterest.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t.investments.annually}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.expectedProfit}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(totalProfit, locale, defaultCurrency)}
-                    </p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                      {weightedAverageProfitability.toFixed(2)}%
-                      <span className="ml-1 text-gray-500 dark:text-gray-400">
-                        {t.investments.profitability}
-                      </span>
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -1091,11 +1001,108 @@ function FactoringViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                    {
+                      icon: <Percent className="h-3 w-3" />,
+                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                      sensitive: true,
+                    },
+                    {
+                      icon: <TrendingUp className="h-3 w-3" />,
+                      value: formatCurrency(
+                        totalProfit,
+                        locale,
+                        defaultCurrency,
+                      ),
+                      sensitive: true,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      weightedAverageProfitability > 0
+                        ? weightedAverageProfitability
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.investedAmount,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalProfit > 0
+                        ? [
+                            {
+                              label: t.investments.expectedProfit,
+                              value: formatCurrency(
+                                totalProfit,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    { value: "start", label: t.investments.sortStart },
+                    { value: "maturity", label: t.investments.sortMaturity },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
-            <div className="space-y-4 pb-6">
+            <div className="space-y-4">
               {sortedDisplayItems.map(item => {
                 const { position, manualDraft, isManual, isDirty, originalId } =
                   item
@@ -1125,42 +1132,7 @@ function FactoringViewContent({
                     : ""
 
                 const showActions = isEditMode && isManual
-
-                const entitySummaryBadge = (
-                  <EntityBadge
-                    key="entity"
-                    name={position.entity}
-                    origin={position.entityOrigin}
-                    className="text-xs"
-                    title={position.entity}
-                    onClick={() => {
-                      const targetId =
-                        position.entityId ??
-                        entities.find(entity => entity.name === position.entity)
-                          ?.id ??
-                        position.entity
-                      setSelectedEntities(prev =>
-                        targetId && prev.includes(targetId)
-                          ? prev
-                          : targetId
-                            ? [...prev, targetId]
-                            : prev,
-                      )
-                    }}
-                  />
-                )
-
-                const summaryItems: React.ReactNode[] = [
-                  <div key="entity" className="flex items-center gap-2">
-                    {entitySummaryBadge}
-                  </div>,
-                  <div key="type" className="flex items-center gap-1 text-sm">
-                    <Building size={14} />
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {translateProjectType(position.type)}
-                    </span>
-                  </div>,
-                ]
+                const isExpanded = expandedCards[item.key] ?? false
 
                 const isLate =
                   position.maturity && new Date(position.maturity) < new Date()
@@ -1172,69 +1144,10 @@ function FactoringViewContent({
                 const showGrossRate =
                   position.interest_rate !== position.gross_interest_rate
 
-                const interestRateItem = (
-                  <div
-                    key="interest"
-                    className="flex items-center gap-1 text-sm"
-                  >
-                    <Percent size={14} />
-                    <span
-                      className={cn(
-                        "font-medium",
-                        isLate && hasLateInterestRate
-                          ? "text-gray-400 dark:text-gray-500"
-                          : "text-emerald-600 dark:text-emerald-400",
-                      )}
-                    >
-                      {(position.interest_rate * 100).toFixed(2)}%
-                    </span>
-                    {showGrossRate && (
-                      <>
-                        <span className="text-gray-400 dark:text-gray-500">
-                          /
-                        </span>
-                        <span
-                          className={cn(
-                            "font-medium",
-                            isLate && hasLateInterestRate
-                              ? "text-gray-400 dark:text-gray-500"
-                              : "text-blue-600 dark:text-neutral-500",
-                          )}
-                        >
-                          {(position.gross_interest_rate * 100).toFixed(2)}%
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {t.investments.gross}
-                        </span>
-                      </>
-                    )}
-                    {hasLateInterestRate && (
-                      <>
-                        <span className="text-gray-400 dark:text-gray-500">
-                          /
-                        </span>
-                        <span
-                          className={cn(
-                            "font-medium",
-                            isLate
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-gray-400 dark:text-gray-500",
-                          )}
-                        >
-                          {((position.late_interest_rate ?? 0) * 100).toFixed(
-                            2,
-                          )}
-                          %
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {t.investments.lateInterest}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )
-
-                summaryItems.push(interestRateItem)
+                const compactInterestRate =
+                  isLate && hasLateInterestRate
+                    ? ((position.late_interest_rate ?? 0) * 100).toFixed(2)
+                    : (position.interest_rate * 100).toFixed(2)
 
                 return (
                   <Card
@@ -1245,176 +1158,287 @@ function FactoringViewContent({
                       }
                     }}
                     className={cn(
-                      "p-6 border-l-4 transition-colors",
+                      "border-l-4 transition-all overflow-hidden",
                       highlightClass,
                     )}
                     style={{ borderLeftColor: borderColor }}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <h3 className="font-semibold text-lg">
-                            {position.name}
-                          </h3>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="default" className="text-xs">
-                              {translateState(position.state)}
-                            </Badge>
-                            {position.source &&
-                              position.source !== DataSource.REAL && (
-                                <SourceBadge
-                                  source={position.source}
-                                  title={t.management?.source}
-                                  className="text-[0.65rem]"
-                                />
-                              )}
-                            {isDirty && (
-                              <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
-                                {manualTranslate("management.unsavedChanges")}
-                              </span>
+                    <div
+                      className="flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                      onClick={e => {
+                        if (
+                          (e.target as HTMLElement).closest("[data-no-expand]")
+                        )
+                          return
+                        toggleCardExpanded(item.key)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleCardExpanded(item.key)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <h3 className="text-base sm:text-lg font-semibold leading-tight">
+                          {position.name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="default" className="text-xs">
+                            {translateState(position.state)}
+                          </Badge>
+                          <EntityBadge
+                            name={position.entity}
+                            origin={position.entityOrigin}
+                            className="text-xs"
+                            title={position.entity}
+                            data-no-expand
+                            onClick={() => {
+                              const targetId =
+                                position.entityId ??
+                                entities.find(
+                                  entity => entity.name === position.entity,
+                                )?.id ??
+                                position.entity
+                              setSelectedEntities(prev =>
+                                targetId && prev.includes(targetId)
+                                  ? prev
+                                  : targetId
+                                    ? [...prev, targetId]
+                                    : prev,
+                              )
+                            }}
+                          />
+                          {position.source &&
+                            position.source !== DataSource.REAL && (
+                              <SourceBadge
+                                source={position.source}
+                                title={t.management?.source}
+                                className="text-[0.65rem]"
+                                onClick={() => enterEditMode()}
+                              />
                             )}
-                          </div>
+                          {isDirty && (
+                            <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
+                              {manualTranslate("management.unsavedChanges")}
+                            </span>
+                          )}
                         </div>
-
-                        <div className="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-400 sm:flex-row sm:flex-wrap sm:items-center">
-                          {summaryItems.map((item, index) => (
-                            <React.Fragment key={index}>
-                              {item}
-                              {index < summaryItems.length - 1 && (
-                                <span className="hidden text-gray-400 dark:text-gray-500 sm:inline">
-                                  •
-                                </span>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp
-                              size={12}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.investment}
+                        <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground">
+                          <Building size={12} />
+                          <span>{translateProjectType(position.type)}</span>
+                          <span>•</span>
+                          <Percent size={12} />
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            <Sensitive>{compactInterestRate}%</Sensitive>
+                          </span>
+                          {isLate && hasLateInterestRate && (
+                            <span className="text-xs text-amber-500 dark:text-amber-400">
+                              {t.investments.lateInterest}
                             </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.last_invest_date, locale)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Calendar
-                              size={14}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.maturity}
-                            </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.maturity, locale)}
-                            </span>
-                          </div>
+                          )}
+                          <span>•</span>
+                          <Calendar size={12} />
+                          <span>{formatDate(position.maturity, locale)}</span>
                         </div>
                       </div>
-
-                      <div className="text-right space-y-1 flex-shrink-0 self-stretch sm:self-auto w-full sm:w-auto">
-                        <div className="text-2xl font-bold">
-                          {position.formattedAmount}
-                        </div>
-                        {position.currency !== defaultCurrency && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {position.formattedConvertedAmount}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right space-y-0.5">
+                          <div className="text-base sm:text-lg font-semibold leading-tight">
+                            <Sensitive>{position.formattedAmount}</Sensitive>
                           </div>
-                        )}
-                        {position.formattedProfit && (
-                          <div className="space-y-1 text-sm">
-                            <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                              <span className="text-gray-500 dark:text-gray-400">
-                                {t.investments.expected}
-                              </span>
-                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                {position.formattedProfit}
-                                {position.profitabilityPct !== null && (
-                                  <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                    ({position.profitabilityPct.toFixed(2)}%)
-                                  </span>
+                          {position.currency !== defaultCurrency && (
+                            <div className="text-xs text-muted-foreground">
+                              <Sensitive>
+                                {position.formattedConvertedAmount}
+                              </Sensitive>
+                            </div>
+                          )}
+                          {position.formattedProfit && (
+                            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                              <Sensitive>{position.formattedProfit}</Sensitive>
+                            </div>
+                          )}
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="expanded"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-4">
+                            <div className="border-t border-border/50 pt-3 space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.investment}
+                                  </div>
+                                  <div className="text-foreground">
+                                    {formatDate(
+                                      position.last_invest_date,
+                                      locale,
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.maturity}
+                                  </div>
+                                  <div className="text-foreground">
+                                    {formatDate(position.maturity, locale)}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {isLate && hasLateInterestRate
+                                      ? t.investments.interest
+                                      : t.investments.lateInterest}
+                                  </div>
+                                  <div className="text-foreground">
+                                    {isLate && hasLateInterestRate ? (
+                                      <span>
+                                        <Sensitive>
+                                          {(
+                                            position.interest_rate * 100
+                                          ).toFixed(2)}
+                                          %
+                                          {showGrossRate && (
+                                            <span className="ml-1 text-muted-foreground">
+                                              /{" "}
+                                              {(
+                                                position.gross_interest_rate *
+                                                100
+                                              ).toFixed(2)}
+                                              % {t.investments.gross}
+                                            </span>
+                                          )}
+                                        </Sensitive>
+                                      </span>
+                                    ) : hasLateInterestRate ? (
+                                      <span>
+                                        <Sensitive>
+                                          {(
+                                            (position.late_interest_rate ?? 0) *
+                                            100
+                                          ).toFixed(2)}
+                                          %
+                                        </Sensitive>
+                                      </span>
+                                    ) : showGrossRate ? (
+                                      <span>
+                                        <Sensitive>
+                                          {(
+                                            position.gross_interest_rate * 100
+                                          ).toFixed(2)}
+                                          % {t.investments.gross}
+                                        </Sensitive>
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground">
+                                        —
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {position.formattedProfit && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.expectedProfit}
+                                    </div>
+                                    <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                                      <Sensitive>
+                                        {position.formattedProfit}
+                                      </Sensitive>
+                                      {position.profitabilityPct !== null && (
+                                        <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                          <Sensitive>
+                                            (
+                                            {position.profitabilityPct.toFixed(
+                                              2,
+                                            )}
+                                            %)
+                                          </Sensitive>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
-                              </span>
-                              {isLate && hasLateInterestRate && (
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="inline-flex items-center text-amber-500 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300"
-                                      aria-label={
-                                        t.investments.lateInterestInfo
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.ofInvestmentType.replace(
+                                      "{type}",
+                                      t.common.factoring.toLowerCase(),
+                                    )}
+                                  </div>
+                                  <div className="font-medium text-blue-600 dark:text-blue-400">
+                                    <Sensitive>
+                                      {percentageOfFactoring.toFixed(1)}%
+                                    </Sensitive>
+                                  </div>
+                                </div>
+                              </div>
+                              {showActions && (
+                                <div
+                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        editByOriginalId(manualDraft.originalId)
+                                      } else if (manualDraft) {
+                                        editByLocalId(manualDraft.localId)
+                                      } else if (originalId) {
+                                        editByOriginalId(originalId)
                                       }
-                                    >
-                                      <Info size={14} />
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    align="end"
-                                    className="w-64 text-sm"
+                                    }}
                                   >
-                                    <p className="text-gray-700 dark:text-gray-300">
-                                      {t.investments.lateInterestInfo}
-                                    </p>
-                                  </PopoverContent>
-                                </Popover>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    {t.common.edit}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-600"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        deleteByOriginalId(
+                                          manualDraft.originalId,
+                                        )
+                                      } else if (manualDraft) {
+                                        deleteByLocalId(manualDraft.localId)
+                                      } else if (originalId) {
+                                        deleteByOriginalId(originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           </div>
-                        )}
-                        <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {percentageOfFactoring.toFixed(1)}%
-                          </span>
-                          {" " +
-                            t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.factoring.toLowerCase(),
-                            )}
-                        </div>
-                        {showActions && (
-                          <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  editByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  editByLocalId(manualDraft.localId)
-                                } else if (originalId) {
-                                  editByOriginalId(originalId)
-                                }
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              {t.common.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  deleteByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  deleteByLocalId(manualDraft.localId)
-                                } else if (originalId) {
-                                  deleteByOriginalId(originalId)
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}
@@ -1429,7 +1453,7 @@ function FactoringViewContent({
           variants={fadeListItem}
           initial="hidden"
           animate="show"
-          className="space-y-4 pb-6"
+          className="space-y-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">
@@ -1450,6 +1474,62 @@ function FactoringViewContent({
                 />
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <ArrowUpDown size={14} />
+              {t.investments.historicSection.sortBy}
+            </span>
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              {(
+                [
+                  {
+                    value: "maturity",
+                    label: t.investments.historicSection.sortMaturity,
+                  },
+                  {
+                    value: "last_invest_date",
+                    label: t.investments.historicSection.sortStartDate,
+                  },
+                  {
+                    value: "invested",
+                    label: t.investments.historicSection.sortInvested,
+                  },
+                ] as const
+              ).map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => onSetHistoricSortBy(option.value)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    historicSortBy === option.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() =>
+                onSetHistoricSortOrder(
+                  historicSortOrder === "asc" ? "desc" : "asc",
+                )
+              }
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              aria-label={
+                historicSortOrder === "asc"
+                  ? "Sort descending"
+                  : "Sort ascending"
+              }
+            >
+              {historicSortOrder === "asc" ? (
+                <ArrowRight size={16} className="rotate-[-90deg]" />
+              ) : (
+                <ArrowRight size={16} className="rotate-90" />
+              )}
+            </button>
           </div>
 
           {historicError ? (
@@ -1713,232 +1793,262 @@ function FactoringViewContent({
                       </div>
                     </div>
 
-                    {isExpanded && (
-                      <div className="space-y-4 border-t border-gray-200 dark:border-gray-800 pt-4">
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                            <div className="flex items-center gap-2">
-                              <TrendingUp
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>{t.investments.investment}</span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.lastInvestDate}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Clock
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>
-                                {t.investments.historicSection.lastTx}
-                              </span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.lastTxDate}
-                              </span>
-                              {transactions.length > 0 && (
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 gap-1 px-2 text-xs"
-                                      aria-label={
-                                        t.investments.historicSection
-                                          .transactionsSummary
-                                      }
-                                      data-historic-stop
-                                    >
-                                      <Info size={14} />
-                                      {
-                                        t.investments.historicSection
-                                          .transactionsSummaryShort
-                                      }
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    align="start"
-                                    className="w-80 space-y-2"
-                                  >
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                      {
-                                        t.investments.historicSection
-                                          .transactionsSummary
-                                      }
-                                    </p>
-                                    <div className="space-y-1">
-                                      {transactions.map(tx => {
-                                        const amountDisplay = toAmountDisplay(
-                                          tx.net_amount,
-                                          tx.currency,
-                                        )
-                                        const direction =
-                                          getTransactionDisplayType(tx.type)
-                                        const isCharge =
-                                          direction === "out" &&
-                                          (tx.type === "FEE" ||
-                                            tx.type === "INTEREST")
-                                        const amountColor =
-                                          direction === "in"
-                                            ? "text-emerald-600 dark:text-emerald-400"
-                                            : isCharge
-                                              ? "text-red-500 dark:text-red-400"
-                                              : "text-gray-600 dark:text-gray-300"
-                                        const sign =
-                                          direction === "in" ? "+" : "-"
-                                        const formattedAmount =
-                                          amountDisplay.formatted
-                                            ? `${sign} ${amountDisplay.formatted}`
-                                            : notAvailableLabel
-
-                                        return (
-                                          <button
-                                            key={tx.id}
-                                            type="button"
-                                            onClick={handleTransactionRedirect}
-                                            className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
-                                          >
-                                            <div className="flex items-center justify-between gap-3">
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                  {formatSnakeCaseToHuman(
-                                                    tx.type,
-                                                  )}
-                                                </span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                  {formatDate(tx.date, locale)}
-                                                </span>
-                                              </div>
-                                              <span
-                                                className={cn(
-                                                  "text-sm font-semibold",
-                                                  amountColor,
-                                                )}
-                                              >
-                                                {formattedAmount}
-                                              </span>
-                                            </div>
-                                            {amountDisplay.original && (
-                                              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                {amountDisplay.original}
-                                              </span>
-                                            )}
-                                          </button>
-                                        )
-                                      })}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      className="w-full"
-                                      onClick={handleTransactionRedirect}
-                                    >
-                                      {
-                                        t.investments.historicSection
-                                          .viewTransactions
-                                      }
-                                    </Button>
-                                  </PopoverContent>
-                                </Popover>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar
-                                size={14}
-                                className="text-gray-400 dark:text-gray-500"
-                              />
-                              <span>
-                                {t.investments.historicSection.originalMaturity}
-                              </span>
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {item.originalMaturity}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 flex flex-col items-start md:items-end gap-3 text-sm">
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {t.investments.profit}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  profitColor(item.profit.amount),
-                                )}
-                              >
-                                {item.profit.formatted ?? notAvailableLabel}
-                              </span>
-                              {item.profit.percentFormatted && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {item.profit.percentFormatted}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {t.investments.historicSection.netProfit}
-                              </span>
-                              <span
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  profitColor(item.netProfit.amount),
-                                )}
-                              >
-                                {item.netProfit.formatted ?? notAvailableLabel}
-                              </span>
-                              {item.netProfit.percentFormatted && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {item.netProfit.percentFormatted}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                            {baseStats.map(stat => (
-                              <div
-                                key={stat.key}
-                                className="flex items-baseline justify-between gap-3"
-                              >
-                                <span>{stat.label}:</span>
-                                <span className="font-medium text-gray-900 dark:text-gray-100">
-                                  {stat.amount.formatted ?? notAvailableLabel}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          {chargesStats.length > 0 && (
-                            <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                              {chargesStats.map(stat => (
-                                <div
-                                  key={stat.key}
-                                  className="flex items-baseline justify-between gap-3"
-                                >
-                                  <span>{stat.label}:</span>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="historic-expanded"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-4 border-t border-gray-200 dark:border-gray-800 pt-4">
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                                <div className="flex items-center gap-2">
+                                  <TrendingUp
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>{t.investments.investment}</span>
                                   <span className="font-medium text-gray-900 dark:text-gray-100">
-                                    {stat.amount.formatted ?? notAvailableLabel}
+                                    {item.lastInvestDate}
                                   </span>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Clock
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>
+                                    {t.investments.historicSection.lastTx}
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {item.lastTxDate}
+                                  </span>
+                                  {transactions.length > 0 && (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 gap-1 px-2 text-xs"
+                                          aria-label={
+                                            t.investments.historicSection
+                                              .transactionsSummary
+                                          }
+                                          data-historic-stop
+                                        >
+                                          <Info size={14} />
+                                          {
+                                            t.investments.historicSection
+                                              .transactionsSummaryShort
+                                          }
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        align="start"
+                                        className="w-80 space-y-2"
+                                      >
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                          {
+                                            t.investments.historicSection
+                                              .transactionsSummary
+                                          }
+                                        </p>
+                                        <div className="space-y-1">
+                                          {transactions.map(tx => {
+                                            const amountDisplay =
+                                              toAmountDisplay(
+                                                tx.net_amount,
+                                                tx.currency,
+                                              )
+                                            const direction =
+                                              getTransactionDisplayType(tx.type)
+                                            const isCharge =
+                                              direction === "out" &&
+                                              (tx.type === "FEE" ||
+                                                tx.type === "INTEREST")
+                                            const amountColor =
+                                              direction === "in"
+                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                : isCharge
+                                                  ? "text-red-500 dark:text-red-400"
+                                                  : "text-gray-600 dark:text-gray-300"
+                                            const sign =
+                                              direction === "in" ? "+" : "-"
+                                            const formattedAmount =
+                                              amountDisplay.formatted
+                                                ? `${sign} ${amountDisplay.formatted}`
+                                                : notAvailableLabel
 
-                        {transactions.length === 0 && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {t.investments.historicSection.noTransactions}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                                            return (
+                                              <button
+                                                key={tx.id}
+                                                type="button"
+                                                onClick={
+                                                  handleTransactionRedirect
+                                                }
+                                                className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
+                                              >
+                                                <div className="flex items-center justify-between gap-3">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                      {formatSnakeCaseToHuman(
+                                                        tx.type,
+                                                      )}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                      {formatDate(
+                                                        tx.date,
+                                                        locale,
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                  <span
+                                                    className={cn(
+                                                      "text-sm font-semibold",
+                                                      amountColor,
+                                                    )}
+                                                  >
+                                                    {formattedAmount}
+                                                  </span>
+                                                </div>
+                                                {amountDisplay.original && (
+                                                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                                                    {amountDisplay.original}
+                                                  </span>
+                                                )}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="secondary"
+                                          className="w-full"
+                                          onClick={handleTransactionRedirect}
+                                        >
+                                          {
+                                            t.investments.historicSection
+                                              .viewTransactions
+                                          }
+                                        </Button>
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Calendar
+                                    size={14}
+                                    className="text-gray-400 dark:text-gray-500"
+                                  />
+                                  <span>
+                                    {
+                                      t.investments.historicSection
+                                        .originalMaturity
+                                    }
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {item.originalMaturity}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 flex flex-col items-start md:items-end gap-3 text-sm">
+                                <div className="flex flex-wrap items-baseline gap-2">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {t.investments.profit}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-sm font-semibold",
+                                      profitColor(item.profit.amount),
+                                    )}
+                                  >
+                                    {item.profit.formatted ?? notAvailableLabel}
+                                  </span>
+                                  {item.profit.percentFormatted && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.profit.percentFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-baseline gap-2">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {t.investments.historicSection.netProfit}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-sm font-semibold",
+                                      profitColor(item.netProfit.amount),
+                                    )}
+                                  >
+                                    {item.netProfit.formatted ??
+                                      notAvailableLabel}
+                                  </span>
+                                  {item.netProfit.percentFormatted && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {item.netProfit.percentFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                {baseStats.map(stat => (
+                                  <div
+                                    key={stat.key}
+                                    className="flex items-baseline justify-between gap-3"
+                                  >
+                                    <span>{stat.label}:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                      {stat.amount.formatted ??
+                                        notAvailableLabel}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {chargesStats.length > 0 && (
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 p-3 sm:p-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {chargesStats.map(stat => (
+                                    <div
+                                      key={stat.key}
+                                      className="flex items-baseline justify-between gap-3"
+                                    >
+                                      <span>{stat.label}:</span>
+                                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                                        {stat.amount.formatted ??
+                                          notAvailableLabel}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {transactions.length === 0 && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {t.investments.historicSection.noTransactions}
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}
+              <div ref={historicSentinelRef} />
+              {isHistoricLoadingMore && (
+                <div className="flex items-center justify-center gap-3 py-4 text-sm text-gray-600 dark:text-gray-400">
+                  <LoadingSpinner size="sm" />
+                  <span>{t.common.loading}</span>
+                </div>
+              )}
             </div>
           )}
         </motion.section>

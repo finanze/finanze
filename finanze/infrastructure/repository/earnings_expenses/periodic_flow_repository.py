@@ -3,11 +3,27 @@ from uuid import UUID, uuid4
 
 from application.ports.periodic_flow_port import PeriodicFlowPort
 from domain.dezimal import Dezimal
-from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
+from domain.earnings_expenses import (
+    FlowFrequency,
+    FlowType,
+    PeriodicFlow,
+    RealEstateFlowInfo,
+)
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.earnings_expenses.queries import PeriodicFlowsQueries
 
 
 def _map_row_to_periodic_flow(row) -> PeriodicFlow:
+    keys = row.keys()
+    linked_loan_hash = row["linked_loan_hash"] if "linked_loan_hash" in keys else None
+    re_flow_subtype = row["re_flow_subtype"] if "re_flow_subtype" in keys else None
+    real_estate_flow = (
+        RealEstateFlowInfo(
+            flow_subtype=re_flow_subtype, linked_loan_hash=linked_loan_hash
+        )
+        if re_flow_subtype is not None
+        else None
+    )
     return PeriodicFlow(
         id=UUID(row["id"]),
         name=row["name"],
@@ -21,6 +37,7 @@ def _map_row_to_periodic_flow(row) -> PeriodicFlow:
         until=row["until"],
         icon=row["icon"],
         linked=row["linked"],
+        real_estate_flow=real_estate_flow,
         max_amount=Dezimal(row["max_amount"]) if row["max_amount"] else None,
     )
 
@@ -29,16 +46,13 @@ class PeriodicFlowRepository(PeriodicFlowPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, flow: PeriodicFlow) -> PeriodicFlow:
+    async def save(self, flow: PeriodicFlow) -> PeriodicFlow:
         if flow.id is None:
             flow.id = uuid4()
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO periodic_flows (id, name, amount, currency, flow_type, frequency, category, enabled, since, until, icon, max_amount)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                PeriodicFlowsQueries.INSERT,
                 (
                     str(flow.id),
                     flow.name,
@@ -56,14 +70,10 @@ class PeriodicFlowRepository(PeriodicFlowPort):
             )
         return flow
 
-    def update(self, flow: PeriodicFlow):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE periodic_flows 
-                SET name = ?, amount = ?, currency = ?, flow_type = ?, frequency = ?, category = ?, enabled = ?, since = ?, until = ?, icon = ?, max_amount = ?
-                WHERE id = ?
-                """,
+    async def update(self, flow: PeriodicFlow):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                PeriodicFlowsQueries.UPDATE,
                 (
                     flow.name,
                     str(flow.amount),
@@ -80,30 +90,22 @@ class PeriodicFlowRepository(PeriodicFlowPort):
                 ),
             )
 
-    def delete(self, flow_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute("DELETE FROM periodic_flows WHERE id = ?", (str(flow_id),))
+    async def delete(self, flow_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(PeriodicFlowsQueries.DELETE_BY_ID, (str(flow_id),))
 
-    def get_all(self) -> list[PeriodicFlow]:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT f.*, rf.real_estate_id IS NOT NULL AS linked
-                           FROM periodic_flows f LEFT JOIN real_estate_flows rf ON f.id = rf.periodic_flow_id
-                           """)
-            return [_map_row_to_periodic_flow(row) for row in cursor.fetchall()]
+    async def get_all(self) -> list[PeriodicFlow]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(PeriodicFlowsQueries.GET_ALL)
+            return [_map_row_to_periodic_flow(row) for row in await cursor.fetchall()]
 
-    def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT f.*, rf.real_estate_id IS NOT NULL AS linked
-                FROM periodic_flows f
-                         LEFT JOIN real_estate_flows rf ON f.id = rf.periodic_flow_id
-                WHERE id = ?
-                """,
+    async def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PeriodicFlowsQueries.GET_BY_ID,
                 (str(flow_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row is None:
                 return None
 

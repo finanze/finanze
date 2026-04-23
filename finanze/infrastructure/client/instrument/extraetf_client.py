@@ -1,16 +1,23 @@
 import logging
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
-from domain.instrument import InstrumentDataRequest, InstrumentOverview, InstrumentType
+from aiocache import cached, Cache
+
+from domain.dezimal import Dezimal
+from domain.instrument import (
+    InstrumentDataRequest,
+    InstrumentInfo,
+    InstrumentOverview,
+    InstrumentType,
+)
+from infrastructure.client.http.http_session import get_http_session
 
 
 class ExtraEtfClient:
-    BASE_URL = "https://extraetf.com/api-v3/search/full/"
+    BASE_URL = "https://extraetf.com/"
 
     def __init__(self):
-        self._session = requests.Session()
+        self._session = get_http_session()
         self._session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0",
@@ -19,7 +26,7 @@ class ExtraEtfClient:
         )
         self._log = logging.getLogger(__name__)
 
-    def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         if request.type not in (InstrumentType.ETF,):
             return []
 
@@ -27,7 +34,7 @@ class ExtraEtfClient:
         if not query:
             return []
 
-        raw_docs = self._search(query=query, limit=50, offset=0)
+        raw_docs = await self._search(query=query, limit=50, offset=0)
         if not raw_docs:
             return []
 
@@ -79,8 +86,89 @@ class ExtraEtfClient:
             price=None,
         )
 
-    @cached(cache=TTLCache(maxsize=200, ttl=3600))
-    def _search(self, query: str, limit: int = 50, offset: int = 0) -> list[dict]:
+    @cached(cache=Cache.MEMORY, ttl=43200)
+    async def get_instrument_info(
+        self, query: str, instrument_type: InstrumentType
+    ) -> Optional[InstrumentInfo]:
+        if instrument_type not in (InstrumentType.ETF,):
+            return None
+
+        isin = query.strip()
+        params = {"isin": isin, "extraetf_locale": "es"}
+        response = await self._session.get(
+            f"{self.BASE_URL}api-v2/detail/",
+            params=params,
+            timeout=6,
+        )
+        if not response.ok:
+            body = await response.text()
+            self._log.error(
+                "ExtraETF get_instrument_info error status=%s body=%s",
+                response.status,
+                body,
+            )
+            if response.status == 404:
+                return None
+            response.raise_for_status()
+
+        data = await response.json()
+        if not isinstance(data, dict):
+            return None
+
+        results = data.get("results")
+        if not isinstance(results, list) or not results:
+            return None
+
+        item = results[0]
+        if not isinstance(item, dict):
+            return None
+
+        name = item.get("fondname")
+        currency = item.get("currency")
+
+        price_val = None
+        returns = item.get("returns")
+        if isinstance(returns, dict) and currency is not None:
+            for return_data in returns.values():
+                if not isinstance(return_data, dict):
+                    continue
+
+                price_currency = return_data.get("price_currency")
+                if price_currency != currency:
+                    continue
+
+                close_price = return_data.get("close_price")
+                if close_price is not None:
+                    price_val = close_price
+                    break
+
+        if price_val is None:
+            last_quote = item.get("last_quote")
+            if isinstance(last_quote, dict):
+                price_val = last_quote.get("m")
+                currency = last_quote.get("c")
+
+        if name is None or currency is None or price_val is None:
+            return None
+
+        try:
+            price = Dezimal(str(price_val))
+        except Exception:
+            self._log.exception(
+                "Failed to parse price for isin=%s price=%s", isin, price_val
+            )
+            return None
+
+        return InstrumentInfo(
+            name=name,
+            currency=currency,
+            type=instrument_type,
+            price=price,
+            symbol=None,
+        )
+
+    @cached(cache=Cache.MEMORY, ttl=3600)
+    async def _search(self, query: str, limit: int = 50, offset: int = 0) -> list[dict]:
         if not query:
             return []
         params = {
@@ -91,18 +179,21 @@ class ExtraEtfClient:
             "query": query,
             "enable_promotions": "false",
         }
-        response = self._session.get(self.BASE_URL, params=params, timeout=15)
+        response = await self._session.get(
+            self.BASE_URL + "/api-v3/search/full/", params=params, timeout=15
+        )
 
         if not response.ok:
+            body = await response.text()
             self._log.error(
                 "ExtraETF API error status=%s body=%s query=%s",
-                response.status_code,
-                response.text,
+                response.status,
+                body,
                 query,
             )
             response.raise_for_status()
 
-        data = response.json()
+        data = await response.json()
         if not isinstance(data, dict):
             return []
 

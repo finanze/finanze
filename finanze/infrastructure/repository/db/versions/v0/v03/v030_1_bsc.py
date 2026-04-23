@@ -13,5 +13,5 @@ class V0301BSC(DBVersionMigration):
     def name(self):
         return "v0.3.0:1_bsc"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(ADD_CRYPTO_ENTITIES)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(ADD_CRYPTO_ENTITIES)

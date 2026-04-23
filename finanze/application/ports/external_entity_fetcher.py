@@ -12,7 +12,7 @@ from domain.global_position import GlobalPosition
 
 
 class ExternalEntityFetcher(metaclass=abc.ABCMeta):
-    def setup(self, integrations: EnabledExternalIntegrations):
+    async def setup(self, integrations: EnabledExternalIntegrations):
         raise NotImplementedError
 
     async def create_or_link(

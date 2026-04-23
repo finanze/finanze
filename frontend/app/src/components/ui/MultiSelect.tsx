@@ -1,4 +1,10 @@
-import { useState, useRef, useEffect } from "react"
+import {
+  useState,
+  useRef,
+  useEffect,
+  type ReactNode,
+  isValidElement,
+} from "react"
 import { Check, ChevronDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
@@ -7,7 +13,7 @@ import type { LucideIcon } from "lucide-react"
 export interface MultiSelectOption {
   value: string
   label: string
-  icon?: LucideIcon
+  icon?: LucideIcon | ReactNode
 }
 
 interface MultiSelectProps {
@@ -40,6 +46,22 @@ export function MultiSelect({
   )
 
   const selectedOptions = options.filter(option => value.includes(option.value))
+
+  const renderIcon = (icon: MultiSelectOption["icon"], size: string) => {
+    if (!icon) return null
+    if (isValidElement(icon)) {
+      return icon
+    }
+    if (typeof icon === "function") {
+      const Icon = icon
+      return <Icon className={size} />
+    }
+    if (typeof icon === "object" && "render" in icon) {
+      const Icon = icon as unknown as LucideIcon
+      return <Icon className={size} />
+    }
+    return null
+  }
 
   const toggleOption = (optionValue: string) => {
     if (value.includes(optionValue)) {
@@ -89,13 +111,14 @@ export function MultiSelect({
         <div className="flex flex-wrap gap-1 flex-1 items-center overflow-hidden">
           {selectedOptions.length === 0 ? (
             <span className="text-muted-foreground">{defaultPlaceholder}</span>
-          ) : selectedOptions.length > 3 ? (
+          ) : selectedOptions.length > 2 ? (
             <>
-              {selectedOptions.slice(0, 2).map(option => (
+              {selectedOptions.slice(0, 1).map(option => (
                 <div
                   key={option.value}
                   className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs max-w-[120px]"
                 >
+                  {renderIcon(option.icon, "h-3 w-3")}
                   <span className="truncate">{option.label}</span>
                   <button
                     type="button"
@@ -111,7 +134,7 @@ export function MultiSelect({
                 </div>
               ))}
               <div className="flex items-center bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs">
-                +{selectedOptions.length - 2}
+                +{selectedOptions.length - 1}
               </div>
             </>
           ) : (
@@ -120,6 +143,7 @@ export function MultiSelect({
                 key={option.value}
                 className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs max-w-[120px]"
               >
+                {renderIcon(option.icon, "h-3 w-3")}
                 <span className="truncate">{option.label}</span>
                 <button
                   type="button"
@@ -164,7 +188,6 @@ export function MultiSelect({
               </div>
             ) : (
               filteredOptions.map(option => {
-                const OptionIcon = option.icon
                 return (
                   <div
                     key={option.value}
@@ -172,12 +195,11 @@ export function MultiSelect({
                       "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
                       value.includes(option.value) &&
                         "bg-accent text-accent-foreground",
-                      option.icon && "italic",
                     )}
                     onClick={() => toggleOption(option.value)}
                   >
                     <span className="flex items-center gap-2">
-                      {OptionIcon && <OptionIcon className="h-4 w-4" />}
+                      {renderIcon(option.icon, "h-4 w-4")}
                       {option.label}
                     </span>
                     {value.includes(option.value) && (

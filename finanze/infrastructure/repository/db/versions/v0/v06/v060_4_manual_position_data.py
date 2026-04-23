@@ -20,7 +20,7 @@ class V0604ManualPositionData(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.6.0:4_manual_position_data"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

@@ -1,7 +1,7 @@
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from domain.user import User
-from pydantic.dataclasses import dataclass
 
 
 class AlreadyUnlockedError(Exception):
@@ -38,3 +38,11 @@ class DatasourceInitParams:
     user: User
     password: str
     context: DatasourceInitContext
+
+    @staticmethod
+    def build(
+        user: User, password: str, context: Optional[DatasourceInitContext] = None
+    ) -> "DatasourceInitParams":
+        if context is None:
+            context = DatasourceInitContext(config=None)
+        return DatasourceInitParams(user=user, password=password, context=context)

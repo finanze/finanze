@@ -41,7 +41,14 @@ export interface Historic {
   entries: BaseHistoricEntry[]
 }
 
+export type HistoricSortBy = "maturity" | "last_invest_date" | "invested"
+export type SortOrder = "asc" | "desc"
+
 export interface HistoricQueryRequest {
   entities?: string[]
   product_types?: ProductType[]
+  page?: number
+  limit?: number
+  sort_by?: HistoricSortBy
+  sort_order?: SortOrder
 }

@@ -41,12 +41,15 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
             )
             raise ExternalEntityLinkError(details=details)
 
-        is_callback = "ref" in request.payload or bool(request.payload.get("ref"))
+        raw_ref = request.payload.get("ref")
+        is_callback = "ref" in request.payload or bool(raw_ref)
         if not request.external_entity_id and not is_callback:
             raise ValueError("Missing 'ref' or 'external_entity_id'")
 
-        external_entity_id = request.external_entity_id or request.payload.get("ref")[0]
-        external_entity = self._external_entity_port.get_by_id(external_entity_id)
+        external_entity_id = request.external_entity_id or (
+            raw_ref if isinstance(raw_ref, str) else raw_ref[0]
+        )
+        external_entity = await self._external_entity_port.get_by_id(external_entity_id)
         if not external_entity:
             raise ExternalEntityNotFound()
 
@@ -54,10 +57,12 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
             return
 
         provider = self._external_entity_fetchers.get(external_entity.provider)
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.ENTITY_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
+            )
         )
-        provider.setup(enabled_integrations)
+        await provider.setup(enabled_integrations)
 
         is_linked = await provider.is_linked(external_entity.provider_instance_id)
         if not is_callback and not is_linked:
@@ -65,4 +70,4 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
 
         external_entity.status = ExternalEntityStatus.LINKED
 
-        self._external_entity_port.upsert(external_entity)
+        await self._external_entity_port.upsert(external_entity)

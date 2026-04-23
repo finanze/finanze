@@ -10,9 +10,11 @@ from domain.instrument import (
 
 class InstrumentInfoProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_info(self, request: InstrumentDataRequest) -> Optional[InstrumentInfo]:
+    async def get_info(
+        self, request: InstrumentDataRequest
+    ) -> Optional[InstrumentInfo]:
         raise NotImplementedError

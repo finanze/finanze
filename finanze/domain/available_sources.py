@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from domain.crypto import CryptoWalletConnection
+from domain.crypto import CryptoWallet
 from domain.entity import (
     Entity,
     Feature,
@@ -26,6 +26,13 @@ class FinancialEntityStatus(str, Enum):
     REQUIRES_LOGIN = "REQUIRES_LOGIN"
 
 
+@dataclass
+class EntityAccountInfo:
+    id: UUID
+    name: Optional[str]
+    status: FinancialEntityStatus
+
+
 @dataclass(eq=False)
 class AvailableSource(Entity):
     features: list[Feature]
@@ -35,13 +42,16 @@ class AvailableSource(Entity):
     credentials_template: Optional[dict[str, CredentialType]] = None
     pin: Optional[PinDetails] = None
     status: Optional[FinancialEntityStatus] = None
-    connected: Optional[list[CryptoWalletConnection]] = None
+    connected: Optional[list[CryptoWallet]] = None
     required_external_integrations: list[ExternalIntegrationId] = field(
         default_factory=list
     )
     external_entity_id: Optional[UUID] = None
     virtual_features: dict[Feature, datetime] = field(default_factory=dict)
     natively_supported_products: Optional[list[ProductType]] = None
+    fetchable: bool = True
+    allows_hd_wallet: Optional[bool] = None
+    accounts: Optional[list[EntityAccountInfo]] = None
 
 
 @dataclass

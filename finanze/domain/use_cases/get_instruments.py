@@ -6,5 +6,5 @@ from domain.instrument import InstrumentDataRequest, InstrumentOverview
 
 class GetInstruments(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, request: InstrumentDataRequest) -> List[InstrumentOverview]:  # noqa: D401
+    async def execute(self, request: InstrumentDataRequest) -> List[InstrumentOverview]:  # noqa: D401
         raise NotImplementedError

@@ -1,12 +1,9 @@
 import logging
 
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from domain.crypto import CryptoFetchRequest
+from domain.crypto import CryptoFetchRequest, CryptoFetchResults
 from domain.dezimal import Dezimal
 from domain.external_integration import ExternalIntegrationId
-from domain.global_position import (
-    CryptoCurrencyWallet,
-)
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.etherscan.etherscan_fetcher import EtherscanFetcher
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
@@ -37,15 +34,15 @@ class BSCFetcher(CryptoEntityFetcher):
 
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
         if ExternalIntegrationId.ETHPLORER in request.integrations:
-            return self._binplorer_fetcher.fetch(request)
+            return await self._binplorer_fetcher.fetch(request)
         elif ExternalIntegrationId.ETHERSCAN in request.integrations:
             try:
-                return self._etherscan_fetcher.fetch(request)
+                return await self._etherscan_fetcher.fetch(request)
             except Exception as e:
                 self._log.warning(
-                    f"Etherscan fetch failed for address {request.address}: {e}. Falling back to Ethplorer."
+                    f"Etherscan fetch failed for address {request.addresses}: {e or type(e).__name__}. Falling back to Ethplorer."
                 )
 
-        return self._binplorer_fetcher.fetch(request)
+        return await self._binplorer_fetcher.fetch(request)

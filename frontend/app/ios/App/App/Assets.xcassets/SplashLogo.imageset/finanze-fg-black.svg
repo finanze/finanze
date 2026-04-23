@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024"
+    zoomAndPan="magnify" viewBox="0 0 768 767.999994" height="1024"
+    preserveAspectRatio="xMidYMid meet" version="1.0">
+    <path stroke-linecap="round"
+        transform="matrix(0.51319, -0.888871, 0.888871, 0.51319, 37.50894, 632.515429)" fill="none"
+        stroke-linejoin="miter" d="M 34.000405 34.000534 L 178.310895 34.000441 " stroke="#000000"
+        stroke-width="68" stroke-opacity="1" stroke-miterlimit="4" />
+    <path stroke-linecap="round"
+        transform="matrix(0.510801, -0.890246, 0.890246, 0.510801, 183.986567, 587.554791)"
+        fill="none" stroke-linejoin="miter" d="M 34.000597 33.998465 L 234.793124 34.000057 "
+        stroke="#000000" stroke-width="68" stroke-opacity="1" stroke-miterlimit="4" />
+    <path stroke-linecap="round"
+        transform="matrix(0.543383, -0.870741, 0.870741, 0.543383, 396.992561, 540.093857)"
+        fill="none" stroke-linejoin="miter" d="M 33.999777 34.001789 L 470.762903 34.000046 "
+        stroke="#000000" stroke-width="68" stroke-opacity="1" stroke-miterlimit="4" />
+    <path stroke-linecap="round"
+        transform="matrix(-0.640796, -0.80177, 0.80177, -0.640796, 224.142926, 626.713237)"
+        fill="none" stroke-linejoin="miter" d="M 34.000759 34.00204 L 141.610462 34.000625 "
+        stroke="#000000" stroke-width="68" stroke-opacity="1" stroke-miterlimit="4" />
+    <path stroke-linecap="round"
+        transform="matrix(-0.64193, -0.800863, 0.800863, -0.64193, 437.966237, 580.397103)"
+        fill="none" stroke-linejoin="miter" d="M 33.998098 33.999883 L 201.040547 33.998694 "
+        stroke="#000000" stroke-width="68" stroke-opacity="1" stroke-miterlimit="4" />
+</svg>

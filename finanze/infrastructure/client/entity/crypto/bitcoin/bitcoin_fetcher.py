@@ -1,123 +1,22 @@
 import logging
-from urllib.parse import quote
-from uuid import uuid4
 
-import requests
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from cachetools import TTLCache, cached
-from domain.crypto import CryptoFetchRequest
-from domain.dezimal import Dezimal
-from domain.exception.exceptions import AddressNotFound, TooManyRequests
-from domain.global_position import (
-    CryptoCurrencyPosition,
-    CryptoCurrencyType,
-    CryptoCurrencyWallet,
+from domain.crypto import (
+    CryptoFetchRequest,
+    CryptoFetchResults,
 )
-from infrastructure.client.http.backoff import http_get_with_backoff
-from requests import Response
+from domain.dezimal import Dezimal
+from infrastructure.client.crypto.blockchain.blockchain_client import BlockchainClient
 
 
 class BitcoinFetcher(CryptoEntityFetcher):
-    TTL = 60
-
-    BASE_URL = "https://blockchain.info"
     SCALE = Dezimal("1e-8")
-    COOLDOWN = 0.4
-    MAX_RETRIES = 3
-    BACKOFF_FACTOR = 0.5
 
     def __init__(self):
+        self._bc_client = BlockchainClient(self.SCALE)
+        # self._bstr_client = BlockstreamClient(self.SCALE)
+        # self._mps_client = SpaceClient("btc", "BTC", self.SCALE)
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        balance = self._fetch_address(request.address)
-
-        return CryptoCurrencyWallet(
-            id=request.connection_id,
-            assets=[
-                CryptoCurrencyPosition(
-                    id=uuid4(),
-                    symbol="BTC",
-                    amount=balance,
-                    type=CryptoCurrencyType.NATIVE,
-                )
-            ],
-        )
-
-    def fetch_multiple(
-        self, requests: list[CryptoFetchRequest]
-    ) -> list[CryptoCurrencyWallet]:
-        if not requests:
-            return []
-
-        addresses = [r.address for r in requests]
-        data = self._fetch_multiaddr(addresses)
-
-        balances_map = {}
-        for addr_info in data.get("addresses", []):
-            addr = addr_info.get("address")
-            final_balance = addr_info.get("final_balance", 0)
-            try:
-                balances_map[addr] = Dezimal(final_balance) * self.SCALE
-            except Exception:
-                balances_map[addr] = Dezimal(0)
-
-        wallets = []
-        for req in requests:
-            amount = balances_map.get(req.address, Dezimal(0))
-            wallets.append(
-                CryptoCurrencyWallet(
-                    id=req.connection_id,
-                    assets=[
-                        CryptoCurrencyPosition(
-                            id=uuid4(),
-                            symbol="BTC",
-                            amount=amount,
-                            type=CryptoCurrencyType.NATIVE,
-                        )
-                    ],
-                )
-            )
-
-        return wallets
-
-    def _fetch_multiaddr(self, addresses: list[str]) -> dict:
-        active = "|".join(addresses)
-        active_enc = quote(active, safe="")
-        url = f"{self.BASE_URL}/multiaddr?active={active_enc}"
-
-        return self._fetch(url).json()
-
-    @cached(cache=TTLCache(maxsize=50, ttl=TTL))
-    def _fetch_address(self, address: str) -> Dezimal:
-        url = f"{self.BASE_URL}/q/addressbalance/{address}"
-        text = self._fetch(url).text
-
-        return Dezimal(text) * self.SCALE
-
-    def _fetch(self, url: str) -> Response:
-        try:
-            response = http_get_with_backoff(
-                url,
-                cooldown=self.COOLDOWN,
-                max_retries=self.MAX_RETRIES,
-                backoff_factor=self.BACKOFF_FACTOR,
-                log=self._log,
-            )
-        except requests.RequestException as e:
-            self._log.error(
-                f"Request error calling blockchain.info endpoint {url}: {e}"
-            )
-            raise
-
-        if response.ok:
-            return response
-
-        if response.status_code == 404:
-            raise AddressNotFound()
-        if response.status_code == 429:
-            raise TooManyRequests()
-
-        self._log.error("Error Response Body:" + response.text)
-        response.raise_for_status()
-        return response
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
+        return await self._bc_client.fetch(request)

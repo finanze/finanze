@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -11,13 +12,18 @@ import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import {
   formatCurrency,
+  formatGainLoss,
   formatNumber,
   formatPercentage,
 } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
+import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
+  calculateCryptoValue,
   calculateInvestmentDistribution,
+  convertCurrency,
   getWalletAssets,
 } from "@/utils/financialDataUtils"
 import {
@@ -25,19 +31,35 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  DerivativeDetail,
+  DerivativePositions,
+  PositionDirection,
+  MarginType,
 } from "@/types/position"
-import type { Entity, EntityType, ExchangeRates } from "@/types"
+import {
+  DataSource,
+  EntityOrigin,
+  EntityType,
+  type Entity,
+  type ExchangeRates,
+} from "@/types"
 import {
   ArrowLeft,
   TrendingUp,
   TrendingDown,
   Copy,
   Check,
-  Plus,
   Wallet,
   Edit3,
   Trash2,
   MoreVertical,
+  Layers,
+  FlaskConical,
+  X,
+  DollarSign,
+  ShieldAlert,
+  Tag,
+  List,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -48,10 +70,24 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { deleteCryptoWallet, updateCryptoWallet } from "@/services/api"
 import {
+  ManualPositionsManager,
+  ManualPositionsControls,
+  ManualPositionsEditBanner,
+  useManualPositions,
+} from "@/components/manual/ManualPositionsManager"
+import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { cn } from "@/lib/utils"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
+import { WalletAddressesDialog } from "@/components/WalletAddressesDialog"
+
+const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
+const normalizeDerivativeCurrency = (currency: string) =>
+  STABLECOIN_CURRENCIES[currency] || currency
 
 interface WalletAssetView {
   asset: CryptoCurrencyPosition
@@ -62,10 +98,14 @@ interface WalletAssetView {
   initialInvestment: number
   roi: number | null
   amount: number
+  currentPrice: number
   isToken: boolean
   iconUrl: string | null
   hasAssetDetails: boolean
   groupingKey: string
+  isManual: boolean
+  originalId?: string
+  localId?: string
 }
 
 interface WalletWithComputed {
@@ -75,10 +115,16 @@ interface WalletWithComputed {
   tokenAssets: WalletAssetView[]
   totalValue: number
   totalInitialInvestment: number
+  accountId?: string | null
+  accountName?: string | null
 }
 
 interface EntityWalletGroup {
-  entity: Pick<Entity, "id" | "name"> & { type?: EntityType }
+  entity: Pick<Entity, "id" | "name"> & {
+    type?: EntityType
+    origin?: EntityOrigin
+    icon_url?: string | null
+  }
   wallets: WalletWithComputed[]
   totalValue: number
   totalInitialInvestment: number
@@ -95,31 +141,59 @@ interface NetworkAssetSummary {
   totalInitialInvestment: number
   roi: number | null
   totalAmount: number
+  currentPrice: number
   wallets: Array<{
     id: string
     name: string
-    address: string
+    displayValue: string
   }>
 }
 
 interface EntityNetworkGroup {
-  entity: Pick<Entity, "id" | "name">
+  entity: Pick<Entity, "id" | "name"> & {
+    origin?: EntityOrigin
+    icon_url?: string | null
+  }
   totalValue: number
   assets: NetworkAssetSummary[]
 }
 
 type ViewMode = "wallets" | "network"
 
+const getWalletAddresses = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string[] => {
+  return (wallet?.addresses ?? []).filter(Boolean)
+}
+
+const getPrimaryWalletAddress = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string | null => {
+  const addresses = getWalletAddresses(wallet)
+  return addresses.length > 0 ? addresses[0] : null
+}
+
+const getPrimaryWalletDisplayValue = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string | null => {
+  return wallet?.hd_wallet?.xpub ?? getPrimaryWalletAddress(wallet)
+}
+
 const getWalletIdentifier = (wallet: CryptoCurrencyWallet): string => {
   return (
     wallet.id ??
-    wallet.address ??
+    wallet.hd_wallet?.xpub ??
+    getPrimaryWalletAddress(wallet) ??
     `wallet-${Math.random().toString(36).slice(2)}`
   )
 }
 
 const isWalletlessEntry = (wallet: CryptoCurrencyWallet): boolean => {
-  return !wallet.id && !wallet.address
+  return (
+    !wallet.id &&
+    getWalletAddresses(wallet).length === 0 &&
+    !wallet.hd_wallet?.xpub
+  )
 }
 
 const hasExchangeRateEntry = (
@@ -242,9 +316,11 @@ function WalletOwnershipBadge({
               <span className="text-sm font-medium text-foreground">
                 {wallet.name}
               </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                ...{wallet.address.slice(-6)}
-              </span>
+              {wallet.displayValue && (
+                <span className="text-xs font-mono text-muted-foreground">
+                  ...{wallet.displayValue.slice(-6)}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -313,10 +389,72 @@ function WalletActionsMenu({
 }
 
 export default function CryptoInvestmentPage() {
+  const { positionsData, isLoading } = useFinancialData()
+  const { settings, exchangeRates, entities, fetchEntities } = useAppContext()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  return (
+    <ManualPositionsManager asset="crypto">
+      <CryptoInvestmentContent
+        positionsData={positionsData}
+        settings={settings}
+        exchangeRates={exchangeRates}
+        entities={entities}
+        fetchEntities={fetchEntities}
+      />
+    </ManualPositionsManager>
+  )
+}
+
+interface CryptoInvestmentContentProps {
+  positionsData: ReturnType<typeof useFinancialData>["positionsData"]
+  settings: ReturnType<typeof useAppContext>["settings"]
+  exchangeRates: ReturnType<typeof useAppContext>["exchangeRates"]
+  entities: ReturnType<typeof useAppContext>["entities"]
+  fetchEntities: ReturnType<typeof useAppContext>["fetchEntities"]
+}
+
+function CryptoInvestmentContent({
+  positionsData,
+  settings,
+  exchangeRates,
+  entities,
+  fetchEntities,
+}: CryptoInvestmentContentProps) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
-  const { positionsData, isLoading, refreshEntity } = useFinancialData()
-  const { settings, exchangeRates, entities } = useAppContext()
+  const { refreshEntity } = useFinancialData()
+  const {
+    drafts,
+    isEntryDeleted,
+    isEditMode,
+    hasLocalChanges,
+    requestCancel,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+  } = useManualPositions()
+
+  const cryptoDrafts = drafts as ManualPositionDraft<CryptoCurrencyPosition>[]
+
+  const draftsByOriginalId = useMemo(() => {
+    const map = new Map<string, ManualPositionDraft<CryptoCurrencyPosition>>()
+    cryptoDrafts.forEach(draft => {
+      const id = draft.originalId
+      if (!id) return
+      if (isEntryDeleted(id)) return
+      map.set(id, draft)
+    })
+    return map
+  }, [cryptoDrafts, isEntryDeleted])
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [selectedWalletFilters, setSelectedWalletFilters] = useState<string[]>(
@@ -342,6 +480,20 @@ export default function CryptoInvestmentPage() {
   const [deleteWalletEntityId, setDeleteWalletEntityId] = useState<
     string | null
   >(null)
+  const [showConnectConfirm, setShowConnectConfirm] = useState(false)
+  const [showAddressesDialog, setShowAddressesDialog] = useState(false)
+  const [addressesDialogWalletId, setAddressesDialogWalletId] = useState<
+    string | null
+  >(null)
+  const [addressesDialogWalletName, setAddressesDialogWalletName] = useState("")
+
+  useModalBackHandler(showEditDialog, () => setShowEditDialog(false))
+  useModalBackHandler(showDeleteConfirm, () => setShowDeleteConfirm(false))
+  useModalBackHandler(showConnectConfirm, () => setShowConnectConfirm(false))
+  useModalBackHandler(showAddressesDialog, () => setShowAddressesDialog(false))
+  const [selectedDerivative, setSelectedDerivative] =
+    useState<DerivativeDetail | null>(null)
+  useModalBackHandler(!!selectedDerivative, () => setSelectedDerivative(null))
   const registerAssetRef = useCallback(
     (identifier: string, element: HTMLDivElement | null) => {
       if (!identifier) return
@@ -356,6 +508,63 @@ export default function CryptoInvestmentPage() {
 
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [includeDerivatives, setIncludeDerivatives] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("cryptoIncludeDerivatives")
+        if (raw !== null) return JSON.parse(raw)
+      } catch {
+        /* ignore */
+      }
+    }
+    return true
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "cryptoIncludeDerivatives",
+        JSON.stringify(includeDerivatives),
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [includeDerivatives])
+
+  interface CryptoDerivativeEntry {
+    derivative: DerivativeDetail
+    entityName: string
+    entityId: string
+  }
+
+  const cryptoDerivatives = useMemo<CryptoDerivativeEntry[]>(() => {
+    if (!positionsData?.positions) return []
+    const entries: CryptoDerivativeEntry[] = []
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+          | DerivativePositions
+          | undefined
+        if (
+          !derivProduct ||
+          !("entries" in derivProduct) ||
+          derivProduct.entries.length === 0
+        )
+          return
+        derivProduct.entries.forEach((d: DerivativeDetail) => {
+          if (d.underlying_asset === ProductType.CRYPTO) {
+            entries.push({
+              derivative: d,
+              entityName: entityPosition.entity?.name || "",
+              entityId: entityPosition.entity?.id || "",
+            })
+          }
+        })
+      })
+    return entries
+  }, [positionsData])
+
   const walletGroups = useMemo<EntityWalletGroup[]>(() => {
     if (!positionsData?.positions) {
       return []
@@ -366,8 +575,9 @@ export default function CryptoInvestmentPage() {
     const hideUnknownTokens =
       settings.assets?.crypto?.hideUnknownTokens ?? false
 
-    return Object.values(positionsData.positions).reduce<EntityWalletGroup[]>(
-      (acc, entityPosition) => {
+    return Object.values(positionsData.positions)
+      .flat()
+      .reduce<EntityWalletGroup[]>((acc, entityPosition) => {
         const entityId = entityPosition.entity?.id
         const entityName = entityPosition.entity?.name
 
@@ -387,29 +597,52 @@ export default function CryptoInvestmentPage() {
 
         const entityData = entities?.find(e => e.id === entityId)
         const entityType = entityData?.type
+        const entityOrigin = entityData?.origin
+        const entityIconUrl = entityData?.icon_url
         const isCryptoWalletEntity = entityType === "CRYPTO_WALLET"
-        const entityIconPath = `entities/${entityId}.png`
+        const nativeEntityIconPath = `entities/${entityId}.png`
+
+        const accountId = entityPosition.entity_account_id ?? null
+        const accountInfo = entityData?.accounts?.find(a => a.id === accountId)
+        const accountName = accountInfo?.name ?? null
 
         const wallets = (cryptoProduct.entries as CryptoCurrencyWallet[])
           .map(wallet => {
             const walletIdentifier = getWalletIdentifier(wallet)
             const assets = getWalletAssets(wallet, { hideUnknownTokens })
 
-            const assetViews: WalletAssetView[] = assets
-              .map(asset => {
+            const assetViews = assets
+              .map((asset): WalletAssetView | null => {
+                if (asset.id && isEntryDeleted(asset.id)) {
+                  return null
+                }
+
+                const draftOverride = asset.id
+                  ? draftsByOriginalId.get(asset.id)
+                  : undefined
+                const effectiveAsset = (draftOverride ?? asset) as
+                  | CryptoCurrencyPosition
+                  | ManualPositionDraft<CryptoCurrencyPosition>
+
                 const symbol =
-                  asset.symbol?.toUpperCase() ||
-                  asset.crypto_asset?.symbol?.toUpperCase() ||
+                  effectiveAsset.symbol?.toUpperCase() ||
+                  effectiveAsset.crypto_asset?.symbol?.toUpperCase() ||
                   ""
                 const displayName =
-                  asset.crypto_asset?.name || asset.name || symbol
-                const hasAssetDetails = Boolean(asset.crypto_asset)
+                  effectiveAsset.crypto_asset?.name ||
+                  effectiveAsset.name ||
+                  symbol
+                const hasAssetDetails = Boolean(effectiveAsset.crypto_asset)
                 const value = hasAssetDetails
-                  ? calculateCryptoAssetValue(asset, defaultCurrency, rates)
+                  ? calculateCryptoAssetValue(
+                      effectiveAsset as CryptoCurrencyPosition,
+                      defaultCurrency,
+                      rates,
+                    )
                   : 0
                 const initialInvestment = hasAssetDetails
                   ? calculateCryptoAssetInitialInvestment(
-                      asset,
+                      effectiveAsset as CryptoCurrencyPosition,
                       defaultCurrency,
                       rates,
                     )
@@ -418,9 +651,11 @@ export default function CryptoInvestmentPage() {
                   hasAssetDetails &&
                   hasSymbolConversion(symbol, defaultCurrency, rates)
                 const marketCurrency =
-                  asset.currency || asset.investment_currency || null
+                  effectiveAsset.currency ||
+                  effectiveAsset.investment_currency ||
+                  null
                 const hasMarketValue =
-                  hasAssetDetails && asset.market_value != null
+                  hasAssetDetails && effectiveAsset.market_value != null
                 const marketValueConvertible =
                   hasAssetDetails && hasMarketValue
                     ? canConvertMarketValue(
@@ -436,24 +671,26 @@ export default function CryptoInvestmentPage() {
                     ? ((value - initialInvestment) / initialInvestment) * 100
                     : null
                 const isToken =
-                  (asset.type ?? CryptoCurrencyType.NATIVE) ===
-                    CryptoCurrencyType.TOKEN || Boolean(asset.contract_address)
+                  (effectiveAsset.type ?? CryptoCurrencyType.NATIVE) ===
+                    CryptoCurrencyType.TOKEN ||
+                  Boolean(effectiveAsset.contract_address)
                 const iconUrl = isToken
-                  ? (asset.crypto_asset?.icon_urls?.[0] ?? null)
-                  : isCryptoWalletEntity
-                    ? entityIconPath
-                    : (asset.crypto_asset?.icon_urls?.[0] ?? null)
+                  ? (effectiveAsset.crypto_asset?.icon_urls?.[0] ?? null)
+                  : isCryptoWalletEntity && entityOrigin === "NATIVE"
+                    ? nativeEntityIconPath
+                    : (effectiveAsset.crypto_asset?.icon_urls?.[0] ?? null)
 
                 const normalizedSymbol =
                   symbol ||
-                  asset.crypto_asset?.symbol?.toUpperCase() ||
-                  asset.name?.toUpperCase() ||
-                  asset.id
-                const contractAddress = asset.contract_address
-                  ? asset.contract_address.toLowerCase()
+                  effectiveAsset.crypto_asset?.symbol?.toUpperCase() ||
+                  effectiveAsset.name?.toUpperCase() ||
+                  effectiveAsset.id
+                const contractAddress = effectiveAsset.contract_address
+                  ? effectiveAsset.contract_address.toLowerCase()
                   : null
                 const tokenKey =
-                  contractAddress ?? asset.crypto_asset?.id?.toLowerCase()
+                  contractAddress ??
+                  effectiveAsset.crypto_asset?.id?.toLowerCase()
 
                 if (isToken && !tokenKey) {
                   return null
@@ -463,31 +700,37 @@ export default function CryptoInvestmentPage() {
                   ? `token:${tokenKey}`
                   : normalizedSymbol
                     ? `native:${normalizedSymbol}`
-                    : `native:${walletIdentifier}:${asset.id}`
+                    : `native:${walletIdentifier}:${effectiveAsset.id ?? asset.id}`
 
                 return {
-                  asset,
+                  asset: effectiveAsset as CryptoCurrencyPosition,
                   symbol,
                   displayName,
                   value,
                   valueAvailable,
                   initialInvestment,
                   roi,
-                  amount: asset.amount ?? 0,
+                  amount: effectiveAsset.amount ?? 0,
+                  currentPrice: calculateCryptoValue(
+                    1,
+                    symbol,
+                    defaultCurrency,
+                    rates,
+                  ),
                   isToken,
                   iconUrl,
                   hasAssetDetails,
                   groupingKey,
+                  isManual: effectiveAsset.source === DataSource.MANUAL,
+                  originalId: asset.id,
                 }
               })
               .filter((view): view is WalletAssetView => view !== null)
 
             const sortedAssetViews = [...assetViews].sort((a, b) => {
-              // Prioritize by value availability: assets with available values come first
               if (a.valueAvailable !== b.valueAvailable) {
                 return a.valueAvailable ? -1 : 1
               }
-              // Both available or both unavailable: sort by value descending
               return b.value - a.value
             })
 
@@ -510,63 +753,274 @@ export default function CryptoInvestmentPage() {
               tokenAssets,
               totalValue,
               totalInitialInvestment,
+              accountId,
+              accountName,
             }
           })
           .sort((a, b) => b.totalValue - a.totalValue)
 
-        const entityTotalValue = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalValue,
-          0,
-        )
-        const entityTotalInitialInvestment = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalInitialInvestment,
-          0,
-        )
+        const existingGroup = acc.find(g => g.entity.id === entityId)
+        if (existingGroup) {
+          existingGroup.wallets.push(...wallets)
+          existingGroup.wallets.sort((a, b) => b.totalValue - a.totalValue)
+          const addedValue = wallets.reduce((s, w) => s + w.totalValue, 0)
+          const addedInvestment = wallets.reduce(
+            (s, w) => s + w.totalInitialInvestment,
+            0,
+          )
+          existingGroup.totalValue += addedValue
+          existingGroup.totalInitialInvestment += addedInvestment
+        } else {
+          const entityTotalValue = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalValue,
+            0,
+          )
+          const entityTotalInitialInvestment = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalInitialInvestment,
+            0,
+          )
 
-        acc.push({
-          entity: { id: entityId, name: entityName, type: entityType },
-          wallets,
-          totalValue: entityTotalValue,
-          totalInitialInvestment: entityTotalInitialInvestment,
-        })
+          acc.push({
+            entity: {
+              id: entityId,
+              name: entityName,
+              type: entityType,
+              origin: entityOrigin,
+              icon_url: entityIconUrl,
+            },
+            wallets,
+            totalValue: entityTotalValue,
+            totalInitialInvestment: entityTotalInitialInvestment,
+          })
+        }
 
         return acc
-      },
-      [],
-    )
+      }, [])
   }, [
     positionsData,
     exchangeRates,
     settings.general.defaultCurrency,
     settings.assets?.crypto?.hideUnknownTokens,
     entities,
+    draftsByOriginalId,
+    isEntryDeleted,
   ])
 
-  const entityOptions = useMemo<MultiSelectOption[]>(() => {
-    const unique = new Map<string, string>()
-    walletGroups.forEach(group => {
-      unique.set(group.entity.id, group.entity.name)
-    })
-    return Array.from(unique.entries()).map(([value, label]) => ({
-      value,
-      label,
+  const walletGroupsWithDrafts = useMemo<EntityWalletGroup[]>(() => {
+    const result: EntityWalletGroup[] = walletGroups.map(group => ({
+      ...group,
+      wallets: [...group.wallets],
     }))
-  }, [walletGroups])
+    const defaultCurrency = settings.general.defaultCurrency
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+
+    const draftsByEntity = new Map<
+      string,
+      ManualPositionDraft<CryptoCurrencyPosition>[]
+    >()
+
+    cryptoDrafts.forEach(draft => {
+      if (isEntryDeleted(draft.originalId ?? "")) return
+      const entityId = draft.entityId
+      if (!entityId) return
+      if (!draftsByEntity.has(entityId)) {
+        draftsByEntity.set(entityId, [])
+      }
+      draftsByEntity.get(entityId)!.push(draft)
+    })
+
+    draftsByEntity.forEach((entityDrafts, entityId) => {
+      const existingGroup = result.find(g => g.entity.id === entityId)
+
+      const draftAssets: WalletAssetView[] = entityDrafts
+        .filter(draft => !draft.originalId)
+        .map(draft => {
+          const symbol = draft.symbol?.toUpperCase() || ""
+          const displayName = draft.name || symbol
+          const hasAssetDetails = Boolean(draft.crypto_asset)
+          const isToken =
+            (draft.type ?? CryptoCurrencyType.NATIVE) ===
+              CryptoCurrencyType.TOKEN || Boolean(draft.contract_address)
+          const groupingKey = isToken
+            ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
+            : `native:${symbol || draft.localId}`
+
+          let value = 0
+          let valueAvailable = false
+
+          if (draft.market_value != null && draft.market_value > 0) {
+            const draftCurrency = draft.currency || defaultCurrency
+            if (draftCurrency === defaultCurrency) {
+              value = draft.market_value
+            } else {
+              value = convertCurrency(
+                draft.market_value,
+                draftCurrency,
+                defaultCurrency,
+                rates,
+              )
+            }
+            valueAvailable = value > 0
+          } else if (hasAssetDetails && symbol) {
+            value = calculateCryptoAssetValue(
+              draft as unknown as CryptoCurrencyPosition,
+              defaultCurrency,
+              rates,
+            )
+            valueAvailable = value > 0
+          }
+
+          const initialInvestment = calculateCryptoAssetInitialInvestment(
+            draft as unknown as CryptoCurrencyPosition,
+            defaultCurrency,
+            rates,
+          )
+
+          const roi =
+            initialInvestment > 0 && value > 0
+              ? ((value - initialInvestment) / initialInvestment) * 100
+              : null
+
+          return {
+            asset: draft as unknown as CryptoCurrencyPosition,
+            symbol,
+            displayName,
+            value,
+            valueAvailable,
+            initialInvestment,
+            roi,
+            amount: draft.amount ?? 0,
+            currentPrice: calculateCryptoValue(
+              1,
+              symbol,
+              defaultCurrency,
+              rates,
+            ),
+            isToken,
+            iconUrl: draft.crypto_asset?.icon_urls?.[0] ?? null,
+            hasAssetDetails,
+            groupingKey,
+            isManual: true,
+            originalId: draft.originalId,
+            localId: draft.localId,
+          }
+        })
+
+      if (draftAssets.length === 0) return
+
+      const totalValue = draftAssets.reduce((sum, a) => sum + a.value, 0)
+      const totalInitialInvestment = draftAssets.reduce(
+        (sum, a) => sum + a.initialInvestment,
+        0,
+      )
+
+      if (existingGroup) {
+        const walletWithDrafts: WalletWithComputed = {
+          wallet: { name: null, assets: [], hd_wallet: null },
+          assets: draftAssets,
+          nativeAssets: draftAssets.filter(a => !a.isToken),
+          tokenAssets: draftAssets.filter(a => a.isToken),
+          totalValue,
+          totalInitialInvestment,
+        }
+        existingGroup.wallets.push(walletWithDrafts)
+        existingGroup.totalValue += totalValue
+        existingGroup.totalInitialInvestment += totalInitialInvestment
+      } else {
+        const entityData = entities?.find(e => e.id === entityId)
+        const draftEntity = entityDrafts[0]
+        const draftAny = draftEntity as any
+        const entityName =
+          entityData?.name ||
+          draftEntity.entityName ||
+          draftEntity.newEntityName ||
+          "New Entity"
+        const entityIconUrl =
+          entityData?.icon_url || draftAny._new_entity_icon_url || null
+        const entityType =
+          entityData?.type || draftAny._entity_type || "CRYPTO_WALLET"
+        const entityOrigin = entityData?.origin ?? ("MANUAL" as EntityOrigin)
+
+        const newGroup: EntityWalletGroup = {
+          entity: {
+            id: entityId,
+            name: entityName,
+            type: entityType,
+            origin: entityOrigin,
+            icon_url: entityIconUrl,
+          },
+          wallets: [
+            {
+              wallet: { name: null, assets: [], hd_wallet: null },
+              assets: draftAssets,
+              nativeAssets: draftAssets.filter(a => !a.isToken),
+              tokenAssets: draftAssets.filter(a => a.isToken),
+              totalValue,
+              totalInitialInvestment,
+            },
+          ],
+          totalValue,
+          totalInitialInvestment,
+        }
+        result.push(newGroup)
+      }
+    })
+
+    return result
+  }, [
+    walletGroups,
+    cryptoDrafts,
+    entities,
+    isEntryDeleted,
+    settings.general.defaultCurrency,
+    exchangeRates,
+  ])
+
+  const filteredEntities = useMemo(() => {
+    const unique = new Set<string>()
+    walletGroupsWithDrafts.forEach(group => unique.add(group.entity.id))
+    return entities?.filter(e => unique.has(e.id)) ?? []
+  }, [walletGroupsWithDrafts, entities])
+
+  const cryptoEntityImageOverride = useCallback(
+    (entity: Entity) => {
+      if (
+        entity.origin === EntityOrigin.NATIVE &&
+        entity.type === EntityType.CRYPTO_WALLET
+      ) {
+        return `entities/${entity.id}.png`
+      }
+      if (entity.origin !== EntityOrigin.MANUAL) return undefined
+      const nativeMatch = entities?.find(
+        e =>
+          e.id !== entity.id &&
+          e.origin === EntityOrigin.NATIVE &&
+          e.type === EntityType.CRYPTO_WALLET &&
+          e.name.toLowerCase() === entity.name.toLowerCase(),
+      )
+      if (nativeMatch) return `entities/${nativeMatch.id}.png`
+      return undefined
+    },
+    [entities],
+  )
 
   const entityFilteredWalletGroups = useMemo<EntityWalletGroup[]>(() => {
-    if (selectedEntities.length === 0) {
-      return walletGroups
-    }
-    return walletGroups.filter(group =>
-      selectedEntities.includes(group.entity.id),
-    )
-  }, [walletGroups, selectedEntities])
+    const groups =
+      selectedEntities.length === 0
+        ? walletGroupsWithDrafts
+        : walletGroupsWithDrafts.filter(group =>
+            selectedEntities.includes(group.entity.id),
+          )
+    return [...groups].sort((a, b) => b.totalValue - a.totalValue)
+  }, [walletGroupsWithDrafts, selectedEntities])
 
   const walletFilterOptions = useMemo<MultiSelectOption[]>(() => {
     return entityFilteredWalletGroups.flatMap(group =>
       group.wallets.map(walletGroup => {
         const wallet = walletGroup.wallet
-        const walletName = wallet.name ?? wallet.address ?? group.entity.name
+        const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
+        const walletName =
+          wallet.name ?? walletDisplayValue ?? group.entity.name
         return {
           value: getWalletIdentifier(wallet),
           label: `${group.entity.name} - ${walletName}`,
@@ -609,7 +1063,50 @@ export default function CryptoInvestmentPage() {
         }
       })
       .filter((group): group is EntityWalletGroup => group !== null)
+      .sort((a, b) => b.totalValue - a.totalValue)
   }, [entityFilteredWalletGroups, selectedWalletFilters])
+
+  const filteredDerivativeEntityIds = useMemo(() => {
+    return new Set(filteredCryptoWallets.map(g => g.entity.id))
+  }, [filteredCryptoWallets])
+
+  const derivativesTotalValue = useMemo(() => {
+    if (!includeDerivatives) return 0
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    return cryptoDerivatives
+      .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+      .reduce((sum, entry) => {
+        const mv = entry.derivative.market_value || 0
+        const currency = normalizeDerivativeCurrency(entry.derivative.currency)
+        return sum + convertCurrency(mv, currency, targetCurrency, rates)
+      }, 0)
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
+  ])
+
+  const derivativeValueByEntity = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!includeDerivatives) return map
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    cryptoDerivatives.forEach(({ derivative, entityId }) => {
+      const mv = derivative.market_value || 0
+      const currency = normalizeDerivativeCurrency(derivative.currency)
+      const converted = convertCurrency(mv, currency, targetCurrency, rates)
+      map.set(entityId, (map.get(entityId) || 0) + converted)
+    })
+    return map
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
 
   useEffect(() => {
     setSelectedWalletFilters(prevFilters => {
@@ -646,23 +1143,22 @@ export default function CryptoInvestmentPage() {
           valueAvailable: boolean
           totalInitialInvestment: number
           totalAmount: number
+          currentPrice: number
           wallets: Map<
             string,
             {
               id: string
               name: string
-              address: string
+              displayValue: string
             }
           >
         }
       >()
       entityGroup.wallets.forEach(walletGroup => {
+        const walletAddress = getPrimaryWalletDisplayValue(walletGroup.wallet)
         const walletName =
-          walletGroup.wallet.name ??
-          walletGroup.wallet.address ??
-          entityGroup.entity.name
+          walletGroup.wallet.name ?? walletAddress ?? entityGroup.entity.name
         const walletId = getWalletIdentifier(walletGroup.wallet)
-        const walletAddress = walletGroup.wallet.address
         const walletKey = walletAddress ? walletAddress.toLowerCase() : walletId
 
         walletGroup.assets.forEach(assetView => {
@@ -678,7 +1174,7 @@ export default function CryptoInvestmentPage() {
               existing.wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
           } else {
@@ -687,14 +1183,14 @@ export default function CryptoInvestmentPage() {
               {
                 id: string
                 name: string
-                address: string
+                displayValue: string
               }
             >()
             if (walletAddress) {
               wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
             assetMap.set(assetKey, {
@@ -706,6 +1202,7 @@ export default function CryptoInvestmentPage() {
               valueAvailable: assetView.valueAvailable,
               totalInitialInvestment: assetView.initialInvestment,
               totalAmount: assetView.amount,
+              currentPrice: assetView.currentPrice,
               wallets,
             })
           }
@@ -733,6 +1230,7 @@ export default function CryptoInvestmentPage() {
             totalInitialInvestment: entry.totalInitialInvestment,
             roi,
             totalAmount: entry.totalAmount,
+            currentPrice: entry.currentPrice,
             wallets,
           }
         })
@@ -749,7 +1247,11 @@ export default function CryptoInvestmentPage() {
   const totalFilteredWallets = useMemo(
     () =>
       filteredCryptoWallets.reduce(
-        (sum, group) => sum + group.wallets.length,
+        (sum, group) =>
+          sum +
+          group.wallets.filter(
+            walletGroup => !isWalletlessEntry(walletGroup.wallet),
+          ).length,
         0,
       ),
     [filteredCryptoWallets],
@@ -763,14 +1265,60 @@ export default function CryptoInvestmentPage() {
 
   const totalValue = useMemo(
     () =>
-      filteredCryptoWallets.reduce((sum, group) => sum + group.totalValue, 0),
-    [filteredCryptoWallets],
+      filteredCryptoWallets.reduce((sum, group) => sum + group.totalValue, 0) +
+      derivativesTotalValue,
+    [filteredCryptoWallets, derivativesTotalValue],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, settings.general.defaultCurrency),
-    [totalValue, locale, settings.general.defaultCurrency],
-  )
+  const totalGain = useMemo(() => {
+    let investedValue = 0
+    let currentValue = 0
+    allAssets.forEach(asset => {
+      if (asset.initialInvestment > 0) {
+        investedValue += asset.initialInvestment
+        currentValue += asset.value
+      }
+    })
+    if (investedValue === 0) return null
+    return currentValue - investedValue
+  }, [allAssets])
+
+  const { activesValue, passivesValue } = useMemo(() => {
+    let actives = 0
+    let passives = 0
+    const defaultCurrency = settings.general.defaultCurrency
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    allAssets.forEach(asset => {
+      if (asset.value >= 0) actives += asset.value
+      else passives += asset.value
+    })
+    if (includeDerivatives) {
+      cryptoDerivatives
+        .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+        .forEach(({ derivative }) => {
+          const mv = derivative.market_value || 0
+          const currency = normalizeDerivativeCurrency(derivative.currency)
+          const converted = convertCurrency(
+            mv,
+            currency,
+            defaultCurrency,
+            rates,
+          )
+          if (converted >= 0) actives += converted
+          else passives += converted
+        })
+    }
+    return { activesValue: actives, passivesValue: passives }
+  }, [
+    allAssets,
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
+  ])
+
+  const hasNegativePositions = passivesValue < 0
 
   const totalCryptoAssets = useMemo(() => {
     const uniqueIdentifiers = new Set<string>()
@@ -837,12 +1385,9 @@ export default function CryptoInvestmentPage() {
 
       const performCopy = async () => {
         try {
-          if (navigator?.clipboard?.writeText) {
-            await navigator.clipboard.writeText(address)
-          }
-        } catch (error) {
-          console.warn("Failed to copy wallet address", error)
-        } finally {
+          const ok = await copyToClipboard(address)
+          if (!ok) return
+
           setCopiedAddress(address)
           if (copyTimeoutRef.current) {
             clearTimeout(copyTimeoutRef.current)
@@ -850,6 +1395,8 @@ export default function CryptoInvestmentPage() {
           copyTimeoutRef.current = setTimeout(() => {
             setCopiedAddress(prev => (prev === address ? null : prev))
           }, 1500)
+        } catch (error) {
+          console.warn("Failed to copy wallet address", error)
         }
       }
 
@@ -860,7 +1407,7 @@ export default function CryptoInvestmentPage() {
 
   const handleEditWallet = (wallet: CryptoCurrencyWallet, entityId: string) => {
     setWalletToEdit(wallet)
-    setEditWalletName(wallet.name ?? wallet.address ?? "")
+    setEditWalletName(wallet.name ?? getPrimaryWalletDisplayValue(wallet) ?? "")
     setEditWalletEntityId(entityId)
     setShowEditDialog(true)
   }
@@ -937,6 +1484,7 @@ export default function CryptoInvestmentPage() {
         } else {
           await refreshEntity("crypto")
         }
+        await fetchEntities()
       } catch (refreshError) {
         console.error(
           "Error refreshing crypto data after wallet deletion:",
@@ -967,14 +1515,6 @@ export default function CryptoInvestmentPage() {
     }
   }, [])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    )
-  }
-
   const noResults = filteredCryptoWallets.length === 0
   const hasActiveFilters =
     selectedEntities.length > 0 || selectedWalletFilters.length > 0
@@ -987,7 +1527,7 @@ export default function CryptoInvestmentPage() {
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-8 pb-6"
+      className="space-y-8"
     >
       {filteredCryptoWallets.map(entityGroup => (
         <motion.section
@@ -997,35 +1537,78 @@ export default function CryptoInvestmentPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-md">
-                <img
-                  src={`entities/${entityGroup.entity.id}.png`}
-                  alt={entityGroup.entity.name}
-                  className="h-full w-full object-contain"
-                  onError={event => {
-                    event.currentTarget.style.display = "none"
-                  }}
-                />
-              </div>
+              {(entityGroup.entity.origin === "NATIVE" ||
+                entityGroup.entity.icon_url) && (
+                <div
+                  className={`w-10 h-10 flex-shrink-0 overflow-hidden ${
+                    entityGroup.entity.origin === "MANUAL"
+                      ? "rounded-full"
+                      : "rounded-md"
+                  }`}
+                >
+                  <img
+                    src={
+                      entityGroup.entity.origin !== "NATIVE" &&
+                      entityGroup.entity.icon_url
+                        ? entityGroup.entity.icon_url
+                        : `entities/${entityGroup.entity.id}.png`
+                    }
+                    alt={entityGroup.entity.name}
+                    className={`h-full w-full ${
+                      entityGroup.entity.origin === "MANUAL"
+                        ? "object-cover"
+                        : "object-contain"
+                    }`}
+                    onError={event => {
+                      event.currentTarget.style.display = "none"
+                    }}
+                  />
+                </div>
+              )}
               <div>
                 <h3 className="text-xl font-semibold">
                   {entityGroup.entity.name}
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {entityGroup.wallets.length}{" "}
-                  {entityGroup.wallets.length !== 1
-                    ? t.walletManagement.wallets
-                    : t.walletManagement.wallet}
-                </p>
+                {(() => {
+                  const walletCount = entityGroup.wallets.filter(
+                    walletGroup => !isWalletlessEntry(walletGroup.wallet),
+                  ).length
+                  const accountIdSet = new Set(
+                    entityGroup.wallets.map(w => w.accountId).filter(Boolean),
+                  )
+                  const accountCount = accountIdSet.size
+                  if (walletCount === 0 && accountCount <= 1) return null
+                  return (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {walletCount > 0 && (
+                        <>
+                          {walletCount}{" "}
+                          {walletCount !== 1
+                            ? t.walletManagement.wallets
+                            : t.walletManagement.wallet}
+                        </>
+                      )}
+                      {walletCount > 0 && accountCount > 1 && " · "}
+                      {accountCount > 1 && (
+                        <>
+                          {accountCount} {t.entities.account}s
+                        </>
+                      )}
+                    </p>
+                  )
+                })()}
               </div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  entityGroup.totalValue,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    entityGroup.totalValue +
+                      (derivativeValueByEntity.get(entityGroup.entity.id) || 0),
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {t.walletManagement.totalValue}
@@ -1033,362 +1616,205 @@ export default function CryptoInvestmentPage() {
             </div>
           </div>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {entityGroup.wallets.flatMap(walletGroup => {
-              const {
-                wallet,
-                nativeAssets,
-                tokenAssets,
-                totalValue: walletTotalValue,
-              } = walletGroup
-              const hasAssets = walletGroup.assets.length > 0
-              const isWalletless = isWalletlessEntry(wallet)
-              const walletName =
-                wallet.name ?? wallet.address ?? entityGroup.entity.name
-              const walletKey = getWalletIdentifier(wallet)
-
-              if (isWalletless) {
-                return walletGroup.assets.map(assetView => {
-                  const assetSymbol =
-                    assetView.symbol || assetView.displayName || ""
-                  const amountText =
-                    assetView.asset.amount != null
-                      ? `${formatNumber(assetView.asset.amount, locale)} ${assetSymbol}`
-                      : assetSymbol
-                  const color =
-                    chartColorMap.get(assetView.groupingKey) ?? "transparent"
-                  const hasAccent = color !== "transparent"
-                  const isHighlighted =
-                    highlightedAsset === assetView.groupingKey
-
-                  return (
-                    <div
-                      key={assetView.asset.id}
-                      ref={element =>
-                        registerAssetRef(assetView.groupingKey, element)
-                      }
-                    >
-                      <Card
-                        className={`h-full overflow-hidden ${
-                          hasAccent ? "border-l-[6px]" : ""
-                        } ${
-                          isHighlighted
-                            ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
-                            : ""
-                        }`}
-                        style={
-                          hasAccent
-                            ? { borderLeftColor: color, borderLeftWidth: 6 }
-                            : undefined
-                        }
-                      >
-                        <CardContent className="space-y-4 pt-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="relative w-8 h-8 flex-shrink-0">
-                                {assetView.iconUrl && (
-                                  <img
-                                    src={assetView.iconUrl}
-                                    alt={assetView.displayName}
-                                    className="h-full w-full object-contain"
-                                    onError={event => {
-                                      event.currentTarget.classList.add(
-                                        "hidden",
-                                      )
-                                      const fallback =
-                                        event.currentTarget.nextElementSibling
-                                      if (fallback instanceof HTMLElement) {
-                                        fallback.classList.remove("hidden")
-                                      }
-                                    }}
-                                  />
-                                )}
-                                <div
-                                  className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
-                                    assetView.iconUrl ? "hidden" : ""
-                                  }`}
-                                >
-                                  <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
-                                    {assetSymbol.slice(0, 2).toUpperCase()}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="min-w-0 flex flex-col gap-1">
-                                <p
-                                  className="font-medium truncate"
-                                  title={assetView.displayName}
-                                >
-                                  {assetView.displayName}
-                                </p>
-                                <p
-                                  className="text-sm text-gray-600 dark:text-gray-400 truncate"
-                                  title={amountText}
-                                >
-                                  {amountText}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-lg font-semibold">
-                                {assetView.valueAvailable
-                                  ? formatCurrency(
-                                      assetView.value,
-                                      locale,
-                                      settings.general.defaultCurrency,
-                                    )
-                                  : t.common.notAvailable}
+            {entityGroup.wallets
+              .filter(walletGroup => !isWalletlessEntry(walletGroup.wallet))
+              .map(walletGroup => {
+                const {
+                  wallet,
+                  nativeAssets,
+                  tokenAssets,
+                  totalValue: walletTotalValue,
+                } = walletGroup
+                const hasAssets = walletGroup.assets.length > 0
+                const walletAddress = getPrimaryWalletAddress(wallet)
+                const walletXpub = wallet.hd_wallet?.xpub ?? null
+                const walletDisplayValue = walletXpub ?? walletAddress
+                const walletAddresses = getWalletAddresses(wallet)
+                const extraAddressCount =
+                  walletAddresses.length > 1 ? walletAddresses.length - 1 : 0
+                const walletName =
+                  wallet.name ?? walletDisplayValue ?? entityGroup.entity.name
+                const walletKey = getWalletIdentifier(wallet)
+                return (
+                  <div
+                    key={walletKey}
+                    className={`flex h-full flex-col gap-4 rounded-lg border p-4 transition-all ${hasAssets ? "bg-white dark:bg-gray-900 hover:shadow-sm" : "border-dashed bg-gray-50 dark:bg-gray-900/50 opacity-75"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                          <div className="p-1.5 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                            <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium truncate">
+                              {walletName}
+                            </h4>
+                            {!hasAssets && (
+                              <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded flex-shrink-0">
+                                {t.common.noDataAvailable}
+                              </span>
+                            )}
+                          </div>
+                          {walletXpub ? (
+                            <div className="flex items-center gap-2 group">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
+                                {walletXpub.slice(0, 12)}...
+                                {walletXpub.slice(-6)}
                               </p>
-                              {assetView.roi !== null && (
-                                <div
-                                  className={`flex items-center justify-end gap-1 text-sm ${
-                                    assetView.roi >= 0
-                                      ? "text-green-600 dark:text-green-400"
-                                      : "text-red-600 dark:text-red-400"
-                                  }`}
-                                >
-                                  {assetView.roi >= 0 ? (
-                                    <TrendingUp className="h-3 w-3" />
-                                  ) : (
-                                    <TrendingDown className="h-3 w-3" />
-                                  )}
-                                  <span>
-                                    {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                      Math.abs(assetView.roi),
-                                      locale,
-                                    )}`}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )
-                })
-              }
-
-              return (
-                <div
-                  key={walletKey}
-                  className={`flex h-full flex-col gap-4 rounded-lg border p-4 transition-all ${hasAssets ? "bg-white dark:bg-gray-900 hover:shadow-sm" : "border-dashed bg-gray-50 dark:bg-gray-900/50 opacity-75"}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                        <div className="p-1.5 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                          <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium truncate">{walletName}</h4>
-                          {!hasAssets && (
-                            <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded flex-shrink-0">
-                              {t.common.noDataAvailable}
-                            </span>
-                          )}
-                        </div>
-                        {wallet.address && (
-                          <div className="flex items-center gap-2 group">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
-                              {wallet.address.slice(0, 8)}...
-                              {wallet.address.slice(-6)}
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
-                                copiedAddress === wallet.address
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                              }`}
-                              onClick={() => handleCopyAddress(wallet.address!)}
-                              title={
-                                copiedAddress === wallet.address
-                                  ? t.common.copied
-                                  : t.common.copy
-                              }
-                            >
-                              {copiedAddress === wallet.address ? (
-                                <Check className="h-3 w-3" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <WalletActionsMenu
-                      onEdit={() =>
-                        handleEditWallet(wallet, entityGroup.entity.id)
-                      }
-                      onDelete={() =>
-                        handleDeleteWallet(wallet, entityGroup.entity.id)
-                      }
-                      disabled={isUpdatingWallet || isDeletingWallet}
-                    />
-                  </div>
-                  <div className="text-lg font-medium">
-                    {formatCurrency(
-                      walletTotalValue,
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
-                  </div>
-
-                  {hasAssets ? (
-                    <div className="space-y-4">
-                      {nativeAssets.length > 0 && (
-                        <div className="space-y-2">
-                          {nativeAssets.map(assetView => {
-                            const assetSymbol =
-                              assetView.symbol || assetView.displayName || ""
-                            const amountText =
-                              assetView.asset.amount != null
-                                ? `${assetView.asset.amount.toLocaleString(locale)} ${assetSymbol}`
-                                : assetSymbol
-                            const color =
-                              chartColorMap.get(assetView.groupingKey) ??
-                              "transparent"
-                            const hasAccent = color !== "transparent"
-                            const isHighlighted =
-                              highlightedAsset === assetView.groupingKey
-
-                            return (
-                              <div
-                                key={assetView.asset.id}
-                                ref={element =>
-                                  registerAssetRef(
-                                    assetView.groupingKey,
-                                    element,
-                                  )
-                                }
-                                className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 ${
-                                  hasAccent ? "border-l-[6px]" : ""
-                                } ${
-                                  isHighlighted
-                                    ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
-                                    : ""
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                  copiedAddress === walletXpub
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                 }`}
-                                style={
-                                  hasAccent
-                                    ? {
-                                        borderLeftColor: color,
-                                        borderLeftWidth: 6,
-                                      }
-                                    : undefined
+                                onClick={() => handleCopyAddress(walletXpub)}
+                                title={
+                                  copiedAddress === walletXpub
+                                    ? t.common.copied
+                                    : t.common.copy
                                 }
                               >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="relative w-8 h-8 flex-shrink-0">
-                                      {assetView.iconUrl && (
-                                        <img
-                                          src={assetView.iconUrl}
-                                          alt={assetView.displayName}
-                                          className="h-full w-full object-contain"
-                                          onError={event => {
-                                            event.currentTarget.classList.add(
-                                              "hidden",
-                                            )
-                                            const fallback =
-                                              event.currentTarget
-                                                .nextElementSibling
-                                            if (
-                                              fallback instanceof HTMLElement
-                                            ) {
-                                              fallback.classList.remove(
-                                                "hidden",
-                                              )
+                                {copiedAddress === walletXpub ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          ) : walletAddress ? (
+                            <div className="flex items-center gap-2 group">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
+                                {walletAddress.slice(0, 8)}...
+                                {walletAddress.slice(-6)}
+                              </p>
+                              {extraAddressCount > 0 && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-xs rounded-full border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                      +{extraAddressCount}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="start"
+                                    sideOffset={8}
+                                    className="w-72 space-y-2 p-3"
+                                  >
+                                    <ul className="space-y-2">
+                                      {walletAddresses.map(address => (
+                                        <li
+                                          key={address}
+                                          className="flex items-center justify-between gap-2"
+                                        >
+                                          <span className="text-xs font-mono text-muted-foreground break-all">
+                                            {address}
+                                          </span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className={`p-1 h-6 w-6 flex-shrink-0 ${
+                                              copiedAddress === address
+                                                ? "text-green-600 dark:text-green-400"
+                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                            }`}
+                                            onClick={() =>
+                                              handleCopyAddress(address)
                                             }
-                                          }}
-                                        />
-                                      )}
-                                      <div
-                                        className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
-                                          assetView.iconUrl ? "hidden" : ""
-                                        }`}
-                                      >
-                                        <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
-                                          {assetSymbol
-                                            .slice(0, 2)
-                                            .toUpperCase()}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p
-                                        className="font-medium truncate"
-                                        title={assetView.displayName}
-                                      >
-                                        {assetView.displayName}
-                                      </p>
-                                      <p
-                                        className="text-sm text-gray-600 dark:text-gray-400 truncate"
-                                        title={amountText}
-                                      >
-                                        {amountText}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="font-medium">
-                                      {assetView.valueAvailable
-                                        ? formatCurrency(
-                                            assetView.value,
-                                            locale,
-                                            settings.general.defaultCurrency,
-                                          )
-                                        : t.common.notAvailable}
-                                    </p>
-                                    {assetView.roi !== null && (
-                                      <div
-                                        className={`flex items-center gap-1 text-sm ${
-                                          assetView.roi >= 0
-                                            ? "text-green-600 dark:text-green-400"
-                                            : "text-red-600 dark:text-red-400"
-                                        }`}
-                                      >
-                                        {assetView.roi >= 0 ? (
-                                          <TrendingUp className="h-3 w-3" />
-                                        ) : (
-                                          <TrendingDown className="h-3 w-3" />
-                                        )}
-                                        <span>
-                                          {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                            Math.abs(assetView.roi),
-                                            locale,
-                                          )}`}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
+                                            title={
+                                              copiedAddress === address
+                                                ? t.common.copied
+                                                : t.common.copy
+                                            }
+                                          >
+                                            {copiedAddress === address ? (
+                                              <Check className="h-3 w-3" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                  copiedAddress === walletAddress
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                }`}
+                                onClick={() => handleCopyAddress(walletAddress)}
+                                title={
+                                  copiedAddress === walletAddress
+                                    ? t.common.copied
+                                    : t.common.copy
+                                }
+                              >
+                                {copiedAddress === walletAddress ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {walletXpub && wallet.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 h-7 w-7 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                            onClick={() => {
+                              setAddressesDialogWalletId(wallet.id!)
+                              setAddressesDialogWalletName(walletName)
+                              setShowAddressesDialog(true)
+                            }}
+                            title={
+                              (t.walletManagement as Record<string, string>)
+                                .viewAddresses
+                            }
+                          >
+                            <List className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <WalletActionsMenu
+                          onEdit={() =>
+                            handleEditWallet(wallet, entityGroup.entity.id)
+                          }
+                          onDelete={() =>
+                            handleDeleteWallet(wallet, entityGroup.entity.id)
+                          }
+                          disabled={isUpdatingWallet || isDeletingWallet}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-lg font-medium">
+                      <Sensitive>
+                        {formatCurrency(
+                          walletTotalValue,
+                          locale,
+                          settings.general.defaultCurrency,
+                        )}
+                      </Sensitive>
+                    </div>
 
-                      {tokenAssets.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                              {t.walletManagement.tokens} ({tokenAssets.length})
-                            </h5>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="h-auto px-0 text-xs"
-                              onClick={() => handleViewAllTokens(wallet)}
-                              type="button"
-                            >
-                              {t.walletManagement.viewAllTokens}
-                            </Button>
-                          </div>
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {tokenAssets.map(assetView => {
+                    {hasAssets ? (
+                      <div className="space-y-4">
+                        {nativeAssets.length > 0 && (
+                          <div className="space-y-2">
+                            {nativeAssets.map(assetView => {
                               const assetSymbol =
                                 assetView.symbol || assetView.displayName || ""
                               const amountText =
@@ -1411,7 +1837,7 @@ export default function CryptoInvestmentPage() {
                                       element,
                                     )
                                   }
-                                  className={`flex items-center justify-between gap-3 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded ${
+                                  className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 ${
                                     hasAccent ? "border-l-[6px]" : ""
                                   } ${
                                     isHighlighted
@@ -1427,84 +1853,598 @@ export default function CryptoInvestmentPage() {
                                       : undefined
                                   }
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="relative w-6 h-6 flex-shrink-0">
-                                      {assetView.iconUrl && (
-                                        <img
-                                          src={assetView.iconUrl}
-                                          alt={assetView.displayName}
-                                          className="h-full w-full object-contain"
-                                          onError={event => {
-                                            event.currentTarget.classList.add(
-                                              "hidden",
-                                            )
-                                            const fallback =
-                                              event.currentTarget
-                                                .nextElementSibling
-                                            if (
-                                              fallback instanceof HTMLElement
-                                            ) {
-                                              fallback.classList.remove(
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="relative w-8 h-8 flex-shrink-0">
+                                        {assetView.iconUrl && (
+                                          <img
+                                            src={assetView.iconUrl}
+                                            alt={assetView.displayName}
+                                            className="h-full w-full object-contain"
+                                            onError={event => {
+                                              event.currentTarget.classList.add(
                                                 "hidden",
                                               )
-                                            }
-                                          }}
-                                        />
-                                      )}
-                                      <div
-                                        className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
-                                          assetView.iconUrl ? "hidden" : ""
-                                        }`}
-                                      >
-                                        <span className="text-gray-700 dark:text-gray-300 text-xs font-bold">
-                                          {assetSymbol
-                                            .slice(0, 2)
-                                            .toUpperCase()}
-                                        </span>
+                                              const fallback =
+                                                event.currentTarget
+                                                  .nextElementSibling
+                                              if (
+                                                fallback instanceof HTMLElement
+                                              ) {
+                                                fallback.classList.remove(
+                                                  "hidden",
+                                                )
+                                              }
+                                            }}
+                                          />
+                                        )}
+                                        <div
+                                          className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
+                                            assetView.iconUrl ? "hidden" : ""
+                                          }`}
+                                        >
+                                          <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
+                                            {assetSymbol
+                                              .slice(0, 2)
+                                              .toUpperCase()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p
+                                          className="font-medium truncate"
+                                          title={assetView.displayName}
+                                        >
+                                          {assetView.displayName}
+                                        </p>
+                                        <p
+                                          className="text-sm text-gray-600 dark:text-gray-400 truncate"
+                                          title={amountText}
+                                        >
+                                          <Sensitive>{amountText}</Sensitive>
+                                        </p>
+                                        {assetView.valueAvailable &&
+                                          assetView.currentPrice > 0 && (
+                                            <p className="text-xs text-muted-foreground truncate">
+                                              {formatCurrency(
+                                                assetView.currentPrice,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )}
+                                            </p>
+                                          )}
                                       </div>
                                     </div>
-                                    <div className="min-w-0">
+                                    <div className="text-right">
                                       <p
-                                        className="text-sm font-medium truncate"
-                                        title={assetView.displayName}
+                                        className={`font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
                                       >
-                                        {assetView.displayName}
+                                        <Sensitive>
+                                          {assetView.valueAvailable
+                                            ? formatCurrency(
+                                                assetView.value,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )
+                                            : t.common.notAvailable}
+                                        </Sensitive>
                                       </p>
-                                      <p
-                                        className="text-xs text-gray-600 dark:text-gray-400 truncate"
-                                        title={amountText}
-                                      >
-                                        {amountText}
-                                      </p>
+                                      {assetView.roi !== null && (
+                                        <div
+                                          className={`flex items-center gap-1 text-sm ${
+                                            assetView.roi >= 0
+                                              ? "text-green-600 dark:text-green-400"
+                                              : "text-red-600 dark:text-red-400"
+                                          }`}
+                                        >
+                                          <Sensitive>
+                                            {assetView.roi >= 0 ? (
+                                              <TrendingUp className="h-3 w-3" />
+                                            ) : (
+                                              <TrendingDown className="h-3 w-3" />
+                                            )}
+                                            <span>
+                                              {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
+                                                Math.abs(assetView.roi),
+                                                locale,
+                                              )}`}
+                                            </span>
+                                          </Sensitive>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-sm font-medium">
-                                      {assetView.valueAvailable
-                                        ? formatCurrency(
-                                            assetView.value,
-                                            locale,
-                                            settings.general.defaultCurrency,
-                                          )
-                                        : t.common.notAvailable}
-                                    </p>
                                   </div>
                                 </div>
                               )
                             })}
                           </div>
+                        )}
+
+                        {tokenAssets.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {t.walletManagement.tokens} (
+                                {tokenAssets.length})
+                              </h5>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto px-0 text-xs"
+                                onClick={() => handleViewAllTokens(wallet)}
+                                type="button"
+                              >
+                                {t.walletManagement.viewAllTokens}
+                              </Button>
+                            </div>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                              {tokenAssets.map(assetView => {
+                                const assetSymbol =
+                                  assetView.symbol ||
+                                  assetView.displayName ||
+                                  ""
+                                const amountText =
+                                  assetView.asset.amount != null
+                                    ? `${assetView.asset.amount.toLocaleString(locale)} ${assetSymbol}`
+                                    : assetSymbol
+                                const color =
+                                  chartColorMap.get(assetView.groupingKey) ??
+                                  "transparent"
+                                const hasAccent = color !== "transparent"
+                                const isHighlighted =
+                                  highlightedAsset === assetView.groupingKey
+
+                                return (
+                                  <div
+                                    key={assetView.asset.id}
+                                    ref={element =>
+                                      registerAssetRef(
+                                        assetView.groupingKey,
+                                        element,
+                                      )
+                                    }
+                                    className={`flex items-center justify-between gap-3 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded ${
+                                      hasAccent ? "border-l-[6px]" : ""
+                                    } ${
+                                      isHighlighted
+                                        ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
+                                        : ""
+                                    }`}
+                                    style={
+                                      hasAccent
+                                        ? {
+                                            borderLeftColor: color,
+                                            borderLeftWidth: 6,
+                                          }
+                                        : undefined
+                                    }
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className="relative w-6 h-6 flex-shrink-0">
+                                        {assetView.iconUrl && (
+                                          <img
+                                            src={assetView.iconUrl}
+                                            alt={assetView.displayName}
+                                            className="h-full w-full object-contain"
+                                            onError={event => {
+                                              event.currentTarget.classList.add(
+                                                "hidden",
+                                              )
+                                              const fallback =
+                                                event.currentTarget
+                                                  .nextElementSibling
+                                              if (
+                                                fallback instanceof HTMLElement
+                                              ) {
+                                                fallback.classList.remove(
+                                                  "hidden",
+                                                )
+                                              }
+                                            }}
+                                          />
+                                        )}
+                                        <div
+                                          className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
+                                            assetView.iconUrl ? "hidden" : ""
+                                          }`}
+                                        >
+                                          <span className="text-gray-700 dark:text-gray-300 text-xs font-bold">
+                                            {assetSymbol
+                                              .slice(0, 2)
+                                              .toUpperCase()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p
+                                          className="text-sm font-medium truncate"
+                                          title={assetView.displayName}
+                                        >
+                                          {assetView.displayName}
+                                        </p>
+                                        <p
+                                          className="text-xs text-gray-600 dark:text-gray-400 truncate"
+                                          title={amountText}
+                                        >
+                                          <Sensitive>{amountText}</Sensitive>
+                                        </p>
+                                        {assetView.valueAvailable &&
+                                          assetView.currentPrice > 0 && (
+                                            <p className="text-xs text-muted-foreground truncate">
+                                              {formatCurrency(
+                                                assetView.currentPrice,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )}
+                                            </p>
+                                          )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p
+                                        className={`text-sm font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                                      >
+                                        <Sensitive>
+                                          {assetView.valueAvailable
+                                            ? formatCurrency(
+                                                assetView.value,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )
+                                            : t.common.notAvailable}
+                                        </Sensitive>
+                                      </p>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                        {t.common.noDataAvailable}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+            {(() => {
+              const walletlessGroups = entityGroup.wallets.filter(walletGroup =>
+                isWalletlessEntry(walletGroup.wallet),
+              )
+              if (walletlessGroups.length === 0) return null
+
+              const accountIds = new Set(
+                walletlessGroups.map(w => w.accountId).filter(Boolean),
+              )
+              const showAccountHeaders = accountIds.size > 1
+
+              const renderAssetCard = (
+                assetView: WalletAssetView,
+                cardKey: string,
+              ) => {
+                const assetSymbol =
+                  assetView.symbol || assetView.displayName || ""
+                const amountText =
+                  assetView.asset.amount != null
+                    ? `${formatNumber(assetView.asset.amount, locale)} ${assetSymbol}`
+                    : assetSymbol
+                const color =
+                  chartColorMap.get(assetView.groupingKey) ?? "transparent"
+                const hasAccent = color !== "transparent"
+                const isHighlighted = highlightedAsset === assetView.groupingKey
+                return (
+                  <div
+                    key={cardKey}
+                    ref={element =>
+                      registerAssetRef(assetView.groupingKey, element)
+                    }
+                    className="self-start"
+                  >
+                    <Card
+                      className={`overflow-hidden ${hasAccent ? "border-l-[6px]" : ""} ${
+                        isHighlighted
+                          ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
+                          : ""
+                      }`}
+                      style={
+                        hasAccent
+                          ? { borderLeftColor: color, borderLeftWidth: 6 }
+                          : undefined
+                      }
+                    >
+                      <CardContent className="space-y-4 pt-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative w-8 h-8 flex-shrink-0">
+                              {assetView.iconUrl && (
+                                <img
+                                  src={assetView.iconUrl}
+                                  alt={assetView.displayName}
+                                  className="h-full w-full object-contain"
+                                  onError={event => {
+                                    event.currentTarget.classList.add("hidden")
+                                    const fallback =
+                                      event.currentTarget.nextElementSibling
+                                    if (fallback instanceof HTMLElement) {
+                                      fallback.classList.remove("hidden")
+                                    }
+                                  }}
+                                />
+                              )}
+                              <div
+                                className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
+                                  assetView.iconUrl ? "hidden" : ""
+                                }`}
+                              >
+                                <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
+                                  {assetSymbol.slice(0, 2).toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex flex-col gap-1">
+                              <p
+                                className="font-medium truncate"
+                                title={assetView.displayName}
+                              >
+                                {assetView.displayName}
+                              </p>
+                              <p
+                                className="text-sm text-gray-600 dark:text-gray-400 truncate"
+                                title={amountText}
+                              >
+                                <Sensitive>{amountText}</Sensitive>
+                              </p>
+                              {assetView.valueAvailable &&
+                                assetView.currentPrice > 0 && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {formatCurrency(
+                                      assetView.currentPrice,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )}
+                                  </p>
+                                )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p
+                              className={`text-lg font-semibold ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                            >
+                              <Sensitive>
+                                {assetView.valueAvailable
+                                  ? formatCurrency(
+                                      assetView.value,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )
+                                  : t.common.notAvailable}
+                              </Sensitive>
+                            </p>
+                            {assetView.roi !== null && (
+                              <div
+                                className={`flex items-center justify-end gap-1 text-sm ${
+                                  assetView.roi >= 0
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-red-600 dark:text-red-400"
+                                }`}
+                              >
+                                <Sensitive>
+                                  {assetView.roi >= 0 ? (
+                                    <TrendingUp className="h-3 w-3" />
+                                  ) : (
+                                    <TrendingDown className="h-3 w-3" />
+                                  )}
+                                  <span>
+                                    {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
+                                      Math.abs(assetView.roi),
+                                      locale,
+                                    )}`}
+                                  </span>
+                                </Sensitive>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        {isEditMode && assetView.isManual && (
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (assetView.originalId) {
+                                  editByOriginalId(assetView.originalId)
+                                } else if (assetView.localId) {
+                                  editByLocalId(assetView.localId)
+                                }
+                              }}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-600"
+                              onClick={() => {
+                                if (assetView.originalId) {
+                                  deleteByOriginalId(assetView.originalId)
+                                } else if (assetView.localId) {
+                                  deleteByLocalId(assetView.localId)
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              }
+
+              if (showAccountHeaders) {
+                const accountGroups = new Map<
+                  string,
+                  { name: string; assets: WalletAssetView[] }
+                >()
+                walletlessGroups.forEach(wg => {
+                  const key = wg.accountId ?? "default"
+                  const existing = accountGroups.get(key)
+                  if (existing) {
+                    existing.assets.push(...wg.assets)
+                  } else {
+                    accountGroups.set(key, {
+                      name:
+                        wg.accountName ||
+                        `${t.entities.account} ${accountGroups.size + 1}`,
+                      assets: [...wg.assets],
+                    })
+                  }
+                })
+                return Array.from(accountGroups.entries()).map(
+                  ([accountKey, group]) => (
+                    <React.Fragment key={`account-${accountKey}`}>
+                      <div className="col-span-full mt-2">
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          {group.name}
+                        </p>
+                      </div>
+                      {group.assets.map(assetView =>
+                        renderAssetCard(
+                          assetView,
+                          assetView.originalId ??
+                            assetView.localId ??
+                            `${accountKey}-${assetView.groupingKey}`,
+                        ),
                       )}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                      {t.common.noDataAvailable}
-                    </div>
-                  )}
+                    </React.Fragment>
+                  ),
+                )
+              }
+
+              return walletlessGroups
+                .flatMap(walletGroup => walletGroup.assets)
+                .map(assetView =>
+                  renderAssetCard(
+                    assetView,
+                    assetView.originalId ??
+                      assetView.localId ??
+                      assetView.groupingKey,
+                  ),
+                )
+            })()}
+          </div>
+
+          {includeDerivatives &&
+            (() => {
+              const entityDerivs = cryptoDerivatives.filter(
+                d => d.entityId === entityGroup.entity.id,
+              )
+              if (entityDerivs.length === 0) return null
+              const rates = (exchangeRates ?? {}) as ExchangeRates
+              const targetCurrency = settings.general.defaultCurrency
+              return (
+                <div className="space-y-3 mt-4">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <FlaskConical className="h-3.5 w-3.5" />
+                    {t.investments.derivatives.title}
+                  </h4>
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                    {entityDerivs.map(({ derivative }) => {
+                      const currency = normalizeDerivativeCurrency(
+                        derivative.currency,
+                      )
+                      const convertedValue = convertCurrency(
+                        derivative.market_value || 0,
+                        currency,
+                        targetCurrency,
+                        rates,
+                      )
+                      const isLong =
+                        derivative.direction === PositionDirection.LONG
+                      const directionLabel = isLong
+                        ? t.investments.derivatives.direction.LONG
+                        : t.investments.derivatives.direction.SHORT
+                      const contractLabel =
+                        (
+                          t.investments.derivatives.contractType as Record<
+                            string,
+                            string
+                          >
+                        )[derivative.contract_type] || derivative.contract_type
+
+                      return (
+                        <Card
+                          key={derivative.id}
+                          className="overflow-hidden cursor-pointer hover:shadow-sm transition-shadow"
+                          onClick={() => setSelectedDerivative(derivative)}
+                        >
+                          <CardContent className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  isLong
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                }`}
+                              >
+                                {directionLabel}
+                              </span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                {contractLabel}
+                              </span>
+                              {derivative.leverage != null && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  {derivative.leverage}x
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-end justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {derivative.symbol}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  <Sensitive>
+                                    {formatNumber(derivative.size, locale)}{" "}
+                                    {derivative.underlying_symbol || ""}
+                                  </Sensitive>
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p
+                                  className={`text-base font-semibold ${
+                                    convertedValue < 0
+                                      ? "text-red-600 dark:text-red-400"
+                                      : ""
+                                  }`}
+                                >
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      convertedValue,
+                                      locale,
+                                      targetCurrency,
+                                    )}
+                                  </Sensitive>
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
                 </div>
               )
-            })}
-          </div>
+            })()}
         </motion.section>
       ))}
     </motion.div>
@@ -1516,7 +2456,7 @@ export default function CryptoInvestmentPage() {
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-8 pb-6"
+      className="space-y-8"
     >
       {networkGroups.map(networkGroup => (
         <motion.section
@@ -1526,16 +2466,34 @@ export default function CryptoInvestmentPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-md">
-                <img
-                  src={`entities/${networkGroup.entity.id}.png`}
-                  alt={networkGroup.entity.name}
-                  className="h-full w-full object-contain"
-                  onError={event => {
-                    event.currentTarget.style.display = "none"
-                  }}
-                />
-              </div>
+              {(networkGroup.entity.origin === "NATIVE" ||
+                networkGroup.entity.icon_url) && (
+                <div
+                  className={`w-10 h-10 flex-shrink-0 overflow-hidden ${
+                    networkGroup.entity.origin === "MANUAL"
+                      ? "rounded-full"
+                      : "rounded-md"
+                  }`}
+                >
+                  <img
+                    src={
+                      networkGroup.entity.origin !== "NATIVE" &&
+                      networkGroup.entity.icon_url
+                        ? networkGroup.entity.icon_url
+                        : `entities/${networkGroup.entity.id}.png`
+                    }
+                    alt={networkGroup.entity.name}
+                    className={`h-full w-full ${
+                      networkGroup.entity.origin === "MANUAL"
+                        ? "object-cover"
+                        : "object-contain"
+                    }`}
+                    onError={event => {
+                      event.currentTarget.style.display = "none"
+                    }}
+                  />
+                </div>
+              )}
               <div>
                 <h3 className="text-xl font-semibold">
                   {networkGroup.entity.name}
@@ -1550,11 +2508,13 @@ export default function CryptoInvestmentPage() {
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold">
-                {formatCurrency(
-                  networkGroup.totalValue,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
+                <Sensitive>
+                  {formatCurrency(
+                    networkGroup.totalValue,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </Sensitive>
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {t.walletManagement.totalValue}
@@ -1652,19 +2612,33 @@ export default function CryptoInvestmentPage() {
                                 className="text-sm text-gray-600 dark:text-gray-400 truncate"
                                 title={amountText}
                               >
-                                {amountText}
+                                <Sensitive>{amountText}</Sensitive>
                               </p>
+                              {assetSummary.valueAvailable &&
+                                assetSummary.currentPrice > 0 && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {formatCurrency(
+                                      assetSummary.currentPrice,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )}
+                                  </p>
+                                )}
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-semibold">
-                              {assetSummary.valueAvailable
-                                ? formatCurrency(
-                                    assetSummary.totalValue,
-                                    locale,
-                                    settings.general.defaultCurrency,
-                                  )
-                                : t.common.notAvailable}
+                            <p
+                              className={`text-lg font-semibold ${assetSummary.totalValue < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                            >
+                              <Sensitive>
+                                {assetSummary.valueAvailable
+                                  ? formatCurrency(
+                                      assetSummary.totalValue,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )
+                                  : t.common.notAvailable}
+                              </Sensitive>
                             </p>
                             {assetSummary.roi !== null && (
                               <div
@@ -1674,17 +2648,19 @@ export default function CryptoInvestmentPage() {
                                     : "text-red-600 dark:text-red-400"
                                 }`}
                               >
-                                {assetSummary.roi >= 0 ? (
-                                  <TrendingUp className="h-3 w-3" />
-                                ) : (
-                                  <TrendingDown className="h-3 w-3" />
-                                )}
-                                <span>
-                                  {`${assetSummary.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                    Math.abs(assetSummary.roi),
-                                    locale,
-                                  )}`}
-                                </span>
+                                <Sensitive>
+                                  {assetSummary.roi >= 0 ? (
+                                    <TrendingUp className="h-3 w-3" />
+                                  ) : (
+                                    <TrendingDown className="h-3 w-3" />
+                                  )}
+                                  <span>
+                                    {`${assetSummary.roi >= 0 ? "+" : "-"}${formatPercentage(
+                                      Math.abs(assetSummary.roi),
+                                      locale,
+                                    )}`}
+                                  </span>
+                                </Sensitive>
                               </div>
                             )}
                           </div>
@@ -1703,32 +2679,71 @@ export default function CryptoInvestmentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
-            <PinAssetButton assetId="crypto" />
+            <PinAssetButton
+              assetId="crypto"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => navigate("/entities#crypto-enabled")}
-        >
-          <Plus className="h-4 w-4 mr-2" /> {t.walletManagement.addWallet}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <ManualPositionsControls className="justify-center sm:justify-end" />
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              if (isEditMode && hasLocalChanges) {
+                setShowConnectConfirm(true)
+                return
+              }
+              if (isEditMode) {
+                requestCancel()
+              }
+              navigate("/entities#crypto-enabled")
+            }}
+          >
+            <Wallet className="h-4 w-4 sm:mr-2" />{" "}
+            <span className="hidden sm:inline">{t.entities.connect}</span>
+          </Button>
+        </div>
       </div>
+      <ManualPositionsEditBanner />
 
       <InvestmentFilters
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         onEntitiesChange={setSelectedEntities}
         walletOptions={walletFilterOptions}
         selectedWallets={selectedWalletFilters}
         onWalletsChange={setSelectedWalletFilters}
+        entityImageOverride={cryptoEntityImageOverride}
+        extraFilters={
+          cryptoDerivatives.length > 0 ? (
+            <Button
+              variant={includeDerivatives ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIncludeDerivatives(prev => !prev)}
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                !includeDerivatives && "text-muted-foreground",
+              )}
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              {t.investments.derivatives.title}
+            </Button>
+          ) : undefined
+        }
       />
 
       {noResults ? (
@@ -1752,50 +2767,8 @@ export default function CryptoInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-            <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.common.cryptoInvestments}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.investments.numberOfAssets}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{totalCryptoAssets}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {totalCryptoAssets === 1
-                      ? t.investments.asset
-                      : t.investments.assets}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.walletManagement.wallets}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{totalFilteredWallets}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {totalFilteredWallets === 1
-                      ? t.walletManagement.wallet
-                      : t.walletManagement.wallets}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+          <Card className="-mx-6 rounded-none border-x-0">
+            <CardContent className="pt-6">
               <InvestmentDistributionChart
                 data={chartData}
                 title={t.common.distribution}
@@ -1822,9 +2795,83 @@ export default function CryptoInvestmentPage() {
                     )
                   }
                 }}
+                toggleConfig={{
+                  activeView: "asset",
+                  onViewChange: () => {},
+                  options: [{ value: "asset", label: t.investments.byAsset }],
+                }}
+                badges={[
+                  {
+                    icon: <Layers className="h-3 w-3" />,
+                    value: `${totalCryptoAssets} ${totalCryptoAssets === 1 ? t.investments.asset : t.investments.assets}`,
+                  },
+                  {
+                    icon: <Wallet className="h-3 w-3" />,
+                    value: `${totalFilteredWallets} ${totalFilteredWallets === 1 ? t.walletManagement.wallet : t.walletManagement.wallets}`,
+                  },
+                  ...(includeDerivatives && cryptoDerivatives.length > 0
+                    ? [
+                        {
+                          icon: <FlaskConical className="h-3 w-3" />,
+                          value: `${cryptoDerivatives.length} ${cryptoDerivatives.length === 1 ? t.investments.derivatives.singular : t.investments.derivatives.plural}`,
+                        },
+                      ]
+                    : []),
+                ]}
+                centerContent={{
+                  rawValue: totalValue,
+                  infoRows: [
+                    {
+                      label: t.dashboard.totalValue,
+                      value: formatCurrency(
+                        totalValue,
+                        locale,
+                        settings.general.defaultCurrency,
+                      ),
+                    },
+                    ...(hasNegativePositions
+                      ? [
+                          {
+                            label: t.investments.actives,
+                            value: formatCurrency(
+                              activesValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName: "text-green-500",
+                          },
+                          {
+                            label: t.investments.passives,
+                            value: formatCurrency(
+                              passivesValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName: "text-red-500",
+                          },
+                        ]
+                      : []),
+                    ...(totalGain !== null
+                      ? [
+                          {
+                            label: t.investments.sortAbsoluteGain,
+                            value: formatGainLoss(
+                              totalGain,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName:
+                              totalGain >= 0
+                                ? "text-green-500"
+                                : "text-red-500",
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           <Tabs
             value={viewMode}
@@ -1864,7 +2911,7 @@ export default function CryptoInvestmentPage() {
         title={t.common.warning}
         message={t.walletManagement.deleteWalletConfirm.replace(
           "{{walletName}}",
-          walletToDelete?.name || walletToDelete?.address || "",
+          walletToDelete?.name || getPrimaryWalletAddress(walletToDelete) || "",
         )}
         onConfirm={confirmDeleteWallet}
         onCancel={() => {
@@ -1874,6 +2921,20 @@ export default function CryptoInvestmentPage() {
         }}
         isLoading={isDeletingWallet}
         confirmText={t.common.delete}
+        cancelText={t.common.cancel}
+      />
+
+      <ConfirmationDialog
+        isOpen={showConnectConfirm}
+        title={t.management.manualPositions.shared.discardChangesTitle}
+        message={t.management.manualPositions.shared.discardChangesMessage}
+        onConfirm={() => {
+          setShowConnectConfirm(false)
+          requestCancel()
+          navigate("/entities#crypto-enabled")
+        }}
+        onCancel={() => setShowConnectConfirm(false)}
+        confirmText={t.common.discard}
         cancelText={t.common.cancel}
       />
 
@@ -1893,6 +2954,290 @@ export default function CryptoInvestmentPage() {
         placeholder={t.walletManagement.walletNamePlaceholder}
         confirmText={t.common.save}
         cancelText={t.common.cancel}
+      />
+
+      {selectedDerivative &&
+        (() => {
+          const d = selectedDerivative
+          const dt = t.investments.derivatives.detail
+          const rates = (exchangeRates ?? {}) as ExchangeRates
+          const targetCurrency = settings.general.defaultCurrency
+          const cur = normalizeDerivativeCurrency(d.currency)
+          const convertedMv = convertCurrency(
+            d.market_value || 0,
+            cur,
+            targetCurrency,
+            rates,
+          )
+          const convertedPnl =
+            d.unrealized_pnl != null
+              ? convertCurrency(d.unrealized_pnl, cur, targetCurrency, rates)
+              : null
+          const isLong = d.direction === PositionDirection.LONG
+          const directionLabel = isLong
+            ? t.investments.derivatives.direction.LONG
+            : t.investments.derivatives.direction.SHORT
+          const contractLabel =
+            (t.investments.derivatives.contractType as Record<string, string>)[
+              d.contract_type
+            ] || d.contract_type
+          const marginLabel =
+            d.margin_type === MarginType.CROSS
+              ? "Cross"
+              : d.margin_type === MarginType.ISOLATED
+                ? "Isolated"
+                : null
+
+          const dialogContent = (
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+                onClick={e => {
+                  if (e.target === e.currentTarget) setSelectedDerivative(null)
+                }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="w-full max-w-md mx-auto"
+                >
+                  <Card>
+                    <CardContent className="pt-5 pb-4 px-5 space-y-5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                isLong
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              }`}
+                            >
+                              {directionLabel}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {contractLabel}
+                            </span>
+                            {d.leverage != null && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {d.leverage}x
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-lg font-semibold">{d.symbol}</h3>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-7 w-7"
+                          onClick={() => setSelectedDerivative(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Market Value hero */}
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {dt.marketValue}
+                        </p>
+                        <p
+                          className={`text-2xl font-bold ${
+                            convertedMv < 0
+                              ? "text-red-600 dark:text-red-400"
+                              : convertedMv > 0
+                                ? "text-green-600 dark:text-green-400"
+                                : ""
+                          }`}
+                        >
+                          <Sensitive>
+                            {formatCurrency(
+                              convertedMv,
+                              locale,
+                              targetCurrency,
+                            )}
+                          </Sensitive>
+                        </p>
+                      </div>
+
+                      {/* Overview section */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                          <Tag className="h-3 w-3" />
+                          {dt.overview}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          {d.underlying_symbol && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.underlying}
+                              </span>
+                              <span className="font-medium text-right">
+                                {d.underlying_symbol}
+                              </span>
+                            </>
+                          )}
+                          <span className="text-muted-foreground">
+                            {t.investments.derivatives.size}
+                          </span>
+                          <span className="font-medium text-right">
+                            <Sensitive>
+                              {formatNumber(d.size, locale)}{" "}
+                              {d.underlying_symbol || ""}
+                            </Sensitive>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Pricing section */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                          <DollarSign className="h-3 w-3" />
+                          {dt.pricing}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <span className="text-muted-foreground">
+                            {dt.entryPrice}
+                          </span>
+                          <span className="font-medium text-right">
+                            <Sensitive>
+                              {formatCurrency(d.entry_price, locale, cur)}
+                            </Sensitive>
+                          </span>
+                          {d.mark_price != null && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.markPrice}
+                              </span>
+                              <span className="font-medium text-right">
+                                <Sensitive>
+                                  {formatCurrency(d.mark_price, locale, cur)}
+                                </Sensitive>
+                              </span>
+                            </>
+                          )}
+                          {convertedPnl != null && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.unrealizedPnl}
+                              </span>
+                              <span
+                                className={`font-medium text-right ${
+                                  convertedPnl < 0
+                                    ? "text-red-600 dark:text-red-400"
+                                    : convertedPnl > 0
+                                      ? "text-green-600 dark:text-green-400"
+                                      : ""
+                                }`}
+                              >
+                                <Sensitive>
+                                  {convertedPnl >= 0 ? "+" : ""}
+                                  {formatCurrency(
+                                    convertedPnl,
+                                    locale,
+                                    targetCurrency,
+                                  )}
+                                </Sensitive>
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Risk & Margin section */}
+                      {(d.leverage != null ||
+                        d.margin != null ||
+                        d.liquidation_price != null) && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <ShieldAlert className="h-3 w-3" />
+                            {dt.risk}
+                          </h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            {d.leverage != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.leverage}
+                                </span>
+                                <span className="font-medium text-right">
+                                  {d.leverage}x
+                                </span>
+                              </>
+                            )}
+                            {d.margin != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.margin}
+                                </span>
+                                <span className="font-medium text-right">
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      convertCurrency(
+                                        d.margin,
+                                        cur,
+                                        targetCurrency,
+                                        rates,
+                                      ),
+                                      locale,
+                                      targetCurrency,
+                                    )}
+                                  </Sensitive>
+                                </span>
+                              </>
+                            )}
+                            {marginLabel && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.marginType}
+                                </span>
+                                <span className="font-medium text-right">
+                                  {marginLabel}
+                                </span>
+                              </>
+                            )}
+                            {d.liquidation_price != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.liquidationPrice}
+                                </span>
+                                <span className="font-medium text-right text-amber-600 dark:text-amber-400">
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      d.liquidation_price,
+                                      locale,
+                                      cur,
+                                    )}
+                                  </Sensitive>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
+          )
+
+          return typeof document !== "undefined"
+            ? createPortal(dialogContent, document.body)
+            : dialogContent
+        })()}
+
+      <WalletAddressesDialog
+        isOpen={showAddressesDialog}
+        onClose={() => setShowAddressesDialog(false)}
+        walletId={addressesDialogWalletId}
+        walletName={addressesDialogWalletName}
       />
     </div>
   )

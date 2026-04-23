@@ -1,8 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from application.ports.auto_contributions_port import AutoContributionsPort
 from dateutil.tz import tzlocal
+
+from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -14,6 +15,9 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
+from infrastructure.repository.auto_contributions.queries import (
+    AutoContributionsQueries,
+)
 from infrastructure.repository.db.client import DBClient
 
 
@@ -21,22 +25,16 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
-        with self._db_client.tx() as cursor:
-            # Delete existing contributions for this entity
-            cursor.execute(
-                "DELETE FROM periodic_contributions WHERE entity_id = ? AND source = ?",
+    async def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                AutoContributionsQueries.DELETE_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
 
-            # Insert new contributions
             for contrib in data.periodic:
-                cursor.execute(
-                    """
-                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, target_subtype, alias, target_name, amount, currency,
-                                                        since, until, frequency, active, is_real, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                await cursor.execute(
+                    AutoContributionsQueries.INSERT_PERIODIC_CONTRIBUTION,
                     (
                         str(contrib.id),
                         str(entity_id),
@@ -54,27 +52,20 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         contrib.source == DataSource.REAL,
                         contrib.source,
                         datetime.now(tzlocal()).isoformat(),
+                        str(contrib.entity_account_id)
+                        if contrib.entity_account_id
+                        else None,
                     ),
                 )
 
-    def get_all_grouped_by_entity(
+    async def get_all_grouped_by_entity(
         self, query: ContributionQueryRequest
     ) -> dict[Entity, AutoContributions]:
-        with self._db_client.read() as cursor:
-            params = []
-            sql = """
-                  SELECT e.id         as entity_id,
-                         e.name       as entity_name,
-                         e.natural_id as entity_natural_id,
-                         e.type       as entity_type,
-                         e.origin     as entity_origin,
-                         pc.id        as pc_id,
-                         pc.*
-                  FROM periodic_contributions pc
-                           JOIN entities e ON pc.entity_id = e.id
-                  """
+        async with self._db_client.read() as cursor:
+            params: list[str] = []
+            sql = AutoContributionsQueries.GET_ALL_GROUPED_BY_ENTITY_BASE.value
 
-            conditions = []
+            conditions: list[str] = []
             if query.real is not None:
                 if query.real:
                     conditions.append("pc.source = 'REAL'")
@@ -92,12 +83,12 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 params.extend([str(e) for e in query.excluded_entities])
 
             if conditions:
-                sql += " WHERE " + " AND ".join(conditions)
+                sql += " AND " + " AND ".join(conditions)
 
-            cursor.execute(sql, tuple(params))
+            await cursor.execute(sql, tuple(params))
 
             entities = {}
-            for row in cursor.fetchall():
+            for row in await cursor.fetchall():
                 if not row["entity_id"] or not row["pc_id"]:
                     continue
 
@@ -107,6 +98,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                     natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
                     origin=row["entity_origin"],
+                    icon_url=row["icon_url"],
                 )
                 if entity not in entities:
                     entities[entity] = []
@@ -133,6 +125,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         active=bool(row["active"]),
                         source=row["source"],
                         entity=entity,
+                        entity_account_id=UUID(row["entity_account_id"])
+                        if row["entity_account_id"]
+                        else None,
                     )
                 )
 
@@ -141,8 +136,15 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 for entity, contribs in entities.items()
             }
 
-    def delete_by_source(self, source: DataSource):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM periodic_contributions WHERE source = ?", (source.value,)
+    async def delete_by_source(self, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                AutoContributionsQueries.DELETE_BY_SOURCE, (source.value,)
+            )
+
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                AutoContributionsQueries.DELETE_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
             )

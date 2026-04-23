@@ -1,20 +1,17 @@
-import React, { useMemo, useRef, useState, useCallback, useEffect } from "react"
-import { motion } from "framer-motion"
+import { useMemo, useRef, useState, useCallback, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getColorForName, getCurrencySymbol, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
-import {
-  formatCurrency,
-  formatPercentage,
-  formatGainLoss,
-} from "@/lib/formatters"
+import { formatCurrency, formatGainLoss } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getStockAndFundPositions,
   getEntitiesWithProductType,
@@ -33,6 +30,8 @@ import {
 } from "@/types/position"
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
   TrendingUp,
   TrendingDown,
   Filter,
@@ -42,14 +41,21 @@ import {
   Plus,
   Save,
   X,
-  AlertCircle,
   Lock,
   ExternalLink,
+  Layers,
+  ChevronDown,
+  BarChart3,
+  Loader2,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
-import { MultiSelect } from "@/components/ui/MultiSelect"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
+import {
+  MultiSelect,
+  type MultiSelectOption,
+} from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import { useNavigate } from "react-router-dom"
-import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ManualPositionsManager,
@@ -147,6 +153,9 @@ function FundsInvestmentPageContent({
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [selectedPortfolios, setSelectedPortfolios] = useState<string[]>([])
+  const [fundsChartView, setFundsChartView] = useState<"asset" | "type">(
+    "asset",
+  )
 
   // Get all fund positions
   const allFundPositions = useMemo<FundPositionWithEntity[]>(() => {
@@ -193,7 +202,7 @@ function FundsInvestmentPageContent({
   }, [allFundPositions, selectedEntities, selectedPortfolios])
 
   // Get entity options for the filter
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithFunds = getEntitiesWithProductType(
       positionsData,
       ProductType.FUND,
@@ -201,37 +210,32 @@ function FundsInvestmentPageContent({
     const validIds = new Set(entitiesWithFunds)
 
     return (
-      entities
-        ?.filter(entity => {
-          if (!entity.id || typeof entity.id !== "string") {
-            return false
-          }
-          if (entity.id.startsWith("new-")) {
-            return false
-          }
-          return validIds.has(entity.id)
-        })
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => {
+        if (!entity.id || typeof entity.id !== "string") {
+          return false
+        }
+        if (entity.id.startsWith("new-")) {
+          return false
+        }
+        return validIds.has(entity.id)
+      }) || []
     )
   }, [entities, positionsData])
 
   useEffect(() => {
-    if (entityOptions.length === 0) {
+    if (filteredEntities.length === 0) {
       if (selectedEntities.length > 0) {
         setSelectedEntities([])
       }
       return
     }
 
-    const allowed = new Set(entityOptions.map(option => option.value))
+    const allowed = new Set(filteredEntities.map(e => e.id))
     setSelectedEntities(prev => {
       const next = prev.filter(id => allowed.has(id))
       return next.length === prev.length ? prev : next
     })
-  }, [entityOptions])
+  }, [filteredEntities])
 
   const portfolioOptions: MultiSelectOption[] = useMemo(() => {
     const names = new Set<string>()
@@ -252,6 +256,15 @@ function FundsInvestmentPageContent({
     )
   }, [portfolioOptions])
 
+  useEffect(() => {
+    if (fundsContext.isEditMode && !portfolioContext.isEditMode) {
+      portfolioContext.enterEditMode()
+    }
+    if (portfolioContext.isEditMode && !fundsContext.isEditMode) {
+      fundsContext.enterEditMode()
+    }
+  }, [fundsContext.isEditMode, portfolioContext.isEditMode])
+
   const fundDrafts = drafts as FundDraft[]
   const manualPortfolioDrafts =
     portfolioManual.drafts as ManualPositionDraft<FundPortfolio>[]
@@ -263,34 +276,36 @@ function FundsInvestmentPageContent({
 
     const list: ReadOnlyFundPortfolioItem[] = []
 
-    Object.values(positionsData.positions).forEach(globalPosition => {
-      const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
-        | { entries?: FundPortfolio[] }
-        | undefined
-      const entries = product?.entries ?? []
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(globalPosition => {
+        const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
+          | { entries?: FundPortfolio[] }
+          | undefined
+        const entries = product?.entries ?? []
 
-      entries.forEach(portfolio => {
-        const source = portfolio.source ?? DataSource.REAL
-        if (source === DataSource.MANUAL) {
-          return
-        }
+        entries.forEach(portfolio => {
+          const source = portfolio.source ?? DataSource.REAL
+          if (source === DataSource.MANUAL) {
+            return
+          }
 
-        const id =
-          portfolio.id ||
-          `${globalPosition.entity.id}-readonly-${
-            portfolio.name?.trim() || "portfolio"
-          }`
+          const id =
+            portfolio.id ||
+            `${globalPosition.entity.id}-readonly-${
+              portfolio.name?.trim() || "portfolio"
+            }`
 
-        list.push({
-          id,
-          name: portfolio.name ?? null,
-          currency: portfolio.currency ?? null,
-          entityId: globalPosition.entity.id,
-          entityName: globalPosition.entity.name,
-          source,
+          list.push({
+            id,
+            name: portfolio.name ?? null,
+            currency: portfolio.currency ?? null,
+            entityId: globalPosition.entity.id,
+            entityName: globalPosition.entity.name,
+            source,
+          })
         })
       })
-    })
 
     return list.sort((a, b) => {
       if (a.entityName !== b.entityName) {
@@ -526,6 +541,12 @@ function FundsInvestmentPageContent({
     }
   }, [displayPositions, t.enums])
 
+  const assetTypeChartData = useMemo(() => {
+    return assetTypeInnerData.filter(
+      (entry: any) => !entry.isGap && entry.value > 0,
+    )
+  }, [assetTypeInnerData])
+
   const totalInitialInvestment = useMemo(() => {
     return displayPositions.reduce((sum, position) => {
       const rawInitialInvestment =
@@ -554,10 +575,6 @@ function FundsInvestmentPageContent({
     )
   }, [displayPositions])
 
-  const formattedTotalValue = useMemo(() => {
-    return formatCurrency(totalValue, locale, settings.general.defaultCurrency)
-  }, [totalValue, locale, settings.general.defaultCurrency])
-
   const totalFundValue = useMemo(() => {
     return displayPositions.reduce(
       (sum, position) => sum + (position.value || 0),
@@ -568,6 +585,17 @@ function FundsInvestmentPageContent({
   // refs map for scrolling/highlighting
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<
+    "amount" | "relativeGain" | "absoluteGain"
+  >("amount")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
     const ref = itemRefs.current[slice.name]
@@ -583,15 +611,32 @@ function FundsInvestmentPageContent({
 
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) => (b.position.value || 0) - (a.position.value || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number
+        let bVal: number
+        switch (sortBy) {
+          case "relativeGain":
+            aVal = a.position.change ?? 0
+            bVal = b.position.change ?? 0
+            break
+          case "absoluteGain":
+            aVal = a.position.gainLossAmount ?? 0
+            bVal = b.position.gainLossAmount ?? 0
+            break
+          default:
+            aVal = a.position.value || 0
+            bVal = b.position.value || 0
+        }
+        return sortOrder === "desc" ? bVal - aVal : aVal - bVal
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
-  const showDraftList =
-    portfolioManual.isEditMode &&
-    (manualPortfolioDrafts.length > 0 || readOnlyFundPortfolios.length > 0)
+  const showDraftList = portfolioManual.isEditMode
+
+  const handleAddPortfolioDraft = useCallback(() => {
+    portfolioManual.beginCreate()
+  }, [portfolioManual])
 
   if (isLoading) {
     return (
@@ -614,16 +659,24 @@ function FundsInvestmentPageContent({
       className="space-y-6"
     >
       <motion.div variants={fadeListItem} className="space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={() => navigate(-1)}
+            >
               <ArrowLeft size={20} />
             </Button>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">
                 {t.common.fundsInvestments}
               </h1>
-              <PinAssetButton assetId="funds" />
+              <PinAssetButton
+                assetId="funds"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
           <FundsCombinedControls
@@ -632,16 +685,13 @@ function FundsInvestmentPageContent({
             portfolioContext={portfolioContext}
           />
         </div>
-        <CombinedUnsavedNotice
+        <FundsCombinedEditBanner
           fundsContext={fundsContext}
           portfolioContext={portfolioContext}
         />
       </motion.div>
 
-      <motion.div
-        variants={fadeListItem}
-        className="pb-6 border-b border-gray-200 dark:border-gray-800"
-      >
+      <motion.div variants={fadeListItem}>
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
             <Filter size={16} />
@@ -649,11 +699,10 @@ function FundsInvestmentPageContent({
           </div>
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
             <div className="w-full sm:max-w-xs">
-              <MultiSelect
-                options={entityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
-                placeholder={t.transactions.selectEntities}
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={setSelectedEntities}
               />
             </div>
             {portfolioOptions.length > 0 && (
@@ -688,6 +737,8 @@ function FundsInvestmentPageContent({
             readOnlyPortfolios={readOnlyFundPortfolios}
             context={portfolioManual}
             isEditMode={portfolioManual.isEditMode}
+            onAddPortfolio={handleAddPortfolioDraft}
+            canAddPortfolio={portfolioManual.manualEntities.length > 0}
           />
         </motion.div>
       ) : null}
@@ -714,119 +765,140 @@ function FundsInvestmentPageContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              {/* KPI vertical stack */}
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.common.fundsInvestments}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex justify-between items-baseline">
-                      <p className="text-2xl font-bold">
-                        {formattedTotalValue}
-                      </p>
-                      {totalInitialInvestment > 0 &&
-                        (() => {
-                          const percentageValue =
-                            ((totalValue - totalInitialInvestment) /
-                              totalInitialInvestment) *
-                            100
-                          const sign = percentageValue >= 0 ? "+" : "-"
-                          return (
-                            <p
-                              className={`text-sm font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                            >
-                              {sign}
-                              {formatPercentage(
-                                Math.abs(percentageValue),
-                                locale,
-                              )}
-                            </p>
-                          )
-                        })()}
-                    </div>
-                    {totalInitialInvestment > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {t.dashboard.investedAmount}{" "}
-                        {formatCurrency(
-                          totalInitialInvestment,
-                          locale,
-                          settings.general.defaultCurrency,
-                        )}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-                {assetTypeInnerData.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        {t.enums?.kpis?.assetTypeSplit}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      {(() => {
-                        const equity = assetTypeSplitPercentages.equity || 0
-                        const fixed = assetTypeSplitPercentages.fixed || 0
-                        return (
-                          <div>
-                            <p className="text-2xl font-bold">
-                              {Math.round(equity)}/{Math.round(fixed)}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {(t.enums?.assetType as any)?.[AssetType.EQUITY]}
-                              {" / "}
-                              {
-                                (t.enums?.assetType as any)?.[
-                                  AssetType.FIXED_INCOME
-                                ]
-                              }
-                            </p>
-                          </div>
-                        )
-                      })()}
-                    </CardContent>
-                  </Card>
-                )}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              {/* Chart */}
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
-                  data={chartData}
+                  data={
+                    fundsChartView === "asset" ? chartData : assetTypeChartData
+                  }
                   title={t.common.distribution}
                   locale={locale}
                   currency={settings.general.defaultCurrency}
                   hideLegend
                   containerClassName="overflow-visible w-full"
                   variant="bare"
-                  onSliceClick={handleSliceClick}
-                  innerData={assetTypeInnerData}
+                  onSliceClick={
+                    fundsChartView === "asset" ? handleSliceClick : undefined
+                  }
+                  toggleConfig={{
+                    activeView: fundsChartView,
+                    onViewChange: v => setFundsChartView(v as "asset" | "type"),
+                    options: [
+                      { value: "asset", label: t.investments.byAsset },
+                      { value: "type", label: t.investments.byType },
+                    ],
+                  }}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      totalInitialInvestment > 0
+                        ? ((totalValue - totalInitialInvestment) /
+                            totalInitialInvestment) *
+                          100
+                        : undefined,
+                    badgeText:
+                      fundsChartView === "type" &&
+                      assetTypeSplitPercentages.equity +
+                        assetTypeSplitPercentages.fixed >
+                        0
+                        ? `${Math.round(assetTypeSplitPercentages.equity)} / ${Math.round(assetTypeSplitPercentages.fixed)}`
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.totalValue,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          settings.general.defaultCurrency,
+                        ),
+                      },
+                      ...(totalInitialInvestment > 0
+                        ? [
+                            {
+                              label: t.dashboard.investedAmount,
+                              value: formatCurrency(
+                                totalInitialInvestment,
+                                locale,
+                                settings.general.defaultCurrency,
+                              ),
+                            },
+                            {
+                              label: t.investments.sortAbsoluteGain,
+                              value: `${totalValue - totalInitialInvestment >= 0 ? "+" : ""}${formatCurrency(
+                                totalValue - totalInitialInvestment,
+                                locale,
+                                settings.general.defaultCurrency,
+                              )}`,
+                              valueClassName:
+                                totalValue - totalInitialInvestment >= 0
+                                  ? "text-green-500"
+                                  : "text-red-500",
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                  ]}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    {
+                      value: "relativeGain",
+                      label: t.investments.sortRelativeGain,
+                    },
+                    {
+                      value: "absoluteGain",
+                      label: t.investments.sortAbsoluteGain,
+                    },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
-            {/* Positions List (sorted desc by current value) */}
-            <div className="space-y-4 pb-6">
+            {/* Positions List */}
+            <div className="space-y-4">
               {sortedDisplayItems.map(item => {
                 const { position, manualDraft, isManual, isDirty } = item
                 const identifier = position.name || position.symbol || item.key
@@ -850,89 +922,8 @@ function FundsInvestmentPageContent({
 
                 const showActions = isEditMode && isManual
 
-                const symbolSegments = [
-                  position.symbol?.trim(),
-                  position.isin?.trim(),
-                ].filter(Boolean) as string[]
-                const symbolItems: React.ReactNode[] = []
                 const infoSheetUrl = position.infoSheetUrl?.trim()
-
-                if (position.assetType) {
-                  symbolItems.push(
-                    <span
-                      key="asset-type"
-                      className={cn(
-                        "text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium",
-                        getAssetTypeBadgeClass(position.assetType) ||
-                          "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
-                      )}
-                    >
-                      {(t.enums?.assetType as any)?.[position.assetType] ||
-                        position.assetType}
-                    </span>,
-                  )
-                }
-
-                if (
-                  position.fundType &&
-                  position.fundType !== FundType.MUTUAL_FUND
-                ) {
-                  symbolItems.push(
-                    <span
-                      key="fund-type"
-                      className={cn(
-                        "text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium",
-                        position.fundType === FundType.PRIVATE_EQUITY
-                          ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                          : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-                      )}
-                    >
-                      {(t.enums?.fundType as any)?.[position.fundType] ||
-                        position.fundType}
-                    </span>,
-                  )
-                }
-
-                if (position.entity) {
-                  symbolItems.push(
-                    <button
-                      key="entity"
-                      type="button"
-                      onClick={() => {
-                        const candidateId =
-                          typeof position.entityId === "string"
-                            ? position.entityId
-                            : ""
-                        if (!candidateId || candidateId.startsWith("new-")) {
-                          return
-                        }
-                        const isValid = entityOptions.some(
-                          option => option.value === candidateId,
-                        )
-                        if (!isValid) {
-                          return
-                        }
-                        setSelectedEntities(prev =>
-                          prev.includes(candidateId)
-                            ? prev
-                            : [...prev, candidateId],
-                        )
-                      }}
-                      className={cn(
-                        "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
-                        getColorForName(position.entity),
-                      )}
-                    >
-                      {position.entity}
-                    </button>,
-                  )
-                }
-
-                symbolSegments.forEach((segment, index) => {
-                  symbolItems.push(
-                    <span key={`segment-${index}`}>{segment}</span>,
-                  )
-                })
+                const isExpanded = expandedCards[item.key] ?? false
 
                 const rawShares = position.shares
                 const numericShares =
@@ -949,14 +940,42 @@ function FundsInvestmentPageContent({
                   : ""
 
                 const rawPrice = position.price
-                const formattedPrice =
+                const formattedAvgBuyPrice =
                   rawPrice !== undefined && rawPrice !== null
-                    ? formatCurrency(rawPrice, locale, position.currency)
+                    ? formatCurrency(
+                        rawPrice,
+                        locale,
+                        position.currency,
+                        undefined,
+                        { narrowSymbol: true },
+                      )
                     : null
+
+                const marketPricePerShare =
+                  numericShares != null &&
+                  numericShares > 0 &&
+                  position.originalValue
+                    ? Math.round(
+                        (position.originalValue / numericShares) * 10000,
+                      ) / 10000
+                    : null
+                const formattedMarketPrice =
+                  marketPricePerShare != null
+                    ? formatCurrency(
+                        marketPricePerShare,
+                        locale,
+                        position.currency,
+                        undefined,
+                        { narrowSymbol: true },
+                      )
+                    : null
+
                 const eachLabelSource = t.common.each || ""
                 const eachLabel = eachLabelSource
                   ? eachLabelSource.toLocaleLowerCase(locale)
                   : ""
+
+                const issuerIcon = getIssuerIconPath(position.issuer)
 
                 return (
                   <Card
@@ -967,195 +986,385 @@ function FundsInvestmentPageContent({
                       }
                     }}
                     className={cn(
-                      "p-6 border-l-4 transition-colors",
+                      "border-l-4 transition-all overflow-hidden",
                       highlightClass,
                     )}
                     style={{ borderLeftColor: borderColor }}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="space-y-3 flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold">
-                              {position.name}
-                            </h3>
-                            {infoSheetUrl && (
-                              <a
-                                href={infoSheetUrl}
-                                target="_blank"
-                                rel="noreferrer noopener"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                aria-label={t.investments.openInfoSheet}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                <span className="sr-only">
-                                  {t.investments.openInfoSheet}
-                                </span>
-                              </a>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {position.portfolioName && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPortfolios(prev =>
-                                    prev.includes(position.portfolioName!)
-                                      ? prev
-                                      : [...prev, position.portfolioName!],
-                                  )
-                                }}
-                                className="text-xs inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
-                              >
-                                {position.portfolioName}
-                              </button>
-                            )}
-                            {position.source &&
-                              position.source !== DataSource.REAL && (
-                                <SourceBadge
-                                  source={position.source}
-                                  title={t.management?.source}
-                                  className="text-[0.65rem]"
-                                />
-                              )}
-                            {isDirty && (
-                              <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
-                                {manualTranslate("management.unsavedChanges")}
-                              </span>
-                            )}
-                          </div>
+                    <div
+                      className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                      onClick={e => {
+                        if (
+                          (e.target as HTMLElement).closest("[data-no-expand]")
+                        )
+                          return
+                        toggleCardExpanded(item.key)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleCardExpanded(item.key)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                    >
+                      {issuerIcon ? (
+                        <img
+                          src={issuerIcon}
+                          alt={position.issuer!}
+                          className="hidden sm:block h-9 w-9 rounded-md object-contain shrink-0 self-center"
+                        />
+                      ) : (
+                        <div className="hidden sm:flex h-9 w-9 rounded-md bg-muted items-center justify-center shrink-0 self-center">
+                          <BarChart3 className="h-5 w-5 text-muted-foreground" />
                         </div>
-                        {symbolItems.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                            {symbolItems.map((item, index) => (
-                              <React.Fragment key={index}>
-                                {index > 0 && (
-                                  <span className="text-gray-400 dark:text-gray-500">
-                                    •
-                                  </span>
+                      )}
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <h3 className="flex items-center gap-1.5 text-base sm:text-lg font-semibold leading-tight">
+                          {issuerIcon ? (
+                            <img
+                              src={issuerIcon}
+                              alt={position.issuer!}
+                              className="sm:hidden h-5 w-5 rounded-sm object-contain shrink-0"
+                            />
+                          ) : (
+                            <BarChart3 className="sm:hidden h-5 w-5 text-muted-foreground shrink-0" />
+                          )}
+                          <span>{position.name}</span>
+                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {position.assetType && (
+                            <span
+                              className={cn(
+                                "text-[0.7rem] inline-flex items-center rounded-full px-2 py-0.5 font-medium",
+                                getAssetTypeBadgeClass(position.assetType) ||
+                                  "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
+                              )}
+                            >
+                              {(t.enums?.assetType as any)?.[
+                                position.assetType
+                              ] || position.assetType}
+                            </span>
+                          )}
+                          {position.fundType &&
+                            position.fundType !== FundType.MUTUAL_FUND && (
+                              <span
+                                className={cn(
+                                  "text-[0.7rem] inline-flex items-center rounded-full px-2 py-0.5 font-medium",
+                                  position.fundType === FundType.PRIVATE_EQUITY
+                                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                                    : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
                                 )}
-                                {item}
-                              </React.Fragment>
-                            ))}
-                          </div>
-                        )}
-                        {(formattedShares || formattedPrice) && (
-                          <div className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
-                            {formattedShares && (
-                              <>
-                                <span>{formattedShares}</span>
-                                {sharesLabel && (
-                                  <span className="text-gray-400 dark:text-gray-500 font-medium">
-                                    {sharesLabel}
-                                  </span>
-                                )}
-                              </>
-                            )}
-                            {formattedShares && formattedPrice && (
-                              <span className="text-gray-600 dark:text-gray-300">
-                                ⨯
+                              >
+                                {(t.enums?.fundType as any)?.[
+                                  position.fundType
+                                ] || position.fundType}
                               </span>
                             )}
-                            {formattedPrice && (
-                              <>
-                                <span>{formattedPrice}</span>
-                                {formattedShares && eachLabel && (
-                                  <span className="text-gray-400 dark:text-gray-500 font-medium">
-                                    {eachLabel}
-                                  </span>
-                                )}
-                              </>
+                          {position.entity && (
+                            <button
+                              type="button"
+                              data-no-expand
+                              onClick={() => {
+                                const candidateId =
+                                  typeof position.entityId === "string"
+                                    ? position.entityId
+                                    : ""
+                                if (
+                                  !candidateId ||
+                                  candidateId.startsWith("new-")
+                                )
+                                  return
+                                const isValid = filteredEntities.some(
+                                  e => e.id === candidateId,
+                                )
+                                if (!isValid) return
+                                setSelectedEntities(prev =>
+                                  prev.includes(candidateId)
+                                    ? prev
+                                    : [...prev, candidateId],
+                                )
+                              }}
+                              className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                                getColorForName(position.entity),
+                              )}
+                            >
+                              {position.entity}
+                            </button>
+                          )}
+                          {position.portfolioName && (
+                            <button
+                              type="button"
+                              data-no-expand
+                              onClick={() => {
+                                setSelectedPortfolios(prev =>
+                                  prev.includes(position.portfolioName!)
+                                    ? prev
+                                    : [...prev, position.portfolioName!],
+                                )
+                              }}
+                              className="text-xs inline-flex items-center rounded-full bg-secondary px-2 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
+                            >
+                              {position.portfolioName}
+                            </button>
+                          )}
+                          {position.source &&
+                            position.source !== DataSource.REAL && (
+                              <SourceBadge
+                                source={position.source}
+                                title={t.management?.source}
+                                className="text-[0.65rem]"
+                                onClick={() => {
+                                  if (!fundsContext.isEditMode)
+                                    fundsContext.enterEditMode()
+                                  if (!portfolioContext.isEditMode)
+                                    portfolioContext.enterEditMode()
+                                }}
+                              />
+                            )}
+                          {isDirty && (
+                            <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
+                              {manualTranslate("management.unsavedChanges")}
+                            </span>
+                          )}
+                        </div>
+                        {(formattedShares || formattedMarketPrice) && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            {formattedShares && (
+                              <span>
+                                <Sensitive>{formattedShares}</Sensitive>
+                              </span>
+                            )}
+                            {formattedShares && formattedMarketPrice && (
+                              <span>×</span>
+                            )}
+                            {formattedMarketPrice && (
+                              <span>{formattedMarketPrice}</span>
                             )}
                           </div>
                         )}
                       </div>
-
-                      <div className="text-left sm:text-right space-y-1 flex-shrink-0">
-                        <div className="flex items-center gap-2 justify-end">
-                          <div className="text-xl font-semibold">
-                            {position.formattedOriginalValue ||
-                              position.formattedValue}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right space-y-0.5">
+                          <div className="text-base sm:text-lg font-semibold leading-tight">
+                            <Sensitive>
+                              {position.formattedOriginalValue ||
+                                position.formattedValue}
+                            </Sensitive>
                           </div>
-                        </div>
-                        {position.currency !==
-                          settings.general.defaultCurrency && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {position.formattedValue}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm justify-end">
-                          {position.change >= 0 ? (
-                            <TrendingUp size={16} className="text-green-500" />
-                          ) : (
-                            <TrendingDown size={16} className="text-red-500" />
+                          {position.currency !==
+                            settings.general.defaultCurrency && (
+                            <div className="text-xs text-muted-foreground">
+                              <Sensitive>{position.formattedValue}</Sensitive>
+                            </div>
                           )}
                           <div
                             className={cn(
-                              "flex items-baseline gap-1",
+                              "flex items-center gap-1 text-sm justify-end mt-1",
                               position.change >= 0
                                 ? "text-green-500"
                                 : "text-red-500",
                             )}
                           >
-                            <span className="text-sm">
-                              {position.change.toFixed(2)}%
-                            </span>
-                            {position.formattedGainLossAmount && (
-                              <span className="text-xs font-medium opacity-80">
-                                {position.formattedGainLossAmount}
-                              </span>
-                            )}
+                            <Sensitive>
+                              {position.change >= 0 ? (
+                                <TrendingUp size={14} />
+                              ) : (
+                                <TrendingDown size={14} />
+                              )}
+                              <span>{position.change.toFixed(2)}%</span>
+                            </Sensitive>
                           </div>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {percentageOfFunds.toFixed(1)}%
-                          </span>
-                          {" " +
-                            t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.funds.toLowerCase(),
-                            )}
-                        </div>
-                        {showActions && (
-                          <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  editByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  editByLocalId(manualDraft.localId)
-                                } else if (item.originalId) {
-                                  editByOriginalId(item.originalId)
-                                }
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              {t.common.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  deleteByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  deleteByLocalId(manualDraft.localId)
-                                } else if (item.originalId) {
-                                  deleteByOriginalId(item.originalId)
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                        <ChevronDown
+                          className={cn(
+                            "hidden sm:block h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
                       </div>
+                      <ChevronDown
+                        className={cn(
+                          "sm:hidden absolute bottom-3 right-3 h-4 w-4 text-muted-foreground transition-transform duration-200",
+                          isExpanded && "rotate-180",
+                        )}
+                      />
                     </div>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="expanded"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-4">
+                            <div className="border-t border-border/50 pt-3 space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                                {(formattedShares || formattedMarketPrice) && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.shares}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-foreground">
+                                      {formattedShares && (
+                                        <>
+                                          <span>
+                                            <Sensitive>
+                                              {formattedShares}
+                                            </Sensitive>
+                                          </span>
+                                          {sharesLabel && (
+                                            <span className="text-muted-foreground">
+                                              {sharesLabel}
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                      {formattedShares &&
+                                        formattedMarketPrice && (
+                                          <span className="text-muted-foreground">
+                                            ×
+                                          </span>
+                                        )}
+                                      {formattedMarketPrice && (
+                                        <>
+                                          <span>{formattedMarketPrice}</span>
+                                          {formattedShares && eachLabel && (
+                                            <span className="text-muted-foreground">
+                                              {eachLabel}
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                    {formattedAvgBuyPrice && (
+                                      <div className="text-xs text-muted-foreground mt-0.5">
+                                        {t.investments.averageBuyPrice}:{" "}
+                                        <Sensitive>
+                                          {formattedAvgBuyPrice}
+                                        </Sensitive>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {position.isin && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      ISIN
+                                    </div>
+                                    <div className="text-foreground font-mono text-xs">
+                                      {position.isin}
+                                    </div>
+                                  </div>
+                                )}
+                                {position.issuer && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.issuer}
+                                    </div>
+                                    <div className="text-foreground text-sm">
+                                      {position.issuer}
+                                    </div>
+                                  </div>
+                                )}
+                                {position.formattedGainLossAmount && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.sortAbsoluteGain}
+                                    </div>
+                                    <div
+                                      className={cn(
+                                        "font-medium",
+                                        position.change >= 0
+                                          ? "text-green-500"
+                                          : "text-red-500",
+                                      )}
+                                    >
+                                      <Sensitive>
+                                        {position.formattedGainLossAmount}
+                                      </Sensitive>
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.ofInvestmentType.replace(
+                                      "{type}",
+                                      t.common.funds.toLowerCase(),
+                                    )}
+                                  </div>
+                                  <div className="font-medium text-blue-600 dark:text-blue-400">
+                                    <Sensitive>
+                                      {percentageOfFunds.toFixed(1)}%
+                                    </Sensitive>
+                                  </div>
+                                </div>
+                              </div>
+                              {infoSheetUrl && (
+                                <a
+                                  href={infoSheetUrl}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  data-no-expand
+                                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  {t.investments.openInfoSheet}
+                                </a>
+                              )}
+                              {showActions && (
+                                <div
+                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        editByOriginalId(manualDraft.originalId)
+                                      } else if (manualDraft) {
+                                        editByLocalId(manualDraft.localId)
+                                      } else if (item.originalId) {
+                                        editByOriginalId(item.originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    {t.common.edit}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-600"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        deleteByOriginalId(
+                                          manualDraft.originalId,
+                                        )
+                                      } else if (manualDraft) {
+                                        deleteByLocalId(manualDraft.localId)
+                                      } else if (item.originalId) {
+                                        deleteByOriginalId(item.originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}
@@ -1198,15 +1407,10 @@ function PortfolioContextBridge({
   )
 }
 
-function FundsCombinedControls({
-  className,
-  fundsContext,
-  portfolioContext,
-}: {
-  className?: string
-  fundsContext: ManualPositionsContextValue
-  portfolioContext: ManualPositionsContextValue
-}) {
+function useFundsCombinedActions(
+  fundsContext: ManualPositionsContextValue,
+  portfolioContext: ManualPositionsContextValue,
+) {
   const { refreshEntity } = useFinancialData()
   const { showToast } = useAppContext()
   const combinedIsEditMode =
@@ -1224,25 +1428,9 @@ function FundsCombinedControls({
     }
   }, [fundsContext, portfolioContext])
 
-  const handleAddPortfolioDraft = useCallback(() => {
-    if (!portfolioContext.isEditMode) {
-      portfolioContext.enterEditMode()
-    }
-    if (!fundsContext.isEditMode) {
-      fundsContext.enterEditMode()
-    }
-    portfolioContext.beginCreate()
-  }, [fundsContext, portfolioContext])
-
   const handleAddFundDraft = useCallback(() => {
-    if (!fundsContext.isEditMode) {
-      fundsContext.enterEditMode()
-    }
-    if (!portfolioContext.isEditMode) {
-      portfolioContext.enterEditMode()
-    }
     fundsContext.beginCreate()
-  }, [fundsContext, portfolioContext])
+  }, [fundsContext])
 
   const handleCancel = useCallback(() => {
     if (portfolioContext.isEditMode) {
@@ -1476,51 +1664,42 @@ function FundsCombinedControls({
     showToast,
   ])
 
+  return {
+    combinedIsEditMode,
+    combinedHasChanges,
+    combinedIsSaving,
+    handleEnterEdit,
+    handleAddFundDraft,
+    handleCancel,
+    handleSave,
+  }
+}
+
+function FundsCombinedControls({
+  className,
+  fundsContext,
+  portfolioContext,
+}: {
+  className?: string
+  fundsContext: ManualPositionsContextValue
+  portfolioContext: ManualPositionsContextValue
+}) {
+  const { combinedIsEditMode, handleAddFundDraft, handleEnterEdit } =
+    useFundsCombinedActions(fundsContext, portfolioContext)
+
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Button
-        variant="outline"
-        size="sm"
-        onClick={handleAddPortfolioDraft}
-        disabled={portfolioContext.manualEntities.length === 0}
-        className="flex items-center gap-2"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {portfolioContext.addLabel}
-      </Button>
-      <Button
-        variant="outline"
+        variant="default"
         size="sm"
         onClick={handleAddFundDraft}
         disabled={fundsContext.manualEntities.length === 0}
         className="flex items-center gap-2"
       >
         <Plus className="h-3.5 w-3.5" />
-        {fundsContext.addLabel}
+        <span className="hidden sm:inline">{fundsContext.addLabel}</span>
       </Button>
-      {combinedIsEditMode ? (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCancel}
-            disabled={combinedIsSaving}
-            className="flex items-center gap-2"
-          >
-            <X className="h-3.5 w-3.5" />
-            {fundsContext.cancelLabel}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={combinedIsSaving || !combinedHasChanges}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {fundsContext.saveLabel}
-          </Button>
-        </>
-      ) : (
+      {!combinedIsEditMode && (
         <Button
           variant="default"
           size="sm"
@@ -1528,32 +1707,84 @@ function FundsCombinedControls({
           className="flex items-center gap-2"
         >
           <Pencil className="h-3.5 w-3.5" />
-          {fundsContext.editLabel}
+          <span className="hidden sm:inline">{fundsContext.editLabel}</span>
         </Button>
       )}
     </div>
   )
 }
 
-function CombinedUnsavedNotice({
+function FundsCombinedEditBanner({
   fundsContext,
   portfolioContext,
 }: {
   fundsContext: ManualPositionsContextValue
   portfolioContext: ManualPositionsContextValue
 }) {
-  const shouldShow =
-    (fundsContext.isEditMode || portfolioContext.isEditMode) &&
-    (fundsContext.hasLocalChanges || portfolioContext.hasLocalChanges)
+  const {
+    combinedIsEditMode,
+    combinedHasChanges,
+    combinedIsSaving,
+    handleCancel,
+    handleSave,
+  } = useFundsCombinedActions(fundsContext, portfolioContext)
 
-  if (!shouldShow) {
+  if (!combinedIsEditMode) {
     return null
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-      <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-      <div>{fundsContext.translate("management.unsavedChanges")}</div>
+    <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="relative flex-shrink-0">
+          <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+          {fundsContext.translate("common.editing")}
+        </span>
+        {combinedHasChanges && (
+          <>
+            <span className="text-blue-300 dark:text-blue-600">·</span>
+            <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+              {fundsContext.translate("management.unsavedChanges")}
+            </span>
+            <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCancel}
+          disabled={combinedIsSaving}
+          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+        >
+          <X className="h-3 w-3" />
+          <span className="hidden sm:inline ml-1">
+            {fundsContext.cancelLabel}
+          </span>
+        </Button>
+        <Button
+          data-testid="save-positions"
+          size="sm"
+          onClick={handleSave}
+          disabled={combinedIsSaving || !combinedHasChanges}
+          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+        >
+          {combinedIsSaving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
+          <span className="hidden sm:inline ml-1">
+            {fundsContext.saveLabel}
+          </span>
+        </Button>
+      </div>
     </div>
   )
 }
@@ -1563,14 +1794,19 @@ function FundPortfolioDraftList({
   readOnlyPortfolios,
   context,
   isEditMode,
+  onAddPortfolio,
+  canAddPortfolio,
 }: {
   manualDrafts: ManualPositionDraft<FundPortfolio>[]
   readOnlyPortfolios: ReadOnlyFundPortfolioItem[]
   context: ManualPositionsContextValue
   isEditMode: boolean
+  onAddPortfolio: () => void
+  canAddPortfolio: boolean
 }) {
   const translate = context.translate
   const manualEntities = context.manualEntities
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const manualItems = useMemo(
     () =>
@@ -1591,8 +1827,9 @@ function FundPortfolioDraftList({
 
   const hasManual = manualItems.length > 0
   const hasReadOnly = readOnlyPortfolios.length > 0
+  const totalCount = manualItems.length + readOnlyPortfolios.length
 
-  if (!isEditMode || (!hasManual && !hasReadOnly)) {
+  if (!isEditMode) {
     return null
   }
 
@@ -1610,170 +1847,227 @@ function FundPortfolioDraftList({
   }
 
   return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-4 dark:border-primary/40 dark:bg-primary/10">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-primary dark:text-primary-200">
-          {translate(
-            "management.manualPositions.fundPortfolios.quickDrafts.title",
+    <div className="rounded-md border border-primary/30 bg-primary/5 dark:border-primary/40 dark:bg-primary/10">
+      <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setIsExpanded(prev => !prev)}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setIsExpanded(prev => !prev)
+            }
+          }}
+          className="flex items-center gap-2 min-w-0 cursor-pointer"
+        >
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-primary transition-transform duration-200",
+              isExpanded && "rotate-180",
+            )}
+          />
+          <span className="text-sm font-semibold text-primary truncate">
+            {translate(
+              "management.manualPositions.fundPortfolios.quickDrafts.title",
+            )}
+          </span>
+          {totalCount > 0 && (
+            <Badge variant="secondary" className="shrink-0 text-xs">
+              {totalCount}
+            </Badge>
           )}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {translate(
-            "management.manualPositions.fundPortfolios.quickDrafts.description",
-          )}
-        </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={e => {
+            e.stopPropagation()
+            onAddPortfolio()
+            setIsExpanded(true)
+          }}
+          disabled={!canAddPortfolio}
+          className="flex items-center gap-2 shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{translate("common.add")}</span>
+        </Button>
       </div>
-      <div className="mt-3 space-y-2">
-        {manualItems.map(draft => {
-          const name = draft.name?.trim() || translate("common.notAvailable")
-          const currencyCode = draft.currency?.toUpperCase()
-          const currencySymbol = currencyCode
-            ? getCurrencySymbol(currencyCode)
-            : null
-          const source = draft.source ?? DataSource.MANUAL
-          const isNew = !draft.originalId
-          const isDirty =
-            draft.originalId != null && context.isDraftDirty(draft)
-          const entityInfo = manualEntities.find(
-            item => item.id === draft.entityId,
-          )
-          const entityName =
-            entityInfo?.name ||
-            draft.entityName?.trim() ||
-            translate("common.notAvailable")
+      <AnimatePresence initial={false}>
+        {isExpanded && (hasManual || hasReadOnly) && (
+          <motion.div
+            key="portfolio-list"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-2">
+              {manualItems.map(draft => {
+                const name =
+                  draft.name?.trim() || translate("common.notAvailable")
+                const currencyCode = draft.currency?.toUpperCase()
+                const currencySymbol = currencyCode
+                  ? getCurrencySymbol(currencyCode)
+                  : null
+                const source = draft.source ?? DataSource.MANUAL
+                const isNew = !draft.originalId
+                const isDirty =
+                  draft.originalId != null && context.isDraftDirty(draft)
+                const entityInfo = manualEntities.find(
+                  item => item.id === draft.entityId,
+                )
+                const entityName =
+                  entityInfo?.name ||
+                  draft.entityName?.trim() ||
+                  translate("common.notAvailable")
 
-          return (
-            <div
-              key={draft.localId}
-              className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/80 px-3 py-2 text-sm dark:border-border/40 dark:bg-background/40"
-            >
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-foreground truncate">
-                    {name}
-                  </span>
-                  {isNew && (
-                    <Badge variant="secondary" className="shrink-0">
-                      {translate(
-                        "management.manualPositions.shared.status.new",
-                      )}
-                    </Badge>
-                  )}
-                  {currencySymbol && (
-                    <Badge variant="outline" className="shrink-0 text-xs">
-                      {currencySymbol}
-                    </Badge>
-                  )}
-                  {!isNew && isDirty && (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 border-blue-300 text-blue-600 dark:border-blue-500/40 dark:text-blue-300"
-                    >
-                      {translate(
-                        "management.manualPositions.shared.status.updated",
-                      )}
-                    </Badge>
-                  )}
-                  {renderSourceBadge(source)}
+                return (
+                  <div
+                    key={draft.localId}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/80 px-3 py-2 text-sm dark:border-border/40 dark:bg-background/40"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-foreground truncate">
+                          {name}
+                        </span>
+                        {isNew && (
+                          <Badge variant="secondary" className="shrink-0">
+                            {translate(
+                              "management.manualPositions.shared.status.new",
+                            )}
+                          </Badge>
+                        )}
+                        {currencySymbol && (
+                          <Badge variant="outline" className="shrink-0 text-xs">
+                            {currencySymbol}
+                          </Badge>
+                        )}
+                        {!isNew && isDirty && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-blue-300 text-blue-600 dark:border-blue-500/40 dark:text-blue-300"
+                          >
+                            {translate(
+                              "management.manualPositions.shared.status.updated",
+                            )}
+                          </Badge>
+                        )}
+                        {renderSourceBadge(source)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {translate(
+                            "management.manualPositions.shared.entity",
+                          )}
+                          :
+                        </span>
+                        <EntityBadge
+                          name={entityName}
+                          origin={entityInfo?.origin}
+                          className="shrink-0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => context.editByLocalId(draft.localId)}
+                        aria-label={translate(
+                          "management.manualPositions.fundPortfolios.quickDrafts.actions.edit",
+                        )}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => context.deleteByLocalId(draft.localId)}
+                        aria-label={translate(
+                          "management.manualPositions.fundPortfolios.quickDrafts.actions.delete",
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+              {hasReadOnly && (
+                <div className="space-y-2 border-t border-border/60 pt-3 dark:border-border/30">
+                  {readOnlyPortfolios.map(portfolio => {
+                    const name =
+                      portfolio.name?.trim() || translate("common.notAvailable")
+                    const currencyCode = portfolio.currency?.toUpperCase()
+                    const currencySymbol = currencyCode
+                      ? getCurrencySymbol(currencyCode)
+                      : null
+                    const source = portfolio.source ?? DataSource.REAL
+                    const entityInfo = manualEntities.find(
+                      item => item.id === portfolio.entityId,
+                    )
+                    const entityName =
+                      entityInfo?.name ||
+                      portfolio.entityName?.trim() ||
+                      translate("common.notAvailable")
+
+                    return (
+                      <div
+                        key={portfolio.id}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-border/30 dark:bg-muted/20"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-foreground truncate">
+                              {name}
+                            </span>
+                            {currencySymbol && (
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 text-xs"
+                              >
+                                {currencySymbol}
+                              </Badge>
+                            )}
+                            {renderSourceBadge(source)}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span>
+                              {translate(
+                                "management.manualPositions.shared.entity",
+                              )}
+                              :
+                            </span>
+                            <EntityBadge
+                              name={entityName}
+                              origin={entityInfo?.origin}
+                              className="shrink-0"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Lock className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">
+                            {translate(
+                              "management.manualPositions.fundPortfolios.quickDrafts.readOnly",
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {translate("management.manualPositions.shared.entity")}:
-                  </span>
-                  <EntityBadge
-                    name={entityName}
-                    origin={entityInfo?.origin}
-                    className="shrink-0"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => context.editByLocalId(draft.localId)}
-                  aria-label={translate(
-                    "management.manualPositions.fundPortfolios.quickDrafts.actions.edit",
-                  )}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={() => context.deleteByLocalId(draft.localId)}
-                  aria-label={translate(
-                    "management.manualPositions.fundPortfolios.quickDrafts.actions.delete",
-                  )}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              )}
             </div>
-          )
-        })}
-        {hasReadOnly && (
-          <div className="space-y-2 border-t border-border/60 pt-3 dark:border-border/30">
-            {readOnlyPortfolios.map(portfolio => {
-              const name =
-                portfolio.name?.trim() || translate("common.notAvailable")
-              const currencyCode = portfolio.currency?.toUpperCase()
-              const currencySymbol = currencyCode
-                ? getCurrencySymbol(currencyCode)
-                : null
-              const source = portfolio.source ?? DataSource.REAL
-              const entityInfo = manualEntities.find(
-                item => item.id === portfolio.entityId,
-              )
-              const entityName =
-                entityInfo?.name ||
-                portfolio.entityName?.trim() ||
-                translate("common.notAvailable")
-
-              return (
-                <div
-                  key={portfolio.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-border/30 dark:bg-muted/20"
-                >
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-foreground truncate">
-                        {name}
-                      </span>
-                      {currencySymbol && (
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          {currencySymbol}
-                        </Badge>
-                      )}
-                      {renderSourceBadge(source)}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {translate("management.manualPositions.shared.entity")}:
-                      </span>
-                      <EntityBadge
-                        name={entityName}
-                        origin={entityInfo?.origin}
-                        className="shrink-0"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Lock className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">
-                      {translate(
-                        "management.manualPositions.fundPortfolios.quickDrafts.readOnly",
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   )
 }

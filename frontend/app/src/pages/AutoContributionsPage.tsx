@@ -25,6 +25,11 @@ import {
   AlertCircle,
   Loader2,
   Bitcoin,
+  Layers,
+  ChevronDown,
+  Check,
+  ListFilter,
+  ChartCandlestick,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -46,14 +51,22 @@ import {
 } from "@/components/ui/Popover"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
-import { cn } from "@/lib/utils"
+import { getCurrencySymbol, cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import { getProductTypeColor } from "@/utils/dashboardUtils"
+import {
+  getProductTypeColor,
+  getIconForProductType,
+} from "@/utils/dashboardUtils"
+import { EntitySelector } from "@/components/EntitySelector"
+import { InvestmentFilters } from "@/components/InvestmentFilters"
+import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import {
   ContributionFrequency,
   ContributionTargetType,
@@ -65,13 +78,16 @@ import {
 import { DataSource, EntityType } from "@/types"
 import {
   AccountType,
+  EquityType,
   ProductType,
   type Accounts,
   type CryptoCurrencies,
   type FundInvestments,
   type StockInvestments,
 } from "@/types/position"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { saveManualContributions } from "@/services/api"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 interface ManualContributionDraft extends ManualPeriodicContribution {
   localId: string
@@ -115,6 +131,10 @@ interface TargetSuggestion {
   value: string
   label: string
   secondary?: string
+  ticker?: string
+  equityType?: string
+  issuer?: string | null
+  iconUrls?: string[] | null
 }
 
 const isValidIsin = (value: string) => {
@@ -147,10 +167,101 @@ const monthlyMultiplier = (f: ContributionFrequency) => {
   }
 }
 
+function SuggestionIcon({
+  suggestion,
+  targetType,
+}: {
+  suggestion: TargetSuggestion
+  targetType: ContributionTargetType
+}) {
+  const [failedCount, setFailedCount] = useState(0)
+
+  const sources = useMemo(() => {
+    if (targetType === ContributionTargetType.STOCK_ETF) {
+      if (suggestion.equityType === EquityType.ETF) {
+        const issuerPath = getIssuerIconPath(suggestion.issuer ?? null)
+        return issuerPath ? [`/${issuerPath}`] : []
+      }
+      return [
+        suggestion.ticker?.trim()
+          ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(suggestion.ticker.trim())}.png`
+          : null,
+      ].filter((v): v is string => Boolean(v))
+    }
+    if (targetType === ContributionTargetType.FUND) {
+      const issuerPath = getIssuerIconPath(suggestion.issuer ?? null)
+      return issuerPath ? [`/${issuerPath}`] : []
+    }
+    if (targetType === ContributionTargetType.CRYPTO) {
+      return (suggestion.iconUrls ?? []).filter((v): v is string => Boolean(v))
+    }
+    return []
+  }, [suggestion, targetType])
+
+  const currentSrc = sources[failedCount]
+
+  if (targetType === ContributionTargetType.STOCK_ETF) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <ChartCandlestick className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (targetType === ContributionTargetType.FUND) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <BarChart3 className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  if (targetType === ContributionTargetType.CRYPTO) {
+    if (!currentSrc) {
+      return (
+        <div className="h-5 w-5 bg-muted flex items-center justify-center shrink-0 rounded-md">
+          <Bitcoin className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )
+    }
+    return (
+      <img
+        src={currentSrc}
+        alt=""
+        className="h-5 w-5 shrink-0 rounded-md object-contain"
+        onError={() => setFailedCount(prev => prev + 1)}
+      />
+    )
+  }
+
+  return null
+}
+
 export default function AutoContributionsPage() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
-  const { contributions, positionsData, refreshData } = useFinancialData()
+  const { contributions, positionsData, refreshData, ensureContributions } =
+    useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -173,8 +284,20 @@ export default function AutoContributionsPage() {
     return acc
   }, [periodicByEntity])
 
+  const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+
+  const filteredEntities = useMemo(() => {
+    const entityIds = new Set(flatContributions.map(c => c.entityId))
+    return (entities ?? []).filter(entity => entityIds.has(entity.id))
+  }, [entities, flatContributions])
+
+  const filteredContributions = useMemo(() => {
+    if (selectedEntities.length === 0) return flatContributions
+    return flatContributions.filter(c => selectedEntities.includes(c.entityId))
+  }, [flatContributions, selectedEntities])
+
   const monthlyTotal = useMemo(() => {
-    return flatContributions.reduce((acc, { contribution }) => {
+    return filteredContributions.reduce((acc, { contribution }) => {
       if (!contribution.active) {
         return acc
       }
@@ -190,11 +313,11 @@ export default function AutoContributionsPage() {
 
       return acc + converted
     }, 0)
-  }, [flatContributions, exchangeRates, defaultCurrency])
+  }, [filteredContributions, exchangeRates, defaultCurrency])
 
   const grouped = useMemo(() => {
     const map: Record<string, PeriodicContribution[]> = {}
-    flatContributions.forEach(({ entityId, contribution }) => {
+    filteredContributions.forEach(({ entityId, contribution }) => {
       if (!map[entityId]) map[entityId] = []
       map[entityId].push(contribution)
     })
@@ -212,14 +335,14 @@ export default function AutoContributionsPage() {
       })
     })
     return map
-  }, [flatContributions])
+  }, [filteredContributions])
 
   const freqLabel = (f: ContributionFrequency) =>
     (t.management.contributionFrequency as any)?.[f] || f
 
   const activeCount = useMemo(
-    () => flatContributions.filter(c => c.contribution.active).length,
-    [flatContributions],
+    () => filteredContributions.filter(c => c.contribution.active).length,
+    [filteredContributions],
   )
 
   const colors = [
@@ -240,7 +363,8 @@ export default function AutoContributionsPage() {
       (entities ?? []).filter(
         entity =>
           entity.type === EntityType.FINANCIAL_INSTITUTION ||
-          entity.type === EntityType.CRYPTO_WALLET,
+          entity.type === EntityType.CRYPTO_WALLET ||
+          entity.type === EntityType.CRYPTO_EXCHANGE,
       ),
     [entities],
   )
@@ -263,7 +387,7 @@ export default function AutoContributionsPage() {
       string,
       { amount: number; type?: string; byType: boolean }
     >()
-    flatContributions.forEach(({ contribution }) => {
+    filteredContributions.forEach(({ contribution }) => {
       if (!contribution.active) return
       const normalized =
         contribution.amount * monthlyMultiplier(contribution.frequency)
@@ -302,9 +426,7 @@ export default function AutoContributionsPage() {
       percentage: (e.value / total) * 100,
       total,
     }))
-  }, [flatContributions, t, exchangeRates, defaultCurrency])
-
-  const barColor = (i: number) => colors[i % colors.length]
+  }, [filteredContributions, t, exchangeRates, defaultCurrency])
 
   const distributionColorMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -313,6 +435,17 @@ export default function AutoContributionsPage() {
     })
     return m
   }, [distributionData])
+
+  const chartData = useMemo(
+    () =>
+      distributionData.map((d, i) => ({
+        name: d.name,
+        value: d.value,
+        color: colors[i % colors.length],
+        percentage: d.percentage,
+      })),
+    [distributionData],
+  )
 
   const manualEntriesFromData = useMemo<ManualContributionDraft[]>(() => {
     const fallbackName = t.management.manualContributions.unnamed
@@ -356,6 +489,42 @@ export default function AutoContributionsPage() {
   const modalInitialSnapshotRef = useRef<ManualContributionFormState | null>(
     null,
   )
+  const [subtypeDropdownOpen, setSubtypeDropdownOpen] = useState(false)
+  const subtypeDropdownRef = useRef<HTMLDivElement>(null)
+  const [suggestionPopoverOpen, setSuggestionPopoverOpen] = useState(false)
+
+  useModalBackHandler(isModalOpen, () => setIsModalOpen(false))
+  useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
+  useModalBackHandler(showModalDiscardConfirm, () =>
+    setShowModalDiscardConfirm(false),
+  )
+
+  const selectedModalEntityName = useMemo(() => {
+    if (!modalForm?.entity_id) return ""
+    return financialEntities.find(e => e.id === modalForm.entity_id)?.name || ""
+  }, [modalForm?.entity_id, financialEntities])
+
+  const currencySymbol = useMemo(
+    () => getCurrencySymbol(modalForm?.currency || defaultCurrency),
+    [modalForm?.currency, defaultCurrency],
+  )
+
+  useEffect(() => {
+    ensureContributions()
+  }, [ensureContributions])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        subtypeDropdownRef.current &&
+        !subtypeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setSubtypeDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (!hasLocalChanges) {
@@ -456,63 +625,44 @@ export default function AutoContributionsPage() {
   }, [exchangeRates, defaultCurrency, supportedCurrencySet])
 
   const targetSubtypeOptions = useMemo<TargetSubtypeOption[]>(() => {
-    const subtypeLabels = t.enums?.contributionTargetSubtype as
-      | Record<string, string>
-      | undefined
-    const productLabels = t.enums?.productType as
-      | Record<string, string>
-      | undefined
-
     return [
       {
         value: ContributionTargetSubtype.STOCK,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.STOCK] ??
-          ContributionTargetSubtype.STOCK,
+        label: t.enums.contributionTargetSubtype.STOCK,
         targetType: ContributionTargetType.STOCK_ETF,
       },
       {
         value: ContributionTargetSubtype.ETF,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.ETF] ??
-          ContributionTargetSubtype.ETF,
+        label: t.enums.contributionTargetSubtype.ETF,
         targetType: ContributionTargetType.STOCK_ETF,
       },
       {
         value: ContributionTargetSubtype.MUTUAL_FUND,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.MUTUAL_FUND] ??
-          ContributionTargetSubtype.MUTUAL_FUND,
+        label: t.enums.contributionTargetSubtype.MUTUAL_FUND,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: ContributionTargetSubtype.PENSION_FUND,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.PENSION_FUND] ??
-          ContributionTargetSubtype.PENSION_FUND,
+        label: t.enums.contributionTargetSubtype.PENSION_FUND,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: ContributionTargetSubtype.PRIVATE_EQUITY,
-        label:
-          subtypeLabels?.[ContributionTargetSubtype.PRIVATE_EQUITY] ??
-          ContributionTargetSubtype.PRIVATE_EQUITY,
+        label: t.enums.contributionTargetSubtype.PRIVATE_EQUITY,
         targetType: ContributionTargetType.FUND,
       },
       {
         value: "FUND_PORTFOLIO" as const,
-        label:
-          productLabels?.[ContributionTargetType.FUND_PORTFOLIO] ??
-          ContributionTargetType.FUND_PORTFOLIO,
+        label: t.enums.productType.FUND_PORTFOLIO,
         targetType: ContributionTargetType.FUND_PORTFOLIO,
       },
       {
         value: "CRYPTO" as const,
-        label: productLabels?.["CRYPTO"] ?? "Crypto",
+        label: t.enums.productType.CRYPTO,
         targetType: ContributionTargetType.CRYPTO,
       },
     ]
-  }, [t.enums?.contributionTargetSubtype, t.enums?.productType])
+  }, [t.enums.contributionTargetSubtype, t.enums.productType])
 
   const frequencyOptions = useMemo(
     () => Object.values(ContributionFrequency),
@@ -574,7 +724,7 @@ export default function AutoContributionsPage() {
             : form.target_subtype
               ? (form.target_subtype as ContributionTargetSubtype)
               : null,
-        amount: Number.parseFloat(form.amount),
+        amount: Number.parseFloat(form.amount.replace(",", ".")),
         currency: form.currency,
         since: form.since,
         until: form.until ? form.until : null,
@@ -629,7 +779,7 @@ export default function AutoContributionsPage() {
       if (!form.target.trim()) {
         errors.target = t.management.manualContributions.validation.target
       }
-      const amountValue = Number.parseFloat(form.amount)
+      const amountValue = Number.parseFloat(form.amount.replace(",", "."))
       if (!form.amount || Number.isNaN(amountValue) || amountValue <= 0) {
         errors.amount = t.management.manualContributions.validation.amount
       }
@@ -663,103 +813,111 @@ export default function AutoContributionsPage() {
 
   const modalSuggestions = useMemo<TargetSuggestion[]>(() => {
     if (!modalForm) return []
-    const entityPositions = positionsData?.positions?.[modalForm.entity_id]
-    if (!entityPositions?.products) return []
+    const entityPositionsList =
+      positionsData?.positions?.[modalForm.entity_id] ?? []
+    if (entityPositionsList.length === 0) return []
 
     const suggestions = new Map<string, TargetSuggestion>()
 
-    switch (modalForm.target_type) {
-      case ContributionTargetType.FUND: {
-        const funds =
-          (
-            entityPositions.products[ProductType.FUND] as
-              | FundInvestments
-              | undefined
-          )?.entries ?? []
-        funds.forEach(fund => {
-          if (!fund.isin) return
-          const value = fund.isin.toUpperCase()
-          if (!suggestions.has(value)) {
-            suggestions.set(value, {
-              value,
-              label: value,
-              secondary: fund.name,
-            })
-          }
-        })
-        break
-      }
-      case ContributionTargetType.STOCK_ETF: {
-        const stocks =
-          (
-            entityPositions.products[ProductType.STOCK_ETF] as
-              | StockInvestments
-              | undefined
-          )?.entries ?? []
-        stocks.forEach(stock => {
-          if (!stock.isin) return
-          const value = stock.isin.toUpperCase()
-          if (!suggestions.has(value)) {
-            const secondary = stock.ticker
-              ? `${stock.name} · ${stock.ticker}`
-              : stock.name
-            suggestions.set(value, {
-              value,
-              label: value,
-              secondary,
-            })
-          }
-        })
-        break
-      }
-      case ContributionTargetType.FUND_PORTFOLIO: {
-        const accounts =
-          (
-            entityPositions.products[ProductType.ACCOUNT] as
-              | Accounts
-              | undefined
-          )?.entries ?? []
-        accounts
-          .filter(
-            account =>
-              account.type === AccountType.FUND_PORTFOLIO && account.iban,
-          )
-          .forEach(account => {
-            const normalized = account.iban!.replace(/\s+/g, "").toUpperCase()
-            if (!suggestions.has(normalized)) {
-              suggestions.set(normalized, {
-                value: normalized,
-                label: normalized,
-                secondary: account.name || undefined,
-              })
-            }
-          })
-        break
-      }
-      case ContributionTargetType.CRYPTO: {
-        const cryptoWallets =
-          (
-            entityPositions.products[ProductType.CRYPTO] as
-              | CryptoCurrencies
-              | undefined
-          )?.entries ?? []
-        cryptoWallets.forEach(wallet => {
-          wallet.assets?.forEach(asset => {
-            if (!asset.symbol || !asset.crypto_asset) return
-            const value = asset.symbol.toUpperCase()
+    for (const entityPositions of entityPositionsList) {
+      switch (modalForm.target_type) {
+        case ContributionTargetType.FUND: {
+          const funds =
+            (
+              entityPositions.products[ProductType.FUND] as
+                | FundInvestments
+                | undefined
+            )?.entries ?? []
+          funds.forEach(fund => {
+            if (!fund.isin) return
+            const value = fund.isin.toUpperCase()
             if (!suggestions.has(value)) {
               suggestions.set(value, {
                 value,
                 label: value,
-                secondary: asset.name || undefined,
+                secondary: fund.name,
+                issuer: fund.issuer,
               })
             }
           })
-        })
-        break
+          break
+        }
+        case ContributionTargetType.STOCK_ETF: {
+          const stocks =
+            (
+              entityPositions.products[ProductType.STOCK_ETF] as
+                | StockInvestments
+                | undefined
+            )?.entries ?? []
+          stocks.forEach(stock => {
+            if (!stock.isin) return
+            const value = stock.isin.toUpperCase()
+            if (!suggestions.has(value)) {
+              const secondary = stock.ticker
+                ? `${stock.name} · ${stock.ticker}`
+                : stock.name
+              suggestions.set(value, {
+                value,
+                label: value,
+                secondary,
+                ticker: stock.ticker?.toUpperCase(),
+                equityType: stock.type,
+                issuer: stock.issuer,
+              })
+            }
+          })
+          break
+        }
+        case ContributionTargetType.FUND_PORTFOLIO: {
+          const accounts =
+            (
+              entityPositions.products[ProductType.ACCOUNT] as
+                | Accounts
+                | undefined
+            )?.entries ?? []
+          accounts
+            .filter(
+              account =>
+                account.type === AccountType.FUND_PORTFOLIO && account.iban,
+            )
+            .forEach(account => {
+              const normalized = account.iban!.replace(/\s+/g, "").toUpperCase()
+              if (!suggestions.has(normalized)) {
+                suggestions.set(normalized, {
+                  value: normalized,
+                  label: normalized,
+                  secondary: account.name || undefined,
+                })
+              }
+            })
+          break
+        }
+        case ContributionTargetType.CRYPTO: {
+          const cryptoWallets =
+            (
+              entityPositions.products[ProductType.CRYPTO] as
+                | CryptoCurrencies
+                | undefined
+            )?.entries ?? []
+          cryptoWallets.forEach(wallet => {
+            wallet.assets?.forEach(asset => {
+              if (!asset.symbol || !asset.crypto_asset) return
+              const value = asset.symbol.toUpperCase()
+              if (!suggestions.has(value)) {
+                suggestions.set(value, {
+                  value,
+                  label: value,
+                  secondary: asset.crypto_asset.name || asset.name || undefined,
+                  iconUrls: asset.crypto_asset.icon_urls,
+                })
+              }
+            })
+          })
+          break
+        }
+        default:
+          break
       }
-      default:
-        break
     }
 
     return Array.from(suggestions.values())
@@ -1080,11 +1238,15 @@ export default function AutoContributionsPage() {
               <div className="flex items-start gap-2">
                 <div className="flex flex-col items-end gap-1">
                   <div className="text-2xl font-semibold tracking-tight leading-none">
-                    {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    <Sensitive>
+                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                    </Sensitive>
                   </div>
                   {showOriginalCurrency && (
                     <div className="text-xs text-muted-foreground">
-                      {formatCurrency(amount, locale, currency)}
+                      <Sensitive>
+                        {formatCurrency(amount, locale, currency)}
+                      </Sensitive>
                     </div>
                   )}
                 </div>
@@ -1112,7 +1274,7 @@ export default function AutoContributionsPage() {
               </div>
             </div>
             <div className="flex items-center justify-between pt-1 text-[0.7rem] font-medium">
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge
                   className={cn(
                     "gap-1 border-transparent px-2 py-0.5",
@@ -1237,19 +1399,23 @@ export default function AutoContributionsPage() {
                       </span>
                       <div className="text-right">
                         <div className="font-medium">
-                          {formatCurrency(
-                            convertedMonthlyAmount,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <Sensitive>
+                            {formatCurrency(
+                              convertedMonthlyAmount,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
                         </div>
                         {showOriginalCurrency && (
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(
-                              normalizedMonthlyAmount,
-                              locale,
-                              currency,
-                            )}
+                            <Sensitive>
+                              {formatCurrency(
+                                normalizedMonthlyAmount,
+                                locale,
+                                currency,
+                              )}
+                            </Sensitive>
                           </div>
                         )}
                       </div>
@@ -1305,225 +1471,218 @@ export default function AutoContributionsPage() {
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   return (
-    <motion.div
-      className="space-y-6 pb-6"
-      variants={fadeListContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <>
       <motion.div
-        variants={fadeListItem}
-        className="flex items-center justify-between gap-4 flex-wrap"
+        className="space-y-6"
+        variants={fadeListContainer}
+        initial="hidden"
+        animate="show"
       >
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/management")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">
-              {t.management.autoContributions}
-            </h1>
-            <PinAssetButton assetId="management-auto-contributions" />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenCreateModal}
-            disabled={financialEntities.length === 0}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            {t.management.manualContributions.add}
-          </Button>
-          {isEditMode ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRequestCancelEdit}
-                disabled={isSaving}
-              >
-                <X className="h-3.5 w-3.5 mr-1" />
-                {t.common.cancel}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSaveAll}
-                disabled={isSaving || !hasLocalChanges}
-              >
-                {isSaving ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {t.common.saving}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Save className="h-3.5 w-3.5" />
-                    {t.common.save}
-                  </span>
-                )}
-              </Button>
-            </>
-          ) : (
-            <Button variant="default" size="sm" onClick={handleEnterEditMode}>
-              <Pencil className="h-3.5 w-3.5 mr-1" />
-              {t.common.edit}
-            </Button>
-          )}
-        </div>
-      </motion.div>
-
-      {isEditMode && hasLocalChanges && (
         <motion.div
           variants={fadeListItem}
-          className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+          className="flex items-center justify-between gap-4 flex-wrap"
         >
-          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>{t.management.unsavedChanges}</div>
-        </motion.div>
-      )}
-
-      <motion.div variants={fadeListItem} className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4">
-          <Card className="p-5 flex flex-col justify-between">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {t.management.monthlyAverageContributions}
-              </span>
-            </div>
-            <div>
-              <div className="text-3xl font-bold leading-tight tracking-tight">
-                {formatCurrency(monthlyTotal, locale, defaultCurrency)}
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5 flex flex-col justify-between">
-            <div className="flex items-center gap-2 mb-3">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {t.management.activeContributions}
-              </span>
-            </div>
-            <div>
-              <div className="text-3xl font-bold leading-tight tracking-tight">
-                {activeCount}
-              </div>
-            </div>
-          </Card>
-        </div>
-        {distributionData.length > 0 && (
-          <Card className="p-5 flex flex-col lg:col-span-2 min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3
-                className="text-sm font-medium text-muted-foreground"
-                title={t.management.monthlyPerTarget}
-              >
-                {t.management.monthlyPerTarget}
-              </h3>
-              <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                {formatCurrency(
-                  distributionData[0].total,
-                  locale,
-                  defaultCurrency,
-                )}
-              </span>
-            </div>
-            <div className="space-y-3 overflow-auto lg:max-h-72 pr-1 scrollbar-thin scrollbar-thumb-border/30">
-              {distributionData.map((d, i) => (
-                <div key={d.rawKey} className="group">
-                  <div className="flex justify-between gap-4 text-xs font-medium mb-1">
-                    <span className="truncate" title={d.name}>
-                      {d.name}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground group-hover:text-foreground transition-colors">
-                      {formatCurrency(d.value, locale, defaultCurrency)} ·{" "}
-                      {d.percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${d.percentage}%`,
-                        background: barColor(i),
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-      </motion.div>
-
-      {showEmptyState && (
-        <motion.div variants={fadeListItem}>
-          <Card className="p-10 flex flex-col items-center gap-4 text-center">
-            <PiggyBank className="h-12 w-12 text-muted-foreground" />
-            <div>
-              <h2 className="text-lg font-semibold mb-1">
-                {t.management.noAutoContributionsTitle}
-              </h2>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {t.management.noAutoContributionsDescription}
-              </p>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {Array.from(groupedEntries.entries()).map(([entityId, list]) => {
-        const entityName =
-          entities.find(entity => entity.id === entityId)?.name || entityId
-        const draftsForEntity = manualDraftsByEntity.get(entityId) || []
-        const unsavedDrafts = draftsForEntity.filter(draft => !draft.originalId)
-
-        return (
-          <div key={entityId} className="space-y-4">
-            <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
-              {entityName}
-            </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {list.map(c => {
-                const manualDraft = manualDraftByOriginalId.get(c.id)
-                if (
-                  isEditMode &&
-                  c.source === DataSource.MANUAL &&
-                  !manualDraft
-                ) {
-                  return null
-                }
-                const isDirty = manualDraft
-                  ? isManualDraftDirty(manualDraft)
-                  : false
-
-                return (
-                  <div key={manualDraft?.localId ?? c.id} className="h-full">
-                    {renderContributionCard(c, entityId, manualDraft, isDirty)}
-                  </div>
-                )
-              })}
-              {isEditMode &&
-                unsavedDrafts.map(draft => (
-                  <div key={draft.localId} className="h-full">
-                    {renderContributionCard(
-                      null,
-                      entityId,
-                      draft,
-                      isManualDraftDirty(draft),
-                    )}
-                  </div>
-                ))}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={() => navigate("/management")}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">
+                {t.management.autoContributions}
+              </h1>
+              <PinAssetButton
+                assetId="management-auto-contributions"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
-        )
-      })}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenCreateModal}
+              disabled={financialEntities.length === 0}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              {t.management.manualContributions.add}
+            </Button>
+            {isEditMode ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRequestCancelEdit}
+                  disabled={isSaving}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  {t.common.cancel}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveAll}
+                  disabled={isSaving || !hasLocalChanges}
+                >
+                  {isSaving ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {t.common.saving}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Save className="h-3.5 w-3.5" />
+                      {t.common.save}
+                    </span>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button variant="default" size="sm" onClick={handleEnterEditMode}>
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                {t.common.edit}
+              </Button>
+            )}
+          </div>
+        </motion.div>
+
+        {isEditMode && hasLocalChanges && (
+          <motion.div
+            variants={fadeListItem}
+            className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+          >
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div>{t.management.unsavedChanges}</div>
+          </motion.div>
+        )}
+
+        <motion.div variants={fadeListItem}>
+          <InvestmentFilters
+            filteredEntities={filteredEntities}
+            selectedEntities={selectedEntities}
+            onEntitiesChange={setSelectedEntities}
+          />
+        </motion.div>
+
+        <motion.div variants={fadeListItem}>
+          {chartData.length > 0 && (
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
+                <InvestmentDistributionChart
+                  data={chartData}
+                  title={t.common.distribution}
+                  locale={locale}
+                  currency={defaultCurrency}
+                  hideLegend
+                  containerClassName="overflow-visible w-full"
+                  variant="bare"
+                  toggleConfig={{
+                    activeView: "target",
+                    onViewChange: () => {},
+                    options: [
+                      {
+                        value: "target",
+                        label: t.management.monthlyPerTarget,
+                      },
+                    ],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${activeCount} ${t.management.activeContributions}`,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: monthlyTotal,
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
+
+        {showEmptyState && (
+          <motion.div variants={fadeListItem}>
+            <Card className="p-10 flex flex-col items-center gap-4 text-center">
+              <PiggyBank className="h-12 w-12 text-muted-foreground" />
+              <div>
+                <h2 className="text-lg font-semibold mb-1">
+                  {t.management.noAutoContributionsTitle}
+                </h2>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  {t.management.noAutoContributionsDescription}
+                </p>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {Array.from(groupedEntries.entries())
+          .filter(
+            ([entityId]) =>
+              selectedEntities.length === 0 ||
+              selectedEntities.includes(entityId),
+          )
+          .map(([entityId, list]) => {
+            const entityName =
+              entities.find(entity => entity.id === entityId)?.name || entityId
+            const draftsForEntity = manualDraftsByEntity.get(entityId) || []
+            const unsavedDrafts = draftsForEntity.filter(
+              draft => !draft.originalId,
+            )
+
+            return (
+              <div key={entityId} className="space-y-4">
+                <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                  {entityName}
+                </h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {list.map(c => {
+                    const manualDraft = manualDraftByOriginalId.get(c.id)
+                    if (
+                      isEditMode &&
+                      c.source === DataSource.MANUAL &&
+                      !manualDraft
+                    ) {
+                      return null
+                    }
+                    const isDirty = manualDraft
+                      ? isManualDraftDirty(manualDraft)
+                      : false
+
+                    return (
+                      <div
+                        key={manualDraft?.localId ?? c.id}
+                        className="h-full"
+                      >
+                        {renderContributionCard(
+                          c,
+                          entityId,
+                          manualDraft,
+                          isDirty,
+                        )}
+                      </div>
+                    )
+                  })}
+                  {isEditMode &&
+                    unsavedDrafts.map(draft => (
+                      <div key={draft.localId} className="h-full">
+                        {renderContributionCard(
+                          null,
+                          entityId,
+                          draft,
+                          isManualDraftDirty(draft),
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )
+          })}
+      </motion.div>
 
       <AnimatePresence>
         {isModalOpen && modalForm && (
@@ -1532,7 +1691,7 @@ export default function AutoContributionsPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center pt-16 px-4 pb-4 z-[10002]"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1541,7 +1700,7 @@ export default function AutoContributionsPage() {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="w-full max-w-3xl"
             >
-              <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
+              <Card className="max-h-[calc(100vh-5rem)] flex flex-col">
                 <CardHeader className="pb-4 shrink-0">
                   <div className="flex items-start justify-between">
                     <div>
@@ -1570,23 +1729,27 @@ export default function AutoContributionsPage() {
                         <Label htmlFor="entity">
                           {t.management.manualContributions.entity}
                         </Label>
-                        <select
-                          id="entity"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={modalForm.entity_id}
-                          onChange={event => {
-                            const selectedEntityId = event.target.value
+                        <EntitySelector
+                          entities={financialEntities}
+                          selectedEntityIds={
+                            modalForm.entity_id ? [modalForm.entity_id] : []
+                          }
+                          onSelectionChange={ids => {
+                            const selectedEntityId = ids[0] ?? ""
                             const selectedEntity = financialEntities.find(
                               e => e.id === selectedEntityId,
                             )
-                            const isCryptoWallet =
-                              selectedEntity?.type === EntityType.CRYPTO_WALLET
+                            const isCryptoOnly =
+                              selectedEntity?.type ===
+                                EntityType.CRYPTO_WALLET ||
+                              selectedEntity?.type ===
+                                EntityType.CRYPTO_EXCHANGE
                             setModalForm(prev =>
                               prev
                                 ? {
                                     ...prev,
                                     entity_id: selectedEntityId,
-                                    ...(isCryptoWallet && {
+                                    ...(isCryptoOnly && {
                                       target_type:
                                         ContributionTargetType.CRYPTO,
                                       target_subtype: "",
@@ -1596,16 +1759,8 @@ export default function AutoContributionsPage() {
                             )
                             clearFormError("entity_id")
                           }}
-                        >
-                          <option value="" disabled>
-                            {t.common.selectOptions}
-                          </option>
-                          {financialEntities.map(entity => (
-                            <option key={entity.id} value={entity.id}>
-                              {entity.name}
-                            </option>
-                          ))}
-                        </select>
+                          singleSelect
+                        />
                         {formErrors.entity_id && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                             {formErrors.entity_id}
@@ -1640,65 +1795,123 @@ export default function AutoContributionsPage() {
                           const selectedEntity = financialEntities.find(
                             e => e.id === modalForm.entity_id,
                           )
-                          const isCryptoWallet =
-                            selectedEntity?.type === EntityType.CRYPTO_WALLET
-                          const filteredOptions = isCryptoWallet
+                          const isCryptoOnly =
+                            selectedEntity?.type === EntityType.CRYPTO_WALLET ||
+                            selectedEntity?.type === EntityType.CRYPTO_EXCHANGE
+                          const filteredOptions = isCryptoOnly
                             ? targetSubtypeOptions.filter(
                                 opt =>
                                   opt.targetType ===
                                   ContributionTargetType.CRYPTO,
                               )
                             : targetSubtypeOptions
+                          const currentValue =
+                            modalForm.target_type ===
+                            ContributionTargetType.FUND_PORTFOLIO
+                              ? "FUND_PORTFOLIO"
+                              : modalForm.target_type ===
+                                  ContributionTargetType.CRYPTO
+                                ? "CRYPTO"
+                                : modalForm.target_subtype || ""
+                          const currentOption = filteredOptions.find(
+                            opt => opt.value === currentValue,
+                          )
                           return (
-                            <select
-                              id="targetSubtype"
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              value={
-                                modalForm.target_type ===
-                                ContributionTargetType.FUND_PORTFOLIO
-                                  ? "FUND_PORTFOLIO"
-                                  : modalForm.target_type ===
-                                      ContributionTargetType.CRYPTO
-                                    ? "CRYPTO"
-                                    : modalForm.target_subtype || ""
-                              }
-                              disabled={isCryptoWallet}
-                              onChange={event => {
-                                const value = event.target.value as
-                                  | ContributionTargetSubtype
-                                  | "FUND_PORTFOLIO"
-                                  | "CRYPTO"
-                                const option = filteredOptions.find(
-                                  opt => opt.value === value,
-                                )
-                                if (!option) {
-                                  return
-                                }
-                                setModalForm(prev =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        target_type: option.targetType,
-                                        target_subtype:
-                                          value === "FUND_PORTFOLIO" ||
-                                          value === "CRYPTO"
-                                            ? ""
-                                            : value,
+                            <div className="relative" ref={subtypeDropdownRef}>
+                              <div
+                                id="targetSubtype"
+                                role="combobox"
+                                tabIndex={0}
+                                aria-haspopup="listbox"
+                                aria-expanded={subtypeDropdownOpen}
+                                className={cn(
+                                  "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
+                                  "focus-within:ring-2 focus-within:ring-ring",
+                                  isCryptoOnly &&
+                                    "cursor-not-allowed opacity-50",
+                                  formErrors.target_type && "border-red-500",
+                                )}
+                                onClick={() => {
+                                  if (!isCryptoOnly)
+                                    setSubtypeDropdownOpen(prev => !prev)
+                                }}
+                                onKeyDown={e => {
+                                  if (isCryptoOnly) return
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault()
+                                    setSubtypeDropdownOpen(prev => !prev)
+                                  } else if (e.key === "Escape") {
+                                    setSubtypeDropdownOpen(false)
+                                  }
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  {currentOption &&
+                                    getIconForProductType(
+                                      currentOption.targetType as unknown as ProductType,
+                                      "h-4 w-4",
+                                    )}
+                                  {currentOption?.label ||
+                                    t.common.selectOptions}
+                                </span>
+                                <ChevronDown
+                                  className={cn(
+                                    "h-4 w-4 shrink-0 transition-transform",
+                                    subtypeDropdownOpen && "rotate-180",
+                                  )}
+                                />
+                              </div>
+                              {subtypeDropdownOpen && !isCryptoOnly && (
+                                <div
+                                  role="listbox"
+                                  className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                                >
+                                  {filteredOptions.map(option => (
+                                    <div
+                                      key={option.value}
+                                      role="option"
+                                      aria-selected={
+                                        currentValue === option.value
                                       }
-                                    : prev,
-                                )
-                                clearFormError("target_type")
-                              }}
-                            >
-                              <option value="" disabled>
-                                {t.common.selectOptions}
-                              </option>
-                              {filteredOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                                      className={cn(
+                                        "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                        currentValue === option.value &&
+                                          "bg-accent text-accent-foreground",
+                                      )}
+                                      onClick={() => {
+                                        setModalForm(prev =>
+                                          prev
+                                            ? {
+                                                ...prev,
+                                                target_type: option.targetType,
+                                                target_subtype:
+                                                  option.value ===
+                                                    "FUND_PORTFOLIO" ||
+                                                  option.value === "CRYPTO"
+                                                    ? ""
+                                                    : option.value,
+                                              }
+                                            : prev,
+                                        )
+                                        clearFormError("target_type")
+                                        setSubtypeDropdownOpen(false)
+                                      }}
+                                    >
+                                      <span className="flex items-center gap-2">
+                                        {getIconForProductType(
+                                          option.targetType as unknown as ProductType,
+                                          "h-4 w-4",
+                                        )}
+                                        {option.label}
+                                      </span>
+                                      {currentValue === option.value && (
+                                        <Check className="h-4 w-4" />
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )
                         })()}
                         {formErrors.target_type && (
@@ -1708,7 +1921,109 @@ export default function AutoContributionsPage() {
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="target">{t.management.target}</Label>
+                        <div className="flex items-center justify-between gap-2 min-h-[20px]">
+                          <Label htmlFor="target">{t.management.target}</Label>
+                          {modalSuggestions.length > 0 && (
+                            <Popover
+                              open={suggestionPopoverOpen}
+                              onOpenChange={setSuggestionPopoverOpen}
+                            >
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors min-w-0"
+                                >
+                                  <ListFilter className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">
+                                    {
+                                      t.management.manualContributions
+                                        .suggestions
+                                    }
+                                    {selectedModalEntityName
+                                      ? ` · ${selectedModalEntityName}`
+                                      : ""}
+                                  </span>
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-80 p-0">
+                                <div className="max-h-72 overflow-y-auto py-1">
+                                  {modalSuggestions.map(suggestion => {
+                                    const isIsin =
+                                      modalForm.target_type ===
+                                        ContributionTargetType.FUND ||
+                                      modalForm.target_type ===
+                                        ContributionTargetType.STOCK_ETF
+                                    return (
+                                      <button
+                                        key={suggestion.value}
+                                        type="button"
+                                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                        onClick={() => {
+                                          setModalForm(prev =>
+                                            prev
+                                              ? {
+                                                  ...prev,
+                                                  target: suggestion.value,
+                                                  target_name:
+                                                    prev.target_name.trim()
+                                                      .length > 0
+                                                      ? prev.target_name
+                                                      : (suggestion.secondary ??
+                                                        suggestion.value),
+                                                  name:
+                                                    prev.name.trim().length > 0
+                                                      ? prev.name
+                                                      : (suggestion.secondary ??
+                                                        (prev.target_name.trim()
+                                                          .length > 0
+                                                          ? prev.target_name
+                                                          : suggestion.value)),
+                                                }
+                                              : prev,
+                                          )
+                                          clearFormError("target")
+                                          clearFormError("name")
+                                          setSuggestionPopoverOpen(false)
+                                        }}
+                                      >
+                                        <SuggestionIcon
+                                          suggestion={suggestion}
+                                          targetType={modalForm.target_type}
+                                        />
+                                        <div className="flex flex-col gap-0.5 overflow-hidden">
+                                          {suggestion.secondary ? (
+                                            <>
+                                              <span className="truncate font-medium text-foreground">
+                                                {suggestion.secondary}
+                                              </span>
+                                              <span
+                                                className={cn(
+                                                  "truncate text-xs text-muted-foreground",
+                                                  isIsin && "font-mono",
+                                                )}
+                                              >
+                                                {suggestion.value}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span
+                                              className={cn(
+                                                "truncate font-medium text-foreground",
+                                                isIsin && "font-mono",
+                                              )}
+                                            >
+                                              {suggestion.value}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
                         <Input
                           id="target"
                           value={modalForm.target}
@@ -1803,25 +2118,30 @@ export default function AutoContributionsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="amount">{t.management.amount}</Label>
-                        <Input
-                          id="amount"
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="0.01"
-                          value={modalForm.amount}
-                          onChange={event => {
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    amount: event.target.value,
-                                  }
-                                : prev,
-                            )
-                            clearFormError("amount")
-                          }}
-                        />
+                        <div className="relative">
+                          <DecimalInput
+                            id="amount"
+                            value={modalForm.amount}
+                            onStringChange={value => {
+                              setModalForm(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      amount: value,
+                                    }
+                                  : prev,
+                              )
+                              clearFormError("amount")
+                            }}
+                            className={cn(
+                              "pr-10",
+                              formErrors.amount && "border-red-500",
+                            )}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                            {currencySymbol}
+                          </span>
+                        </div>
                         {formErrors.amount && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                             {formErrors.amount}
@@ -1897,64 +2217,6 @@ export default function AutoContributionsPage() {
                         />
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        {t.management.manualContributions.suggestions}
-                      </div>
-                      {modalSuggestions.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {modalSuggestions.map(suggestion => (
-                            <Button
-                              key={suggestion.value}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setModalForm(prev =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        target: suggestion.value,
-                                        target_name:
-                                          prev.target_name.trim().length > 0
-                                            ? prev.target_name
-                                            : (suggestion.secondary ??
-                                              suggestion.value),
-                                        name:
-                                          prev.name.trim().length > 0
-                                            ? prev.name
-                                            : (suggestion.secondary ??
-                                              (prev.target_name.trim().length >
-                                              0
-                                                ? prev.target_name
-                                                : suggestion.value)),
-                                      }
-                                    : prev,
-                                )
-                                clearFormError("target")
-                                clearFormError("name")
-                              }}
-                            >
-                              <span className="text-xs">
-                                <span className="font-medium">
-                                  {suggestion.label}
-                                </span>
-                                {suggestion.secondary && (
-                                  <span className="block text-[0.7rem] text-muted-foreground">
-                                    {suggestion.secondary}
-                                  </span>
-                                )}
-                              </span>
-                            </Button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          {t.management.manualContributions.noSuggestions}
-                        </p>
-                      )}
-                    </div>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">
                     <Button
@@ -1994,6 +2256,6 @@ export default function AutoContributionsPage() {
         onConfirm={handleConfirmDiscardModal}
         onCancel={handleDismissDiscardModal}
       />
-    </motion.div>
+    </>
   )
 }

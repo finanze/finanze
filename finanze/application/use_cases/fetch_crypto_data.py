@@ -7,19 +7,28 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
+from dateutil.tz import tzlocal
+
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
-from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.crypto_wallet_port import CryptoWalletPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
+from application.ports.public_key_derivation import PublicKeyDerivation
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.use_cases.derive_crypto_addresses import get_coin_type_from_entity_id
 from application.use_cases.fetch_financial_data import handle_cooldown
-from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import (
     CryptoFetchRequest,
+    CryptoCurrencyType,
+    AddressSource,
+    CryptoFetchResult,
+    CryptoFetchedPosition,
+    CryptoWallet,
+    HDAddress,
 )
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
@@ -42,17 +51,19 @@ from domain.fetch_result import (
 from domain.global_position import (
     CryptoCurrencies,
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
     GlobalPosition,
     ProductType,
 )
+from domain.public_key import AddressDerivationRequest, DerivedAddress
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 
 TARGET_FIAT = "EUR"
 CRYPTO_POSITION_UPDATE_COOLDOWN = int(
     os.environ.get("CRYPTO_POSITION_UPDATE_COOLDOWN", 120)
 )
+UNUSED_GAP = 15
+DERIVATION_BATCH_SIZE = 25
 
 
 class FetchCryptoDataImpl(FetchCryptoData):
@@ -60,21 +71,23 @@ class FetchCryptoDataImpl(FetchCryptoData):
         self,
         position_port: PositionPort,
         entity_fetchers: dict[Entity, CryptoEntityFetcher],
-        crypto_wallet_connection_port: CryptoWalletConnectionPort,
+        crypto_wallet_port: CryptoWalletPort,
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         last_fetches_port: LastFetchesPort,
         external_integration_port: ExternalIntegrationPort,
         transaction_handler_port: TransactionHandlerPort,
+        public_key_derivation: PublicKeyDerivation,
     ):
         self._position_port = position_port
         self._entity_fetchers = entity_fetchers
-        self._crypto_wallet_connection_port = crypto_wallet_connection_port
+        self._crypto_wallet_port = crypto_wallet_port
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._last_fetches_port = last_fetches_port
         self._external_integration_port = external_integration_port
         self._transaction_handler_port = transaction_handler_port
+        self._public_key_derivation = public_key_derivation
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -88,9 +101,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
     async def execute(self, fetch_request: FetchRequest) -> FetchResult:
         entity_id = fetch_request.entity_id
 
-        connected_entities = (
-            self._crypto_wallet_connection_port.get_connected_entities()
-        )
+        connected_entities = await self._crypto_wallet_port.get_connected_entities()
 
         if entity_id:
             entity = native_entities.get_native_by_id(
@@ -107,13 +118,15 @@ class FetchCryptoDataImpl(FetchCryptoData):
             ]
 
         for entity in entities:
-            last_fetch = self._last_fetches_port.get_by_entity_id(entity.id)
+            last_fetch = await self._last_fetches_port.get_by_entity_id(entity.id)
             result = handle_cooldown(last_fetch, CRYPTO_POSITION_UPDATE_COOLDOWN)
             if result:
                 return result
 
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.CRYPTO_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.CRYPTO_PROVIDER
+            )
         )
 
         fetched_data = []
@@ -157,48 +170,70 @@ class FetchCryptoDataImpl(FetchCryptoData):
         options: FetchOptions,
         integrations: EnabledExternalIntegrations,
     ) -> FetchedData:
-        existing_connections = self._crypto_wallet_connection_port.get_by_entity_id(
-            entity.id
+        entity_wallets = await self._crypto_wallet_port.get_by_entity_id(
+            entity.id, hd_addresses=True
         )
 
-        fetch_requests = []
-        for connection in existing_connections:
-            fetch_requests.append(
-                CryptoFetchRequest(
-                    connection_id=connection.id,
-                    address=connection.address,
-                    integrations=integrations,
-                )
+        manual_wallets = [
+            w for w in entity_wallets if w.address_source == AddressSource.MANUAL
+        ]
+        derived_wallets = [
+            w for w in entity_wallets if w.address_source == AddressSource.DERIVED
+        ]
+
+        manual_addresses, address_wallet_id = self._collect_manual_addresses(
+            manual_wallets
+        )
+        known_derived_addresses = self._collect_known_derived_addresses(derived_wallets)
+
+        all_known_addresses = manual_addresses + list(known_derived_addresses)
+        data_by_address: dict[str, CryptoFetchResult | None] = {}
+        if all_known_addresses:
+            initial_results = await self._fetch_addresses(
+                all_known_addresses, specific_fetcher, integrations
             )
+            data_by_address.update(initial_results)
 
-        candidate_wallets = []
-        try:
-            candidate_wallets = specific_fetcher.fetch_multiple(fetch_requests)
-        except NotImplementedError:
-            for fetch_request in fetch_requests:
-                wallet = specific_fetcher.fetch(fetch_request)
-                candidate_wallets.append(wallet)
+        known_results_by_wallet = self._split_results_by_wallet(
+            data_by_address, derived_wallets
+        )
 
-        wallets_by_id = {wallet.id: wallet for wallet in candidate_wallets}
-        for connection in existing_connections:
-            wallet = wallets_by_id[connection.id]
-            wallet.name = connection.name
-            wallet.address = connection.address
+        derived_new_addresses, derived_results = await self._resolve_derived_addresses(
+            entity,
+            derived_wallets,
+            specific_fetcher,
+            integrations,
+            known_results_by_wallet,
+        )
+        data_by_address.update(derived_results)
 
-        contract_addresses = set()
-        native_symbols = set()
-        for wallet in candidate_wallets:
-            for asset in wallet.assets:
-                if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
-                    contract_addresses.add(asset.contract_address.lower())
-                elif asset.type == CryptoCurrencyType.NATIVE:
-                    native_symbols.add(asset.symbol)
+        for wallet in derived_wallets:
+            if not wallet.hd_wallet:
+                continue
+            all_wallet_addrs = {a.address for a in wallet.hd_wallet.addresses}
+            all_wallet_addrs |= {
+                da.address for da in derived_new_addresses.get(wallet.id, [])
+            }
+            for addr in all_wallet_addrs:
+                address_wallet_id[addr] = wallet.id
 
-        price_map = self._get_price_map(contract_addresses, native_symbols)
+        address_data_by_wallet_id = self._group_results_by_wallet(
+            data_by_address, address_wallet_id
+        )
+
+        candidate_wallets = self._build_candidate_wallets(
+            entity_wallets, address_data_by_wallet_id
+        )
+
+        contract_addresses, native_symbols = self._collect_asset_identifiers(
+            candidate_wallets
+        )
+
+        price_map = await self._get_price_map(contract_addresses, native_symbols)
 
         wallets = []
         for w in candidate_wallets:
-            wallet = self._process_wallet_data(w, price_map)
+            wallet = await self._process_wallet_data(w, price_map)
             wallets.append(wallet)
 
         products = {ProductType.CRYPTO: CryptoCurrencies(wallets)}
@@ -210,15 +245,326 @@ class FetchCryptoDataImpl(FetchCryptoData):
         )
 
         async with self._transaction_handler_port.start():
-            self._position_port.save(position)
+            await self._position_port.save(position)
 
-            self._update_last_fetch(entity.id, [Feature.POSITION])
+            for wallet_id, new_derived in derived_new_addresses.items():
+                hd_addresses = self._map_derived_to_hd_addresses(
+                    new_derived, data_by_address
+                )
+                if hd_addresses:
+                    await self._crypto_wallet_port.insert_hd_addresses(
+                        wallet_id, hd_addresses
+                    )
+
+            for wallet in derived_wallets:
+                if not wallet.hd_wallet:
+                    continue
+                balances = self._extract_address_balances(
+                    [a.address for a in wallet.hd_wallet.addresses],
+                    data_by_address,
+                )
+                if balances:
+                    await self._crypto_wallet_port.update_hd_address_balances(
+                        wallet.id, balances
+                    )
+
+            await self._update_last_fetch(entity.id, [Feature.POSITION])
 
             return FetchedData(
                 position=position,
             )
 
-    def _process_wallet_data(
+    @staticmethod
+    def _collect_asset_identifiers(
+        wallets: list[CryptoCurrencyWallet],
+    ) -> tuple[set[str], set[str]]:
+        contract_addresses = set()
+        native_symbols = set()
+        for wallet in wallets:
+            for asset in wallet.assets:
+                if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
+                    contract_addresses.add(asset.contract_address.lower())
+                elif asset.type == CryptoCurrencyType.NATIVE:
+                    native_symbols.add(asset.symbol)
+        return contract_addresses, native_symbols
+
+    @staticmethod
+    def _collect_manual_addresses(
+        manual_wallets: list[CryptoWallet],
+    ) -> tuple[list[str], dict[str, UUID]]:
+        addresses = []
+        address_wallet_id = {}
+        for w in manual_wallets:
+            for address in w.addresses:
+                addresses.append(address)
+                address_wallet_id[address] = w.id
+        return addresses, address_wallet_id
+
+    @staticmethod
+    def _collect_known_derived_addresses(
+        derived_wallets: list[CryptoWallet],
+    ) -> list[str]:
+        addresses = []
+        for w in derived_wallets:
+            if w.hd_wallet:
+                addresses.extend(a.address for a in w.hd_wallet.addresses)
+        return addresses
+
+    @staticmethod
+    def _split_results_by_wallet(
+        results: dict[str, CryptoFetchResult | None],
+        derived_wallets: list[CryptoWallet],
+    ) -> dict[UUID, dict[str, CryptoFetchResult | None]]:
+        by_wallet: dict[UUID, dict[str, CryptoFetchResult | None]] = {}
+        for wallet in derived_wallets:
+            if not wallet.hd_wallet:
+                continue
+            wallet_results = {}
+            for hd_addr in wallet.hd_wallet.addresses:
+                if hd_addr.address in results:
+                    wallet_results[hd_addr.address] = results[hd_addr.address]
+            by_wallet[wallet.id] = wallet_results
+        return by_wallet
+
+    async def _resolve_derived_addresses(
+        self,
+        entity: Entity,
+        derived_wallets: list[CryptoWallet],
+        fetcher: CryptoEntityFetcher,
+        integrations: EnabledExternalIntegrations,
+        known_results_by_wallet: dict[UUID, dict[str, CryptoFetchResult | None]],
+    ) -> tuple[dict[UUID, list[DerivedAddress]], dict[str, CryptoFetchResult | None]]:
+        new_derived_by_wallet: dict[UUID, list[DerivedAddress]] = {}
+        all_results: dict[str, CryptoFetchResult | None] = {}
+
+        for wallet in derived_wallets:
+            if not wallet.hd_wallet:
+                continue
+
+            coin_type = get_coin_type_from_entity_id(entity.id)
+            pre_fetched = known_results_by_wallet.get(wallet.id, {})
+            new_derived, wallet_results = await self._discover_wallet_addresses(
+                wallet, coin_type, fetcher, integrations, pre_fetched
+            )
+            new_derived_by_wallet[wallet.id] = new_derived
+            all_results.update(wallet_results)
+
+        return new_derived_by_wallet, all_results
+
+    async def _discover_wallet_addresses(
+        self,
+        wallet: CryptoWallet,
+        coin_type,
+        fetcher: CryptoEntityFetcher,
+        integrations: EnabledExternalIntegrations,
+        known_results: dict[str, CryptoFetchResult | None] = None,
+    ) -> tuple[list[DerivedAddress], dict[str, CryptoFetchResult | None]]:
+        known_receiving = [a for a in wallet.hd_wallet.addresses if a.change == 0]
+        known_change = [a for a in wallet.hd_wallet.addresses if a.change == 1]
+
+        accumulated_results: dict[str, CryptoFetchResult | None] = dict(
+            known_results or {}
+        )
+
+        recv_start = max((a.index for a in known_receiving), default=-1) + 1
+        change_start = max((a.index for a in known_change), default=-1) + 1
+
+        recv_gap = 0
+        change_gap = 0
+        recv_idx = recv_start
+        change_idx = change_start
+        used_derived: list[DerivedAddress] = []
+
+        while recv_gap < UNUSED_GAP or change_gap < UNUSED_GAP:
+            recv_batch = []
+            change_batch = []
+            recv_range = (0, 0)
+            change_range = (0, 0)
+
+            if recv_gap < UNUSED_GAP:
+                recv_range = (recv_idx, recv_idx + DERIVATION_BATCH_SIZE)
+            if change_gap < UNUSED_GAP:
+                change_range = (change_idx, change_idx + DERIVATION_BATCH_SIZE)
+
+            result = self._public_key_derivation.calculate(
+                AddressDerivationRequest(
+                    xpub=wallet.hd_wallet.xpub,
+                    coin=coin_type,
+                    receiving_range=recv_range,
+                    change_range=change_range,
+                    script_type=wallet.hd_wallet.script_type,
+                )
+            )
+            recv_batch = result.receiving
+            change_batch = result.change
+
+            all_batch_addresses = [da.address for da in recv_batch] + [
+                da.address for da in change_batch
+            ]
+            if not all_batch_addresses:
+                break
+
+            fetch_results = await self._fetch_addresses(
+                all_batch_addresses, fetcher, integrations
+            )
+            accumulated_results.update(fetch_results)
+
+            if recv_gap < UNUSED_GAP:
+                recv_gap, new_recv_used = self._process_discovery_batch(
+                    recv_batch, fetch_results, recv_gap
+                )
+                used_derived.extend(new_recv_used)
+                recv_idx += DERIVATION_BATCH_SIZE
+
+            if change_gap < UNUSED_GAP:
+                change_gap, new_change_used = self._process_discovery_batch(
+                    change_batch, fetch_results, change_gap
+                )
+                used_derived.extend(new_change_used)
+                change_idx += DERIVATION_BATCH_SIZE
+
+        return used_derived, accumulated_results
+
+    @staticmethod
+    def _process_discovery_batch(
+        batch: list[DerivedAddress],
+        fetch_results: dict[str, CryptoFetchResult | None],
+        current_gap: int,
+    ) -> tuple[int, list[DerivedAddress]]:
+        used: list[DerivedAddress] = []
+        gap = current_gap
+        for da in batch:
+            if gap >= UNUSED_GAP:
+                break
+            addr_result = fetch_results.get(da.address)
+            if addr_result and addr_result.has_txs:
+                used.append(da)
+                gap = 0
+            else:
+                gap += 1
+        return gap, used
+
+    @staticmethod
+    async def _fetch_addresses(
+        addresses: list[str],
+        fetcher: CryptoEntityFetcher,
+        integrations: EnabledExternalIntegrations,
+    ) -> dict[str, CryptoFetchResult | None]:
+        request = CryptoFetchRequest(
+            addresses=addresses,
+            integrations=integrations,
+            txs=True,
+        )
+        return (await fetcher.fetch(request)).results
+
+    @staticmethod
+    def _group_results_by_wallet(
+        data_by_address: dict[str, CryptoFetchResult | None],
+        address_wallet_id: dict[str, UUID],
+    ) -> dict[UUID, list[CryptoFetchResult]]:
+        address_data_by_wallet_id: dict[UUID, list[CryptoFetchResult]] = {}
+        for address, data in data_by_address.items():
+            if data is None:
+                continue
+            wallet_id = address_wallet_id.get(address)
+            if wallet_id:
+                if wallet_id not in address_data_by_wallet_id:
+                    address_data_by_wallet_id[wallet_id] = []
+                address_data_by_wallet_id[wallet_id].append(data)
+        return address_data_by_wallet_id
+
+    @staticmethod
+    def _build_candidate_wallets(
+        entity_wallets: list[CryptoWallet],
+        address_data_by_wallet_id: dict[UUID, list[CryptoFetchResult]],
+    ) -> list[CryptoCurrencyWallet]:
+        candidate_wallets = []
+        for wallet in entity_wallets:
+            addresses_data = address_data_by_wallet_id.get(wallet.id, [])
+            merged_assets = FetchCryptoDataImpl._merge_address_assets(addresses_data)
+
+            candidate_wallets.append(
+                CryptoCurrencyWallet(
+                    id=wallet.id,
+                    name=wallet.name,
+                    addresses=wallet.addresses,
+                    assets=merged_assets,
+                )
+            )
+        return candidate_wallets
+
+    @staticmethod
+    def _map_derived_to_hd_addresses(
+        derived_addresses: list[DerivedAddress],
+        data_by_address: dict[str, CryptoFetchResult | None],
+    ) -> list[HDAddress]:
+        return [
+            HDAddress(
+                address=da.address,
+                index=da.index,
+                change=da.change,
+                path=da.path,
+                pubkey=da.pubkey,
+                balance=FetchCryptoDataImpl._get_native_balance(
+                    data_by_address.get(da.address)
+                ),
+            )
+            for da in derived_addresses
+        ]
+
+    @staticmethod
+    def _get_native_balance(result: CryptoFetchResult | None) -> Dezimal:
+        if not result:
+            return Dezimal("0")
+        total = Dezimal("0")
+        for asset in result.assets:
+            if asset.type == CryptoCurrencyType.NATIVE:
+                total += asset.balance
+        return total
+
+    @staticmethod
+    def _extract_address_balances(
+        addresses: list[str],
+        data_by_address: dict[str, CryptoFetchResult | None],
+    ) -> dict[str, Dezimal]:
+        balances = {}
+        for addr in addresses:
+            balances[addr] = FetchCryptoDataImpl._get_native_balance(
+                data_by_address.get(addr)
+            )
+        return balances
+
+    @staticmethod
+    def _asset_merge_key(asset: CryptoFetchedPosition) -> str:
+        if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
+            return asset.contract_address.lower()
+        return asset.symbol
+
+    @staticmethod
+    def _merge_address_assets(
+        addresses_data: list[CryptoFetchResult],
+    ) -> list[CryptoCurrencyPosition]:
+        merged: dict[str, CryptoCurrencyPosition] = {}
+
+        for result in addresses_data:
+            for asset in result.assets:
+                key = FetchCryptoDataImpl._asset_merge_key(asset)
+                existing = merged.get(key)
+                if existing:
+                    existing.amount += asset.balance
+                else:
+                    merged[key] = CryptoCurrencyPosition(
+                        id=asset.id,
+                        symbol=asset.symbol,
+                        amount=asset.balance,
+                        type=asset.type,
+                        name=asset.name,
+                        contract_address=asset.contract_address,
+                    )
+
+        return list(merged.values())
+
+    async def _process_wallet_data(
         self, wallet: CryptoCurrencyWallet, price_map: dict[str, Dezimal]
     ) -> CryptoCurrencyWallet:
         assets = []
@@ -226,26 +572,27 @@ class FetchCryptoDataImpl(FetchCryptoData):
             for asset in wallet.assets:
                 asset_dict = asdict(asset)
                 market_value = self._get_market_value(price_map, asset)
-                asset_dict["market_value"] = market_value
-                asset_dict["currency"] = TARGET_FIAT
-                asset_details = self._crypto_asset_registry_port.get_by_symbol(
-                    asset.symbol
-                )
-                asset_info = asset_details
-                if (market_value is not None and asset.amount > 0) and not asset_info:
-                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
+                asset_info = None
+                if market_value is not None:
+                    asset_dict["market_value"] = market_value
+                    asset_dict["currency"] = TARGET_FIAT
+                    asset_info = await self._crypto_asset_registry_port.get_by_symbol(
                         asset.symbol
                     )
-                    if candidate_assets:
-                        asset_info = candidate_assets[0]
-                        asset_info.id = uuid4()
-                        self._crypto_asset_registry_port.save(asset_info)
+                    if asset.amount > 0 and not asset_info:
+                        candidate_assets = (
+                            await self._crypto_asset_info_provider.get_by_symbol(
+                                asset.symbol
+                            )
+                        )
+                        if candidate_assets:
+                            asset_info = candidate_assets[0]
+                            asset_info.id = uuid4()
+                            await self._crypto_asset_registry_port.save(asset_info)
 
-                if asset_info and market_value is None:
-                    asset_info = None
+                    if asset_info:
+                        asset_dict["name"] = asset_info.name
 
-                if asset_info:
-                    asset_dict["name"] = asset_info.name
                 asset_dict["crypto_asset"] = asset_info
                 position = CryptoCurrencyPosition(**asset_dict)
                 if position.name:
@@ -258,7 +605,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         wallet_dict["assets"] = assets
         return CryptoCurrencyWallet(**wallet_dict)
 
-    def _get_price_map(
+    async def _get_price_map(
         self,
         contract_addresses: set[str],
         native_symbols: set[str],
@@ -266,7 +613,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         price_map: dict[str, Dezimal] = {}
         if native_symbols:
             symbol_prices = (
-                self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                await self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
                     list(native_symbols), fiat_isos=[TARGET_FIAT]
                 )
             )
@@ -277,8 +624,10 @@ class FetchCryptoDataImpl(FetchCryptoData):
                     price_map[upper] = fiat_prices[TARGET_FIAT]
 
         if contract_addresses:
-            address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
-                list(contract_addresses), fiat_isos=[TARGET_FIAT]
+            address_prices = (
+                await self._crypto_asset_info_provider.get_prices_by_addresses(
+                    list(contract_addresses), fiat_isos=[TARGET_FIAT]
+                )
             )
             for addr, fiat_prices in address_prices.items():
                 fiat_price = fiat_prices.get(TARGET_FIAT)
@@ -290,9 +639,6 @@ class FetchCryptoDataImpl(FetchCryptoData):
     def _get_market_value(
         self, price_map: dict[str, Dezimal], crypto_currency: CryptoCurrencyPosition
     ) -> Optional[Dezimal]:
-        if crypto_currency.amount <= 0:
-            return Dezimal(0)
-
         price_key = (
             crypto_currency.symbol
             if crypto_currency.type == CryptoCurrencyType.NATIVE
@@ -303,9 +649,9 @@ class FetchCryptoDataImpl(FetchCryptoData):
             return None
         return round(crypto_currency.amount * price, 2)
 
-    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+    async def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())
         records = []
         for feature in features:
             records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
-        self._last_fetches_port.save(records)
+        await self._last_fetches_port.save(records)

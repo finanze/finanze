@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactMarkdown from "react-markdown"
+import { getPlatformType } from "@/lib/platform"
 
 interface ReleaseUpdateModalProps {
   isOpen: boolean
@@ -33,7 +34,6 @@ interface ReleaseUpdateModalProps {
   currentVersion: string
   latestVersion: string
   release: GitHubRelease
-  platform: PlatformType | null
   onSkipVersion?: (version: string) => void
   autoUpdateSupported: boolean
   isAutoUpdateDownloading: boolean
@@ -52,7 +52,6 @@ export function ReleaseUpdateModal({
   currentVersion,
   latestVersion,
   release,
-  platform,
   onSkipVersion,
   autoUpdateSupported,
   isAutoUpdateDownloading,
@@ -71,6 +70,7 @@ export function ReleaseUpdateModal({
 
   if (!isOpen) return null
 
+  const platform = getPlatformType()
   const platformAssets = getPlatformAssets(release, platform)
   const releaseDate = formatReleaseDate(release.published_at, locale)
 

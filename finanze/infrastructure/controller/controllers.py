@@ -1,5 +1,6 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.add_manual_transaction import AddManualTransaction
+from domain.use_cases.cancel_entity_login import CancelEntityLogin
 from domain.use_cases.calculate_loan import CalculateLoan
 from domain.use_cases.calculate_savings import CalculateSavings
 from domain.use_cases.change_user_password import ChangeUserPassword
@@ -12,8 +13,10 @@ from domain.use_cases.connect_external_integration import ConnectExternalIntegra
 from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.create_template import CreateTemplate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
+from domain.use_cases.get_crypto_wallet_addresses import GetCryptoWalletAddresses
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
+from domain.use_cases.derive_crypto_addresses import DeriveCryptoAddresses
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
 from domain.use_cases.delete_template import DeleteTemplate
@@ -31,7 +34,12 @@ from domain.use_cases.get_available_entities import GetAvailableEntities
 from domain.use_cases.get_available_external_entities import (
     GetAvailableExternalEntities,
 )
+from domain.use_cases.get_backup_settings import GetBackupSettings
+from domain.use_cases.get_backups import GetBackups
+from domain.use_cases.get_cloud_auth import GetCloudAuth
 from domain.use_cases.get_contributions import GetContributions
+from domain.use_cases.get_crypto_asset_details import GetCryptoAssetDetails
+from domain.use_cases.get_euribor_rates import GetEuriborRates
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
@@ -46,13 +54,17 @@ from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_template_fields import GetTemplateFields
 from domain.use_cases.get_templates import GetTemplates
 from domain.use_cases.get_transactions import GetTransactions
+from domain.use_cases.handle_cloud_auth import HandleCloudAuth
+from domain.use_cases.import_backup import ImportBackup
 from domain.use_cases.import_file import ImportFile
 from domain.use_cases.import_sheets import ImportSheets
 from domain.use_cases.list_real_estate import ListRealEstate
 from domain.use_cases.register_user import RegisterUser
+from domain.use_cases.save_backup_settings import SaveBackupSettings
 from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.save_pending_flows import SavePendingFlows
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
+from domain.use_cases.search_crypto_assets import SearchCryptoAssets
 from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
@@ -62,13 +74,16 @@ from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_template import UpdateTemplate
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
+from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
+from domain.use_cases.upload_backup import UploadBackup
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
-from infrastructure.controller.config import FlaskApp
+from infrastructure.controller.config import QuartApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
 )
+from infrastructure.controller.routes.cancel_entity_login import cancel_entity_login
 from infrastructure.controller.routes.calculate_loan import calculate_loan
 from infrastructure.controller.routes.calculate_savings import calculate_savings
 from infrastructure.controller.routes.change_user_password import change_user_password
@@ -86,6 +101,9 @@ from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.create_real_estate import create_real_estate
 from infrastructure.controller.routes.create_template import create_template
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
+from infrastructure.controller.routes.get_crypto_wallet_addresses import (
+    get_crypto_wallet_addresses,
+)
 from infrastructure.controller.routes.delete_external_entity import (
     delete_external_entity,
 )
@@ -93,6 +111,9 @@ from infrastructure.controller.routes.delete_manual_transaction import (
     delete_manual_transaction,
 )
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
+from infrastructure.controller.routes.derive_crypto_addresses import (
+    derive_crypto_addresses,
+)
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
 from infrastructure.controller.routes.delete_template import delete_template
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
@@ -100,6 +121,7 @@ from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
 )
 from infrastructure.controller.routes.exchange_rates import exchange_rates
+from infrastructure.controller.routes.get_euribor_rates import get_euribor_rates
 from infrastructure.controller.routes.export_file import export_file
 from infrastructure.controller.routes.export_sheets import export_sheets
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
@@ -111,7 +133,13 @@ from infrastructure.controller.routes.forecast import forecast
 from infrastructure.controller.routes.get_available_external_entities import (
     get_available_external_entities,
 )
+from infrastructure.controller.routes.get_crypto_asset_details import (
+    get_crypto_asset_details,
+)
 from infrastructure.controller.routes.get_available_sources import get_available_sources
+from infrastructure.controller.routes.get_backup_settings import get_backup_settings
+from infrastructure.controller.routes.get_backups import get_backups
+from infrastructure.controller.routes.get_cloud_auth import get_cloud_auth
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
@@ -124,15 +152,19 @@ from infrastructure.controller.routes.get_template_fields_route import (
     get_template_fields,
 )
 from infrastructure.controller.routes.get_templates import get_templates
+from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 from infrastructure.controller.routes.historic import get_historic
+from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.import_sheets import import_sheets
 from infrastructure.controller.routes.instrument_details import instrument_details
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
 from infrastructure.controller.routes.logout import logout
+from infrastructure.controller.routes.oauth_callback import oauth_callback
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
+from infrastructure.controller.routes.save_backup_settings import save_backup_settings
 from infrastructure.controller.routes.save_commodities import save_commodities
 from infrastructure.controller.routes.save_pending_flows import save_pending_flows
 from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
@@ -148,11 +180,14 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
+from infrastructure.controller.routes.update_tracked_loans import update_tracked_loans
+from infrastructure.controller.routes.upload_backup import upload_backup
 from infrastructure.controller.routes.user_login import user_login
+from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
 
 
-def register_routes(
-    app: FlaskApp,
+async def register_routes(
+    app: QuartApp,
     user_login_uc: UserLogin,
     register_user_uc: RegisterUser,
     change_user_password_uc: ChangeUserPassword,
@@ -165,6 +200,7 @@ def register_routes(
     import_sheets_uc: ImportSheets,
     import_file_uc: ImportFile,
     add_entity_credentials_uc: AddEntityCredentials,
+    cancel_entity_login_uc: CancelEntityLogin,
     get_status_uc: GetStatus,
     user_logout_uc: UserLogout,
     get_settings_uc: GetSettings,
@@ -183,6 +219,8 @@ def register_routes(
     connect_crypto_wallet_uc: ConnectCryptoWallet,
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
+    get_crypto_wallet_addresses_uc: GetCryptoWalletAddresses,
+    derive_crypto_addresses_uc: DeriveCryptoAddresses,
     save_commodities_uc: SaveCommodities,
     get_external_integrations_uc: GetExternalIntegrations,
     connect_external_integrations_uc: ConnectExternalIntegration,
@@ -208,47 +246,62 @@ def register_routes(
     get_instruments_uc: GetInstruments,
     get_instrument_info_uc: GetInstrumentInfo,
     update_tracked_quotes_uc: UpdateTrackedQuotes,
+    update_tracked_loans_uc: UpdateTrackedLoans,
+    search_crypto_assets_uc: SearchCryptoAssets,
+    get_crypto_asset_details_uc: GetCryptoAssetDetails,
     create_template_uc: CreateTemplate,
     update_template_uc: UpdateTemplate,
     delete_template_uc: DeleteTemplate,
     get_templates_uc: GetTemplates,
     get_template_fields_uc: GetTemplateFields,
+    upload_backup_uc: UploadBackup,
+    import_backup_uc: ImportBackup,
+    get_backups_uc: GetBackups,
+    handle_cloud_auth_uc: HandleCloudAuth,
+    get_cloud_auth_uc: GetCloudAuth,
+    get_backup_settings_uc: GetBackupSettings,
+    save_backup_settings_uc: SaveBackupSettings,
+    get_euribor_rates_uc: GetEuriborRates,
 ):
     @app.route("/api/v1/login", methods=["POST"])
-    def user_login_route():
-        return user_login(user_login_uc)
+    async def user_login_route():
+        return await user_login(user_login_uc)
 
     @app.route("/api/v1/signup", methods=["POST"])
-    def register_user_route():
-        return register_user(register_user_uc)
+    async def register_user_route():
+        return await register_user(register_user_uc)
 
     @app.route("/api/v1/change-password", methods=["POST"])
-    def change_user_password_route():
-        return change_user_password(change_user_password_uc)
+    async def change_user_password_route():
+        return await change_user_password(change_user_password_uc)
 
     @app.route("/api/v1/status", methods=["GET"])
-    def get_status_route():
-        return status(get_status_uc)
+    async def get_status_route():
+        return await status(get_status_uc)
 
     @app.route("/api/v1/logout", methods=["POST"])
-    def logout_route():
-        return logout(user_logout_uc)
+    async def logout_route():
+        return await logout(user_logout_uc)
 
     @app.route("/api/v1/settings", methods=["GET"])
-    def settings_route():
-        return get_settings(get_settings_uc)
+    async def settings_route():
+        return await get_settings(get_settings_uc)
 
     @app.route("/api/v1/settings", methods=["POST"])
-    def update_settings_route():
-        return update_settings(update_settings_uc)
+    async def update_settings_route():
+        return await update_settings(update_settings_uc)
 
     @app.route("/api/v1/entities", methods=["GET"])
-    def get_available_source_route():
-        return get_available_sources(get_available_entities_uc)
+    async def get_available_source_route():
+        return await get_available_sources(get_available_entities_uc)
 
     @app.route("/api/v1/entities/login", methods=["POST"])
     async def add_entity_login_route():
         return await add_entity_login(add_entity_credentials_uc)
+
+    @app.route("/api/v1/entities/login/cancel", methods=["POST"])
+    async def cancel_entity_login_route():
+        return await cancel_entity_login(cancel_entity_login_uc)
 
     @app.route("/api/v1/entities/login", methods=["DELETE"])
     async def disconnect_entity_route():
@@ -305,84 +358,92 @@ def register_routes(
         return await export_file(export_file_uc)
 
     @app.route("/api/v1/positions", methods=["GET"])
-    def positions_route():
-        return positions(get_position_uc)
+    async def positions_route():
+        return await positions(get_position_uc)
 
     @app.route("/api/v1/contributions", methods=["GET"])
-    def contributions_route():
-        return contributions(get_contributions_uc)
+    async def contributions_route():
+        return await contributions(get_contributions_uc)
 
     @app.route("/api/v1/transactions", methods=["GET"])
-    def transactions_route():
-        return transactions(get_transactions_uc)
+    async def transactions_route():
+        return await transactions(get_transactions_uc)
 
     @app.route("/api/v1/exchange-rates", methods=["GET"])
-    def exchange_rates_route():
-        return exchange_rates(get_exchange_rates_uc)
+    async def exchange_rates_route():
+        return await exchange_rates(get_exchange_rates_uc)
 
     @app.route("/api/v1/events", methods=["GET"])
-    def get_money_events_route():
-        return get_money_events(get_money_events_uc)
+    async def get_money_events_route():
+        return await get_money_events(get_money_events_uc)
 
     @app.route("/api/v1/crypto-wallet", methods=["POST"])
-    def connect_crypto_wallet_route():
-        return connect_crypto_wallet(connect_crypto_wallet_uc)
+    async def connect_crypto_wallet_route():
+        return await connect_crypto_wallet(connect_crypto_wallet_uc)
 
     @app.route("/api/v1/crypto-wallet", methods=["PUT"])
-    def update_crypto_wallet_route():
-        return update_crypto_wallet(update_crypto_wallet_uc)
+    async def update_crypto_wallet_route():
+        return await update_crypto_wallet(update_crypto_wallet_uc)
 
     @app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
-    def delete_crypto_wallet_route(wallet_connection_id: str):
-        return delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+    async def delete_crypto_wallet_route(wallet_connection_id: str):
+        return await delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+
+    @app.route("/api/v1/crypto-wallet/derivate", methods=["GET"])
+    async def derive_crypto_addresses_route():
+        return await derive_crypto_addresses(derive_crypto_addresses_uc)
+
+    @app.route("/api/v1/crypto-wallet/addresses", methods=["GET"])
+    async def get_crypto_wallet_addresses_route():
+        return await get_crypto_wallet_addresses(get_crypto_wallet_addresses_uc)
 
     @app.route("/api/v1/commodities", methods=["POST"])
     async def save_commodities_route():
         return await save_commodities(save_commodities_uc)
 
     @app.route("/api/v1/integrations", methods=["GET"])
-    def get_external_integrations_route():
-        return get_external_integrations(get_external_integrations_uc)
+    async def get_external_integrations_route():
+        return await get_external_integrations(get_external_integrations_uc)
 
     @app.route("/api/v1/integrations/<integration_id>", methods=["POST"])
-    def connect_external_integration_route(integration_id: str):
-        return connect_external_integration(
+    async def connect_external_integration_route(integration_id: str):
+        return await connect_external_integration(
             connect_external_integrations_uc, integration_id
         )
 
     @app.route("/api/v1/integrations/<integration_id>", methods=["DELETE"])
-    def disconnect_external_integration_route(integration_id: str):
-        return disconnect_external_integration(
+    async def disconnect_external_integration_route(integration_id: str):
+        return await disconnect_external_integration(
             disconnect_external_integrations_uc, integration_id
         )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])
-    def save_periodic_flow_route():
-        return save_periodic_flow(save_periodic_flow_uc)
+    async def save_periodic_flow_route():
+        return await save_periodic_flow(save_periodic_flow_uc)
 
     @app.route("/api/v1/flows/periodic", methods=["PUT"])
-    def update_periodic_flow_route():
-        return update_periodic_flow(update_periodic_flow_uc)
+    async def update_periodic_flow_route():
+        return await update_periodic_flow(update_periodic_flow_uc)
 
     @app.route("/api/v1/flows/periodic/<flow_id>", methods=["DELETE"])
-    def delete_periodic_flow_route(flow_id: str):
-        return delete_periodic_flow(delete_periodic_flow_uc, flow_id)
+    async def delete_periodic_flow_route(flow_id: str):
+        return await delete_periodic_flow(delete_periodic_flow_uc, flow_id)
 
     @app.route("/api/v1/flows/periodic", methods=["GET"])
-    def get_periodic_flows_route():
-        return get_periodic_flows(get_periodic_flows_uc)
+    async def get_periodic_flows_route():
+        return await get_periodic_flows(get_periodic_flows_uc)
 
     @app.route("/api/v1/flows/pending", methods=["POST"])
     async def save_pending_flows_route():
         return await save_pending_flows(save_pending_flows_uc)
 
     @app.route("/api/v1/flows/pending", methods=["GET"])
-    def get_pending_flows_route():
-        return get_pending_flows(get_pending_flows_uc)
+    async def get_pending_flows_route():
+        return await get_pending_flows(get_pending_flows_uc)
 
     @app.route("/api/v1/real-estate", methods=["GET"])
-    def list_real_estate_route():
-        return list_real_estate(list_real_estate_uc)
+    async def list_real_estate_route():
+        return await list_real_estate(list_real_estate_uc)
 
     @app.route("/api/v1/real-estate", methods=["POST"])
     async def create_real_estate_route():
@@ -397,12 +458,12 @@ def register_routes(
         return await delete_real_estate(delete_real_estate_uc, real_estate_id)
 
     @app.route("/api/v1/calculation/loan", methods=["POST"])
-    def calculate_loan_route():
-        return calculate_loan(calculate_loan_uc)
+    async def calculate_loan_route():
+        return await calculate_loan(calculate_loan_uc)
 
     @app.route("/api/v1/forecast", methods=["POST"])
-    def forecast_route():
-        return forecast(forecast_uc)
+    async def forecast_route():
+        return await forecast(forecast_uc)
 
     @app.route("/api/v1/data/manual/contributions", methods=["POST"])
     async def update_contributions_route():
@@ -425,41 +486,89 @@ def register_routes(
         return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
 
     @app.route("/api/v1/historic", methods=["GET"])
-    def get_historic_route():
-        return get_historic(get_historic_uc)
+    async def get_historic_route():
+        return await get_historic(get_historic_uc)
 
-    @app.route("/api/v1/instruments", methods=["GET"])
-    def instruments_route():
-        return instruments(get_instruments_uc)
+    @app.route("/api/v1/assets/instruments", methods=["GET"])
+    async def instruments_route():
+        return await instruments(get_instruments_uc)
 
-    @app.route("/api/v1/instruments/details", methods=["GET"])
-    def instrument_details_route():
-        return instrument_details(get_instrument_info_uc)
+    @app.route("/api/v1/assets/instruments/details", methods=["GET"])
+    async def instrument_details_route():
+        return await instrument_details(get_instrument_info_uc)
+
+    @app.route("/api/v1/assets/crypto", methods=["GET"])
+    async def crypto_assets_route():
+        return await search_crypto_assets(search_crypto_assets_uc)
+
+    @app.route("/api/v1/assets/crypto/<asset_id>", methods=["GET"])
+    async def crypto_asset_details_route(asset_id: str):
+        return await get_crypto_asset_details(get_crypto_asset_details_uc, asset_id)
 
     @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
     async def update_tracked_quotes_route():
         return await update_tracked_quotes(update_tracked_quotes_uc)
 
+    @app.route("/api/v1/data/manual/positions/update-loans", methods=["POST"])
+    async def update_tracked_loans_route():
+        return await update_tracked_loans(update_tracked_loans_uc)
+
     @app.route("/api/v1/templates", methods=["GET"])
-    def get_templates_route():
-        return get_templates(get_templates_uc)
+    async def get_templates_route():
+        return await get_templates(get_templates_uc)
 
     @app.route("/api/v1/templates", methods=["POST"])
-    def create_template_route():
-        return create_template(create_template_uc)
+    async def create_template_route():
+        return await create_template(create_template_uc)
 
     @app.route("/api/v1/templates", methods=["PUT"])
-    def update_template_route():
-        return update_template(update_template_uc)
+    async def update_template_route():
+        return await update_template(update_template_uc)
 
     @app.route("/api/v1/templates/<template_id>", methods=["DELETE"])
-    def delete_template_route(template_id: str):
-        return delete_template(delete_template_uc, template_id)
+    async def delete_template_route(template_id: str):
+        return await delete_template(delete_template_uc, template_id)
 
     @app.route("/api/v1/templates/fields", methods=["GET"])
-    def get_template_fields_route():
-        return get_template_fields(get_template_fields_uc)
+    async def get_template_fields_route():
+        return await get_template_fields(get_template_fields_uc)
 
     @app.route("/api/v1/calculations/savings", methods=["POST"])
-    def calculate_savings_route():
-        return calculate_savings(calculate_savings_uc)
+    async def calculate_savings_route():
+        return await calculate_savings(calculate_savings_uc)
+
+    @app.route("/api/v1/cloud/backup/upload", methods=["POST"])
+    async def upload_backup_route():
+        return await upload_backup(upload_backup_uc)
+
+    @app.route("/api/v1/cloud/backup/import", methods=["POST"])
+    async def import_backup_route():
+        return await import_backup(import_backup_uc)
+
+    @app.route("/api/v1/cloud/backup", methods=["GET"])
+    async def get_backups_route():
+        return await get_backups(get_backups_uc)
+
+    @app.route("/api/v1/cloud/auth", methods=["POST"])
+    async def handle_cloud_auth_route():
+        return await handle_cloud_auth(handle_cloud_auth_uc)
+
+    @app.route("/api/v1/cloud/auth", methods=["GET"])
+    async def get_cloud_auth_route():
+        return await get_cloud_auth(get_cloud_auth_uc)
+
+    @app.route("/api/v1/cloud/backup/settings", methods=["GET"])
+    async def get_backup_settings_route():
+        return await get_backup_settings(get_backup_settings_uc)
+
+    @app.route("/api/v1/cloud/backup/settings", methods=["POST"])
+    async def save_backup_settings_route():
+        return await save_backup_settings(save_backup_settings_uc)
+
+    @app.route("/api/v1/rates/euribor", methods=["GET"])
+    async def get_euribor_rates_route():
+        return await get_euribor_rates(get_euribor_rates_uc)
+
+    @app.route("/oauth/callback", methods=["GET"])
+    async def oauth_callback_route():
+        return await oauth_callback()

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from domain.crypto import CryptoAsset
+from infrastructure.repository.crypto.queries import CryptoAssetQueries
 from infrastructure.repository.db.client import DBClient
 
 
@@ -34,30 +35,27 @@ class CryptoAssetRegistryRepository(CryptoAssetRegistryPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get_by_symbol(self, symbol: str) -> Optional[CryptoAsset]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM crypto_assets WHERE symbol = ? LIMIT 1",
+    async def get_by_symbol(self, symbol: str) -> Optional[CryptoAsset]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                CryptoAssetQueries.GET_BY_SYMBOL,
                 (symbol,),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if not row:
                 return None
 
             return map_crypto_asset_row(row)
 
-    def save(self, asset: CryptoAsset):
+    async def save(self, asset: CryptoAsset):
         icon_urls_json = json.dumps(asset.icon_urls) if asset.icon_urls else None
         external_ids_json = (
             json.dumps(asset.external_ids) if asset.external_ids else json.dumps({})
         )
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO crypto_assets (id, name, symbol, icon_urls, external_ids)
-                VALUES (?, ?, ?, ?, ?)
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CryptoAssetQueries.UPSERT,
                 (
                     str(asset.id),
                     asset.name,

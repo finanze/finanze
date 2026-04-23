@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-electron
+dist-pyodide
+.next
+.nuxt
+out
+build
+release
+android
+ios

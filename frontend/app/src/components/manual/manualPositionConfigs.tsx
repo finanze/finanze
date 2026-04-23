@@ -1,12 +1,15 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
 } from "react"
+import { createPortal } from "react-dom"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
+import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -23,6 +26,7 @@ import {
   Loan,
   LoanType,
   InterestType,
+  InstallmentFrequency,
   FundDetail,
   FundPortfolio,
   FundType,
@@ -33,6 +37,10 @@ import {
   RealEstateCFDetail,
   ProductType,
   EquityType,
+  CryptoCurrencyPosition,
+  CryptoCurrencyType,
+  CryptoAsset,
+  CreditDetail,
 } from "@/types/position"
 import {
   DataSource,
@@ -41,9 +49,13 @@ import {
   InstrumentOverview,
   InstrumentType,
   ExchangeRates,
+  CryptoAssetDetails,
+  CryptoAssetPlatform,
+  AvailableCryptoAsset,
+  EntityType,
 } from "@/types"
 import type { LoanCalculationRequest } from "@/types"
-import { calculateLoan } from "@/services/api"
+import { calculateLoan, getEuriborRates } from "@/services/api"
 import { useAppContext } from "@/context/AppContext"
 import {
   ManualFormErrors,
@@ -51,6 +63,7 @@ import {
   ManualPositionDraft,
   ManualPositionFormBase,
   ManualPositionConfigMap,
+  RenderSummaryHelpers,
 } from "./manualPositionTypes"
 import {
   parseNumberInput,
@@ -58,16 +71,128 @@ import {
   normalizeDateInput,
   isValidIsin,
 } from "@/utils/manualData"
+import { EntitySelector } from "@/components/EntitySelector"
 import {
   Calculator,
+  ChevronDown,
   Loader2,
   Plus,
   Search,
   X,
   AlertTriangle,
+  Coins,
+  Home,
+  User,
 } from "lucide-react"
-import { getInstrumentDetails, getInstruments } from "@/services/api"
+import {
+  getInstrumentDetails,
+  getInstruments,
+  getCryptoAssets,
+  getCryptoAssetDetails,
+} from "@/services/api"
 import { convertCurrency } from "@/utils/financialDataUtils"
+import { Switch } from "@/components/ui/Switch"
+import { cn, getCurrencySymbol } from "@/lib/utils"
+
+const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
+  field: keyof FormState,
+  label: string,
+  props: ManualFormFieldRenderProps<FormState>,
+  options: { value: string; label: string; icon?: React.ReactNode }[],
+) => (
+  <div className="space-y-1.5">
+    <Label htmlFor={String(field)}>{label}</Label>
+    <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+      {options.map(option => {
+        const isActive = (props.form[field] as string) === option.value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              props.updateField(field, option.value)
+              props.clearError(field)
+            }}
+            className={cn(
+              "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all inline-flex items-center gap-1.5",
+              isActive
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+            )}
+          >
+            {option.icon}
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+    {props.errors[field] && (
+      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+        {props.errors[field]}
+      </p>
+    )}
+  </div>
+)
+
+const renderTextInputWithSuggestions = <
+  FormState extends ManualPositionFormBase,
+>(
+  field: keyof FormState,
+  label: string,
+  props: ManualFormFieldRenderProps<FormState>,
+  suggestions: { value: string; label: string }[],
+  options?: {
+    placeholder?: string
+  },
+) => {
+  const current = ((props.form[field] as string) ?? "").trim().toUpperCase()
+  const isPreset = suggestions.some(s => s.value === current)
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={String(field)}>{label}</Label>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {suggestions.map(option => {
+          const isActive = option.value === current
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                props.updateField(field, isActive ? "" : option.value)
+                props.clearError(field)
+              }}
+              className={cn(
+                "px-2 py-0.5 text-xs font-medium rounded-full border transition-all",
+                isActive
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+      {!isPreset && (
+        <Input
+          id={String(field)}
+          type="text"
+          placeholder={options?.placeholder}
+          value={(props.form[field] as string) ?? ""}
+          onChange={event => {
+            props.updateField(field, event.target.value)
+            props.clearError(field)
+          }}
+        />
+      )}
+      {props.errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const renderTextInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
@@ -84,50 +209,97 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     ) => void
     helperText?: string
     disabled?: boolean
+    suffix?: string
+    inputClassName?: string
+    autoUpperCase?: boolean
+    allowNegative?: boolean
   },
-) => (
-  <div className="space-y-1.5">
-    <Label htmlFor={String(field)}>{label}</Label>
-    <Input
-      id={String(field)}
-      type={options?.type ?? "text"}
-      inputMode={options?.inputMode}
-      step={options?.step}
-      placeholder={options?.placeholder}
-      value={(props.form[field] as string) ?? ""}
-      disabled={options?.disabled}
-      onChange={event => {
-        const value = event.target.value
-        props.updateField(field, value)
-        props.clearError(field)
-        if (options?.onValueChange) {
-          options.onValueChange(value, props)
-        }
-      }}
-    />
-    {props.errors[field] && (
-      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-        {props.errors[field]}
-      </p>
-    )}
-    {options?.helperText && (
-      <p className="text-xs text-muted-foreground mt-1">{options.helperText}</p>
-    )}
-  </div>
-)
+) => {
+  const isNumeric = options?.type === "number"
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={String(field)}>{label}</Label>
+      <div className={options?.suffix ? "relative" : undefined}>
+        {isNumeric ? (
+          <DecimalInput
+            id={String(field)}
+            placeholder={options?.placeholder}
+            className={cn(
+              options?.suffix ? "pr-10" : undefined,
+              options?.inputClassName,
+            )}
+            value={(props.form[field] as string) ?? ""}
+            disabled={options?.disabled}
+            allowNegative={options?.allowNegative}
+            onStringChange={value => {
+              props.updateField(field, value)
+              props.clearError(field)
+              if (options?.onValueChange) {
+                options.onValueChange(value, props)
+              }
+            }}
+          />
+        ) : (
+          <Input
+            id={String(field)}
+            type={options?.type ?? "text"}
+            inputMode={options?.inputMode}
+            placeholder={options?.placeholder}
+            className={cn(
+              options?.suffix ? "pr-10" : undefined,
+              options?.inputClassName,
+            )}
+            value={(props.form[field] as string) ?? ""}
+            disabled={options?.disabled}
+            onChange={event => {
+              const value = options?.autoUpperCase
+                ? event.target.value.toUpperCase()
+                : event.target.value
+              props.updateField(field, value)
+              props.clearError(field)
+              if (options?.onValueChange) {
+                options.onValueChange(value, props)
+              }
+            }}
+          />
+        )}
+        {options?.suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+            {options.suffix}
+          </span>
+        )}
+      </div>
+      {props.errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors[field]}
+        </p>
+      )}
+      {options?.helperText && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {options.helperText}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const renderSelectInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
   label: string,
   props: ManualFormFieldRenderProps<FormState>,
   options: { value: string; label: string }[],
+  config?: { disabled?: boolean; selectClassName?: string },
 ) => (
   <div className="space-y-1.5">
     <Label htmlFor={String(field)}>{label}</Label>
     <select
       id={String(field)}
-      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        config?.selectClassName,
+      )}
       value={(props.form[field] as string) ?? ""}
+      disabled={config?.disabled}
       onChange={event => {
         props.updateField(field, event.target.value)
         props.clearError(field)
@@ -205,23 +377,23 @@ const renderEntityField = <FormState extends ManualPositionFormBase>(
               disabled={!allowEntityChanges}
             />
           ) : (
-            <select
-              id="entity_id"
-              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
-              value={props.form.entity_id ?? ""}
-              onChange={event => {
-                props.updateField("entity_id", event.target.value)
+            <EntitySelector
+              entities={props.entityOptions}
+              selectedEntityIds={
+                props.form.entity_id ? [props.form.entity_id] : []
+              }
+              onSelectionChange={ids => {
+                props.updateField(
+                  "entity_id",
+                  (ids[0] ?? "") as FormState["entity_id"],
+                )
                 props.clearError("entity_id")
               }}
+              singleSelect
               disabled={!allowEntityChanges}
-            >
-              <option value="">{props.t("common.selectOptions")}</option>
-              {props.entityOptions.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
+              placeholder={props.t("common.selectOptions")}
+              className="max-w-none"
+            />
           )}
         </div>
         {allowEntityChanges && (
@@ -299,10 +471,14 @@ const numberFieldError = <FormState extends ManualPositionFormBase>(
   t: ManualFormFieldRenderProps<FormState>["t"],
 ): string => t("management.manualPositions.shared.validation.number")
 
+const invalidDateError = <FormState extends ManualPositionFormBase>(
+  t: ManualFormFieldRenderProps<FormState>["t"],
+): string => t("management.manualPositions.shared.validation.invalidDate")
+
 const isManualSource = (entry: { source?: DataSource | null }) =>
   entry.source === DataSource.MANUAL
 
-interface BankLoanFormState extends ManualPositionFormBase {
+export interface BankLoanFormState extends ManualPositionFormBase {
   name: string
   type: LoanType
   currency: string
@@ -311,10 +487,192 @@ interface BankLoanFormState extends ManualPositionFormBase {
   current_installment: string
   principal_outstanding: string
   interest_type: InterestType
+  installment_frequency: string
+  fixed_interest_rate: string
   euribor_rate: string
   fixed_years: string
   creation: string
   maturity: string
+  track_loan: string
+}
+
+export interface CreditFormState extends ManualPositionFormBase {
+  currency: string
+  credit_limit: string
+  drawn_amount: string
+  interest_rate: string
+  name: string
+  pledged_amount: string
+  creation: string
+}
+
+function EuriborSuggestField(
+  props: ManualFormFieldRenderProps<BankLoanFormState>,
+) {
+  const [rates, setRates] = useState<{ period: string; rate: number }[]>([])
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const fetchRates = useCallback(async () => {
+    if (hasFetched) return rates
+    setIsLoading(true)
+    try {
+      const result = await getEuriborRates()
+      const fetched = result.rates ?? []
+      setRates(fetched)
+      setHasFetched(true)
+      return fetched
+    } catch {
+      setRates([])
+      return []
+    } finally {
+      setIsLoading(false)
+    }
+  }, [hasFetched, rates])
+
+  const handleToggle = useCallback(() => {
+    const next = !isOpen
+    setIsOpen(next)
+    if (next && !hasFetched) {
+      fetchRates()
+    }
+  }, [isOpen, hasFetched, fetchRates])
+
+  const applyRate = useCallback(
+    (rate: number) => {
+      const formatted = formatNumberInput(rate, { maximumFractionDigits: 4 })
+      props.updateField("euribor_rate", formatted)
+      props.clearError("euribor_rate")
+    },
+    [props],
+  )
+
+  const handleSelect = useCallback(
+    (rate: number) => {
+      applyRate(rate)
+      setIsOpen(false)
+    },
+    [applyRate],
+  )
+
+  const fetchRatesRef = useRef(fetchRates)
+  fetchRatesRef.current = fetchRates
+  const applyRateRef = useRef(applyRate)
+  applyRateRef.current = applyRate
+
+  useEffect(() => {
+    const interestType = props.form.interest_type as InterestType
+    const isVariableOrMixed =
+      interestType === InterestType.VARIABLE ||
+      interestType === InterestType.MIXED
+    if (!isVariableOrMixed || props.form.euribor_rate) return
+    ;(async () => {
+      const fetched = await fetchRatesRef.current()
+      if (fetched.length > 0) {
+        applyRateRef.current(fetched[0].rate)
+      }
+    })()
+  }, [props.form.interest_type, props.form.euribor_rate])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isOpen])
+
+  const formatPeriodLabel = useCallback(
+    (period: string) => {
+      try {
+        const [year, month] = period.split("-")
+        const date = new Date(Number(year), Number(month) - 1)
+        return date.toLocaleDateString(props.locale, {
+          month: "short",
+          year: "numeric",
+        })
+      } catch {
+        return period
+      }
+    },
+    [props.locale],
+  )
+
+  return (
+    <div className="space-y-1.5" ref={containerRef}>
+      <Label htmlFor="euribor_rate">
+        {props.t("management.manualPositions.bankLoans.fields.euriborRate")}
+      </Label>
+      <div className="relative">
+        <DecimalInput
+          id="euribor_rate"
+          value={props.form.euribor_rate ?? ""}
+          onStringChange={value => {
+            props.updateField("euribor_rate", value)
+            props.clearError("euribor_rate")
+          }}
+          className="pr-9"
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={handleToggle}
+          aria-label="Euribor rates"
+          aria-expanded={isOpen}
+        >
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+      </div>
+      {isOpen && (
+        <div className="rounded-md border bg-popover text-popover-foreground shadow-md max-h-48 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : rates.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground text-center">
+              {props.t(
+                "management.manualPositions.bankLoans.helpers.euriborUnavailable",
+              )}
+            </div>
+          ) : (
+            <div className="py-1">
+              {rates.map(rate => (
+                <button
+                  key={rate.period}
+                  type="button"
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  onClick={() => handleSelect(rate.rate)}
+                >
+                  <span className="text-muted-foreground">
+                    {formatPeriodLabel(rate.period)}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {rate.rate.toFixed(3)}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {props.errors.euribor_rate && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors.euribor_rate}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function LoanCalculationHelper(
@@ -376,12 +734,16 @@ function LoanCalculationHelper(
 
     const euriborRate = parseNumberInput(props.form.euribor_rate)
     const fixedYears = parseNumberInput(props.form.fixed_years)
+    const fixedInterestRate = parseNumberInput(props.form.fixed_interest_rate)
 
     const request: LoanCalculationRequest = {
       interest_rate: (interestRatePercent ?? 0) / 100,
       interest_type: interestType,
       start: creationDate,
       end: maturityDate,
+      fixed_interest_rate:
+        fixedInterestRate != null ? fixedInterestRate / 100 : undefined,
+      installment_frequency: props.form.installment_frequency || undefined,
     }
 
     if (principalOutstanding !== null && principalOutstanding > 0) {
@@ -406,12 +768,12 @@ function LoanCalculationHelper(
       const result = await calculateLoan(request)
 
       if (
-        typeof result.current_monthly_payment === "number" &&
-        Number.isFinite(result.current_monthly_payment)
+        typeof result.current_installment_payment === "number" &&
+        Number.isFinite(result.current_installment_payment)
       ) {
         props.updateField(
           "current_installment",
-          formatNumberInput(result.current_monthly_payment, {
+          formatNumberInput(result.current_installment_payment, {
             maximumFractionDigits: 2,
           }),
         )
@@ -526,6 +888,28 @@ export interface StockFormState extends ManualPositionFormBase {
   _tracker_candidate: string
   _tracker_status: "auto" | "on" | "off"
   _initial_tracker_key: string
+}
+
+export interface CryptoFormState extends ManualPositionFormBase {
+  name: string
+  symbol: string
+  amount: string
+  average_buy_price: string
+  initial_investment: string
+  investment_currency: string
+  contract_address: string
+  _search_query: string
+  _search_mode: "symbol" | "name"
+  _selected_asset: AvailableCryptoAsset | null
+  _asset_details: CryptoAssetDetails | null
+  _selected_platform: CryptoAssetPlatform | null
+  _provider: string
+  _new_entity_icon_url: string
+  _net_crypto_entity_details: {
+    provider_asset_id: string
+    provider: string
+  } | null
+  _entity_type: EntityType
 }
 
 const convertPriceToCurrency = (
@@ -672,8 +1056,7 @@ const formatInstrumentPriceLabel = (entry: InstrumentInfo, locale: string) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   })
-  const currency = entry.currency?.toUpperCase()
-  return currency ? `${currency} ${formatted}` : formatted
+  return formatted
 }
 
 const buildInstrumentResultKey = (entry: InstrumentInfo, index: number) => {
@@ -901,7 +1284,9 @@ function FundInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -1166,7 +1551,8 @@ function FundInstrumentSearchField({
           id={field}
           value={inputValue}
           onChange={event => {
-            const value = event.target.value
+            const rawValue = event.target.value
+            const value = field === "isin" ? rawValue.toUpperCase() : rawValue
             updateField(field, value)
             clearError(field)
             if (form._suggested_market_price) {
@@ -1192,7 +1578,7 @@ function FundInstrumentSearchField({
               handleSearch()
             }
           }}
-          className="pr-10"
+          className={cn("pr-10", field === "isin" && "font-mono")}
         />
         <button
           type="button"
@@ -1364,7 +1750,9 @@ function StockInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -1674,7 +2062,7 @@ function StockInstrumentSearchField({
               handleSearch()
             }
           }}
-          className="pr-10"
+          className={cn("pr-10", field === "isin" && "font-mono")}
         />
         <button
           type="button"
@@ -1753,6 +2141,825 @@ function StockInstrumentSearchField({
   )
 }
 
+interface CryptoSearchFieldProps {
+  field: "symbol" | "name"
+  label: string
+  formProps: ManualFormFieldRenderProps<CryptoFormState>
+  onAssetSelected: (details: CryptoAssetDetails, provider: string) => void
+}
+
+function CryptoSearchField({
+  field,
+  label,
+  formProps,
+  onAssetSelected,
+}: CryptoSearchFieldProps) {
+  const { form, updateField, clearError, errors, t } = formProps
+  const [results, setResults] = useState<AvailableCryptoAsset[]>([])
+  const [hasSearched, setHasSearched] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null)
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchLimit] = useState(25)
+  const [searchTotal, setSearchTotal] = useState(0)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const resultsContainerRef = useRef<HTMLDivElement>(null)
+  const activeRequestId = useRef(0)
+
+  const inputValue = (form[field] as string) ?? ""
+  const isLocked = Boolean(form._selected_asset)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const closeDropdown = useCallback(() => {
+    setHasSearched(false)
+    setSearchError(null)
+    setResults([])
+    setSearchPage(1)
+    setSearchTotal(0)
+  }, [])
+
+  useEffect(() => {
+    if ((hasSearched || searchError) && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setDropdownStyle({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }, [hasSearched, searchError, results])
+
+  useEffect(() => {
+    const isOpen = hasSearched || Boolean(searchError)
+    if (!isOpen) return
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+
+      const isInsideContainer = containerRef.current?.contains(target)
+      const isInsideDropdown = dropdownRef.current?.contains(target)
+
+      if (!isInsideContainer && !isInsideDropdown) {
+        closeDropdown()
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeDropdown()
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("touchstart", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("touchstart", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [hasSearched, searchError, closeDropdown])
+
+  useEffect(() => {
+    setResults([])
+    setHasSearched(false)
+    setSearchError(null)
+    setSearchPage(1)
+    setSearchTotal(0)
+  }, [inputValue])
+
+  const fetchPage = useCallback(
+    async (page: number, mode: "replace" | "append") => {
+      const trimmed = inputValue.trim()
+      if (!trimmed) return
+
+      const requestId = ++activeRequestId.current
+      try {
+        const queryBase =
+          field === "symbol" ? { symbol: trimmed } : { name: trimmed }
+        const response = await getCryptoAssets({
+          ...queryBase,
+          page,
+          limit: searchLimit,
+        })
+        if (requestId !== activeRequestId.current) return
+
+        updateField("_provider" as keyof CryptoFormState, response.provider)
+        setSearchPage(response.page)
+        setSearchTotal(response.total)
+        setHasSearched(true)
+
+        setResults(prev =>
+          mode === "append" ? [...prev, ...response.assets] : response.assets,
+        )
+      } catch (err) {
+        if (requestId !== activeRequestId.current) return
+        console.error("Crypto asset search failed", err)
+        setSearchError(t("common.somethingWentWrong"))
+        setResults([])
+        setHasSearched(true)
+        setSearchTotal(0)
+      }
+    },
+    [field, inputValue, searchLimit, t, updateField],
+  )
+
+  const handleSearch = useCallback(async () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed || isSearching) return
+
+    setIsSearching(true)
+    setSearchError(null)
+    setHasSearched(false)
+
+    activeRequestId.current += 1
+
+    try {
+      await fetchPage(1, "replace")
+    } catch {
+      // handled in fetchPage
+    } finally {
+      setIsSearching(false)
+    }
+  }, [fetchPage, inputValue, isSearching])
+
+  const hasMore = searchTotal > 0 && searchPage * searchLimit < searchTotal
+
+  const handleLoadMore = useCallback(async () => {
+    if (isSearching || isLoadingMore || searchError) return
+    if (!hasMore) return
+
+    setIsLoadingMore(true)
+    try {
+      await fetchPage(searchPage + 1, "append")
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [fetchPage, hasMore, isLoadingMore, isSearching, searchError, searchPage])
+
+  const handleScroll = useCallback(() => {
+    const el = resultsContainerRef.current
+    if (!el) return
+
+    const thresholdPx = 24
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceToBottom <= thresholdPx) {
+      void handleLoadMore()
+    }
+  }, [handleLoadMore])
+
+  const handleSelectAsset = useCallback(
+    async (asset: AvailableCryptoAsset) => {
+      const loadingId = `${asset.provider_id}::${asset.symbol}`
+      setDetailsLoadingId(loadingId)
+
+      try {
+        const provider = form._provider || "coingecko"
+        const details = await getCryptoAssetDetails(asset.provider_id, provider)
+        onAssetSelected(details, provider)
+        closeDropdown()
+      } catch (err) {
+        console.error("Failed to get crypto asset details", err)
+        setSearchError(t("common.somethingWentWrong"))
+      } finally {
+        setDetailsLoadingId(null)
+      }
+    },
+    [form._provider, onAssetSelected, closeDropdown, t],
+  )
+
+  const disabled = !inputValue.trim() || isSearching || !!detailsLoadingId
+
+  return (
+    <div ref={containerRef} className="space-y-1.5">
+      <Label htmlFor={field}>{label}</Label>
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          id={field}
+          value={inputValue}
+          disabled={isLocked}
+          onChange={e => {
+            const value =
+              field === "symbol" ? e.target.value.toUpperCase() : e.target.value
+            updateField(field, value)
+            clearError(field)
+          }}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              handleSearch()
+            }
+          }}
+          className="pr-10"
+        />
+        {!isLocked && (
+          <button
+            type="button"
+            className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-1 text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={handleSearch}
+            disabled={disabled}
+            title={t("common.search")}
+          >
+            {isSearching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        {(hasSearched || searchError) &&
+          createPortal(
+            <div
+              ref={dropdownRef}
+              className="fixed z-[99999] overflow-hidden rounded-md border border-border bg-popover shadow-lg"
+              style={dropdownStyle}
+            >
+              {searchError ? (
+                <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                  {searchError}
+                </p>
+              ) : results.length > 0 ? (
+                <div
+                  ref={resultsContainerRef}
+                  className="max-h-60 overflow-y-auto py-1"
+                  onScroll={handleScroll}
+                >
+                  {results.map((asset, index) => {
+                    const key = `${asset.provider_id}::${asset.symbol}::${index}`
+                    const isLoadingDetails =
+                      detailsLoadingId ===
+                      `${asset.provider_id}::${asset.symbol}`
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                        onClick={() => handleSelectAsset(asset)}
+                        disabled={Boolean(detailsLoadingId)}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">{asset.name}</span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{asset.symbol.toUpperCase()}</span>
+                            {asset.platforms.length > 0 && (
+                              <span>
+                                • {asset.platforms.length} platform(s)
+                              </span>
+                            )}
+                            {isLoadingDetails && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                  {(isLoadingMore || hasMore) && (
+                    <div className="flex items-center justify-center px-3 py-2 text-xs text-muted-foreground">
+                      {isLoadingMore ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <span>{t("common.loading")}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  {t("common.noOptionsFound")}
+                </p>
+              )}
+            </div>,
+            document.body,
+          )}
+      </div>
+      {errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface CryptoAssetSearchFieldProps {
+  formProps: ManualFormFieldRenderProps<CryptoFormState>
+}
+
+function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
+  const {
+    form,
+    updateField,
+    clearError,
+    errors,
+    t,
+    locale,
+    defaultCurrency,
+    entityOptions,
+    currencyOptions,
+    mode,
+  } = formProps
+
+  const assetDetails = form._asset_details as CryptoAssetDetails | null
+  const selectedPlatform = form._selected_platform as CryptoAssetPlatform | null
+  const isLocked = Boolean(form._selected_asset)
+  const isEditing = mode === "edit"
+
+  const platformEntitySignatureRef = useRef<string | null>(null)
+  const entitySignature = useMemo(() => {
+    if (form.entity_mode === "new") {
+      return `new:${(form.new_entity_name ?? "").trim().toLowerCase()}`
+    }
+    return `select:${form.entity_id || ""}`
+  }, [form.entity_id, form.entity_mode, form.new_entity_name])
+
+  const investmentCurrencyCode = (
+    form.investment_currency ||
+    defaultCurrency ||
+    ""
+  ).toUpperCase()
+
+  const investmentCurrencySymbol = investmentCurrencyCode
+    ? getCurrencySymbol(investmentCurrencyCode)
+    : ""
+
+  const handleSelectPlatform = useCallback(
+    (platform: CryptoAssetPlatform, providerOverride?: string) => {
+      updateField(
+        "_selected_platform" as keyof CryptoFormState,
+        platform as any,
+      )
+      updateField("contract_address", platform.contract_address || "")
+
+      if (platform.related_entity_id) {
+        const existingEntity = entityOptions.find(
+          e => e.id === platform.related_entity_id,
+        )
+        if (existingEntity) {
+          platformEntitySignatureRef.current = `select:${existingEntity.id}`
+          updateField("entity_mode", "select")
+          updateField("entity_id", existingEntity.id)
+          updateField("new_entity_name", "")
+          updateField("_new_entity_icon_url", "")
+          updateField(
+            "_net_crypto_entity_details" as keyof CryptoFormState,
+            null as any,
+          )
+          updateField(
+            "_entity_type" as keyof CryptoFormState,
+            existingEntity.type as any,
+          )
+          return
+        }
+      }
+
+      const normalizedPlatformName = platform.name.trim().toLowerCase()
+      const existingByName = entityOptions.find(
+        e => e.name?.trim().toLowerCase() === normalizedPlatformName,
+      )
+      if (existingByName) {
+        platformEntitySignatureRef.current = `select:${existingByName.id}`
+        updateField("entity_mode", "select")
+        updateField("entity_id", existingByName.id)
+        updateField("new_entity_name", "")
+        updateField("_new_entity_icon_url", "")
+        updateField(
+          "_net_crypto_entity_details" as keyof CryptoFormState,
+          null as any,
+        )
+        updateField(
+          "_entity_type" as keyof CryptoFormState,
+          existingByName.type as any,
+        )
+        return
+      }
+
+      platformEntitySignatureRef.current = `new:${platform.name.trim().toLowerCase()}`
+      updateField("entity_mode", "new")
+      updateField("entity_id", "")
+      updateField("new_entity_name", platform.name)
+      updateField("_new_entity_icon_url", platform.icon_url || "")
+      const provider = providerOverride || form._provider || "coingecko"
+      updateField(
+        "_net_crypto_entity_details" as keyof CryptoFormState,
+        {
+          provider_asset_id: platform.provider_id,
+          provider,
+        } as any,
+      )
+      updateField(
+        "_entity_type" as keyof CryptoFormState,
+        EntityType.CRYPTO_EXCHANGE as any,
+      )
+      clearError("entity_id")
+      clearError("new_entity_name" as keyof CryptoFormState)
+    },
+    [entityOptions, form._provider, updateField, clearError],
+  )
+
+  useEffect(() => {
+    if (!selectedPlatform) {
+      platformEntitySignatureRef.current = null
+      return
+    }
+
+    const expectedSignature = platformEntitySignatureRef.current
+    if (!expectedSignature) {
+      platformEntitySignatureRef.current = entitySignature
+      return
+    }
+
+    if (entitySignature === expectedSignature) {
+      return
+    }
+
+    updateField("_selected_platform" as keyof CryptoFormState, null as any)
+    updateField("contract_address", "")
+    updateField(
+      "_net_crypto_entity_details" as keyof CryptoFormState,
+      null as any,
+    )
+    platformEntitySignatureRef.current = null
+  }, [entitySignature, selectedPlatform, updateField])
+
+  const handleAssetSelected = useCallback(
+    (details: CryptoAssetDetails, provider: string) => {
+      updateField(
+        "_selected_asset" as keyof CryptoFormState,
+        {
+          provider_id: details.provider_id,
+          symbol: details.symbol,
+          name: details.name,
+          platforms: details.platforms,
+        } as any,
+      )
+      updateField("_asset_details" as keyof CryptoFormState, details as any)
+      updateField("_provider" as keyof CryptoFormState, provider)
+      updateField("name", details.name)
+      updateField("symbol", details.symbol.toUpperCase())
+
+      if (details.platforms.length === 1) {
+        const platform = details.platforms[0]
+        const hasEntityAlreadySelected = Boolean(
+          form.entity_id || form.new_entity_name,
+        )
+
+        if (!isEditing && !hasEntityAlreadySelected) {
+          handleSelectPlatform(platform, provider)
+        } else {
+          updateField("contract_address", platform.contract_address || "")
+          updateField(
+            "_selected_platform" as keyof CryptoFormState,
+            platform as any,
+          )
+        }
+      } else {
+        updateField("contract_address", "")
+        updateField("_selected_platform" as keyof CryptoFormState, null as any)
+      }
+
+      clearError("name")
+      clearError("symbol")
+    },
+    [
+      updateField,
+      clearError,
+      form.entity_id,
+      form.new_entity_name,
+      handleSelectPlatform,
+      isEditing,
+    ],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    updateField("_selected_asset" as keyof CryptoFormState, null as any)
+    updateField("_asset_details" as keyof CryptoFormState, null as any)
+    updateField("_selected_platform" as keyof CryptoFormState, null as any)
+    updateField("name", "")
+    updateField("symbol", "")
+    updateField("contract_address", "")
+    updateField("_new_entity_icon_url", "")
+    updateField(
+      "_net_crypto_entity_details" as keyof CryptoFormState,
+      null as any,
+    )
+    platformEntitySignatureRef.current = null
+  }, [updateField])
+
+  const unitPrice = useMemo(() => {
+    if (!assetDetails) return null
+    const targetCurrency = defaultCurrency.toLowerCase()
+    const price =
+      assetDetails.price?.[targetCurrency] ??
+      assetDetails.price?.["usd"] ??
+      assetDetails.price?.["eur"]
+    if (price === undefined || price === null) {
+      const keys = Object.keys(assetDetails.price ?? {})
+      if (keys.length > 0) {
+        return assetDetails.price[keys[0]]
+      }
+      return null
+    }
+    return price
+  }, [assetDetails, defaultCurrency])
+
+  const marketValue = useMemo(() => {
+    if (unitPrice == null || !form.amount) return null
+    const amount = parseNumberInput(form.amount)
+    if (amount === null || amount <= 0) return null
+    return amount * unitPrice
+  }, [unitPrice, form.amount])
+
+  return (
+    <div className="space-y-4">
+      {!isLocked && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CryptoSearchField
+            field="symbol"
+            label={t("management.manualPositions.crypto.fields.symbol")}
+            formProps={formProps}
+            onAssetSelected={handleAssetSelected}
+          />
+          <CryptoSearchField
+            field="name"
+            label={t("management.manualPositions.crypto.fields.name")}
+            formProps={formProps}
+            onAssetSelected={handleAssetSelected}
+          />
+        </div>
+      )}
+
+      {isLocked && assetDetails && (
+        <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {assetDetails.icon_url && (
+                <img
+                  src={assetDetails.icon_url}
+                  alt={assetDetails.name}
+                  className="h-10 w-10 rounded-full"
+                  onError={e => {
+                    ;(e.target as HTMLImageElement).style.display = "none"
+                  }}
+                />
+              )}
+              <div>
+                <p className="font-semibold">{assetDetails.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {assetDetails.symbol.toUpperCase()}
+                </p>
+              </div>
+            </div>
+            {!isEditing && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleClearSelection}
+                title={t("common.clear")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {!isEditing && assetDetails.platforms.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                {t("management.manualPositions.crypto.helpers.selectPlatform")}
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {assetDetails.platforms.map((platform, idx) => {
+                  const isSelected =
+                    selectedPlatform?.provider_id === platform.provider_id
+                  const existingEntity = platform.related_entity_id
+                    ? entityOptions.find(
+                        e => e.id === platform.related_entity_id,
+                      )
+                    : null
+                  return (
+                    <button
+                      key={`${platform.provider_id}-${idx}`}
+                      type="button"
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => handleSelectPlatform(platform)}
+                    >
+                      {platform.icon_url && (
+                        <img
+                          src={platform.icon_url}
+                          alt={platform.name}
+                          className="h-4 w-4 rounded-full"
+                          onError={e => {
+                            ;(e.target as HTMLImageElement).style.display =
+                              "none"
+                          }}
+                        />
+                      )}
+                      <span>{platform.name}</span>
+                      {existingEntity && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[0.6rem] px-1"
+                        >
+                          {t(
+                            "management.manualPositions.crypto.helpers.existing",
+                          )}
+                        </Badge>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLocked && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {renderEntityField(
+            isEditing
+              ? ({ ...formProps, canEditEntity: false } as any)
+              : formProps,
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="amount">
+            {t("management.manualPositions.crypto.fields.amount")}
+          </Label>
+          <DecimalInput
+            id="amount"
+            value={form.amount}
+            onStringChange={value => {
+              updateField("amount", value)
+              clearError("amount" as keyof CryptoFormState)
+            }}
+          />
+          {errors.amount && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.amount}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="contract_address">
+            {t("management.manualPositions.crypto.fields.contractAddress")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <Input
+            id="contract_address"
+            value={form.contract_address}
+            disabled={isLocked && Boolean(form.contract_address)}
+            onChange={e => {
+              updateField("contract_address", e.target.value)
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="initial_investment">
+            {t("management.manualPositions.crypto.fields.initialInvestment")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <div className="relative">
+            <DecimalInput
+              id="initial_investment"
+              className={investmentCurrencySymbol ? "pr-10" : undefined}
+              value={form.initial_investment}
+              onStringChange={nextInitial => {
+                updateField("initial_investment", nextInitial)
+
+                const amount = parseNumberInput(form.amount)
+                const initial = parseNumberInput(nextInitial)
+                if (amount != null && amount > 0) {
+                  updateField(
+                    "average_buy_price",
+                    initial != null ? formatNumberInput(initial / amount) : "",
+                  )
+                }
+                clearError("initial_investment" as keyof CryptoFormState)
+                clearError("investment_currency" as keyof CryptoFormState)
+                clearError("average_buy_price" as keyof CryptoFormState)
+              }}
+            />
+            {investmentCurrencySymbol && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                {investmentCurrencySymbol}
+              </span>
+            )}
+          </div>
+          {errors.initial_investment && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.initial_investment}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="average_buy_price">
+            {t("management.manualPositions.crypto.fields.averageBuyPrice")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <div className="relative">
+            <DecimalInput
+              id="average_buy_price"
+              className={investmentCurrencySymbol ? "pr-10" : undefined}
+              value={form.average_buy_price}
+              onStringChange={nextAverage => {
+                updateField("average_buy_price", nextAverage)
+
+                const amount = parseNumberInput(form.amount)
+                const average = parseNumberInput(nextAverage)
+                if (amount != null && amount > 0) {
+                  updateField(
+                    "initial_investment",
+                    average != null ? formatNumberInput(average * amount) : "",
+                  )
+                }
+                clearError("average_buy_price" as keyof CryptoFormState)
+                clearError("investment_currency" as keyof CryptoFormState)
+                clearError("initial_investment" as keyof CryptoFormState)
+              }}
+            />
+            {investmentCurrencySymbol && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                {investmentCurrencySymbol}
+              </span>
+            )}
+          </div>
+          {errors.average_buy_price && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.average_buy_price}
+            </p>
+          )}
+        </div>
+
+        {renderSelectInput<CryptoFormState>(
+          "investment_currency",
+          t("management.manualPositions.crypto.fields.investmentCurrency"),
+          formProps,
+          currencyOptions.map(value => ({ value, label: value })),
+        )}
+      </div>
+
+      {unitPrice != null && (
+        <div className="rounded-md border bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">
+                {t("management.manualPositions.crypto.helpers.unitPrice")}:{" "}
+              </span>
+              <span className="font-semibold">
+                {unitPrice.toLocaleString(locale, {
+                  style: "currency",
+                  currency: defaultCurrency,
+                })}
+              </span>
+            </div>
+            {marketValue != null && (
+              <div>
+                <span className="text-muted-foreground">
+                  {t("management.manualPositions.crypto.helpers.marketValue")}
+                  :{" "}
+                </span>
+                <span className="font-semibold text-primary">
+                  {marketValue.toLocaleString(locale, {
+                    style: "currency",
+                    currency: defaultCurrency,
+                  })}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const manualPositionConfigs: ManualPositionConfigMap = {
   bankAccounts: {
     assetKey: "bankAccounts",
@@ -1761,20 +2968,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Account>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(account => {
-          if (!isManualSource(account)) return
-          result.push({
-            ...account,
-            localId: account.id || `${entity.id}-account-${account.name}`,
-            originalId: account.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.ACCOUNT] as
+            | { entries?: Account[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(account => {
+            if (!isManualSource(account)) return
+            result.push({
+              ...account,
+              localId: account.id || `${entity.id}-account-${account.name}`,
+              originalId: account.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -1837,7 +3045,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     },
     validateForm: (form, { t }) => {
       const errors: ManualFormErrors<typeof form> = {}
-      if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.type) errors.type = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       const total = parseNumberInput(form.total)
@@ -1874,22 +3081,41 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.currencyOptions.map(value => ({ value, label: value })),
         )}
         {renderTextInput(
+          "name",
+          props.t("management.manualPositions.shared.name"),
+          props,
+        )}
+        {renderTextInput(
           "total",
           props.t("management.manualPositions.bankAccounts.fields.total"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest",
           props.t("management.manualPositions.bankAccounts.fields.interest"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "retained",
           props.t("management.manualPositions.bankAccounts.fields.retained"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "pending_transfers",
@@ -1897,7 +3123,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.bankAccounts.fields.pendingTransfers",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "iban",
@@ -1907,6 +3140,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             helperText: props.t(
               "management.manualPositions.bankAccounts.helpers.ibanRecommendation",
             ),
+            inputClassName: "font-mono",
+            autoUpperCase: true,
           },
         )}
       </div>
@@ -1958,20 +3193,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Card>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.CARD] as
-          | { entries?: Card[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(card => {
-          if (!isManualSource(card)) return
-          result.push({
-            ...card,
-            localId: card.id || `${entity.id}-card-${card.name}`,
-            originalId: card.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CARD] as
+            | { entries?: Card[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(card => {
+            if (!isManualSource(card)) return
+            result.push({
+              ...card,
+              localId: card.id || `${entity.id}-card-${card.name}`,
+              originalId: card.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2028,7 +3264,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     },
     validateForm: (form, { t }) => {
       const errors: ManualFormErrors<typeof form> = {}
-      if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.type) errors.type = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       const used = parseNumberInput(form.used)
@@ -2041,7 +3276,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     renderFormFields: props => (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {renderEntityField(props)}
-        {renderSelectInput(
+        {renderBadgeSelector(
           "type",
           props.t("management.manualPositions.bankCards.fields.type"),
           props,
@@ -2065,20 +3300,36 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "used",
           props.t("management.manualPositions.bankCards.fields.used"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "limit",
           props.t("management.manualPositions.bankCards.fields.limit"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "ending",
           props.t("management.manualPositions.bankCards.fields.ending"),
           props,
+          { inputClassName: "font-mono" },
         )}
         {(() => {
+          const entitySelected = !!props.form.entity_id
           const options = props.accountOptions?.(props.form.entity_id) ?? []
           return options.length > 0
             ? renderSelectInput(
@@ -2088,6 +3339,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 ),
                 props,
                 options,
+                { disabled: !entitySelected, selectClassName: "font-mono" },
               )
             : renderTextInput(
                 "related_account",
@@ -2095,17 +3347,28 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   "management.manualPositions.bankCards.fields.relatedAccount",
                 ),
                 props,
+                { disabled: !entitySelected, inputClassName: "font-mono" },
               )
         })()}
-        {renderSelectInput(
-          "active",
-          props.t("management.manualPositions.bankCards.fields.active"),
-          props,
-          [
-            { value: "true", label: props.t("common.enabled") },
-            { value: "false", label: props.t("common.disabled") },
-          ],
-        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="active">
+            {props.t("management.manualPositions.bankCards.fields.active")}
+          </Label>
+          <div className="flex items-center gap-2 min-h-[2.5rem] py-1">
+            <Switch
+              id="active"
+              checked={props.form.active !== "false"}
+              onCheckedChange={checked => {
+                props.updateField("active" as any, checked ? "true" : "false")
+              }}
+            />
+            <span className="text-sm text-muted-foreground">
+              {props.form.active !== "false"
+                ? props.t("common.enabled")
+                : props.t("common.disabled")}
+            </span>
+          </div>
+        </div>
       </div>
     ),
     getDisplayName: draft => draft.name ?? draft.ending ?? draft.entityName,
@@ -2169,20 +3432,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Loan>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.LOAN] as
-          | { entries?: Loan[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(loan => {
-          if (!isManualSource(loan)) return
-          result.push({
-            ...loan,
-            localId: loan.id || `${entity.id}-loan-${loan.name}`,
-            originalId: loan.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.LOAN] as
+            | { entries?: Loan[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(loan => {
+            if (!isManualSource(loan)) return
+            result.push({
+              ...loan,
+              localId: loan.id || `${entity.id}-loan-${loan.name}`,
+              originalId: loan.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2200,10 +3464,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       current_installment: "",
       principal_outstanding: "",
       interest_type: InterestType.FIXED,
+      installment_frequency: "MONTHLY",
+      fixed_interest_rate: "",
       euribor_rate: "",
       fixed_years: "",
       creation: "",
       maturity: "",
+      track_loan: "true",
     }),
     draftToForm: draft => ({
       entity_id: draft.isNewEntity ? "" : draft.entityId,
@@ -2217,16 +3484,27 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       loan_amount: formatNumberInput(draft.loan_amount ?? 0),
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       current_installment: formatNumberInput(draft.current_installment ?? 0),
       principal_outstanding: formatNumberInput(
         draft.principal_outstanding ?? 0,
       ),
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? "MONTHLY",
+      fixed_interest_rate:
+        draft.fixed_interest_rate != null
+          ? formatNumberInput(
+              Math.round(draft.fixed_interest_rate * 100 * 10000) / 10000,
+            )
+          : "",
       euribor_rate:
         draft.euribor_rate != null
-          ? formatNumberInput(draft.euribor_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.euribor_rate * 100 * 10000) / 10000,
+            )
           : "",
       fixed_years:
         draft.fixed_years != null
@@ -2236,6 +3514,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           : "",
       creation: draft.creation ?? "",
       maturity: draft.maturity ?? "",
+      track_loan: (draft as any).manual_data?.track ? "true" : "",
     }),
     buildEntryFromForm: (form, { previous }) => {
       const loanAmount = parseNumberInput(form.loan_amount)
@@ -2271,6 +3550,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         return null
       }
 
+      const fixedInterestRatePercent =
+        interestType === InterestType.MIXED
+          ? parseNumberInput(form.fixed_interest_rate)
+          : null
+
       const creationDate = normalizeDateInput(form.creation)
       const maturityDate = normalizeDateInput(form.maturity)
       if (!creationDate || !maturityDate) {
@@ -2286,8 +3570,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         loan_amount: loanAmount,
         next_payment_date: previous?.next_payment_date ?? null,
         principal_outstanding: principalOutstanding,
-        principal_paid: previous?.principal_paid ?? null,
+        principal_paid: null,
         interest_type: interestType,
+        installment_frequency:
+          (form.installment_frequency as InstallmentFrequency) ||
+          InstallmentFrequency.MONTHLY,
+        fixed_interest_rate:
+          fixedInterestRatePercent != null
+            ? fixedInterestRatePercent / 100
+            : null,
         euribor_rate: requiresEuribor ? (euriborPercent ?? 0) / 100 : null,
         fixed_years: requiresFixedYears
           ? (fixedYearsValue ?? previous?.fixed_years ?? null)
@@ -2296,6 +3587,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         creation: creationDate,
         maturity: maturityDate,
         unpaid: previous?.unpaid ?? null,
+        manual_data:
+          form.track_loan && form.interest_type === InterestType.FIXED
+            ? { track: true }
+            : null,
         source: DataSource.MANUAL,
       }
 
@@ -2335,6 +3630,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       ) {
         errors.fixed_years = numberFieldError(t)
       }
+      if (interestType === InterestType.MIXED) {
+        const fixedRate = parseNumberInput(form.fixed_interest_rate)
+        if (fixedRate === null || fixedRate <= 0) {
+          errors.fixed_interest_rate = numberFieldError(t)
+        }
+      }
       if (!normalizeDateInput(form.creation)) {
         errors.creation = requiredField(t)
       }
@@ -2350,17 +3651,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         props.form.interest_type === InterestType.MIXED
       const showFixedYearsField =
         props.form.interest_type === InterestType.MIXED
+      const showFixedInterestRateField =
+        props.form.interest_type === InterestType.MIXED
 
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {renderEntityField(props)}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "type",
             props.t("management.manualPositions.bankLoans.fields.type"),
             props,
             Object.values(LoanType).map(value => ({
               value,
               label: props.t(`enums.loanType.${value}`) || value,
+              icon:
+                value === LoanType.MORTGAGE ? (
+                  <Home className="h-3 w-3" />
+                ) : (
+                  <User className="h-3 w-3" />
+                ),
             })),
           )}
           {renderTextInput(
@@ -2378,31 +3687,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "loan_amount",
             props.t("management.manualPositions.bankLoans.fields.loanAmount"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
           )}
           {renderTextInput(
             "interest_rate",
             props.t("management.manualPositions.bankLoans.fields.interestRate"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
           )}
-          {renderTextInput(
-            "current_installment",
-            props.t(
-              "management.manualPositions.bankLoans.fields.currentInstallment",
-            ),
-            props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
-          )}
-          {renderTextInput(
-            "principal_outstanding",
-            props.t(
-              "management.manualPositions.bankLoans.fields.principalOutstanding",
-            ),
-            props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
-          )}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "interest_type",
             props.t("management.manualPositions.bankLoans.fields.interestType"),
             props,
@@ -2411,15 +3711,48 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               label: props.t(`enums.interestType.${value}`) || value,
             })),
           )}
-          {showEuriborField &&
-            renderTextInput(
-              "euribor_rate",
-              props.t(
-                "management.manualPositions.bankLoans.fields.euriborRate",
-              ),
-              props,
-              { type: "number", step: "0.01", inputMode: "decimal" },
-            )}
+          {renderSelectInput(
+            "installment_frequency",
+            props.t(
+              "management.manualPositions.bankLoans.fields.installmentFrequency",
+            ),
+            props,
+            [
+              {
+                value: InstallmentFrequency.WEEKLY,
+                label: props.t("enums.installmentFrequency.WEEKLY"),
+              },
+              {
+                value: InstallmentFrequency.BIWEEKLY,
+                label: props.t("enums.installmentFrequency.BIWEEKLY"),
+              },
+              {
+                value: InstallmentFrequency.SEMIMONTHLY,
+                label: props.t("enums.installmentFrequency.SEMIMONTHLY"),
+              },
+              {
+                value: InstallmentFrequency.MONTHLY,
+                label: props.t("enums.installmentFrequency.MONTHLY"),
+              },
+              {
+                value: InstallmentFrequency.BIMONTHLY,
+                label: props.t("enums.installmentFrequency.BIMONTHLY"),
+              },
+              {
+                value: InstallmentFrequency.QUARTERLY,
+                label: props.t("enums.installmentFrequency.QUARTERLY"),
+              },
+              {
+                value: InstallmentFrequency.SEMIANNUAL,
+                label: props.t("enums.installmentFrequency.SEMIANNUAL"),
+              },
+              {
+                value: InstallmentFrequency.YEARLY,
+                label: props.t("enums.installmentFrequency.YEARLY"),
+              },
+            ],
+          )}
+          {showEuriborField && <EuriborSuggestField {...loanProps} />}
           {showFixedYearsField &&
             renderTextInput(
               "fixed_years",
@@ -2427,7 +3760,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               props,
               { type: "number", step: "1", inputMode: "numeric" },
             )}
-          <LoanCalculationHelper {...loanProps} />
+          {showFixedInterestRateField &&
+            renderTextInput(
+              "fixed_interest_rate",
+              props.t(
+                "management.manualPositions.bankLoans.fields.fixedInterestRate",
+              ),
+              props,
+              {
+                type: "number",
+                step: "0.01",
+                inputMode: "decimal",
+                suffix: "%",
+              },
+            )}
           {renderDateInput(
             "creation",
             props.t("management.manualPositions.bankLoans.fields.creation"),
@@ -2438,6 +3784,37 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             props.t("management.manualPositions.bankLoans.fields.maturity"),
             props,
           )}
+          {renderTextInput(
+            "current_installment",
+            props.t(
+              "management.manualPositions.bankLoans.fields.currentInstallment",
+            ),
+            props,
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
+          )}
+          {renderTextInput(
+            "principal_outstanding",
+            props.t(
+              "management.manualPositions.bankLoans.fields.principalOutstanding",
+            ),
+            props,
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: props.form.currency
+                ? getCurrencySymbol(props.form.currency)
+                : undefined,
+            },
+          )}
+          <LoanCalculationHelper {...loanProps} />
         </div>
       )
     },
@@ -2473,6 +3850,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       current_installment: draft.current_installment,
       principal_outstanding: draft.principal_outstanding,
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? null,
+      fixed_interest_rate: draft.fixed_interest_rate ?? null,
       euribor_rate: draft.euribor_rate ?? null,
       fixed_years: draft.fixed_years ?? null,
       creation: draft.creation ?? "",
@@ -2488,6 +3867,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       principal_outstanding: draft.principal_outstanding,
       principal_paid: draft.principal_paid,
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? null,
+      fixed_interest_rate: draft.fixed_interest_rate ?? null,
       next_payment_date: draft.next_payment_date ?? null,
       creation: draft.creation ?? null,
       maturity: draft.maturity ?? null,
@@ -2495,6 +3876,251 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       euribor_rate: draft.euribor_rate ?? null,
       fixed_years: draft.fixed_years ?? null,
       unpaid: draft.unpaid ?? null,
+      manual_data:
+        draft.manual_data?.track && draft.interest_type === InterestType.FIXED
+          ? { track: true }
+          : null,
+    }),
+  },
+  bankCredits: {
+    assetKey: "bankCredits",
+    productType: ProductType.CREDIT,
+    buildDraftsFromPositions: ({ positionsData, manualEntities }) => {
+      if (!positionsData?.positions) return []
+      const result: ManualPositionDraft<CreditDetail>[] = []
+      manualEntities.forEach(entity => {
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CREDIT] as
+            | { entries?: CreditDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(credit => {
+            if (!isManualSource(credit)) return
+            result.push({
+              ...credit,
+              localId: credit.id || `${entity.id}-credit-${credit.name}`,
+              originalId: credit.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
+          })
+        })
+      })
+      return result
+    },
+    createEmptyForm: ({ defaultCurrency }): CreditFormState => ({
+      entity_id: "",
+      entity_mode: "select" as const,
+      new_entity_name: "",
+      currency: defaultCurrency,
+      credit_limit: "",
+      drawn_amount: "",
+      interest_rate: "",
+      name: "",
+      pledged_amount: "",
+      creation: "",
+    }),
+    draftToForm: (
+      draft: ManualPositionDraft<CreditDetail>,
+    ): CreditFormState => ({
+      entity_id: draft.isNewEntity ? "" : draft.entityId,
+      entity_mode: draft.isNewEntity ? "new" : "select",
+      new_entity_name: draft.isNewEntity
+        ? (draft.newEntityName ?? draft.entityName ?? "")
+        : "",
+      currency: draft.currency,
+      credit_limit: formatNumberInput(draft.credit_limit ?? 0),
+      drawn_amount: formatNumberInput(draft.drawn_amount ?? 0),
+      interest_rate:
+        draft.interest_rate != null
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
+          : "",
+      name: draft.name ?? "",
+      pledged_amount:
+        draft.pledged_amount != null
+          ? formatNumberInput(draft.pledged_amount)
+          : "",
+      creation: draft.creation ?? "",
+    }),
+    buildEntryFromForm: (
+      form: CreditFormState,
+      { previous }: { previous?: ManualPositionDraft<CreditDetail> },
+    ) => {
+      const creditLimit = parseNumberInput(form.credit_limit)
+      const drawnAmount = parseNumberInput(form.drawn_amount)
+      const interestRatePercent = parseNumberInput(form.interest_rate)
+
+      if (
+        creditLimit === null ||
+        drawnAmount === null ||
+        interestRatePercent === null
+      ) {
+        return null
+      }
+
+      const pledgedAmount = form.pledged_amount.trim()
+        ? parseNumberInput(form.pledged_amount)
+        : null
+      const creationDate = form.creation.trim()
+        ? normalizeDateInput(form.creation)
+        : null
+
+      const entry: CreditDetail = {
+        id: previous?.id || previous?.originalId || "",
+        currency: form.currency,
+        credit_limit: creditLimit,
+        drawn_amount: drawnAmount,
+        interest_rate: interestRatePercent / 100,
+        name: form.name.trim() || null,
+        pledged_amount: pledgedAmount,
+        creation: creationDate,
+        source: DataSource.MANUAL,
+      }
+
+      if (!entry.id) {
+        delete (entry as any).id
+      }
+      return entry
+    },
+    validateForm: (form: CreditFormState, { t }) => {
+      const errors: ManualFormErrors<typeof form> = {}
+      if (!form.currency) errors.currency = requiredField(t)
+      const creditLimit = parseNumberInput(form.credit_limit)
+      if (creditLimit === null || creditLimit <= 0)
+        errors.credit_limit = numberFieldError(t)
+      const drawnAmount = parseNumberInput(form.drawn_amount)
+      if (drawnAmount === null) errors.drawn_amount = numberFieldError(t)
+      const interestRate = parseNumberInput(form.interest_rate)
+      if (interestRate === null) errors.interest_rate = numberFieldError(t)
+      if (form.pledged_amount.trim()) {
+        const pledged = parseNumberInput(form.pledged_amount)
+        if (pledged === null) errors.pledged_amount = numberFieldError(t)
+      }
+      if (form.creation.trim() && !normalizeDateInput(form.creation)) {
+        errors.creation = invalidDateError(t)
+      }
+      return errors
+    },
+    renderFormFields: (props: ManualFormFieldRenderProps<CreditFormState>) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {renderEntityField(props)}
+        {renderTextInput(
+          "name",
+          props.t("management.manualPositions.shared.name"),
+          props,
+        )}
+        {renderSelectInput(
+          "currency",
+          props.t("management.manualPositions.shared.currency"),
+          props,
+          props.currencyOptions.map(value => ({ value, label: value })),
+        )}
+        {renderTextInput(
+          "credit_limit",
+          props.t("management.manualPositions.bankCredits.fields.creditLimit"),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderTextInput(
+          "drawn_amount",
+          props.t("management.manualPositions.bankCredits.fields.drawnAmount"),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderTextInput(
+          "interest_rate",
+          props.t("management.manualPositions.bankCredits.fields.interestRate"),
+          props,
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+        )}
+        {renderTextInput(
+          "pledged_amount",
+          props.t(
+            "management.manualPositions.bankCredits.fields.pledgedAmount",
+          ),
+          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
+        )}
+        {renderDateInput(
+          "creation",
+          props.t("management.manualPositions.bankCredits.fields.creation"),
+          props,
+        )}
+      </div>
+    ),
+    getDisplayName: (draft: ManualPositionDraft<CreditDetail>) =>
+      draft.name ?? draft.entityName,
+    renderDraftSummary: (
+      draft: ManualPositionDraft<CreditDetail>,
+      helpers: RenderSummaryHelpers,
+    ) => (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-base">{draft.name || "—"}</span>
+          <Badge
+            variant="secondary"
+            className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+          >
+            {helpers.t("enums.productType.CREDIT")}
+          </Badge>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {helpers.formatCurrency(draft.drawn_amount, draft.currency)} /{" "}
+          {helpers.formatCurrency(draft.credit_limit, draft.currency)}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {draft.interest_rate != null
+            ? helpers.t(
+                "management.manualPositions.bankCredits.summary.interest",
+                { rate: (draft.interest_rate * 100).toFixed(2) },
+              )
+            : ""}
+        </div>
+      </div>
+    ),
+    normalizeDraftForCompare: (draft: ManualPositionDraft<CreditDetail>) => ({
+      entityId: draft.entityId,
+      currency: draft.currency,
+      credit_limit: draft.credit_limit,
+      drawn_amount: draft.drawn_amount,
+      interest_rate: draft.interest_rate,
+      name: draft.name ?? "",
+      pledged_amount: draft.pledged_amount ?? null,
+      creation: draft.creation ?? "",
+    }),
+    toPayloadEntry: (draft: ManualPositionDraft<CreditDetail>) => ({
+      id: draft.id || draft.originalId,
+      currency: draft.currency,
+      credit_limit: draft.credit_limit,
+      drawn_amount: draft.drawn_amount,
+      interest_rate: draft.interest_rate,
+      name: draft.name ?? null,
+      pledged_amount: draft.pledged_amount ?? null,
+      creation: draft.creation ?? null,
     }),
   },
   fundPortfolios: {
@@ -2504,54 +4130,63 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundPortfolio>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
-        const accountProduct = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const accountEntries = accountProduct?.entries ?? []
+        const entityPositions = positionsData.positions[entity.id] ?? []
 
-        const entries = product?.entries ?? []
-        entries.forEach(portfolio => {
-          if (!isManualSource(portfolio)) return
-          let resolvedAccountId = portfolio.account_id ?? null
+        // Collect account entries across ALL positions for this entity
+        // (the linked account may be in a REAL position while the portfolio is MANUAL)
+        const accountEntries: Account[] = []
+        entityPositions.forEach(ep => {
+          const ap = ep.products[ProductType.ACCOUNT] as
+            | { entries?: Account[] }
+            | undefined
+          if (ap?.entries) accountEntries.push(...ap.entries)
+        })
 
-          if (portfolio.account && accountEntries.length > 0) {
-            const targetIban = portfolio.account.iban?.trim().toUpperCase()
-            const targetName = portfolio.account.name?.trim().toLowerCase()
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.FUND_PORTFOLIO
+          ] as { entries?: FundPortfolio[] } | undefined
 
-            const matchedAccount = accountEntries.find(account => {
-              if (account.type !== AccountType.FUND_PORTFOLIO) return false
-              if (!account.id) return false
+          const entries = product?.entries ?? []
+          entries.forEach(portfolio => {
+            if (!isManualSource(portfolio)) return
+            let resolvedAccountId = portfolio.account_id ?? null
 
-              const accountIban = account.iban?.trim().toUpperCase()
-              if (!targetIban || !accountIban || accountIban !== targetIban) {
-                return false
+            if (portfolio.account && accountEntries.length > 0) {
+              const targetIban = portfolio.account.iban?.trim().toUpperCase()
+              const targetName = portfolio.account.name?.trim().toLowerCase()
+
+              const matchedAccount = accountEntries.find(account => {
+                if (account.type !== AccountType.FUND_PORTFOLIO) return false
+                if (!account.id) return false
+
+                const accountIban = account.iban?.trim().toUpperCase()
+                if (!targetIban || !accountIban || accountIban !== targetIban) {
+                  return false
+                }
+
+                const accountName = account.name?.trim().toLowerCase()
+                if (targetName && accountName) {
+                  return accountName === targetName
+                }
+
+                return true
+              })
+
+              if (matchedAccount?.id) {
+                resolvedAccountId = matchedAccount.id
               }
-
-              const accountName = account.name?.trim().toLowerCase()
-              if (targetName && accountName) {
-                return accountName === targetName
-              }
-
-              return true
-            })
-
-            if (matchedAccount?.id) {
-              resolvedAccountId = matchedAccount.id
             }
-          }
 
-          result.push({
-            ...portfolio,
-            account_id: resolvedAccountId,
-            localId: portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
-            originalId: portfolio.id,
-            entityId: entity.id,
-            entityName: entity.name,
+            result.push({
+              ...portfolio,
+              account_id: resolvedAccountId,
+              localId:
+                portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
+              originalId: portfolio.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2706,20 +4341,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND] as
-          | { entries?: FundDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(fund => {
-          if (!isManualSource(fund)) return
-          result.push({
-            ...fund,
-            localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
-            originalId: fund.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FUND] as
+            | { entries?: FundDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(fund => {
+            if (!isManualSource(fund)) return
+            result.push({
+              ...fund,
+              localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
+              originalId: fund.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2767,15 +4403,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         shares: formatNumberInput(draft.shares ?? 0),
         average_buy_price:
           draft.average_buy_price != null
-            ? formatNumberInput(draft.average_buy_price)
+            ? formatNumberInput(draft.average_buy_price, {
+                maximumFractionDigits: 4,
+              })
             : "",
         initial_investment:
           draft.initial_investment != null
-            ? formatNumberInput(draft.initial_investment)
+            ? formatNumberInput(draft.initial_investment, {
+                maximumFractionDigits: 4,
+              })
             : "",
         market_value:
           draft.market_value != null
-            ? formatNumberInput(draft.market_value)
+            ? formatNumberInput(draft.market_value, {
+                maximumFractionDigits: 4,
+              })
             : "",
         currency: draft.currency,
         type: draft.type ?? FundType.MUTUAL_FUND,
@@ -2806,17 +4448,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const lastField = form._last_investment_field
 
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
 
       const trimmedPortfolioId = form.portfolio_id?.trim() ?? ""
@@ -3084,7 +4732,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             label={props.t("management.manualPositions.funds.fields.isin")}
             formProps={props}
           />
-          {renderSelectInput(
+          {renderBadgeSelector(
             "type",
             props.t("management.manualPositions.funds.fields.type"),
             props,
@@ -3177,7 +4825,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -3191,18 +4841,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.funds.fields.initialInvestment",
               )}
             </Label>
-            <Input
-              value={props.form.initial_investment}
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("initial_investment", event.target.value)
-                props.updateField("_last_investment_field", "initial" as any)
-                props.clearError("initial_investment")
-                props.clearError("average_buy_price")
-              }}
-            />
+            <div className="relative">
+              <DecimalInput
+                value={props.form.initial_investment}
+                className={props.form.currency ? "pr-10" : undefined}
+                onStringChange={value => {
+                  props.updateField("initial_investment", value)
+                  props.updateField("_last_investment_field", "initial" as any)
+                  props.clearError("initial_investment")
+                  props.clearError("average_buy_price")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.initial_investment && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.initial_investment}
@@ -3215,18 +4870,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.funds.fields.averageBuyPrice",
               )}
             </Label>
-            <Input
-              value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("average_buy_price", event.target.value)
-                props.updateField("_last_investment_field", "average" as any)
-                props.clearError("average_buy_price")
-                props.clearError("initial_investment")
-              }}
-            />
+            <div className="relative">
+              <DecimalInput
+                value={props.form.average_buy_price}
+                className={props.form.currency ? "pr-10" : undefined}
+                onStringChange={value => {
+                  props.updateField("average_buy_price", value)
+                  props.updateField("_last_investment_field", "average" as any)
+                  props.clearError("average_buy_price")
+                  props.clearError("initial_investment")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.average_buy_price && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.average_buy_price}
@@ -3238,22 +4898,57 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.funds.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.funds.fields.marketValue",
+                  )}
+                </Label>
+                <div className="relative">
+                  <DecimalInput
+                    id="market_value"
+                    className={props.form.currency ? "pr-10" : undefined}
+                    value={props.form.market_value ?? ""}
+                    disabled={isTrackingActive}
+                    onStringChange={value => {
+                      props.updateField("market_value", value)
+                      props.clearError("market_value")
+                      if (props.form._suggested_market_price) {
+                        props.updateField("_suggested_market_price", "")
+                      }
+                    }}
+                  />
+                  {props.form.currency && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                      {getCurrencySymbol(props.form.currency)}
+                    </span>
+                  )}
+                </div>
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
           {renderSelectInput(
             "asset_type",
             props.t("management.manualPositions.funds.fields.assetType"),
@@ -3407,21 +5102,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<StockDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.STOCK_ETF] as
-          | { entries?: StockDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(stock => {
-          if (!isManualSource(stock)) return
-          result.push({
-            ...stock,
-            localId:
-              stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
-            originalId: stock.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.STOCK_ETF] as
+            | { entries?: StockDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(stock => {
+            if (!isManualSource(stock)) return
+            result.push({
+              ...stock,
+              localId:
+                stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
+              originalId: stock.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3439,7 +5135,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: "",
       market_value: "",
       currency: defaultCurrency,
-      type: "",
+      type: EquityType.STOCK,
       _last_investment_field: "",
       _suggested_market_price: "",
       _instrument_currency: "",
@@ -3460,14 +5156,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       shares: formatNumberInput(draft.shares ?? 0),
       average_buy_price:
         draft.average_buy_price != null
-          ? formatNumberInput(draft.average_buy_price)
+          ? formatNumberInput(draft.average_buy_price, {
+              maximumFractionDigits: 4,
+            })
           : "",
       initial_investment:
         draft.initial_investment != null
-          ? formatNumberInput(draft.initial_investment)
+          ? formatNumberInput(draft.initial_investment, {
+              maximumFractionDigits: 4,
+            })
           : "",
       market_value:
-        draft.market_value != null ? formatNumberInput(draft.market_value) : "",
+        draft.market_value != null
+          ? formatNumberInput(draft.market_value, { maximumFractionDigits: 4 })
+          : "",
       currency: draft.currency,
       type: draft.type ?? "",
       _last_investment_field: "average",
@@ -3486,17 +5188,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const marketValueInput = parseNumberInput(form.market_value)
       const lastField = form._last_investment_field
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
       const entry: StockDetail = {
         id: previous?.id || previous?.originalId || "",
@@ -3685,26 +5393,32 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             <Label htmlFor="type">
               {props.t("management.manualPositions.stocks.fields.type")}
             </Label>
-            <select
-              id="type"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={(props.form.type as string) ?? ""}
-              onChange={event => {
-                const nextType = event.target.value
-                props.updateField("type", nextType)
-                props.clearError("type")
-                if (props.form._tracker_candidate) {
-                  props.updateField("_tracker_candidate", "")
-                }
-              }}
-            >
-              <option value="">{props.t("common.selectOptions")}</option>
-              {Object.values(EquityType).map(value => (
-                <option key={value} value={value}>
-                  {props.t(`enums.equityType.${value}`) || value}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+              {Object.values(EquityType).map(value => {
+                const isActive = (props.form.type as string) === value
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      props.updateField("type", value)
+                      props.clearError("type")
+                      if (props.form._tracker_candidate) {
+                        props.updateField("_tracker_candidate", "")
+                      }
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                      isActive
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                    )}
+                  >
+                    {props.t(`enums.equityType.${value}`) || value}
+                  </button>
+                )
+              })}
+            </div>
             {props.errors.type && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.type}
@@ -3810,7 +5524,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -3824,18 +5540,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.stocks.fields.initialInvestment",
               )}
             </Label>
-            <Input
-              value={props.form.initial_investment}
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("initial_investment", event.target.value)
-                props.updateField("_last_investment_field", "initial" as any)
-                props.clearError("initial_investment")
-                props.clearError("average_buy_price")
-              }}
-            />
+            <div className="relative">
+              <DecimalInput
+                value={props.form.initial_investment}
+                className={props.form.currency ? "pr-10" : undefined}
+                onStringChange={value => {
+                  props.updateField("initial_investment", value)
+                  props.updateField("_last_investment_field", "initial" as any)
+                  props.clearError("initial_investment")
+                  props.clearError("average_buy_price")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.initial_investment && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.initial_investment}
@@ -3848,18 +5569,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 "management.manualPositions.stocks.fields.averageBuyPrice",
               )}
             </Label>
-            <Input
-              value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              onChange={event => {
-                props.updateField("average_buy_price", event.target.value)
-                props.updateField("_last_investment_field", "average" as any)
-                props.clearError("average_buy_price")
-                props.clearError("initial_investment")
-              }}
-            />
+            <div className="relative">
+              <DecimalInput
+                value={props.form.average_buy_price}
+                className={props.form.currency ? "pr-10" : undefined}
+                onStringChange={value => {
+                  props.updateField("average_buy_price", value)
+                  props.updateField("_last_investment_field", "average" as any)
+                  props.clearError("average_buy_price")
+                  props.clearError("initial_investment")
+                }}
+              />
+              {props.form.currency && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                  {getCurrencySymbol(props.form.currency)}
+                </span>
+              )}
+            </div>
             {props.errors.average_buy_price && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {props.errors.average_buy_price}
@@ -3871,22 +5597,57 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.stocks.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.stocks.fields.marketValue",
+                  )}
+                </Label>
+                <div className="relative">
+                  <DecimalInput
+                    id="market_value"
+                    className={props.form.currency ? "pr-10" : undefined}
+                    value={props.form.market_value ?? ""}
+                    disabled={isTrackingActive}
+                    onStringChange={value => {
+                      props.updateField("market_value", value)
+                      props.clearError("market_value")
+                      if (props.form._suggested_market_price) {
+                        props.updateField("_suggested_market_price", "")
+                      }
+                    }}
+                  />
+                  {props.form.currency && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                      {getCurrencySymbol(props.form.currency)}
+                    </span>
+                  )}
+                </div>
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )
     },
@@ -3945,20 +5706,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Deposit>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.DEPOSIT] as
-          | { entries?: Deposit[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(deposit => {
-          if (!isManualSource(deposit)) return
-          result.push({
-            ...deposit,
-            localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
-            originalId: deposit.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.DEPOSIT] as
+            | { entries?: Deposit[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(deposit => {
+            if (!isManualSource(deposit)) return
+            result.push({
+              ...deposit,
+              localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
+              originalId: deposit.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3986,7 +5748,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       creation: normalizeDateInput(draft.creation ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -4041,13 +5805,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "amount",
           props.t("management.manualPositions.deposits.fields.amount"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
           props.t("management.manualPositions.deposits.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "creation",
@@ -4102,20 +5873,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FactoringDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FACTORING] as
-          | { entries?: FactoringDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(factor => {
-          if (!isManualSource(factor)) return
-          result.push({
-            ...factor,
-            localId: factor.id || `${entity.id}-factoring-${factor.name}`,
-            originalId: factor.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FACTORING] as
+            | { entries?: FactoringDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(factor => {
+            if (!isManualSource(factor)) return
+            result.push({
+              ...factor,
+              localId: factor.id || `${entity.id}-factoring-${factor.name}`,
+              originalId: factor.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4146,11 +5918,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       late_interest_rate:
         draft.late_interest_rate != null
-          ? formatNumberInput(draft.late_interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.late_interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -4219,13 +5995,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "amount",
           props.t("management.manualPositions.factoring.fields.amount"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
           props.t("management.manualPositions.factoring.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "late_interest_rate",
@@ -4233,7 +6016,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.factoring.fields.lateInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "start",
@@ -4245,15 +6028,44 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.t("management.manualPositions.factoring.fields.maturity"),
           props,
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "type",
           props.t("management.manualPositions.factoring.fields.type"),
           props,
+          [
+            {
+              value: "PUBLIC_ADMIN",
+              label: props.t("investments.projectTypes.PUBLIC_ADMIN"),
+            },
+            {
+              value: "INSURED",
+              label: props.t("investments.projectTypes.INSURED"),
+            },
+            {
+              value: "NON_INSURED",
+              label: props.t("investments.projectTypes.NON_INSURED"),
+            },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "state",
           props.t("management.manualPositions.factoring.fields.state"),
           props,
+          [
+            { value: "FUNDED", label: props.t("investments.states.FUNDED") },
+            {
+              value: "IN_PROGRESS",
+              label: props.t("investments.states.IN_PROGRESS"),
+            },
+            {
+              value: "MANAGING_COLLECTION",
+              label: props.t("investments.states.MANAGING_COLLECTION"),
+            },
+            {
+              value: "COMPLETED",
+              label: props.t("investments.states.COMPLETED"),
+            },
+          ],
         )}
       </div>
     ),
@@ -4309,21 +6121,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<RealEstateCFDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.REAL_ESTATE_CF] as
-          | { entries?: RealEstateCFDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(realEstate => {
-          if (!isManualSource(realEstate)) return
-          result.push({
-            ...realEstate,
-            localId:
-              realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
-            originalId: realEstate.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.REAL_ESTATE_CF
+          ] as { entries?: RealEstateCFDetail[] } | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(realEstate => {
+            if (!isManualSource(realEstate)) return
+            result.push({
+              ...realEstate,
+              localId:
+                realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
+              originalId: realEstate.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4361,11 +6174,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       extended_interest_rate:
         draft.extended_interest_rate != null
-          ? formatNumberInput(draft.extended_interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.extended_interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
@@ -4453,6 +6270,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             type: "number",
             step: "0.01",
             inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
             onValueChange: (value, helpers) => {
               const previousPending = helpers.form.pending_amount ?? ""
               const previousAmount = helpers.form.amount ?? ""
@@ -4472,7 +6292,14 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.pendingAmount",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: props.form.currency
+              ? getCurrencySymbol(props.form.currency)
+              : undefined,
+          },
         )}
         {renderTextInput(
           "interest_rate",
@@ -4480,7 +6307,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.interestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderTextInput(
           "extended_interest_rate",
@@ -4488,7 +6315,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.extendedInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
+          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
         )}
         {renderDateInput(
           "start",
@@ -4500,22 +6327,75 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.t("management.manualPositions.realEstateCf.fields.maturity"),
           props,
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "type",
           props.t("management.manualPositions.realEstateCf.fields.type"),
           props,
+          [
+            {
+              value: "HOUSING",
+              label: props.t("investments.projectTypes.HOUSING"),
+            },
+            {
+              value: "FLOOR",
+              label: props.t("investments.projectTypes.FLOOR"),
+            },
+            {
+              value: "COMMERCIAL_OFFICE",
+              label: props.t("investments.projectTypes.COMMERCIAL_OFFICE"),
+            },
+            {
+              value: "HOTEL",
+              label: props.t("investments.projectTypes.HOTEL"),
+            },
+            {
+              value: "PREMISES",
+              label: props.t("investments.projectTypes.PREMISES"),
+            },
+            {
+              value: "RENEWABLES",
+              label: props.t("investments.projectTypes.RENEWABLES"),
+            },
+            {
+              value: "LOGISTIC",
+              label: props.t("investments.projectTypes.LOGISTIC"),
+            },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "business_type",
           props.t(
             "management.manualPositions.realEstateCf.fields.businessType",
           ),
           props,
+          [
+            {
+              value: "EQUITY",
+              label: props.t("investments.businessTypes.EQUITY"),
+            },
+            {
+              value: "LENDING",
+              label: props.t("investments.businessTypes.LENDING"),
+            },
+            { value: "SOLD", label: props.t("investments.businessTypes.SOLD") },
+          ],
         )}
-        {renderTextInput(
+        {renderTextInputWithSuggestions(
           "state",
           props.t("management.manualPositions.realEstateCf.fields.state"),
           props,
+          [
+            { value: "FUNDED", label: props.t("investments.states.FUNDED") },
+            {
+              value: "IN_PROGRESS",
+              label: props.t("investments.states.IN_PROGRESS"),
+            },
+            { value: "DISPUTE", label: props.t("investments.states.DISPUTE") },
+            {
+              value: "COMPLETED",
+              label: props.t("investments.states.COMPLETED"),
+            },
+          ],
         )}
         {renderDateInput(
           "extended_maturity",
@@ -4574,6 +6454,364 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       business_type: draft.business_type,
       state: draft.state,
       extended_maturity: draft.extended_maturity ?? null,
+    }),
+  },
+  crypto: {
+    assetKey: "crypto",
+    productType: ProductType.CRYPTO,
+    buildDraftsFromPositions: ({ positionsData, manualEntities }) => {
+      if (!positionsData?.positions) return []
+      const result: ManualPositionDraft<CryptoCurrencyPosition>[] = []
+      manualEntities.forEach(entity => {
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CRYPTO] as
+            | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
+            | undefined
+          const wallets = product?.entries ?? []
+          wallets.forEach(wallet => {
+            const assets = wallet.assets ?? []
+            assets.forEach(asset => {
+              if (!isManualSource(asset)) return
+              result.push({
+                ...asset,
+                localId:
+                  asset.id ||
+                  `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
+                originalId: asset.id,
+                entityId: entity.id,
+                entityName: entity.name,
+              })
+            })
+          })
+        })
+      })
+      return result
+    },
+    createEmptyForm: ({ defaultCurrency }) => ({
+      entity_id: "",
+      entity_mode: "select" as const,
+      new_entity_name: "",
+      name: "",
+      symbol: "",
+      amount: "",
+      average_buy_price: "",
+      initial_investment: "",
+      investment_currency: (defaultCurrency ?? "").toUpperCase(),
+      contract_address: "",
+      _search_query: "",
+      _search_mode: "symbol" as const,
+      _selected_asset: null,
+      _asset_details: null,
+      _selected_platform: null,
+      _provider: "",
+      _new_entity_icon_url: "",
+      _net_crypto_entity_details: null,
+      _entity_type: EntityType.CRYPTO_WALLET,
+    }),
+    draftToForm: draft => {
+      const hasCryptoAsset = Boolean(draft.crypto_asset)
+      const cryptoAsset = draft.crypto_asset
+
+      const placeholderEntityId =
+        typeof draft.entityId === "string" && draft.entityId.startsWith("new-")
+          ? draft.entityId
+          : null
+
+      const draftAny = draft as any
+
+      const unitPriceFromDraft = (() => {
+        if (
+          typeof draftAny?._unit_price === "number" &&
+          draftAny._unit_price > 0
+        ) {
+          return draftAny._unit_price as number
+        }
+        const amount = typeof draft.amount === "number" ? draft.amount : null
+        const marketValue =
+          typeof draft.market_value === "number" ? draft.market_value : null
+        if (!amount || amount <= 0 || !marketValue || marketValue <= 0) {
+          return null
+        }
+        return marketValue / amount
+      })()
+
+      const priceKey = (draft.currency ?? "usd").toLowerCase()
+
+      const assetDetails: CryptoAssetDetails | null =
+        hasCryptoAsset && cryptoAsset
+          ? {
+              provider_id: cryptoAsset.id,
+              symbol: cryptoAsset.symbol,
+              name: cryptoAsset.name,
+              icon_url: cryptoAsset.icon_urls?.[0] ?? null,
+              platforms: [],
+              price: unitPriceFromDraft
+                ? { [priceKey]: unitPriceFromDraft }
+                : {},
+              provider:
+                Object.keys(cryptoAsset.external_ids ?? {})[0] ?? "coingecko",
+              type: draft.type ?? CryptoCurrencyType.NATIVE,
+            }
+          : null
+
+      const entityMode: "select" | "new" = placeholderEntityId
+        ? "select"
+        : draft.isNewEntity
+          ? "new"
+          : "select"
+
+      const entityIdValue = placeholderEntityId
+        ? placeholderEntityId
+        : draft.isNewEntity
+          ? ""
+          : (draft.entityId ?? "")
+
+      return {
+        entity_id: entityIdValue,
+        entity_mode: entityMode as any,
+        new_entity_name:
+          entityMode === "new"
+            ? (draft.newEntityName ?? draft.entityName ?? "")
+            : "",
+        name: draft.name ?? "",
+        symbol: draft.symbol ?? "",
+        amount: formatNumberInput(draft.amount ?? 0),
+        average_buy_price:
+          draft.average_buy_price != null
+            ? formatNumberInput(draft.average_buy_price)
+            : "",
+        initial_investment:
+          draft.initial_investment != null
+            ? formatNumberInput(draft.initial_investment)
+            : "",
+        investment_currency: (draft.investment_currency ?? "").toUpperCase(),
+        contract_address: draft.contract_address ?? "",
+        _search_query: "",
+        _search_mode: "symbol" as const,
+        _selected_asset: hasCryptoAsset
+          ? { symbol: cryptoAsset!.symbol, name: cryptoAsset!.name }
+          : null,
+        _asset_details: assetDetails,
+        _selected_platform: null,
+        _provider: "",
+        _new_entity_icon_url:
+          (draftAny._new_entity_icon_url as string | undefined) ?? "",
+        _net_crypto_entity_details:
+          (draftAny._net_crypto_entity_details as
+            | { provider_asset_id: string; provider: string }
+            | null
+            | undefined) ?? null,
+        _entity_type: draft._entity_type ?? EntityType.CRYPTO_WALLET,
+      }
+    },
+    buildEntryFromForm: (form, { previous, defaultCurrency }) => {
+      const amount = parseNumberInput(form.amount)
+      if (amount === null || amount <= 0) return null
+
+      const avgText = form.average_buy_price.trim()
+      const initText = form.initial_investment.trim()
+      const averageBuyPrice = avgText ? parseNumberInput(avgText) : null
+      const initialInvestment = initText ? parseNumberInput(initText) : null
+      const hasInvestmentDetails =
+        averageBuyPrice != null || initialInvestment != null
+      const investmentCurrency = hasInvestmentDetails
+        ? (form.investment_currency ?? "").trim().toUpperCase() || null
+        : null
+
+      const assetDetails = form._asset_details as CryptoAssetDetails | null
+      const previousEntry = previous as
+        | (CryptoCurrencyPosition & { crypto_asset?: CryptoAsset | null })
+        | undefined
+      const cryptoType =
+        assetDetails?.type ??
+        previousEntry?.type ??
+        (assetDetails
+          ? assetDetails.platforms.length > 0
+            ? CryptoCurrencyType.TOKEN
+            : CryptoCurrencyType.NATIVE
+          : CryptoCurrencyType.NATIVE)
+
+      let unitPrice: number | null = null
+      let marketValue: number | null = null
+      let priceCurrency: string | null = null
+      if (assetDetails?.price) {
+        const targetCurrency = (defaultCurrency || "usd").toLowerCase()
+        const price =
+          assetDetails.price[targetCurrency] ??
+          assetDetails.price["usd"] ??
+          assetDetails.price["eur"]
+        if (price != null) {
+          unitPrice = price
+          marketValue = amount * price
+          priceCurrency = targetCurrency.toUpperCase()
+        } else {
+          const keys = Object.keys(assetDetails.price)
+          if (keys.length > 0) {
+            unitPrice = assetDetails.price[keys[0]]
+            marketValue = amount * (unitPrice ?? 0)
+            priceCurrency = keys[0].toUpperCase()
+          }
+        }
+      } else if (previousEntry) {
+        marketValue = previousEntry.market_value ?? null
+        priceCurrency = previousEntry.currency ?? null
+      }
+
+      const cryptoAsset: CryptoAsset | null = assetDetails
+        ? {
+            id: assetDetails.provider_id,
+            name: assetDetails.name,
+            symbol: assetDetails.symbol.toUpperCase(),
+            icon_urls: assetDetails.icon_url ? [assetDetails.icon_url] : null,
+            external_ids: { [assetDetails.provider]: assetDetails.provider_id },
+          }
+        : (previousEntry?.crypto_asset ?? null)
+
+      const entry: CryptoCurrencyPosition & {
+        _new_entity_icon_url?: string
+        _net_crypto_entity_details?: {
+          provider_asset_id: string
+          provider: string
+        } | null
+        _entity_type?: EntityType
+        _unit_price?: number | null
+      } = {
+        id: previous?.id || previous?.originalId || "",
+        name: form.name.trim(),
+        symbol: form.symbol.trim().toUpperCase(),
+        amount,
+        type: cryptoType,
+        crypto_asset: cryptoAsset,
+        contract_address: form.contract_address.trim() || null,
+        market_value: marketValue,
+        currency: priceCurrency,
+        initial_investment: initialInvestment,
+        average_buy_price: averageBuyPrice,
+        investment_currency: investmentCurrency,
+        source: DataSource.MANUAL,
+      }
+
+      if (unitPrice != null) {
+        entry._unit_price = unitPrice
+      }
+
+      if (form._new_entity_icon_url) {
+        entry._new_entity_icon_url = form._new_entity_icon_url
+      }
+
+      if (
+        !entry._new_entity_icon_url &&
+        previousEntry &&
+        (previousEntry as any)._new_entity_icon_url
+      ) {
+        entry._new_entity_icon_url = (previousEntry as any)._new_entity_icon_url
+      }
+
+      if (form._net_crypto_entity_details) {
+        entry._net_crypto_entity_details = form._net_crypto_entity_details
+      }
+
+      if (
+        !entry._net_crypto_entity_details &&
+        previousEntry &&
+        (previousEntry as any)._net_crypto_entity_details
+      ) {
+        entry._net_crypto_entity_details = (
+          previousEntry as any
+        )._net_crypto_entity_details
+      }
+      if (form._entity_type) {
+        entry._entity_type = form._entity_type
+      }
+
+      if (!entry.id) {
+        delete (entry as any).id
+      }
+      return entry
+    },
+    validateForm: (form, { t }) => {
+      const errors: ManualFormErrors<typeof form> = {}
+      if (!form.symbol.trim() && !form.name.trim()) {
+        errors.symbol = t(
+          "management.manualPositions.crypto.validation.symbolOrName",
+        )
+        errors.name = t(
+          "management.manualPositions.crypto.validation.symbolOrName",
+        )
+      }
+      const amount = parseNumberInput(form.amount)
+      if (amount === null || amount <= 0) {
+        errors.amount = numberFieldError(t)
+      }
+
+      const avgText = form.average_buy_price.trim()
+      const initText = form.initial_investment.trim()
+      const avg = avgText ? parseNumberInput(avgText) : null
+      const init = initText ? parseNumberInput(initText) : null
+      if (avgText && avg === null) {
+        errors.average_buy_price = numberFieldError(t)
+      }
+      if (initText && init === null) {
+        errors.initial_investment = numberFieldError(t)
+      }
+      if ((avg !== null || init !== null) && !form.investment_currency.trim()) {
+        errors.investment_currency = requiredField(t)
+      }
+      return errors
+    },
+    renderFormFields: (props: ManualFormFieldRenderProps<CryptoFormState>) => (
+      <CryptoAssetSearchField formProps={props} />
+    ),
+    getDisplayName: draft => draft.name || draft.symbol,
+    renderDraftSummary: (draft, helpers) => (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Coins className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-base">
+            {draft.name || draft.symbol}
+          </span>
+          {draft.type === CryptoCurrencyType.TOKEN && (
+            <Badge variant="secondary" className="text-xs">
+              Token
+            </Badge>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {draft.amount?.toLocaleString(helpers.locale)}{" "}
+          {draft.symbol?.toUpperCase()}
+        </div>
+      </div>
+    ),
+    normalizeDraftForCompare: draft => ({
+      entityId: draft.entityId,
+      name: draft.name,
+      symbol: draft.symbol,
+      amount: draft.amount,
+      type: draft.type,
+      contract_address: draft.contract_address ?? null,
+      crypto_asset: draft.crypto_asset
+        ? {
+            id: draft.crypto_asset.id,
+            name: draft.crypto_asset.name,
+            symbol: draft.crypto_asset.symbol,
+          }
+        : null,
+    }),
+    toPayloadEntry: draft => ({
+      id: draft.id || draft.originalId,
+      name: draft.name,
+      symbol: draft.symbol,
+      amount: draft.amount,
+      type: draft.type ?? CryptoCurrencyType.NATIVE,
+      crypto_asset: draft.crypto_asset ?? null,
+      contract_address: draft.contract_address ?? null,
+      market_value: draft.market_value ?? null,
+      currency: draft.currency ?? null,
+      initial_investment: draft.initial_investment ?? null,
+      average_buy_price: draft.average_buy_price ?? null,
+      investment_currency: draft.investment_currency ?? null,
+      source: DataSource.MANUAL,
     }),
   },
 }

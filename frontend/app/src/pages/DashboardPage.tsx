@@ -1,7 +1,7 @@
 import { MoneyEventType, type ForecastResult } from "@/types"
 import { ProductType } from "@/types/position"
 import { getForecast, getMoneyEvents } from "@/services/api"
-import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 
@@ -12,12 +12,14 @@ import { useAppContext } from "@/context/AppContext"
 import { TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { useSkipMountAnimation } from "@/lib/animations"
+import { isNativeMobile } from "@/lib/platform"
 import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
+import { Sensitive } from "@/components/ui/Sensitive"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import { Switch } from "@/components/ui/Switch"
+import { DecimalInput } from "@/components/ui/DecimalInput"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import {
@@ -25,14 +27,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { getIconForAssetType, getIconForTxType } from "@/utils/dashboardUtils"
+import { PortfolioDonutChart } from "@/components/dashboard/PortfolioDonutChart"
 import {
-  getPieSliceColorForAssetType,
-  getIconForAssetType,
-  getIconForTxType,
-} from "@/utils/dashboardUtils"
-import {
-  PieChart as PieChartIcon,
-  Wallet,
   TrendingUp,
   AlertCircle,
   ChevronLeft,
@@ -44,11 +41,9 @@ import {
   CalendarSync,
   CalendarPlus,
   HandCoins,
-  CreditCard,
-  Home,
-  SlidersHorizontal,
   PiggyBank,
   TrendingUpDown,
+  ListCollapse,
 } from "lucide-react"
 import {
   getAssetDistribution,
@@ -65,14 +60,6 @@ import {
   filterRealEstateByOptions,
   getTotalCash,
 } from "@/utils/financialDataUtils"
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Legend,
-  Tooltip,
-} from "recharts"
 import { EntityRefreshDropdown } from "@/components/EntityRefreshDropdown"
 
 export default function DashboardPage() {
@@ -110,11 +97,15 @@ export default function DashboardPage() {
     useState<string>("")
   const [forecastAnnualCommodityIncrease, setForecastAnnualCommodityIncrease] =
     useState<string>("")
+  const [forecastIncludeRETaxes, setForecastIncludeRETaxes] = useState(true)
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(
     null,
   )
   const forecastMode = !!forecastResult
+  const [distributionView, setDistributionView] = useState<
+    "by-asset" | "by-entity"
+  >("by-asset")
 
   const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [transactionsError, setTransactionsError] = useState<string | null>(
@@ -141,25 +132,36 @@ export default function DashboardPage() {
 
   type DashboardOptions = {
     includePending: boolean
+    includeLoans: boolean
     includeCardExpenses: boolean
     includeRealEstate: boolean
     includeResidences: boolean
+    compactNumbers: boolean
   }
   const [dashboardOptions, setDashboardOptions] = useState<DashboardOptions>(
     () => {
       if (typeof window !== "undefined") {
         try {
           const raw = localStorage.getItem("dashboardOptions")
-          if (raw) return JSON.parse(raw)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            return {
+              ...parsed,
+              includeLoans: parsed.includeLoans === true,
+              compactNumbers: parsed.compactNumbers !== false,
+            }
+          }
         } catch {
           // ignore
         }
       }
       return {
         includePending: true,
+        includeLoans: false,
         includeCardExpenses: false,
         includeRealEstate: true,
         includeResidences: false,
+        compactNumbers: true,
       }
     },
   )
@@ -197,24 +199,13 @@ export default function DashboardPage() {
   }
 
   const projectsContainerRef = useRef<HTMLDivElement>(null)
-  const assetDistributionCardRef = useRef<HTMLDivElement>(null)
 
   const [showLeftScroll, setShowLeftScroll] = useState(false)
   const [showRightScroll, setShowRightScroll] = useState(true)
 
-  const [assetDistributionCardSmall, setAssetDistributionCardSmall] = useState(
-    () => {
-      if (typeof window !== "undefined") {
-        return window.innerWidth < 768
-      }
-      return false
-    },
-  )
-
-  const [chartRenderKey, setChartRenderKey] = useState(0)
-
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [clickedItem, setClickedItem] = useState<string | null>(null)
+  const isNativeApp = isNativeMobile()
 
   const isPopoverOpen = (itemId: string) => {
     return hoveredItem === itemId || clickedItem === itemId
@@ -230,10 +221,16 @@ export default function DashboardPage() {
   }
 
   const handleMouseEnter = (itemId: string) => {
+    if (isNativeApp) return
     setHoveredItem(itemId)
     if (clickedItem && clickedItem !== itemId) {
       setClickedItem(null)
     }
+  }
+
+  const handleMouseLeave = () => {
+    if (isNativeApp) return
+    setHoveredItem(null)
   }
 
   const hasData = useMemo(
@@ -260,19 +257,21 @@ export default function DashboardPage() {
         type: "CHECKING",
         name: t.forecast.cashDeltaLabel,
       }))
-      cloned.positions["forecast-cash-delta"] = {
-        id: "forecast-cash-delta",
-        entity: {
+      cloned.positions["forecast-cash-delta"] = [
+        {
           id: "forecast-cash-delta",
-          name: t.forecast.cashDeltaEntity,
+          entity: {
+            id: "forecast-cash-delta",
+            name: t.forecast.cashDeltaEntity,
+            is_real: true,
+          },
+          date: forecastResult.target_date,
           is_real: true,
+          products: {
+            ACCOUNT: { entries: accountEntries },
+          },
         },
-        date: forecastResult.target_date,
-        is_real: true,
-        products: {
-          ACCOUNT: { entries: accountEntries },
-        },
-      }
+      ]
     }
     return cloned
   }, [forecastResult, t.forecast.cashDeltaEntity, t.forecast.cashDeltaLabel])
@@ -285,76 +284,6 @@ export default function DashboardPage() {
         : positionsData,
     [forecastMode, forecastAdjustedPositionsData, positionsData],
   )
-
-  useLayoutEffect(() => {
-    if (hasData) {
-      const checkInitialSize = () => {
-        const assetDistributionCardElement = assetDistributionCardRef.current
-        if (assetDistributionCardElement) {
-          const cardWidth = assetDistributionCardElement.clientWidth
-          const shouldBeSmall = cardWidth < 500
-          setAssetDistributionCardSmall(shouldBeSmall)
-          if (shouldBeSmall) {
-            setChartRenderKey(prev => prev + 1)
-          }
-        } else {
-          requestAnimationFrame(checkInitialSize)
-        }
-      }
-
-      checkInitialSize()
-    }
-  }, [hasData])
-
-  useEffect(() => {
-    const checkScreenSize = () => {
-      const assetDistributionCardElement = assetDistributionCardRef.current
-      if (assetDistributionCardElement) {
-        const cardWidth = assetDistributionCardElement.clientWidth
-        const shouldBeSmall = cardWidth < 500
-        if (shouldBeSmall !== assetDistributionCardSmall) {
-          setAssetDistributionCardSmall(shouldBeSmall)
-          setChartRenderKey(prev => prev + 1)
-        }
-      }
-    }
-
-    const timeoutId = setTimeout(checkScreenSize, 0)
-
-    const assetDistributionCardElement = assetDistributionCardRef.current
-    if (assetDistributionCardElement) {
-      const resizeObserver = new ResizeObserver(checkScreenSize)
-      resizeObserver.observe(assetDistributionCardElement)
-
-      return () => {
-        clearTimeout(timeoutId)
-        resizeObserver.unobserve(assetDistributionCardElement)
-      }
-    }
-
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [hasData, assetDistributionCardSmall])
-
-  useEffect(() => {
-    const handleWindowResize = () => {
-      const assetDistributionCardElement = assetDistributionCardRef.current
-      if (assetDistributionCardElement) {
-        const cardWidth = assetDistributionCardElement.clientWidth
-        const shouldBeSmall = cardWidth < 500
-        if (shouldBeSmall !== assetDistributionCardSmall) {
-          setAssetDistributionCardSmall(shouldBeSmall)
-          setChartRenderKey(prev => prev + 1)
-        }
-      }
-    }
-
-    window.addEventListener("resize", handleWindowResize)
-    return () => {
-      window.removeEventListener("resize", handleWindowResize)
-    }
-  }, [assetDistributionCardSmall])
 
   useEffect(() => {
     fetchTransactionsData()
@@ -480,6 +409,7 @@ export default function DashboardPage() {
         exchangeRates,
         appliedPendingFlows,
         appliedRealEstateList,
+        { unknownEntity: t.common.unknownEntity },
       ),
     [
       effectivePositionsData,
@@ -487,6 +417,7 @@ export default function DashboardPage() {
       exchangeRates,
       appliedPendingFlows,
       appliedRealEstateList,
+      t,
     ],
   )
   const entityDistribution = useMemo(() => {
@@ -579,113 +510,112 @@ export default function DashboardPage() {
       }
     })
   }, [entityDistribution, entities, t])
-  const { adjustedTotalAssets, adjustedInvestedAmount } = useMemo(() => {
-    if (!forecastMode) {
-      const currentSnapshot = computeAdjustedKpis(
+  const { adjustedTotalAssets, adjustedInvestedAmount, gainPercentage } =
+    useMemo(() => {
+      if (!forecastMode) {
+        const currentSnapshot = computeAdjustedKpis(
+          positionsData,
+          targetCurrency,
+          exchangeRates,
+          pendingFlows,
+          realEstateList,
+          dashboardOptions,
+        )
+        const investmentTotal = currentSnapshot.investmentTotalAssets
+        const investmentInvested = currentSnapshot.investmentInvestedAmount
+        const gain =
+          investmentInvested > 0
+            ? ((investmentTotal - investmentInvested) / investmentInvested) *
+              100
+            : 0
+        return {
+          adjustedTotalAssets: currentSnapshot.adjustedTotalAssets,
+          adjustedInvestedAmount: investmentInvested,
+          gainPercentage: gain,
+        }
+      }
+      const forecastKpis = computeForecastKpis(
         positionsData,
+        effectivePositionsData as any,
         targetCurrency,
         exchangeRates,
-        pendingFlows,
+        [],
         realEstateList,
-        dashboardOptions,
+        forecastResult?.real_estate?.map(re => ({
+          id: re.id,
+          equity_at_target: re.equity_at_target || 0,
+        })),
+        { ...dashboardOptions, includePending: false },
       )
-      return {
-        adjustedTotalAssets: currentSnapshot.adjustedTotalAssets,
-        adjustedInvestedAmount: currentSnapshot.adjustedInvestedAmount,
+      // Appreciation deltas (crypto & commodities) not embedded in forecast positions snapshot
+      let projectedTotalAssets = forecastKpis.projectedTotalAssets
+      let projectedInvestmentTotal = forecastKpis.projectedInvestmentTotalAssets
+      if (forecastResult) {
+        const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+        const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+        if (cryptoFactor !== 1) {
+          const baseCrypto = getCryptoPositions(
+            positionsData,
+            locale,
+            settings.general.defaultCurrency,
+            exchangeRates,
+            { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
+          ).reduce((s, c) => s + c.value, 0)
+          const appreciatedCrypto = baseCrypto * cryptoFactor
+          projectedTotalAssets += appreciatedCrypto - baseCrypto
+          projectedInvestmentTotal += appreciatedCrypto - baseCrypto
+        }
+        if (commodityFactor !== 1) {
+          const baseCommodity = getCommodityPositions(
+            positionsData,
+            locale,
+            settings.general.defaultCurrency,
+            exchangeRates,
+            settings,
+            { unknown: t.common.unknown },
+          ).reduce((s, c) => s + c.value, 0)
+          const appreciatedCommodity = baseCommodity * commodityFactor
+          projectedTotalAssets += appreciatedCommodity - baseCommodity
+          projectedInvestmentTotal += appreciatedCommodity - baseCommodity
+        }
       }
-    }
-    const forecastKpis = computeForecastKpis(
+      const investmentInvested = forecastKpis.projectedInvestmentInvestedAmount
+      const gain =
+        investmentInvested > 0
+          ? ((projectedInvestmentTotal - investmentInvested) /
+              investmentInvested) *
+            100
+          : 0
+      return {
+        adjustedTotalAssets: projectedTotalAssets,
+        adjustedInvestedAmount: investmentInvested,
+        gainPercentage: gain,
+      }
+    }, [
+      forecastMode,
       positionsData,
-      effectivePositionsData as any,
+      effectivePositionsData,
       targetCurrency,
       exchangeRates,
-      [],
+      pendingFlows,
       realEstateList,
-      forecastResult?.real_estate?.map(re => ({
-        id: re.id,
-        equity_at_target: re.equity_at_target || 0,
-      })),
-      { ...dashboardOptions, includePending: false },
-    )
-    // Appreciation deltas (crypto & commodities) not embedded in forecast positions snapshot
-    let projectedTotalAssets = forecastKpis.projectedTotalAssets
-    if (forecastResult) {
-      const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
-      const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
-      if (cryptoFactor !== 1) {
-        const baseCrypto = getCryptoPositions(
-          positionsData,
-          locale,
-          settings.general.defaultCurrency,
-          exchangeRates,
-        ).reduce((s, c) => s + c.value, 0)
-        const appreciatedCrypto = baseCrypto * cryptoFactor
-        projectedTotalAssets += appreciatedCrypto - baseCrypto
-      }
-      if (commodityFactor !== 1) {
-        const baseCommodity = getCommodityPositions(
-          positionsData,
-          locale,
-          settings.general.defaultCurrency,
-          exchangeRates,
-          settings,
-        ).reduce((s, c) => s + c.value, 0)
-        const appreciatedCommodity = baseCommodity * commodityFactor
-        projectedTotalAssets += appreciatedCommodity - baseCommodity
-      }
-    }
-    return {
-      adjustedTotalAssets: projectedTotalAssets,
-      adjustedInvestedAmount: forecastKpis.projectedInvestedAmount,
-    }
-  }, [
-    forecastMode,
-    positionsData,
-    effectivePositionsData,
-    targetCurrency,
-    exchangeRates,
-    pendingFlows,
-    realEstateList,
-    dashboardOptions,
-    forecastResult,
-    locale,
-    settings,
-  ])
+      dashboardOptions,
+      forecastResult,
+      locale,
+      settings,
+    ])
 
-  const forecastCashDeltaTotal = useMemo(() => {
-    if (
-      !forecastMode ||
-      !forecastResult ||
-      !Array.isArray(forecastResult.cash_delta)
-    )
-      return 0
-    return forecastResult.cash_delta.reduce<number>(
-      (acc, cd) =>
-        acc +
-        convertCurrency(cd.amount, cd.currency, targetCurrency, exchangeRates),
-      0,
-    )
-  }, [forecastMode, forecastResult, targetCurrency, exchangeRates])
   // Base ongoing projects (unfiltered)
-  const ongoingProjectsBase = useMemo(
+  const ongoingProjects = useMemo(
     () =>
       getOngoingProjects(
-        positionsData,
+        effectivePositionsData,
         locale,
         settings.general.defaultCurrency,
+        { unknown: t.common.unknown },
       ),
-    [positionsData, locale, settings.general.defaultCurrency],
+    [effectivePositionsData, locale, settings.general.defaultCurrency, t],
   )
-  // When forecasting, only show projects whose maturity is after the forecast target date
-  const ongoingProjects = useMemo(() => {
-    if (!forecastMode || !forecastResult) return ongoingProjectsBase
-    try {
-      const target = new Date(forecastResult.target_date)
-      return ongoingProjectsBase.filter(p => new Date(p.maturity) >= target)
-    } catch {
-      return ongoingProjectsBase
-    }
-  }, [forecastMode, forecastResult, ongoingProjectsBase])
   const stockAndFundPositions = useMemo(
     () =>
       getStockAndFundPositions(
@@ -708,12 +638,14 @@ export default function DashboardPage() {
         locale,
         settings.general.defaultCurrency,
         exchangeRates,
+        { unknown: t.common.unknown, unknownToken: t.common.unknownToken },
       ),
     [
       effectivePositionsData,
       locale,
       settings.general.defaultCurrency,
       exchangeRates,
+      t,
     ],
   )
   const commodityPositions = useMemo(
@@ -724,6 +656,7 @@ export default function DashboardPage() {
         settings.general.defaultCurrency,
         exchangeRates,
         settings,
+        { unknown: t.common.unknown },
       ),
     [
       effectivePositionsData,
@@ -731,6 +664,7 @@ export default function DashboardPage() {
       settings.general.defaultCurrency,
       exchangeRates,
       settings,
+      t,
     ],
   )
   // Asset presence flags for conditional forecast inputs
@@ -1106,234 +1040,6 @@ export default function DashboardPage() {
     }
   }
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload
-      // In forecast mode, ensure no change/profit related info leaks
-      if (forecastMode) {
-        data.change = 0
-      }
-      return (
-        <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
-          <div className="flex items-center gap-2 mb-2">
-            {getIconForAssetType(data.type)}
-            <p className="font-medium text-sm text-popover-foreground">
-              {(t.enums?.productType as any)?.[data.type] ?? data.type}
-            </p>
-          </div>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>
-              <span className="font-medium text-popover-foreground">
-                {formatCurrency(
-                  data.value,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
-              </span>
-            </p>
-            <p>{data.percentage}%</p>
-          </div>
-        </div>
-      )
-    }
-    return null
-  }
-
-  const CustomEntityTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload
-      return (
-        <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: entityColorMap.get(data.id) }}
-            />
-            <p className="font-medium text-sm text-popover-foreground">
-              {data.name}
-            </p>
-          </div>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <p>
-              <span className="font-medium text-popover-foreground">
-                {formatCurrency(
-                  data.value,
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
-              </span>
-            </p>
-            <p>{data.percentage}%</p>
-          </div>
-        </div>
-      )
-    }
-    return null
-  }
-
-  const CustomLegend = (props: any) => {
-    const { payload } = props
-
-    const getInvestmentRoute = (assetType: string) => {
-      const routeMap: Record<string, string> = {
-        STOCK_ETF: "/investments/stocks-etfs",
-        FUND: "/investments/funds",
-        DEPOSIT: "/investments/deposits",
-        FACTORING: "/investments/factoring",
-        REAL_ESTATE_CF: "/investments/real-estate-cf",
-        CRYPTO: "/investments/crypto",
-        COMMODITY: "/investments/commodities",
-        PENDING_FLOWS: "/management/pending",
-        CASH: "/banking",
-        REAL_ESTATE: "/real-estate",
-      }
-      return routeMap[assetType] || null
-    }
-
-    const handleLegendClick = (assetType: string) => {
-      const route = getInvestmentRoute(assetType)
-      if (route) {
-        navigate(route)
-      }
-    }
-
-    return (
-      <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
-        {payload.map((entry: any, index: number) => {
-          const assetType = entry.payload.payload.type
-          const assetValue = entry.payload.payload.value
-          const assetPercentage = entry.payload.payload.percentage
-          const icon = getIconForAssetType(assetType)
-          const hasRoute = getInvestmentRoute(assetType) !== null
-
-          return (
-            <li
-              key={`legend-item-${index}`}
-              className={`flex items-center space-x-2 p-1 rounded transition-colors ${
-                hasRoute
-                  ? "hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-                  : "cursor-default"
-              }`}
-              title={`${(t.enums?.productType as any)?.[assetType] ?? assetType}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)${hasRoute ? " - Click to view details" : ""}`}
-              onClick={() => hasRoute && handleLegendClick(assetType)}
-            >
-              <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                {icon}
-              </span>
-              <span className="capitalize truncate flex-grow min-w-0">
-                {(t.enums?.productType as any)?.[assetType] ?? assetType}
-              </span>
-              <div className="text-right flex space-x-1">
-                <span className="block whitespace-nowrap text-[11px]">
-                  {formatCurrency(
-                    assetValue,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
-                </span>
-              </div>
-            </li>
-          )
-        })}
-        {forecastMode && forecastCashDeltaTotal < 0 && (
-          <li
-            className="flex items-center space-x-2 p-1 rounded bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40"
-            title={(t as any).forecast.pendingPaymentsLegend.replace(
-              "{amount}",
-              formatCurrency(
-                Math.abs(forecastCashDeltaTotal),
-                locale,
-                settings.general.defaultCurrency,
-              ),
-            )}
-          >
-            <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-red-600 dark:text-red-400">
-              <AlertCircle className="h-4 w-4" />
-            </span>
-            <span className="truncate flex-grow min-w-0 text-red-700 dark:text-red-300">
-              {(t as any).forecast.pendingPaymentsLegendLabel}
-            </span>
-            <div className="text-right flex space-x-1 text-red-700 dark:text-red-300">
-              <span className="block whitespace-nowrap text-[11px]">
-                {formatCurrency(
-                  Math.abs(forecastCashDeltaTotal),
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
-              </span>
-            </div>
-          </li>
-        )}
-      </ul>
-    )
-  }
-
-  const CustomEntityLegend = (props: any) => {
-    const { payload } = props
-    return (
-      <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
-        {payload.map((entry: any, index: number) => {
-          const entityName = entry.payload.payload.name
-          const entityValue = entry.payload.payload.value
-          const entityPercentage = entry.payload.payload.percentage
-          const entityId = entry.payload.payload.id
-
-          return (
-            <li
-              key={`entity-legend-item-${index}`}
-              className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${entityName}: ${formatCurrency(entityValue, locale, settings.general.defaultCurrency)} (${entityPercentage}%)`}
-            >
-              <span
-                className="flex-shrink-0 w-4 h-4 rounded-full"
-                style={{ backgroundColor: entityColorMap.get(entityId) }}
-              />
-              <span className="truncate flex-grow min-w-0">{entityName}</span>
-              <div className="text-right flex space-x-1">
-                <span className="block whitespace-nowrap text-[11px]">
-                  {formatCurrency(
-                    entityValue,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
-                </span>
-              </div>
-            </li>
-          )
-        })}
-        {forecastMode && forecastCashDeltaTotal < 0 && (
-          <li
-            className="flex items-center space-x-2 p-1 rounded bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40"
-            title={(t as any).forecast.pendingPaymentsLegend.replace(
-              "{amount}",
-              formatCurrency(
-                Math.abs(forecastCashDeltaTotal),
-                locale,
-                settings.general.defaultCurrency,
-              ),
-            )}
-          >
-            <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-red-600 dark:text-red-400">
-              <AlertCircle className="h-4 w-4" />
-            </span>
-            <span className="truncate flex-grow min-w-0 text-red-700 dark:text-red-300">
-              {(t as any).forecast.pendingPaymentsLegendLabel}
-            </span>
-            <div className="text-right flex space-x-1 text-red-700 dark:text-red-300">
-              <span className="block whitespace-nowrap text-[11px]">
-                {formatCurrency(
-                  Math.abs(forecastCashDeltaTotal),
-                  locale,
-                  settings.general.defaultCurrency,
-                )}
-              </span>
-            </div>
-          </li>
-        )}
-      </ul>
-    )
-  }
-
   // Fetch upcoming events from API
   useEffect(() => {
     if (forecastMode) {
@@ -1367,7 +1073,7 @@ export default function DashboardPage() {
             )
 
             let kind: "flow" | "contribution" | "maturity"
-            let recurring = false
+            let recurring: boolean
 
             if (event.type === MoneyEventType.CONTRIBUTION) {
               kind = "contribution"
@@ -1455,8 +1161,8 @@ export default function DashboardPage() {
   }
 
   const renderUpcomingCard = () => (
-    <Card>
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
+    <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+      <CardHeader className="flex flex-row items-center justify-between pb-3 gap-2">
         <CardTitle className="text-lg font-bold flex items-center">
           <CalendarDays className="h-5 w-5 mr-2 text-primary" />
           {t.dashboard.upcomingFlows}
@@ -1466,7 +1172,7 @@ export default function DashboardPage() {
             variant="outline"
             size="sm"
             onClick={() => navigate("/management")}
-            className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
+            className="text-xs px-2 py-1 h-auto min-h-0"
           >
             <ArrowRight className="h-3 w-3 mr-1" />
             {t.dashboard.manageFlows}
@@ -1567,12 +1273,14 @@ export default function DashboardPage() {
                     <p
                       className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
                     >
-                      {amountPrefix}
-                      {formatCurrency(
-                        Math.abs(item.convertedAmount),
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
+                      <Sensitive>
+                        {amountPrefix}
+                        {formatCurrency(
+                          Math.abs(item.convertedAmount),
+                          locale,
+                          settings.general.defaultCurrency,
+                        )}
+                      </Sensitive>
                     </p>
                   </div>
                 )
@@ -1644,7 +1352,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6">
       {forecastLoading ? (
         <div className="flex justify-center items-center h-[70vh]">
           <LoadingSpinner size="lg" />
@@ -1656,20 +1364,20 @@ export default function DashboardPage() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-            <h1 className="text-3xl font-bold flex-shrink-0">
+          <div className="flex flex-row items-center justify-between gap-3">
+            <h1 className="text-3xl font-bold flex-shrink-0 whitespace-nowrap">
               {t.common.dashboard}
             </h1>
-            <div className="flex flex-wrap gap-2 items-center justify-end">
+            <div className="flex items-center gap-2 justify-end flex-nowrap">
               {/* Forecast active indicator / trigger */}
               <Popover open={forecastOpen} onOpenChange={setForecastOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant={forecastMode ? "default" : "outline"}
-                    className="flex items-center h-9 px-3 text-sm"
+                    className="flex items-center h-9 px-3 text-sm [@media(max-width:450px)]:w-9 [@media(max-width:450px)]:px-0 [@media(max-width:450px)]:justify-center"
                   >
-                    <TrendingUpDown className="h-4 w-4 mr-1 flex-shrink-0" />
-                    <span className="whitespace-nowrap">
+                    <TrendingUpDown className="h-4 w-4 flex-shrink-0 mr-0 [@media(min-width:450px)]:mr-1" />
+                    <span className="hidden [@media(min-width:450px)]:inline whitespace-nowrap">
                       {forecastMode && forecastResult
                         ? formatDate(forecastResult.target_date, locale)
                         : t.forecast.title}
@@ -1683,6 +1391,7 @@ export default function DashboardPage() {
                           setForecastAnnualIncrease("")
                           setForecastAnnualCryptoIncrease("")
                           setForecastAnnualCommodityIncrease("")
+                          setForecastIncludeRETaxes(true)
                         }}
                         className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
                         aria-label={t.forecast.close}
@@ -1694,6 +1403,9 @@ export default function DashboardPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-80 z-[50]" align="end">
                   <div className="space-y-3">
+                    <h4 className="text-lg font-semibold">
+                      {t.forecast.title}
+                    </h4>
                     <div className="space-y-1">
                       <label className="text-xs font-medium">
                         {t.forecast.targetDate}
@@ -1712,15 +1424,11 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualIncrease}
-                          onChange={e =>
-                            setForecastAnnualIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
@@ -1733,15 +1441,11 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualCryptoIncrease}
-                          onChange={e =>
-                            setForecastAnnualCryptoIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualCryptoIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
@@ -1754,160 +1458,112 @@ export default function DashboardPage() {
                             %
                           </span>
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <DecimalInput
+                          allowNegative
                           value={forecastAnnualCommodityIncrease}
-                          onChange={e =>
-                            setForecastAnnualCommodityIncrease(e.target.value)
-                          }
-                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          onStringChange={setForecastAnnualCommodityIncrease}
+                          className="w-full h-9 px-2 text-sm"
                           placeholder="0.0"
                         />
                       </div>
                     )}
-                    <div className="flex justify-end gap-2">
-                      {forecastMode && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setForecastResult(null)
-                            setForecastTargetDate("")
-                            setForecastAnnualIncrease("")
-                            setForecastAnnualCryptoIncrease("")
-                            setForecastAnnualCommodityIncrease("")
-                          }}
-                          className="text-xs"
-                        >
-                          {t.forecast.reset}
-                        </Button>
+                    <div className="flex items-center justify-between gap-2">
+                      {(realEstateList?.length ?? 0) > 0 && (
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <label className="text-xs text-muted-foreground truncate cursor-pointer">
+                            {t.forecast.includeRealEstateTaxes}
+                          </label>
+                          <Switch
+                            checked={forecastIncludeRETaxes}
+                            onCheckedChange={val =>
+                              setForecastIncludeRETaxes(Boolean(val))
+                            }
+                            className="scale-75 origin-left flex-shrink-0"
+                          />
+                        </div>
                       )}
-                      <Button
-                        size="sm"
-                        disabled={
-                          !forecastTargetDate ||
-                          forecastLoading ||
-                          (!!forecastTargetDate &&
-                            new Date(forecastTargetDate) <= new Date())
-                        }
-                        onClick={async () => {
-                          try {
-                            setForecastLoading(true)
-                            const result = await getForecast({
-                              target_date: forecastTargetDate,
-                              avg_annual_market_increase: forecastAnnualIncrease
-                                ? parseFloat(forecastAnnualIncrease) / 100
-                                : null,
-                              avg_annual_crypto_increase:
-                                forecastAnnualCryptoIncrease
-                                  ? parseFloat(forecastAnnualCryptoIncrease) /
-                                    100
-                                  : null,
-                              avg_annual_commodity_increase:
-                                forecastAnnualCommodityIncrease
-                                  ? parseFloat(
-                                      forecastAnnualCommodityIncrease,
-                                    ) / 100
-                                  : null,
-                            })
-                            setForecastResult(result)
-                            setForecastOpen(false)
-                          } catch (err) {
-                            console.error("Forecast error", err)
-                          } finally {
-                            setForecastLoading(false)
+                      <div className="flex gap-2 flex-shrink-0 ml-auto">
+                        {forecastMode && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setForecastResult(null)
+                              setForecastTargetDate("")
+                              setForecastAnnualIncrease("")
+                              setForecastAnnualCryptoIncrease("")
+                              setForecastAnnualCommodityIncrease("")
+                              setForecastIncludeRETaxes(true)
+                            }}
+                            className="text-xs"
+                          >
+                            {t.forecast.reset}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          disabled={
+                            !forecastTargetDate ||
+                            forecastLoading ||
+                            (!!forecastTargetDate &&
+                              new Date(forecastTargetDate) <= new Date())
                           }
-                        }}
-                        className="text-xs"
-                      >
-                        {forecastLoading ? t.common.loading : t.forecast.run}
-                      </Button>
+                          onClick={async () => {
+                            try {
+                              setForecastLoading(true)
+                              const result = await getForecast({
+                                target_date: forecastTargetDate,
+                                avg_annual_market_increase:
+                                  forecastAnnualIncrease
+                                    ? parseFloat(
+                                        forecastAnnualIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
+                                      ) / 100
+                                    : null,
+                                avg_annual_crypto_increase:
+                                  forecastAnnualCryptoIncrease
+                                    ? parseFloat(
+                                        forecastAnnualCryptoIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
+                                      ) / 100
+                                    : null,
+                                avg_annual_commodity_increase:
+                                  forecastAnnualCommodityIncrease
+                                    ? parseFloat(
+                                        forecastAnnualCommodityIncrease.replace(
+                                          ",",
+                                          ".",
+                                        ),
+                                      ) / 100
+                                    : null,
+                                include_real_estate_taxes:
+                                  forecastIncludeRETaxes,
+                              })
+                              setForecastResult(result)
+                              setForecastOpen(false)
+                            } catch (err) {
+                              console.error("Forecast error", err)
+                            } finally {
+                              setForecastLoading(false)
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          {forecastLoading ? (
+                            t.common.loading
+                          ) : (
+                            <ArrowRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
                       {t.forecast.disclaimer}
                     </p>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {/* Dashboard Options */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex items-center h-9 px-3"
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="end">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <HandCoins className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includePendingMoney}
-                      </div>
-                      <Switch
-                        disabled={forecastMode}
-                        checked={
-                          forecastMode ? false : dashboardOptions.includePending
-                        }
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includePending: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includeCardExpenses}
-                      </div>
-                      <Switch
-                        checked={dashboardOptions.includeCardExpenses}
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includeCardExpenses: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm flex items-center gap-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          {t.dashboard.includeRealEstateEquity}
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeRealEstate}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeRealEstate: Boolean(val),
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pl-6">
-                        <div className="text-sm text-muted-foreground">
-                          {t.dashboard.includeResidences}
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeResidences}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeResidences: Boolean(val),
-                            }))
-                          }
-                          disabled={!dashboardOptions.includeRealEstate}
-                        />
-                      </div>
-                    </div>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1938,358 +1594,27 @@ export default function DashboardPage() {
                 <AnimatedContainer
                   skipAnimation={skipAnimations}
                   delay={0.1}
-                  className="order-2 lg:order-1 lg:col-span-7"
+                  className="lg:col-span-7"
                 >
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg font-bold flex items-center">
-                        <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
-                        {t.dashboard.assetDistribution}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent
-                      ref={assetDistributionCardRef}
-                      className="px-2"
-                    >
-                      <Tabs defaultValue="by-asset" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="by-asset">
-                            {t.dashboard.assetDistributionByType}
-                          </TabsTrigger>
-                          <TabsTrigger value="by-entity">
-                            {t.dashboard.assetDistributionByEntity}
-                          </TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="by-asset" className="mt-4">
-                          {assetDistribution.length > 0 ? (
-                            <div
-                              className={
-                                assetDistributionCardSmall
-                                  ? "h-[450px] px-2"
-                                  : "h-[300px] px-4"
-                              }
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart
-                                  key={`pie-asset-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
-                                  style={{ userSelect: "none" }}
-                                >
-                                  <Pie
-                                    data={assetDistribution}
-                                    cx={
-                                      assetDistributionCardSmall ? "50%" : "45%"
-                                    }
-                                    cy={
-                                      assetDistributionCardSmall ? "40%" : "50%"
-                                    }
-                                    labelLine={false}
-                                    innerRadius={
-                                      assetDistributionCardSmall ? 60 : 70
-                                    }
-                                    outerRadius={
-                                      assetDistributionCardSmall ? 100 : 110
-                                    }
-                                    fill="#8884d8"
-                                    dataKey="value"
-                                    nameKey="type"
-                                    isAnimationActive={false}
-                                    stroke="hsl(var(--background))"
-                                    strokeWidth={2}
-                                    label={({
-                                      cx,
-                                      cy,
-                                      midAngle,
-                                      innerRadius,
-                                      outerRadius,
-                                      percentage,
-                                    }) => {
-                                      if (percentage < 3) return null
-
-                                      const RADIAN = Math.PI / 180
-
-                                      const isLargeSegment = percentage >= 15
-                                      const radius = isLargeSegment
-                                        ? innerRadius +
-                                          (outerRadius - innerRadius) * 0.45 // Inside
-                                        : innerRadius +
-                                          (outerRadius - innerRadius) * 1.25 // Outside
-
-                                      const x =
-                                        cx +
-                                        radius * Math.cos(-midAngle * RADIAN)
-                                      const y =
-                                        cy +
-                                        radius * Math.sin(-midAngle * RADIAN)
-
-                                      return (
-                                        <g>
-                                          <text
-                                            x={x}
-                                            y={y}
-                                            fill={
-                                              isLargeSegment
-                                                ? "white"
-                                                : "hsl(var(--foreground))"
-                                            }
-                                            textAnchor="middle"
-                                            dominantBaseline="central"
-                                            fontSize={
-                                              isLargeSegment ? "12" : "10"
-                                            }
-                                            fontWeight="600"
-                                          >
-                                            {percentage.toFixed(0)}%
-                                          </text>
-                                        </g>
-                                      )
-                                    }}
-                                  >
-                                    {assetDistribution.map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={getPieSliceColorForAssetType(
-                                          entry.type,
-                                        )}
-                                        style={{ outline: "none" }}
-                                      />
-                                    ))}
-                                  </Pie>
-                                  <Tooltip content={<CustomTooltip />} />
-                                  <Legend
-                                    layout="vertical"
-                                    verticalAlign={
-                                      assetDistributionCardSmall
-                                        ? "bottom"
-                                        : "middle"
-                                    }
-                                    align={
-                                      assetDistributionCardSmall
-                                        ? "center"
-                                        : "right"
-                                    }
-                                    wrapperStyle={
-                                      assetDistributionCardSmall
-                                        ? {
-                                            maxHeight: "200px",
-                                            overflowY: "auto",
-                                            width: "95%",
-                                            margin: "0 auto",
-                                          }
-                                        : {
-                                            paddingRight: "10px",
-                                            maxHeight: "260px",
-                                            overflowY: "auto",
-                                          }
-                                    }
-                                    content={<CustomLegend />}
-                                  />
-                                </PieChart>
-                              </ResponsiveContainer>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              {t.common.noDataAvailable}
-                            </p>
-                          )}
-                        </TabsContent>
-
-                        <TabsContent value="by-entity" className="mt-4">
-                          {adjustedEntityDistribution.length > 0 ? (
-                            <div
-                              className={
-                                assetDistributionCardSmall
-                                  ? "h-[450px] px-2"
-                                  : "h-[300px] px-4"
-                              }
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart
-                                  key={`pie-entity-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
-                                  style={{ userSelect: "none" }}
-                                >
-                                  <Pie
-                                    data={adjustedEntityDistribution}
-                                    cx={
-                                      assetDistributionCardSmall ? "50%" : "45%"
-                                    }
-                                    cy={
-                                      assetDistributionCardSmall ? "40%" : "50%"
-                                    }
-                                    labelLine={false}
-                                    innerRadius={
-                                      assetDistributionCardSmall ? 60 : 70
-                                    }
-                                    outerRadius={
-                                      assetDistributionCardSmall ? 100 : 110
-                                    }
-                                    fill="#8884d8"
-                                    dataKey="value"
-                                    nameKey="name"
-                                    isAnimationActive={false}
-                                    stroke="hsl(var(--background))"
-                                    strokeWidth={2}
-                                    label={({
-                                      cx,
-                                      cy,
-                                      midAngle,
-                                      innerRadius,
-                                      outerRadius,
-                                      percentage,
-                                    }) => {
-                                      if (percentage < 3) return null
-
-                                      const RADIAN = Math.PI / 180
-
-                                      const isLargeSegment = percentage >= 15
-                                      const radius = isLargeSegment
-                                        ? innerRadius +
-                                          (outerRadius - innerRadius) * 0.45 // Inside
-                                        : innerRadius +
-                                          (outerRadius - innerRadius) * 1.25 // Outside
-
-                                      const x =
-                                        cx +
-                                        radius * Math.cos(-midAngle * RADIAN)
-                                      const y =
-                                        cy +
-                                        radius * Math.sin(-midAngle * RADIAN)
-
-                                      return (
-                                        <g>
-                                          <text
-                                            x={x}
-                                            y={y}
-                                            fill={
-                                              isLargeSegment
-                                                ? "white"
-                                                : "hsl(var(--foreground))"
-                                            }
-                                            textAnchor="middle"
-                                            dominantBaseline="central"
-                                            fontSize={
-                                              isLargeSegment ? "12" : "10"
-                                            }
-                                            fontWeight="600"
-                                          >
-                                            {percentage.toFixed(0)}%
-                                          </text>
-                                        </g>
-                                      )
-                                    }}
-                                  >
-                                    {adjustedEntityDistribution.map(
-                                      (entry, index) => (
-                                        <Cell
-                                          key={`entity-cell-${index}`}
-                                          fill={entityColorMap.get(entry.id)}
-                                          style={{ outline: "none" }}
-                                        />
-                                      ),
-                                    )}
-                                  </Pie>
-                                  <Tooltip content={<CustomEntityTooltip />} />
-                                  <Legend
-                                    layout="vertical"
-                                    verticalAlign={
-                                      assetDistributionCardSmall
-                                        ? "bottom"
-                                        : "middle"
-                                    }
-                                    align={
-                                      assetDistributionCardSmall
-                                        ? "center"
-                                        : "right"
-                                    }
-                                    wrapperStyle={
-                                      assetDistributionCardSmall
-                                        ? {
-                                            maxHeight: "200px",
-                                            overflowY: "auto",
-                                            width: "95%",
-                                            margin: "0 auto",
-                                          }
-                                        : {
-                                            paddingRight: "10px",
-                                            maxHeight: "260px",
-                                            overflowY: "auto",
-                                          }
-                                    }
-                                    content={<CustomEntityLegend />}
-                                  />
-                                </PieChart>
-                              </ResponsiveContainer>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              {t.common.noDataAvailable}
-                            </p>
-                          )}
-                        </TabsContent>
-                      </Tabs>
-                    </CardContent>
-                  </Card>
-                </AnimatedContainer>
-
-                <AnimatedContainer
-                  skipAnimation={skipAnimations}
-                  delay={0.25}
-                  className="order-3 lg:hidden"
-                >
-                  {renderUpcomingCard()}
-                </AnimatedContainer>
-
-                <AnimatedContainer
-                  skipAnimation={skipAnimations}
-                  delay={0.2}
-                  className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8 space-y-6"
-                >
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg font-bold flex items-center">
-                        <Wallet className="h-5 w-5 mr-2 text-primary" />
-                        {t.dashboard.netWorth}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-y-1">
-                        <p className="text-4xl font-bold">
-                          {formatCurrency(
-                            adjustedTotalAssets,
-                            locale,
-                            settings.general.defaultCurrency,
-                          )}
-                        </p>
-                        {adjustedInvestedAmount > 0 &&
-                          (() => {
-                            const percentageValue =
-                              ((adjustedTotalAssets - adjustedInvestedAmount) /
-                                adjustedInvestedAmount) *
-                              100
-                            const sign = percentageValue >= 0 ? "+" : "-"
-                            return (
-                              <p
-                                className={`text-xl font-medium sm:text-right sm:self-end ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                              >
-                                {sign}
-                                {formatPercentage(
-                                  Math.abs(percentageValue),
-                                  locale,
-                                )}
-                              </p>
-                            )
-                          })()}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {t.dashboard.investedAmount}{" "}
-                        {formatCurrency(
-                          adjustedInvestedAmount,
-                          locale,
-                          settings.general.defaultCurrency,
-                        )}
-                      </p>
+                  <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+                    <CardContent className="pt-6">
+                      <PortfolioDonutChart
+                        totalValue={adjustedTotalAssets}
+                        investedAmount={adjustedInvestedAmount}
+                        gainPercentage={gainPercentage}
+                        currency={settings.general.defaultCurrency}
+                        assetDistribution={assetDistribution}
+                        entityDistribution={adjustedEntityDistribution}
+                        entityColorMap={entityColorMap}
+                        entities={entities}
+                        distributionView={distributionView}
+                        setDistributionView={setDistributionView}
+                        forecastMode={forecastMode}
+                        dashboardOptions={dashboardOptions}
+                        setDashboardOptions={setDashboardOptions}
+                      />
                       {forecastMode && projectedCash < 0 && (
-                        <div className="mt-3 flex items-start gap-3 rounded-md border border-amber-400/60 bg-amber-100/70 dark:bg-amber-900/40 px-3 py-2.5 text-sm">
+                        <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-400/60 bg-amber-100/70 dark:bg-amber-900/40 px-3 py-2.5 text-sm">
                           <div className="shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 p-1.5 ring-1 ring-amber-500/30">
                             <AlertCircle className="h-5 w-5" />
                           </div>
@@ -2298,21 +1623,30 @@ export default function DashboardPage() {
                               {t.forecast.negativeCashWarningTitle}
                             </p>
                             <p className="text-amber-800/90 dark:text-amber-100/80 leading-snug">
-                              {t.forecast.negativeCashWarning.replace(
-                                "{amount}",
-                                formatCurrency(
-                                  projectedCash,
-                                  locale,
-                                  settings.general.defaultCurrency,
-                                ),
-                              )}
+                              <Sensitive>
+                                {t.forecast.negativeCashWarning.replace(
+                                  "{amount}",
+                                  formatCurrency(
+                                    projectedCash,
+                                    locale,
+                                    settings.general.defaultCurrency,
+                                  ),
+                                )}
+                              </Sensitive>
                             </p>
                           </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
-                  <div className="hidden lg:block">{renderUpcomingCard()}</div>
+                </AnimatedContainer>
+
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.2}
+                  className="lg:col-span-5"
+                >
+                  {renderUpcomingCard()}
                 </AnimatedContainer>
               </div>
 
@@ -2374,6 +1708,9 @@ export default function DashboardPage() {
                             project.maturity,
                             t,
                             project.extendedMaturity,
+                            forecastMode && forecastResult
+                              ? new Date(forecastResult.target_date)
+                              : null,
                           )
                           const route = getInvestmentRouteForProject(
                             project.type,
@@ -2464,7 +1801,9 @@ export default function DashboardPage() {
                                   </div>
                                   <div className="flex justify-between items-start mb-2">
                                     <p className="text-base font-semibold">
-                                      {project.formattedValue}
+                                      <Sensitive>
+                                        {project.formattedValue}
+                                      </Sensitive>
                                     </p>
                                     {(() => {
                                       const isLate =
@@ -2476,26 +1815,32 @@ export default function DashboardPage() {
                                         return (
                                           <div className="flex items-center gap-1">
                                             <p className="text-[9px] text-muted-foreground">
-                                              {formatPercentage(
-                                                project.roi,
-                                                locale,
-                                              )}
+                                              <Sensitive>
+                                                {formatPercentage(
+                                                  project.roi,
+                                                  locale,
+                                                )}
+                                              </Sensitive>
                                             </p>
                                             <p className="text-base font-semibold text-green-600">
-                                              {formatPercentage(
-                                                project.lateInterestRate!,
-                                                locale,
-                                              )}
+                                              <Sensitive>
+                                                {formatPercentage(
+                                                  project.lateInterestRate!,
+                                                  locale,
+                                                )}
+                                              </Sensitive>
                                             </p>
                                           </div>
                                         )
                                       }
                                       return (
                                         <p className="text-base font-semibold text-green-600">
-                                          {formatPercentage(
-                                            project.roi,
-                                            locale,
-                                          )}
+                                          <Sensitive>
+                                            {formatPercentage(
+                                              project.roi,
+                                              locale,
+                                            )}
+                                          </Sensitive>
                                         </p>
                                       )
                                     })()}
@@ -2517,14 +1862,14 @@ export default function DashboardPage() {
                   delay={0.4}
                   className="lg:col-span-7"
                 >
-                  <Card className="h-full flex flex-col">
-                    <CardHeader>
-                      <CardTitle className="text-lg font-bold flex items-center">
-                        <BarChart3 className="h-5 w-5 mr-2 text-primary" />
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                    <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
+                      <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">
+                        <ListCollapse className="h-5 w-5 mr-2 text-primary" />
                         {t.dashboard.stocksAndFunds.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex flex-col space-y-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
+                      </h3>
+                    </div>
+                    <div className="flex-grow flex flex-col space-y-3 lg:p-4 lg:pt-0 overflow-hidden min-h-[350px] max-h-[650px]">
                       {fundItems.length > 0 ||
                       stockItems.length > 0 ||
                       cryptoItems.length > 0 ||
@@ -2533,7 +1878,11 @@ export default function DashboardPage() {
                           <div className="flex-grow space-y-2 overflow-y-auto scrollbar-thin pr-2">
                             {fundItems.length > 0 ? (
                               <div className="pb-2">
-                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-gray-50 lg:bg-card dark:bg-black lg:dark:bg-card z-10 py-1 flex items-center gap-2">
+                                  {getIconForAssetType(
+                                    "FUND",
+                                    "h-4 w-4 text-foreground",
+                                  )}
                                   {t.dashboard.stocksAndFunds.funds}
                                 </h3>
                                 {fundItems.map((item, index) => (
@@ -2565,7 +1914,9 @@ export default function DashboardPage() {
                                           )}
                                         </div>
                                         <span className="font-semibold whitespace-nowrap text-sm">
-                                          {item.formattedValue}
+                                          <Sensitive>
+                                            {item.formattedValue}
+                                          </Sensitive>
                                         </span>
                                       </div>
 
@@ -2580,10 +1931,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2595,7 +1948,11 @@ export default function DashboardPage() {
 
                             {stockItems.length > 0 ? (
                               <div className="pb-2">
-                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-gray-50 lg:bg-card dark:bg-black lg:dark:bg-card z-10 py-1 flex items-center gap-2">
+                                  {getIconForAssetType(
+                                    "STOCK_ETF",
+                                    "h-4 w-4 text-foreground",
+                                  )}
                                   {t.dashboard.stocksAndFunds.stocksEtfs}
                                 </h3>
                                 {stockItems.map((item, index) => (
@@ -2615,7 +1972,9 @@ export default function DashboardPage() {
                                           {item.name}
                                         </span>
                                         <span className="font-semibold whitespace-nowrap text-sm">
-                                          {item.formattedValue}
+                                          <Sensitive>
+                                            {item.formattedValue}
+                                          </Sensitive>
                                         </span>
                                       </div>
                                       <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
@@ -2629,10 +1988,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2644,7 +2005,11 @@ export default function DashboardPage() {
 
                             {cryptoItems.length > 0 ? (
                               <div className="pb-2">
-                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-gray-50 lg:bg-card dark:bg-black lg:dark:bg-card z-10 py-1 flex items-center gap-2">
+                                  {getIconForAssetType(
+                                    "CRYPTO",
+                                    "h-4 w-4 !text-foreground",
+                                  )}
                                   {t.common.crypto}
                                 </h3>
                                 {cryptoItems.map((item, index) => (
@@ -2677,7 +2042,9 @@ export default function DashboardPage() {
                                             {item.symbol}
                                           </span>
                                           <span className="font-semibold whitespace-nowrap text-sm">
-                                            {item.formattedValue}
+                                            <Sensitive>
+                                              {item.formattedValue}
+                                            </Sensitive>
                                           </span>
                                         </div>
                                       </div>
@@ -2705,10 +2072,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2720,7 +2089,11 @@ export default function DashboardPage() {
 
                             {commodityItems.length > 0 ? (
                               <div className="pb-2">
-                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-gray-50 lg:bg-card dark:bg-black lg:dark:bg-card z-10 py-1 flex items-center gap-2">
+                                  {getIconForAssetType(
+                                    "COMMODITY",
+                                    "h-4 w-4 !text-foreground",
+                                  )}
                                   {t.common.commodities}
                                 </h3>
                                 {commodityItems.map((item, index) => (
@@ -2763,7 +2136,9 @@ export default function DashboardPage() {
                                             }
                                           </span>
                                           <span className="font-semibold whitespace-nowrap text-sm">
-                                            {item.formattedValue}
+                                            <Sensitive>
+                                              {item.formattedValue}
+                                            </Sensitive>
                                           </span>
                                         </div>
                                       </div>
@@ -2794,10 +2169,12 @@ export default function DashboardPage() {
                                           <span
                                             className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
                                           >
-                                            {formatPercentage(
-                                              item.change,
-                                              locale,
-                                            )}
+                                            <Sensitive>
+                                              {formatPercentage(
+                                                item.change,
+                                                locale,
+                                              )}
+                                            </Sensitive>
                                           </span>
                                         )}
                                       </div>
@@ -2835,9 +2212,7 @@ export default function DashboardPage() {
                                                 `fund-${item.id}`,
                                               )
                                             }
-                                            onMouseLeave={() =>
-                                              setHoveredItem(null)
-                                            }
+                                            onMouseLeave={handleMouseLeave}
                                             onClick={() =>
                                               handlePopoverClick(
                                                 `fund-${item.id}`,
@@ -2851,9 +2226,7 @@ export default function DashboardPage() {
                                           onMouseEnter={() =>
                                             handleMouseEnter(`fund-${item.id}`)
                                           }
-                                          onMouseLeave={() =>
-                                            setHoveredItem(null)
-                                          }
+                                          onMouseLeave={handleMouseLeave}
                                         >
                                           <div className="space-y-2">
                                             <div className="flex items-center space-x-2">
@@ -2870,7 +2243,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -2880,10 +2255,12 @@ export default function DashboardPage() {
                                                     {t.dashboard.stakeInFunds}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -2923,15 +2300,17 @@ export default function DashboardPage() {
                                                         : "text-white"
                                                   }`}
                                                 >
-                                                  {item.change === 0
-                                                    ? "-"
-                                                    : (item.change > 0
-                                                        ? "+"
-                                                        : "") +
-                                                      formatPercentage(
-                                                        item.change,
-                                                        locale,
-                                                      )}
+                                                  <Sensitive>
+                                                    {item.change === 0
+                                                      ? "-"
+                                                      : (item.change > 0
+                                                          ? "+"
+                                                          : "") +
+                                                        formatPercentage(
+                                                          item.change,
+                                                          locale,
+                                                        )}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               <div className="col-span-2">
@@ -2939,11 +2318,13 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    (item as any)
-                                                      .formattedOriginalValue ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      (item as any)
+                                                        .formattedOriginalValue ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -2986,9 +2367,7 @@ export default function DashboardPage() {
                                                 `stock-${item.id}`,
                                               )
                                             }
-                                            onMouseLeave={() =>
-                                              setHoveredItem(null)
-                                            }
+                                            onMouseLeave={handleMouseLeave}
                                             onClick={() =>
                                               handlePopoverClick(
                                                 `stock-${item.id}`,
@@ -3002,9 +2381,7 @@ export default function DashboardPage() {
                                           onMouseEnter={() =>
                                             handleMouseEnter(`stock-${item.id}`)
                                           }
-                                          onMouseLeave={() =>
-                                            setHoveredItem(null)
-                                          }
+                                          onMouseLeave={handleMouseLeave}
                                         >
                                           <div className="space-y-2">
                                             <div className="flex items-center space-x-2">
@@ -3021,7 +2398,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -3031,10 +2410,12 @@ export default function DashboardPage() {
                                                     {t.dashboard.stakeInStocks}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -3080,15 +2461,17 @@ export default function DashboardPage() {
                                                         : "text-white"
                                                   }`}
                                                 >
-                                                  {item.change === 0
-                                                    ? "-"
-                                                    : (item.change > 0
-                                                        ? "+"
-                                                        : "") +
-                                                      formatPercentage(
-                                                        item.change,
-                                                        locale,
-                                                      )}
+                                                  <Sensitive>
+                                                    {item.change === 0
+                                                      ? "-"
+                                                      : (item.change > 0
+                                                          ? "+"
+                                                          : "") +
+                                                        formatPercentage(
+                                                          item.change,
+                                                          locale,
+                                                        )}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               <div className="col-span-2">
@@ -3096,11 +2479,13 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    (item as any)
-                                                      .formattedOriginalValue ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      (item as any)
+                                                        .formattedOriginalValue ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -3143,9 +2528,7 @@ export default function DashboardPage() {
                                                 `crypto-${item.id}`,
                                               )
                                             }
-                                            onMouseLeave={() =>
-                                              setHoveredItem(null)
-                                            }
+                                            onMouseLeave={handleMouseLeave}
                                             onClick={() =>
                                               handlePopoverClick(
                                                 `crypto-${item.id}`,
@@ -3161,9 +2544,7 @@ export default function DashboardPage() {
                                               `crypto-${item.id}`,
                                             )
                                           }
-                                          onMouseLeave={() =>
-                                            setHoveredItem(null)
-                                          }
+                                          onMouseLeave={handleMouseLeave}
                                         >
                                           <div className="space-y-2">
                                             <div className="flex items-center space-x-2">
@@ -3180,9 +2561,11 @@ export default function DashboardPage() {
                                                   {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {(item as any)
-                                                    .formattedInitialInvestment ||
-                                                    item.formattedValue}
+                                                  <Sensitive>
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                               {item.percentageOfTotalVariableRent <
@@ -3193,10 +2576,12 @@ export default function DashboardPage() {
                                                     :
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {formatPercentage(
-                                                      item.percentageOfTotalVariableRent,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -3274,13 +2659,15 @@ export default function DashboardPage() {
                                                         : "text-red-500"
                                                     }`}
                                                   >
-                                                    {item.change >= 0
-                                                      ? "+"
-                                                      : ""}
-                                                    {formatPercentage(
-                                                      item.change,
-                                                      locale,
-                                                    )}
+                                                    <Sensitive>
+                                                      {item.change >= 0
+                                                        ? "+"
+                                                        : ""}
+                                                      {formatPercentage(
+                                                        item.change,
+                                                        locale,
+                                                      )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                               )}
@@ -3289,7 +2676,9 @@ export default function DashboardPage() {
                                                   {t.dashboard.investedAmount}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.formattedValue}
+                                                  <Sensitive>
+                                                    {item.formattedValue}
+                                                  </Sensitive>
                                                 </div>
                                               </div>
                                             </div>
@@ -3338,9 +2727,7 @@ export default function DashboardPage() {
                                                 `commodity-${item.id}`,
                                               )
                                             }
-                                            onMouseLeave={() =>
-                                              setHoveredItem(null)
-                                            }
+                                            onMouseLeave={handleMouseLeave}
                                           ></div>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-80">
@@ -3350,9 +2737,7 @@ export default function DashboardPage() {
                                                 `commodity-${item.id}`,
                                               )
                                             }
-                                            onMouseLeave={() =>
-                                              setHoveredItem(null)
-                                            }
+                                            onMouseLeave={handleMouseLeave}
                                           >
                                             <div className="space-y-2">
                                               <div className="flex items-center space-x-2">
@@ -3373,9 +2758,11 @@ export default function DashboardPage() {
                                                     {t.dashboard.value}:
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {(item as any)
-                                                      .formattedInitialInvestment ||
-                                                      item.formattedValue}
+                                                    <Sensitive>
+                                                      {(item as any)
+                                                        .formattedInitialInvestment ||
+                                                        item.formattedValue}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 {item.percentageOfTotalVariableRent <
@@ -3389,10 +2776,12 @@ export default function DashboardPage() {
                                                       :
                                                     </span>
                                                     <div className="font-semibold">
-                                                      {formatPercentage(
-                                                        item.percentageOfTotalVariableRent,
-                                                        locale,
-                                                      )}
+                                                      <Sensitive>
+                                                        {formatPercentage(
+                                                          item.percentageOfTotalVariableRent,
+                                                          locale,
+                                                        )}
+                                                      </Sensitive>
                                                     </div>
                                                   </div>
                                                 )}
@@ -3428,15 +2817,17 @@ export default function DashboardPage() {
                                                           : "text-white"
                                                     }`}
                                                   >
-                                                    {item.change === 0
-                                                      ? "-"
-                                                      : (item.change > 0
-                                                          ? "+"
-                                                          : "") +
-                                                        formatPercentage(
-                                                          item.change,
-                                                          locale,
-                                                        )}
+                                                    <Sensitive>
+                                                      {item.change === 0
+                                                        ? "-"
+                                                        : (item.change > 0
+                                                            ? "+"
+                                                            : "") +
+                                                          formatPercentage(
+                                                            item.change,
+                                                            locale,
+                                                          )}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 <div className="col-span-2">
@@ -3445,7 +2836,9 @@ export default function DashboardPage() {
                                                     :
                                                   </span>
                                                   <div className="font-semibold">
-                                                    {item.formattedValue}
+                                                    <Sensitive>
+                                                      {item.formattedValue}
+                                                    </Sensitive>
                                                   </div>
                                                 </div>
                                                 {item.showEntityBadge &&
@@ -3492,8 +2885,8 @@ export default function DashboardPage() {
                           </p>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 </AnimatedContainer>
 
                 <AnimatedContainer
@@ -3501,13 +2894,13 @@ export default function DashboardPage() {
                   delay={0.5}
                   className="lg:col-span-5"
                 >
-                  <Card className="h-full flex flex-col">
-                    <CardHeader>
+                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                    <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <div className="flex justify-between items-center">
-                        <CardTitle className="text-lg font-bold flex items-center">
+                        <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">
                           <ArrowLeftRight className="h-5 w-5 mr-2 text-primary" />
                           {t.dashboard.recentTransactions}
-                        </CardTitle>
+                        </h3>
                         {!forecastMode && (
                           <Button
                             variant="outline"
@@ -3520,8 +2913,8 @@ export default function DashboardPage() {
                           </Button>
                         )}
                       </div>
-                    </CardHeader>
-                    <CardContent className="flex-grow overflow-y-auto scrollbar-thin min-h-[350px] max-h-[650px]">
+                    </div>
+                    <div className="flex-grow lg:px-6 lg:pb-6">
                       {forecastMode ? (
                         <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
                           <TrendingUpDown className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
@@ -3597,12 +2990,14 @@ export default function DashboardPage() {
                                                   : undefined
                                             }`}
                                           >
-                                            {tx.displayType === "in"
-                                              ? "+"
-                                              : tx.type === TxType.FEE
-                                                ? "-"
-                                                : ""}
-                                            {tx.formattedAmount}
+                                            <Sensitive>
+                                              {tx.displayType === "in"
+                                                ? "+"
+                                                : tx.type === TxType.FEE
+                                                  ? "-"
+                                                  : ""}
+                                              {tx.formattedAmount}
+                                            </Sensitive>
                                           </p>
                                         </div>
                                       </li>
@@ -3621,8 +3016,8 @@ export default function DashboardPage() {
                           </p>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 </AnimatedContainer>
               </div>
             </div>

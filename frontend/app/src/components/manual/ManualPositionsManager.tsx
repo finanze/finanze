@@ -19,6 +19,7 @@ import {
   manualPositionFormatNumberInput,
   FundFormState,
   StockFormState,
+  BankLoanFormState,
 } from "./manualPositionConfigs"
 import type {
   ManualFormErrors,
@@ -33,6 +34,7 @@ import {
   type Entity,
   type Feature,
 } from "@/types"
+import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 const MANUAL_POSITION_ASSETS = Object.keys(
   manualPositionConfigs,
@@ -45,10 +47,14 @@ const createEmptyFeatureRecord = (): Record<Feature, string> => ({
   HISTORIC: "",
 })
 
-const createPlaceholderEntity = (id: string, name: string): Entity => ({
+const createPlaceholderEntity = (
+  id: string,
+  name: string,
+  type: EntityType = EntityType.FINANCIAL_INSTITUTION,
+): Entity => ({
   id,
   name,
-  type: EntityType.FINANCIAL_INSTITUTION,
+  type,
   origin: EntityOrigin.MANUAL,
   natural_id: id,
   features: ["POSITION"],
@@ -65,10 +71,18 @@ import {
   CardTitle,
 } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
+import { Switch } from "@/components/ui/Switch"
+import { Label } from "@/components/ui/Label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
-import { AlertCircle, Pencil, Plus, Save, X } from "lucide-react"
+import { Loader2, Pencil, Plus, Save, X } from "lucide-react"
 import { saveManualPositions } from "@/services/api"
 import {
   ProductType,
@@ -233,9 +247,35 @@ export function ManualPositionsManager({
 
   const assetPath = `management.manualPositions.${asset}`
 
+  const allowedEntityTypes = useMemo(() => {
+    switch (asset) {
+      case "bankAccounts":
+      case "bankCards":
+      case "bankLoans":
+        return new Set<EntityType>([
+          EntityType.FINANCIAL_INSTITUTION,
+          EntityType.CRYPTO_EXCHANGE,
+        ])
+      case "crypto":
+        return new Set<EntityType>([
+          EntityType.FINANCIAL_INSTITUTION,
+          EntityType.CRYPTO_WALLET,
+          EntityType.CRYPTO_EXCHANGE,
+        ])
+      case "fundPortfolios":
+      case "funds":
+      case "stocks":
+      case "factoring":
+      case "realEstateCf":
+      case "deposits":
+      default:
+        return new Set<EntityType>([EntityType.FINANCIAL_INSTITUTION])
+    }
+  }, [asset])
+
   const manualEntities = useMemo(() => {
-    const baseEntities = (entities ?? []).filter(
-      entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+    const baseEntities = (entities ?? []).filter(entity =>
+      allowedEntityTypes.has(entity.type),
     )
     const existingIds = new Set(baseEntities.map(entity => entity.id))
     const result: Entity[] = [...baseEntities]
@@ -263,12 +303,19 @@ export function ManualPositionsManager({
         }
 
         existingIds.add(entityId)
-        result.push(createPlaceholderEntity(entityId, placeholderName))
+        const resolvedType =
+          (draft as any)._entity_type ?? EntityType.FINANCIAL_INSTITUTION
+        if (!allowedEntityTypes.has(resolvedType)) {
+          return
+        }
+        result.push(
+          createPlaceholderEntity(entityId, placeholderName, resolvedType),
+        )
       })
     })
 
     return result
-  }, [entities, manualDraftEntitySignature])
+  }, [entities, manualDraftEntitySignature, allowedEntityTypes])
 
   const linkedAccountOptions = useCallback(
     (entityId?: string | null) => {
@@ -276,15 +323,19 @@ export function ManualPositionsManager({
         return []
       }
 
-      const entityPosition = positionsData.positions[entityId]
-      if (!entityPosition) return []
+      const entityPositions = positionsData.positions[entityId] ?? []
+      const allAccountEntries: Account[] = []
+      entityPositions.forEach(entityPosition => {
+        const product = entityPosition.products[ProductType.ACCOUNT] as
+          | { entries?: Account[] }
+          | undefined
+        if (product?.entries?.length) {
+          allAccountEntries.push(...product.entries)
+        }
+      })
+      if (allAccountEntries.length === 0) return []
 
-      const product = entityPosition.products[ProductType.ACCOUNT] as
-        | { entries?: Account[] }
-        | undefined
-      if (!product?.entries?.length) return []
-
-      const options = product.entries
+      const options = allAccountEntries
         .filter(account => {
           if (!account.id) return false
           const source = account.source ?? DataSource.REAL
@@ -296,7 +347,7 @@ export function ManualPositionsManager({
           }
 
           if (asset === "bankCards") {
-            return true
+            return Boolean(account.iban && account.iban.trim())
           }
 
           return false
@@ -327,16 +378,19 @@ export function ManualPositionsManager({
         return []
       }
 
-      const entityPosition = positionsData?.positions
-        ? positionsData.positions[entityId]
-        : undefined
+      const entityPositions = positionsData?.positions
+        ? (positionsData.positions[entityId] ?? [])
+        : []
 
-      const product = entityPosition
-        ? (entityPosition.products[ProductType.FUND_PORTFOLIO] as
-            | { entries?: FundPortfolio[] }
-            | undefined)
-        : undefined
-      const entries = product?.entries ?? []
+      const entries: FundPortfolio[] = []
+      entityPositions.forEach(entityPosition => {
+        const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
+          | { entries?: FundPortfolio[] }
+          | undefined
+        if (product?.entries) {
+          entries.push(...product.entries)
+        }
+      })
 
       const isAllowedPortfolioSource = (source?: DataSource | null) => {
         const resolved = source ?? DataSource.REAL
@@ -346,7 +400,9 @@ export function ManualPositionsManager({
       const existingOptions: LinkedPortfolioOption[] = entries
         .filter(
           portfolio =>
-            portfolio.id && isAllowedPortfolioSource(portfolio.source),
+            portfolio.id &&
+            isAllowedPortfolioSource(portfolio.source) &&
+            Boolean(portfolio.name && portfolio.name.trim()),
         )
         .map(portfolio => {
           const baseName =
@@ -632,12 +688,11 @@ export function ManualPositionsManager({
   }, [hasLocalChanges, initialDrafts, formState])
 
   useEffect(() => {
-    if (!isEditMode) {
+    if (!isEditMode && !formState) {
       setActiveDraft(null)
-      setFormState(null)
       setFormErrors({})
     }
-  }, [isEditMode])
+  }, [isEditMode, formState])
 
   const openForm = useCallback(
     (
@@ -695,14 +750,9 @@ export function ManualPositionsManager({
 
   const handleAddDraft = useCallback(
     (entityId?: string) => {
-      if (!isEditMode) {
-        setIsEditMode(true)
-        setTimeout(() => openForm("create", undefined, { entityId }), 0)
-      } else {
-        openForm("create", undefined, { entityId })
-      }
+      openForm("create", undefined, { entityId })
     },
-    [isEditMode, openForm],
+    [openForm],
   )
 
   const handleEditDraft = useCallback(
@@ -749,6 +799,9 @@ export function ManualPositionsManager({
 
   const upsertDraft = useCallback(
     (draft: ManualPositionDraft<any>) => {
+      if (!isEditMode) {
+        setIsEditMode(true)
+      }
       setDrafts(prev => {
         const index = prev.findIndex(item => item.localId === draft.localId)
         if (index >= 0) {
@@ -761,7 +814,7 @@ export function ManualPositionsManager({
       setHasLocalChanges(true)
       closeForm()
     },
-    [closeForm],
+    [closeForm, isEditMode],
   )
 
   const handleSubmitForm = useCallback(() => {
@@ -819,7 +872,12 @@ export function ManualPositionsManager({
 
         const duplicateDraft = drafts.some(draft => {
           if (!draft.isNewEntity) return false
-          if (activeDraft && draft.localId === activeDraft.localId) return false
+          if (activeDraft) {
+            if (draft.localId === activeDraft.localId) return false
+            if (draft.entityId && draft.entityId === activeDraft.entityId) {
+              return false
+            }
+          }
           const candidate = (draft.newEntityName ?? draft.entityName ?? "")
             .trim()
             .toLowerCase()
@@ -844,7 +902,10 @@ export function ManualPositionsManager({
     setFormErrors({})
 
     const previous = activeDraft ?? undefined
-    const entry = config.buildEntryFromForm(formState, { previous })
+    const entry = config.buildEntryFromForm(formState, {
+      previous,
+      defaultCurrency,
+    })
     if (!entry) {
       showToast(
         translate("management.manualPositions.shared.genericError"),
@@ -895,8 +956,13 @@ export function ManualPositionsManager({
       delete (entry as { id?: string }).id
     }
 
+    const entryAny = entry as any
     const draft: ManualPositionDraft<any> = {
-      ...entry,
+      ...entryAny,
+      source:
+        (entryAny?.source as DataSource | undefined | null) ??
+        (previous as any)?.source ??
+        DataSource.MANUAL,
       localId: previous?.localId ?? generateLocalId(),
       originalId: isNewEntity
         ? undefined
@@ -995,24 +1061,30 @@ export function ManualPositionsManager({
       })
 
       if (positionsData?.positions) {
-        const entityPortfolios = positionsData.positions[accountDraft.entityId]
-          ?.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
-        const entries = entityPortfolios?.entries ?? []
-        entries.forEach((portfolio, index) => {
-          if (portfolio.source !== DataSource.MANUAL) {
-            return
-          }
-          if (portfolio.id && deletedFundPortfolioIdSet.has(portfolio.id)) {
-            return
-          }
-          if (matches(portfolio.account_id) || matches(portfolio.account?.id)) {
-            const key = portfolio.id
-              ? `position:${portfolio.id}`
-              : `position:${accountDraft.entityId}:${index}`
-            seen.add(key)
-          }
+        const entityPositions =
+          positionsData.positions[accountDraft.entityId] ?? []
+        entityPositions.forEach(entityPosition => {
+          const entityPortfolios = entityPosition.products[
+            ProductType.FUND_PORTFOLIO
+          ] as { entries?: FundPortfolio[] } | undefined
+          const entries = entityPortfolios?.entries ?? []
+          entries.forEach((portfolio, index) => {
+            if (portfolio.source !== DataSource.MANUAL) {
+              return
+            }
+            if (portfolio.id && deletedFundPortfolioIdSet.has(portfolio.id)) {
+              return
+            }
+            if (
+              matches(portfolio.account_id) ||
+              matches(portfolio.account?.id)
+            ) {
+              const key = portfolio.id
+                ? `position:${portfolio.id}`
+                : `position:${accountDraft.entityId}:${index}`
+              seen.add(key)
+            }
+          })
         })
       }
 
@@ -1208,16 +1280,25 @@ export function ManualPositionsManager({
       setShowCancelConfirm(true)
       return
     }
+    closeForm()
     setIsEditMode(false)
     setDrafts(initialDrafts)
-  }, [hasLocalChanges, initialDrafts])
+  }, [hasLocalChanges, initialDrafts, closeForm])
+
+  useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
+  useModalBackHandler(showDiscardFormConfirm, () =>
+    setShowDiscardFormConfirm(false),
+  )
+  useModalBackHandler(deleteTarget !== null, () => setDeleteTarget(null))
+  useModalBackHandler(formState !== null, handleCloseForm)
+  useModalBackHandler(isEditMode && !formState, handleCancelEdit)
 
   const assetTitle = translate(`${assetPath}.title`)
   const assetDescription = translate(`${assetPath}.description`)
 
   const isManualDraft = useCallback((draft: ManualPositionDraft<any>) => {
     const source = (draft as { source?: DataSource | null }).source
-    return source === DataSource.MANUAL
+    return (source ?? DataSource.MANUAL) === DataSource.MANUAL
   }, [])
 
   const buildSavePayloadByEntity =
@@ -1241,11 +1322,6 @@ export function ManualPositionsManager({
           draft => draft.entityId === entityId && isManualDraft(draft),
         )
 
-        const entries = manualEntries.map(draft => ({
-          draft,
-          payload: config.toPayloadEntry(draft) as Record<string, any>,
-        }))
-
         const isNewEntityGroup = manualEntries.some(draft => {
           if (draft.isNewEntity) return true
           if (typeof draft.entityId === "string") {
@@ -1253,6 +1329,33 @@ export function ManualPositionsManager({
           }
           return false
         })
+
+        // Skip entities with no actual changes (no dirty/new/deleted drafts)
+        const entityHasDeleted = initialDrafts.some(
+          d =>
+            isManualDraft(d) &&
+            d.entityId === entityId &&
+            d.originalId &&
+            !drafts.some(cur => cur.originalId === d.originalId),
+        )
+        const entityHasDirty = manualEntries.some(d => {
+          if (!d.originalId) return true
+          const initial = initialDrafts.find(i => i.originalId === d.originalId)
+          if (!initial) return true
+          return (
+            serialize(config.normalizeDraftForCompare(d)) !==
+            serialize(config.normalizeDraftForCompare(initial))
+          )
+        })
+        const entityHasChanges =
+          isNewEntityGroup || entityHasDeleted || entityHasDirty
+        if (!entityHasChanges) return
+
+        const entries = manualEntries.map(draft => ({
+          draft,
+          payload: config.toPayloadEntry(draft) as Record<string, any>,
+        }))
+
         const resolvedNewEntityName = isNewEntityGroup
           ? (manualEntries
               .map(
@@ -1264,16 +1367,35 @@ export function ManualPositionsManager({
               .find((value): value is string => Boolean(value)) ?? null)
           : null
 
+        let newEntityIconUrl: string | null = null
+        let netCryptoEntityDetails: {
+          provider_asset_id: string
+          provider: string
+        } | null = null
+        if (asset === "crypto" && isNewEntityGroup) {
+          const cryptoDraft = manualEntries.find(
+            draft =>
+              draft._new_entity_icon_url || draft._net_crypto_entity_details,
+          )
+          if (cryptoDraft) {
+            newEntityIconUrl = cryptoDraft._new_entity_icon_url || null
+            netCryptoEntityDetails =
+              cryptoDraft._net_crypto_entity_details || null
+          }
+        }
+
         result.set(entityId, {
           productType: config.productType,
           entries,
           isNewEntity: isNewEntityGroup,
           newEntityName: resolvedNewEntityName,
+          newEntityIconUrl,
+          netCryptoEntityDetails,
         })
       })
 
       return result
-    }, [drafts, initialDrafts, config, isManualDraft])
+    }, [asset, drafts, initialDrafts, config, isManualDraft])
 
   const saveManualUpdates = useCallback(
     async (payload: UpdatePositionRequest) => {
@@ -1286,8 +1408,7 @@ export function ManualPositionsManager({
   )
 
   const handleSaveChanges = useCallback(async () => {
-    if (!hasLocalChanges || isSaving) {
-      setIsEditMode(false)
+    if (isSaving) {
       return
     }
 
@@ -1305,7 +1426,17 @@ export function ManualPositionsManager({
       let missingNewEntityName = false
 
       payloadsByEntity.forEach(
-        ({ productType, entries, isNewEntity, newEntityName }, entityId) => {
+        (
+          {
+            productType,
+            entries,
+            isNewEntity,
+            newEntityName,
+            newEntityIconUrl,
+            netCryptoEntityDetails,
+          },
+          entityId,
+        ) => {
           const payloadEntries = entries.map(({ payload, draft }) => {
             const entry = { ...payload }
             if (!draft.originalId) {
@@ -1328,11 +1459,28 @@ export function ManualPositionsManager({
           const treatAsNewEntity =
             Boolean(isNewEntity) || isPlaceholderEntity || newDrafts.length > 0
 
+          const productPayload =
+            productType === ProductType.CRYPTO
+              ? {
+                  entries:
+                    payloadEntries.length > 0
+                      ? [
+                          {
+                            id: null,
+                            address: null,
+                            name: null,
+                            assets: payloadEntries,
+                          },
+                        ]
+                      : [],
+                }
+              : {
+                  entries: payloadEntries,
+                }
+
           const requestPayload: UpdatePositionRequest = {
             products: {
-              [productType]: {
-                entries: payloadEntries,
-              },
+              [productType]: productPayload as any,
             },
           }
 
@@ -1357,6 +1505,12 @@ export function ManualPositionsManager({
             }
 
             requestPayload.new_entity_name = trimmedName
+            if (newEntityIconUrl) {
+              requestPayload.new_entity_icon_url = newEntityIconUrl
+            }
+            if (netCryptoEntityDetails) {
+              requestPayload.net_crypto_entity_details = netCryptoEntityDetails
+            }
             if ("entity_id" in requestPayload) {
               delete requestPayload.entity_id
             }
@@ -1403,7 +1557,6 @@ export function ManualPositionsManager({
     }
   }, [
     buildSavePayloadByEntity,
-    hasLocalChanges,
     isSaving,
     saveManualUpdates,
     fetchEntities,
@@ -1705,6 +1858,7 @@ export function ManualPositionsManager({
         cancelText={translate("common.cancel")}
         onConfirm={() => {
           setShowCancelConfirm(false)
+          closeForm()
           setIsEditMode(false)
           setHasLocalChanges(false)
           setDrafts(initialDrafts)
@@ -1756,7 +1910,7 @@ export function ManualPositionsManager({
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="w-full max-w-3xl"
             >
-              <Card className="max-h-[90vh] overflow-hidden flex flex-col">
+              <Card className="max-h-[90vh] flex flex-col">
                 <CardHeader className="space-y-2">
                   <CardTitle>
                     {formMode === "create"
@@ -1867,13 +2021,13 @@ export function ManualPositionsManager({
                   }
 
                   return (
-                    <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardFooter className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-col max-sm:items-center">
                       <div className="flex items-center gap-2">
-                        {asset !== "funds" && asset !== "stocks" ? null : (
+                        {asset === "funds" || asset === "stocks" ? (
                           <Button
                             type="button"
                             size="sm"
-                            variant={isTrackingActive ? "secondary" : "outline"}
+                            variant={isTrackingActive ? "default" : "outline"}
                             onClick={handleToggleTrack}
                             disabled={!isTrackingAvailable}
                             aria-pressed={isTrackingActive}
@@ -1889,9 +2043,58 @@ export function ManualPositionsManager({
                               "management.manualPositions.shared.trackPrice",
                             )}
                           </Button>
-                        )}
+                        ) : asset === "bankLoans" ? (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id={`track_loan_${activeDraft?.localId}`}
+                              checked={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type === "FIXED" &&
+                                !!(formState as unknown as BankLoanFormState)
+                                  ?.track_loan
+                              }
+                              disabled={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED"
+                              }
+                              onCheckedChange={checked =>
+                                updateField("track_loan", checked ? "true" : "")
+                              }
+                            />
+                            <Label
+                              htmlFor={`track_loan_${activeDraft?.localId}`}
+                              className={cn(
+                                "cursor-pointer text-sm",
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED" && "opacity-50",
+                              )}
+                            >
+                              {translate(
+                                "management.manualPositions.bankLoans.fields.trackLoanLabel",
+                              )}
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                >
+                                  <Info className="h-3.5 w-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                className="w-72 text-xs"
+                                side="top"
+                              >
+                                {translate(
+                                  "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : null}
                       </div>
-                      <div className="flex w-full justify-end gap-2 sm:w-auto">
+                      <div className="flex items-center gap-2">
                         <Button variant="outline" onClick={handleCloseForm}>
                           {translate("common.cancel")}
                         </Button>
@@ -1914,17 +2117,11 @@ export function ManualPositionsManager({
 export function ManualPositionsControls({ className }: { className?: string }) {
   const {
     isEditMode,
-    hasLocalChanges,
-    isSaving,
     manualEntities,
     addLabel,
     editLabel,
-    cancelLabel,
-    saveLabel,
     beginCreate,
     enterEditMode,
-    requestCancel,
-    requestSave,
   } = useManualPositions()
 
   return (
@@ -1935,38 +2132,16 @@ export function ManualPositionsControls({ className }: { className?: string }) {
       )}
     >
       <Button
-        variant="outline"
+        variant="default"
         size="sm"
         onClick={() => beginCreate()}
         disabled={manualEntities.length === 0}
         className="flex items-center gap-2"
       >
         <Plus className="h-3.5 w-3.5" />
-        {addLabel}
+        <span className="hidden sm:inline">{addLabel}</span>
       </Button>
-      {isEditMode ? (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={requestCancel}
-            disabled={isSaving}
-            className="flex items-center gap-2"
-          >
-            <X className="h-3.5 w-3.5" />
-            {cancelLabel}
-          </Button>
-          <Button
-            size="sm"
-            onClick={requestSave}
-            disabled={isSaving || (!hasLocalChanges && !isSaving)}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {saveLabel}
-          </Button>
-        </>
-      ) : (
+      {!isEditMode && (
         <Button
           variant="default"
           size="sm"
@@ -1974,33 +2149,86 @@ export function ManualPositionsControls({ className }: { className?: string }) {
           className="flex items-center gap-2"
         >
           <Pencil className="h-3.5 w-3.5" />
-          {editLabel}
+          <span className="hidden sm:inline">{editLabel}</span>
         </Button>
       )}
     </div>
   )
 }
 
-export function ManualPositionsUnsavedNotice({
+export function ManualPositionsEditBanner({
   className,
 }: {
   className?: string
 }) {
-  const { isEditMode, hasLocalChanges, translate } = useManualPositions()
+  const {
+    isEditMode,
+    hasLocalChanges,
+    isSaving,
+    cancelLabel,
+    saveLabel,
+    translate,
+    requestCancel,
+    requestSave,
+  } = useManualPositions()
 
-  if (!isEditMode || !hasLocalChanges) {
+  if (!isEditMode) {
     return null
   }
 
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200",
+        "flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40",
         className,
       )}
     >
-      <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-      <div>{translate("management.unsavedChanges")}</div>
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="relative flex-shrink-0">
+          <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+          {translate("common.editing")}
+        </span>
+        {hasLocalChanges && (
+          <>
+            <span className="text-blue-300 dark:text-blue-600">·</span>
+            <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+              {translate("management.unsavedChanges")}
+            </span>
+            <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={requestCancel}
+          disabled={isSaving}
+          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+        >
+          <X className="h-3 w-3" />
+          <span className="hidden sm:inline ml-1">{cancelLabel}</span>
+        </Button>
+        <Button
+          data-testid="save-positions"
+          size="sm"
+          onClick={requestSave}
+          disabled={isSaving || !hasLocalChanges}
+          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+        >
+          {isSaving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
+          <span className="hidden sm:inline ml-1">{saveLabel}</span>
+        </Button>
+      </div>
     </div>
   )
 }

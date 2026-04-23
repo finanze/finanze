@@ -7,7 +7,12 @@ from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
-from domain.global_position import InterestType, LoanType
+from domain.global_position import (
+    INSTALLMENT_TO_FLOW_FREQ,
+    InterestType,
+    Loan,
+    LoanType,
+)
 from domain.real_estate import (
     Amortization,
     BasicInfo,
@@ -26,6 +31,7 @@ from domain.real_estate import (
     ValuationInfo,
 )
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.real_estate.queries import RealEstateQueries
 
 
 def _serialize_purchase_expense(expense: PurchaseExpense) -> dict:
@@ -60,6 +66,20 @@ def _deserialize_valuation(data: dict) -> Valuation:
     )
 
 
+def _empty_loan_payload():
+    return LoanPayload(
+        type=LoanType.MORTGAGE,
+        loan_amount=None,
+        interest_rate=Dezimal(0),
+        euribor_rate=None,
+        interest_type=InterestType.FIXED,
+        fixed_years=None,
+        fixed_interest_rate=None,
+        principal_outstanding=Dezimal(0),
+        monthly_interests=None,
+    )
+
+
 def _serialize_payload(payload) -> dict:
     if isinstance(payload, LoanPayload):
         return {
@@ -69,9 +89,12 @@ def _serialize_payload(payload) -> dict:
             "euribor_rate": str(payload.euribor_rate) if payload.euribor_rate else None,
             "interest_type": payload.interest_type,
             "fixed_years": payload.fixed_years,
+            "fixed_interest_rate": str(payload.fixed_interest_rate)
+            if payload.fixed_interest_rate is not None
+            else None,
             "principal_outstanding": str(payload.principal_outstanding),
             "monthly_interests": str(payload.monthly_interests)
-            if payload.monthly_interests
+            if payload.monthly_interests is not None
             else None,
         }
     elif isinstance(payload, (CostPayload, SupplyPayload)):
@@ -97,9 +120,12 @@ def _deserialize_payload(flow_subtype: RealEstateFlowSubtype, data: dict):
             else None,
             interest_type=InterestType(data["interest_type"]),
             fixed_years=data.get("fixed_years"),
+            fixed_interest_rate=Dezimal(data["fixed_interest_rate"])
+            if data.get("fixed_interest_rate") is not None
+            else None,
             principal_outstanding=Dezimal(data["principal_outstanding"]),
             monthly_interests=Dezimal(data["monthly_interests"])
-            if data.get("monthly_interests")
+            if data.get("monthly_interests") is not None
             else None,
         )
     elif flow_subtype == RealEstateFlowSubtype.RENT:
@@ -138,7 +164,7 @@ def _deserialize_rental_data(data: Optional[str | bytes]) -> Optional[RentalData
         return None
     try:
         parsed = json.loads(data)
-    except (TypeError, json.JSONDecodeError):
+    except TypeError, json.JSONDecodeError:
         return None
     amortizations_list = parsed.get("amortizations")
     amortizations = None
@@ -167,10 +193,18 @@ def _deserialize_rental_data(data: Optional[str | bytes]) -> Optional[RentalData
     )
 
 
-def _build_flow(flow_row) -> RealEstateFlow:
-    payload_data = json.loads(flow_row["payload"])
-    payload = _deserialize_payload(
-        RealEstateFlowSubtype(flow_row["flow_subtype"]), payload_data
+async def _build_flow(flow_row) -> RealEstateFlow:
+    flow_subtype = RealEstateFlowSubtype(flow_row["flow_subtype"])
+    raw_payload = flow_row["payload"]
+    payload_data = json.loads(raw_payload) if raw_payload else {}
+    payload = (
+        _deserialize_payload(flow_subtype, payload_data)
+        if payload_data
+        else (
+            _empty_loan_payload()
+            if flow_subtype == RealEstateFlowSubtype.LOAN
+            else _deserialize_payload(flow_subtype, {})
+        )
     )
 
     return RealEstateFlow(
@@ -194,20 +228,19 @@ def _build_flow(flow_row) -> RealEstateFlow:
         flow_subtype=RealEstateFlowSubtype(flow_row["flow_subtype"]),
         description=flow_row["description"],
         payload=payload,
+        linked_loan_hash=flow_row["extra_reference"]
+        if "extra_reference" in flow_row.keys()
+        else None,
     )
 
 
-def _build_real_estate(row, cursor) -> RealEstate:
-    cursor.execute(
-        """
-        SELECT *
-        FROM real_estate_flows ref JOIN periodic_flows pf ON ref.periodic_flow_id = pf.id
-        WHERE ref.real_estate_id = ?
-        """,
+async def _build_real_estate(row, cursor) -> RealEstate:
+    await cursor.execute(
+        RealEstateQueries.SELECT_FLOWS_BY_REAL_ESTATE_ID,
         (row["id"],),
     )
-    flow_rows = cursor.fetchall()
-    flows = [_build_flow(flow_row) for flow_row in flow_rows]
+    flow_rows = await cursor.fetchall()
+    flows = [await _build_flow(flow_row) for flow_row in flow_rows]
 
     return RealEstate(
         id=UUID(row["id"]),
@@ -250,19 +283,18 @@ def _build_real_estate(row, cursor) -> RealEstate:
     )
 
 
-def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None:
-    cursor.execute(
-        """
-        INSERT INTO real_estate_flows (
-            real_estate_id, periodic_flow_id, flow_subtype, description, payload
-        ) VALUES (?, ?, ?, ?, ?)
-        """,
+async def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None:
+    await cursor.execute(
+        RealEstateQueries.INSERT_FLOW,
         (
             str(real_estate_id),
             str(flow.periodic_flow_id),
             flow.flow_subtype.value,
             flow.description,
-            json.dumps(_serialize_payload(flow.payload)),
+            json.dumps(
+                _serialize_payload(flow.payload) if not flow.linked_loan_hash else {}
+            ),
+            flow.linked_loan_hash,
         ),
     )
 
@@ -271,19 +303,13 @@ class RealEstateRepository(RealEstatePort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def insert(self, real_estate: RealEstate) -> None:
+    async def insert(self, real_estate: RealEstate) -> None:
         if real_estate.id is None:
             real_estate.id = uuid4()
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO real_estate (
-                    id, name, photo_url, is_residence, is_rented, bathrooms, bedrooms,
-                    address, cadastral_reference, purchase_date, purchase_price, currency,
-                    purchase_expenses, estimated_market_value, annual_appreciation, valuations, rental_data, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                RealEstateQueries.INSERT_REAL_ESTATE,
                 (
                     str(real_estate.id),
                     real_estate.basic_info.name,
@@ -321,19 +347,12 @@ class RealEstateRepository(RealEstatePort):
             )
 
             for flow in real_estate.flows:
-                _save_flow(cursor, real_estate.id, flow)
+                await _save_flow(cursor, real_estate.id, flow)
 
-    def update(self, real_estate: RealEstate) -> None:
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
-                UPDATE real_estate SET
-                    name = ?, photo_url = ?, is_residence = ?, is_rented = ?, bathrooms = ?, bedrooms = ?,
-                    address = ?, cadastral_reference = ?, purchase_date = ?, purchase_price = ?, currency = ?,
-                    purchase_expenses = ?, estimated_market_value = ?, annual_appreciation = ?, valuations = ?, rental_data = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
+    async def update(self, real_estate: RealEstate) -> None:
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                RealEstateQueries.UPDATE_REAL_ESTATE,
                 (
                     real_estate.basic_info.name,
                     real_estate.basic_info.photo_url,
@@ -370,31 +389,51 @@ class RealEstateRepository(RealEstatePort):
                 ),
             )
 
-            cursor.execute(
-                "DELETE FROM real_estate_flows WHERE real_estate_id = ?",
+            await cursor.execute(
+                RealEstateQueries.DELETE_FLOWS_BY_REAL_ESTATE_ID,
                 (str(real_estate.id),),
             )
             for flow in real_estate.flows:
-                _save_flow(cursor, real_estate.id, flow)
+                await _save_flow(cursor, real_estate.id, flow)
 
-    def delete(self, real_estate_id: UUID) -> None:
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM real_estate WHERE id = ?", (str(real_estate_id),)
+    async def delete(self, real_estate_id: UUID) -> None:
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                RealEstateQueries.DELETE_BY_ID,
+                (str(real_estate_id),),
             )
 
-    def get_by_id(self, real_estate_id: UUID) -> Optional[RealEstate]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM real_estate WHERE id = ?", (str(real_estate_id),)
+    async def get_by_id(self, real_estate_id: UUID) -> Optional[RealEstate]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                RealEstateQueries.GET_BY_ID,
+                (str(real_estate_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if not row:
                 return None
-            return _build_real_estate(row, cursor)
+            return await _build_real_estate(row, cursor)
 
-    def get_all(self) -> list[RealEstate]:
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM real_estate ORDER BY name")
-            rows = cursor.fetchall()
-            return [_build_real_estate(row, cursor) for row in rows]
+    async def get_all(self) -> list[RealEstate]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(RealEstateQueries.GET_ALL)
+            rows = await cursor.fetchall()
+            return [await _build_real_estate(row, cursor) for row in rows]
+
+    async def sync_linked_loan_flows(self, loan: Loan) -> None:
+        if not loan.hash:
+            return
+        freq = INSTALLMENT_TO_FLOW_FREQ.get(
+            loan.installment_frequency, FlowFrequency.MONTHLY
+        )
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                RealEstateQueries.SYNC_LINKED_LOAN_PERIODIC_FLOWS,
+                (
+                    str(loan.current_installment),
+                    freq.value,
+                    str(loan.creation),
+                    str(loan.maturity),
+                    loan.hash,
+                ),
+            )

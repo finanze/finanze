@@ -1,46 +1,48 @@
+from datetime import date
 from uuid import UUID
 
 from application.ports.manual_position_data_port import ManualPositionDataPort
+from domain.dezimal import Dezimal
 from domain.global_position import ManualEntryData, ManualPositionData, ProductType
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.position.queries import ManualPositionDataQueries
 
 
 class ManualPositionDataSQLRepository(ManualPositionDataPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entries: list[ManualPositionData]):
+    async def save(self, entries: list[ManualPositionData]):
         valid_entries = [e for e in entries if e is not None]
         if not valid_entries:
             return
-        with self._db_client.tx() as cursor:
+        async with self._db_client.tx() as cursor:
             for entry in valid_entries:
                 track_ticker = bool(entry.data and entry.data.tracker_key)
-                cursor.execute(
-                    """
-                    INSERT INTO manual_position_data (entry_id, global_position_id, product_type, track_ticker, tracker_key)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
+                track_loan = bool(entry.data and entry.data.track)
+                await cursor.execute(
+                    ManualPositionDataQueries.INSERT,
                     (
                         str(entry.entry_id),
                         str(entry.global_position_id),
                         entry.product_type.value,
                         track_ticker,
                         entry.data.tracker_key if entry.data else None,
+                        track_loan,
+                        str(entry.data.tracking_ref_outstanding)
+                        if entry.data and entry.data.tracking_ref_outstanding
+                        else None,
+                        entry.data.tracking_ref_date.isoformat()
+                        if entry.data and entry.data.tracking_ref_date
+                        else None,
                     ),
                 )
 
-    def get_trackable(self) -> list[ManualPositionData]:
+    async def get_trackable(self) -> list[ManualPositionData]:
         result: list[ManualPositionData] = []
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT entry_id, global_position_id, product_type, tracker_key
-                FROM manual_position_data
-                WHERE track_ticker = 1 AND tracker_key IS NOT NULL
-                """
-            )
-            rows = cursor.fetchall()
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ManualPositionDataQueries.GET_TRACKABLE)
+            rows = await cursor.fetchall()
             for row in rows:
                 result.append(
                     ManualPositionData(
@@ -52,11 +54,55 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
                 )
         return result
 
-    def delete_by_position_id_and_type(
+    async def get_trackable_loans(self) -> list[ManualPositionData]:
+        result: list[ManualPositionData] = []
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ManualPositionDataQueries.GET_TRACKABLE_LOANS)
+            rows = await cursor.fetchall()
+            for row in rows:
+                result.append(
+                    ManualPositionData(
+                        entry_id=UUID(row["entry_id"]),
+                        global_position_id=UUID(row["global_position_id"]),
+                        product_type=ProductType(row["product_type"]),
+                        data=ManualEntryData(
+                            track=True,
+                            tracking_ref_outstanding=(
+                                Dezimal(row["tracking_ref_outstanding"])
+                                if row["tracking_ref_outstanding"]
+                                else None
+                            ),
+                            tracking_ref_date=(
+                                date.fromisoformat(row["tracking_ref_date"])
+                                if row["tracking_ref_date"]
+                                else None
+                            ),
+                        ),
+                    )
+                )
+        return result
+
+    async def update_tracking_ref(
+        self, entry_id: UUID, ref_outstanding: Dezimal, ref_date: date
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ManualPositionDataQueries.UPDATE_TRACKING_REF,
+                (str(ref_outstanding), ref_date.isoformat(), str(entry_id)),
+            )
+
+    async def delete_by_position_id(self, global_position_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ManualPositionDataQueries.DELETE_BY_POSITION_ID,
+                (str(global_position_id),),
+            )
+
+    async def delete_by_position_id_and_type(
         self, global_position_id: UUID, product_type: ProductType
     ):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM manual_position_data WHERE global_position_id = ? AND product_type = ?",
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ManualPositionDataQueries.DELETE_BY_POSITION_ID_AND_TYPE,
                 (str(global_position_id), product_type.value),
             )

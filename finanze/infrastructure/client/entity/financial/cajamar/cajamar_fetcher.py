@@ -31,7 +31,7 @@ class CajamarFetcher(FinancialEntityFetcher):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return self._client.login(username, password, login_params.session)
+        return await self._client.login(username, password, login_params.session)
 
     def _build_accounts(
         self, raw_position: dict
@@ -143,12 +143,12 @@ class CajamarFetcher(FinancialEntityFetcher):
         except Exception:
             return Dezimal(0)
 
-    def _map_loan(self, financing_entry: dict) -> Loan | None:
+    async def _map_loan(self, financing_entry: dict) -> Loan | None:
         product_id = financing_entry.get("productId")
         if not product_id:
             return None
 
-        loan_details = self._client.get_loan(product_id) or {}
+        loan_details = await self._client.get_loan(product_id) or {}
         if not loan_details:
             return None
 
@@ -203,12 +203,12 @@ class CajamarFetcher(FinancialEntityFetcher):
             interest_type=interest_type,
         )
 
-    def _build_loans(self, raw_position: dict) -> list[Loan]:
+    async def _build_loans(self, raw_position: dict) -> list[Loan]:
         raw_loans = (raw_position or {}).get("financings") or []
         loans: list[Loan] = []
         for entry in raw_loans:
             try:
-                loan_obj = self._map_loan(entry)
+                loan_obj = await self._map_loan(entry)
                 if loan_obj:
                     loans.append(loan_obj)
             except Exception as e:
@@ -217,11 +217,11 @@ class CajamarFetcher(FinancialEntityFetcher):
         return loans
 
     async def global_position(self) -> GlobalPosition:
-        raw_position = self._client.get_position() or {}
+        raw_position = await self._client.get_position() or {}
 
         accounts, accounts_by_raw_id = self._build_accounts(raw_position)
         cards = self._build_cards(raw_position, accounts_by_raw_id)
-        loans = self._build_loans(raw_position)
+        loans = await self._build_loans(raw_position)
 
         products = {}
         if accounts:

@@ -1,13 +1,15 @@
 import logging
 from uuid import uuid4
 
-from domain.crypto import CryptoFetchRequest
-from domain.dezimal import Dezimal
-from domain.global_position import (
-    CryptoCurrencyPosition,
+from domain.crypto import (
+    CryptoFetchRequest,
     CryptoCurrencyType,
-    CryptoCurrencyWallet,
+    CryptoFetchResults,
+    CryptoFetchResult,
+    CryptoFetchedPosition,
 )
+from domain.dezimal import Dezimal
+from domain.exception.exceptions import AddressNotFound
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 
 
@@ -33,27 +35,35 @@ class EthplorerFetcher:
 
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        data = self._ethplorer_client.fetch_address_info(self.base_url, request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
+        results: dict[str, CryptoFetchResult | None] = {}
 
-        eth_balance = Dezimal(data["ETH"]["rawBalance"]) * self.scale
+        for address in request.addresses:
+            try:
+                data = await self._ethplorer_client.fetch_address_info(
+                    self.base_url, address
+                )
+            except AddressNotFound:
+                results[address] = None
+                continue
 
-        assets = [
-            CryptoCurrencyPosition(
-                id=uuid4(),
-                symbol=self.native_symbol,
-                amount=eth_balance,
-                type=CryptoCurrencyType.NATIVE,
-            )
-        ]
-        assets += self._parse_tokens(data)
+            eth_balance = Dezimal(data["ETH"]["rawBalance"]) * self.scale
 
-        return CryptoCurrencyWallet(
-            id=request.connection_id,
-            assets=assets,
-        )
+            assets = [
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol=self.native_symbol,
+                    balance=eth_balance,
+                    type=CryptoCurrencyType.NATIVE,
+                )
+            ]
+            assets += self._parse_tokens(data)
 
-    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyPosition]:
+            results[address] = CryptoFetchResult(address=address, assets=assets)
+
+        return CryptoFetchResults(results=results)
+
+    def _parse_tokens(self, data: dict) -> list[CryptoFetchedPosition]:
         tokens = []
         if "tokens" not in data:
             return tokens
@@ -69,17 +79,17 @@ class EthplorerFetcher:
                 decimals = int(token_info.get("decimals", 0))
                 balance = Dezimal(token_data.get("balance", 0))
                 amount = balance * Dezimal(f"1e-{decimals}")
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 self._log.warning(f"Could not parse amount for token {symbol}")
                 continue
 
             tokens.append(
-                CryptoCurrencyPosition(
+                CryptoFetchedPosition(
                     id=uuid4(),
                     contract_address=token_info.get("address", "").lower(),
                     name=token_info.get("name"),
                     symbol=symbol,
-                    amount=amount,
+                    balance=amount,
                     type=CryptoCurrencyType.TOKEN,
                 )
             )
