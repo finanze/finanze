@@ -179,21 +179,21 @@ class DeferredComponents:
         )
 
         financial_entity_fetcher_stubs = {
-            entity_id: True
-            for entity_id in [
-                domain.native_entities.MY_INVESTOR.id,
-                domain.native_entities.TRADE_REPUBLIC.id,
-                domain.native_entities.URBANITAE.id,
-                domain.native_entities.WECITY.id,
-                domain.native_entities.SEGO.id,
-                domain.native_entities.MINTOS.id,
-                domain.native_entities.F24.id,
-                domain.native_entities.INDEXA_CAPITAL.id,
-                domain.native_entities.ING.id,
-                domain.native_entities.CAJAMAR.id,
-                domain.native_entities.UNICAJA.id,
-                domain.native_entities.IBKR.id,
-                domain.native_entities.BINANCE.id,
+            entity: True
+            for entity in [
+                domain.native_entities.MY_INVESTOR,
+                domain.native_entities.TRADE_REPUBLIC,
+                domain.native_entities.URBANITAE,
+                domain.native_entities.WECITY,
+                domain.native_entities.SEGO,
+                domain.native_entities.MINTOS,
+                domain.native_entities.F24,
+                domain.native_entities.INDEXA_CAPITAL,
+                domain.native_entities.ING,
+                domain.native_entities.CAJAMAR,
+                domain.native_entities.UNICAJA,
+                domain.native_entities.IBKR,
+                domain.native_entities.BINANCE,
             ]
         }
         external_integrations = {
