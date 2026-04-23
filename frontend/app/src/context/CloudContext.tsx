@@ -810,7 +810,12 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     try {
       isExplicitSignOutRef.current = true
       const provider = getProvider()
-      await provider.signOut()
+      try {
+        await provider.signOut()
+      } catch (error) {
+        isExplicitSignOutRef.current = false
+        throw error
+      }
       resetBackupStatusCache()
     } finally {
       setIsLoading(false)
