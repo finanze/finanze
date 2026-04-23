@@ -48,7 +48,7 @@ function sendToAllWindows(channel: string, ...args: unknown[]) {
 }
 
 export function setupAutoUpdater(appConfig: AppConfig): void {
-  supportsNativeAutoUpdate = !appConfig.isDev && appConfig.os !== OS.MAC
+  supportsNativeAutoUpdate = !appConfig.isDev
 
   let defaultChannel = "latest"
   if (appConfig.os === OS.MAC && appConfig.arch !== "arm64") {
