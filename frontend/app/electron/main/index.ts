@@ -166,6 +166,7 @@ async function createWindow() {
     height: mainWindowState.height,
     x: mainWindowState.x,
     y: mainWindowState.y,
+    icon: join(VITE_PUBLIC, "finanze-app-plain.png"),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

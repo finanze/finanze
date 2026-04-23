@@ -96,6 +96,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_KEY_PASSWORD || '' }}
           APPLE_ID: ${{ startsWith(matrix.os, 'macos-') && secrets.APPLE_ID || '' }}
