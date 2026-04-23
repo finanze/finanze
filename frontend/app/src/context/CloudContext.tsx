@@ -89,6 +89,8 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   const handleAuthStateChangeRef = useRef<
     ((session: CloudSession | null) => Promise<void>) | null
   >(null)
+  const isExplicitSignOutRef = useRef(false)
+  const recoveryAttemptedRef = useRef(false)
 
   const getProvider = useCallback(() => {
     if (!authProviderRef.current) {
@@ -224,9 +226,19 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     }
   }, [getProvider])
 
+  const clearLocalCloudState = useCallback(() => {
+    setUser(null)
+    setRole(null)
+    setPermissions([])
+    setBackupModeState(BackupMode.OFF)
+    lastSyncedTokenSignatureRef.current = null
+    lastBackupSettingsUserIdRef.current = null
+  }, [])
+
   const handleAuthStateChange = useCallback(
     async (session: CloudSession | null) => {
       if (session) {
+        recoveryAttemptedRef.current = false
         setUser(session.user)
         try {
           await getProvider().setAutoRefreshEnabled(true)
@@ -235,14 +247,43 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         }
         await syncRoleWithBackendIfNeeded(session)
         await refreshBackupModeForUser(session.user.id)
-      } else {
+      } else if (isExplicitSignOutRef.current) {
+        isExplicitSignOutRef.current = false
         await clearBackendCloudSession()
-        setUser(null)
-        setRole(null)
-        setPermissions([])
-        setBackupModeState(BackupMode.OFF)
-        lastSyncedTokenSignatureRef.current = null
-        lastBackupSettingsUserIdRef.current = null
+        clearLocalCloudState()
+        try {
+          await getProvider().setAutoRefreshEnabled(false)
+        } catch (error) {
+          console.error("Failed to disable auto-refresh:", error)
+        }
+      } else if (!recoveryAttemptedRef.current) {
+        recoveryAttemptedRef.current = true
+        try {
+          const authData = await getCloudAuthToken()
+          if (authData?.token) {
+            const provider = getProvider()
+            await provider.setSession(
+              authData.token.access_token,
+              authData.token.refresh_token,
+            )
+            const recovered = await provider.getSession()
+            if (recovered) {
+              await handleAuthStateChangeRef.current?.(recovered)
+              return
+            }
+          }
+        } catch (error) {
+          console.error("Failed to recover cloud session:", error)
+        }
+        await clearBackendCloudSession()
+        clearLocalCloudState()
+        try {
+          await getProvider().setAutoRefreshEnabled(false)
+        } catch (error) {
+          console.error("Failed to disable auto-refresh:", error)
+        }
+      } else {
+        clearLocalCloudState()
         try {
           await getProvider().setAutoRefreshEnabled(false)
         } catch (error) {
@@ -252,6 +293,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     },
     [
       clearBackendCloudSession,
+      clearLocalCloudState,
       getProvider,
       refreshBackupModeForUser,
       syncRoleWithBackendIfNeeded,
@@ -315,17 +357,21 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    let cancelled = false
     let unsubscribe: (() => void) | undefined
 
     const initialize = async () => {
       try {
         const provider = getProvider()
         await provider.initialize()
+        if (cancelled) return
 
         let session = await provider.getSession()
+        if (cancelled) return
 
         try {
           const authData = await getCloudAuthToken()
+          if (cancelled) return
 
           if (authData?.token) {
             try {
@@ -333,7 +379,9 @@ export function CloudProvider({ children }: { children: ReactNode }) {
                 authData.token.access_token,
                 authData.token.refresh_token,
               )
+              if (cancelled) return
               session = await provider.getSession()
+              if (cancelled) return
               setRole(authData.role)
               setPermissions(authData.permissions)
             } catch (error) {
@@ -356,10 +404,12 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           console.error("Failed to fetch cloud session from backend:", error)
         }
 
+        if (cancelled) return
+
         await provider.setAutoRefreshEnabled(!!session)
+        if (cancelled) return
 
         if (session) {
-          // Use handleAuthStateChangeRef to call the latest version
           await handleAuthStateChangeRef.current?.(session)
         } else {
           setUser(null)
@@ -369,20 +419,24 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           lastBackupSettingsUserIdRef.current = null
         }
 
-        // Subscribe using a stable wrapper that calls the ref
+        if (cancelled) return
+
         unsubscribe = provider.onAuthStateChange(changedSession => {
           void handleAuthStateChangeRef.current?.(changedSession)
         })
       } catch (error) {
         console.error("Failed to initialize cloud auth:", error)
       } finally {
-        setIsInitialized(true)
+        if (!cancelled) {
+          setIsInitialized(true)
+        }
       }
     }
 
     initialize()
 
     return () => {
+      cancelled = true
       unsubscribe?.()
     }
   }, [getProvider, isAuthenticated, isCloudEnabled])
@@ -754,19 +808,14 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setIsLoading(true)
     try {
+      isExplicitSignOutRef.current = true
       const provider = getProvider()
       await provider.signOut()
-      await clearBackendCloudSession()
       resetBackupStatusCache()
-      setUser(null)
-      setRole(null)
-      setPermissions([])
-      setBackupModeState(BackupMode.OFF)
-      lastBackupSettingsUserIdRef.current = null
     } finally {
       setIsLoading(false)
     }
-  }, [clearBackendCloudSession, getProvider])
+  }, [getProvider])
 
   const setBackupMode = useCallback(
     (mode: BackupMode) => {

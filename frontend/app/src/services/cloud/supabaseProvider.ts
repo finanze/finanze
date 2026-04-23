@@ -197,7 +197,7 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await this.getClient().auth.signOut()
+    const { error } = await this.getClient().auth.signOut({ scope: "local" })
     if (error) {
       throw error
     }
