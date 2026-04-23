@@ -1,3 +1,49 @@
+## [0.8.0] - 2026-04-23
+
+### 🚀 Features
+
+- Add cloud backup system (WIP, closed access) 
+- Add manual cryptos input (#71)
+- Add mobile application adapting existing base with Pyodide+Capacitor, not all features available but most of them
+- Use different MyInvestor client ids
+- Add better instrument data fetching sources and backups
+- Add xpub support for BTC and LTC (#73)
+- Add DEGIRO integration (#74)
+- Improve per asset position donut charts, compact number format option & asset sorting (#76)
+- Improve asset list UI
+- Add instrument icons, stored issuer and captcha handling
+- Handle DEGIRO maintenance mode with proper error message (#78)
+- Add IBKR integration (#79)
+- Add binance, derivatives, multiaccount support for crypto exchanges & mobile manual entity login (#82)
+- Loan linkage in real estate, more loan parameters, manual loan auto update & couple manual position bugs (#83)
+- Add euribor suggestions (#84)
+- Improve entity selector, contribution chart improvement and filtering, money flows grouping, loans dashboard option and related minor UI improvements (#85)
+- Add credit line support (#88)
+- Add privacy mode, derived wallet individual addresses and balances and manual edit flow improvement (#89)
+
+### 🐛 Bug Fixes
+
+- User creation await (#75)
+- Add @property decorator to KnownIssuer.compact to fix TypeError in _match_issuer
+- Real estate mortgage input, fetching keys handling & ING connection (#81)
+- Pending money not properly showing in forecast, real estate taxes option in forecas, minor real estate cf fixes & input improvements (#86)
+- Cloud session closure (#91)
+
+### 💼 Other
+
+- Improve query management
+
+### 📚 Documentation
+
+- Fix image
+
+### ⚙️ Miscellaneous Tasks
+
+- GH Workflows updates
+- Update to Python 3.14
+- Polishing mobile app (#87)
+- Add macos notarization & ios apple sign in (#90)
+- Stabilize frontend dockerfile build
 ## [0.7.0] - 2025-12-07
 
 ### 🚀 Features
