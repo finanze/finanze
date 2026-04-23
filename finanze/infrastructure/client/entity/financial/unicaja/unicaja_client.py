@@ -111,8 +111,9 @@ class UnicajaClient:
 
         if not abck:
             return EntityLoginResult(
-                code=LoginResultCode.LOGIN_REQUIRED,
+                code=LoginResultCode.MANUAL_LOGIN,
                 message="abck is required for automated login, but it was not provided",
+                details={"user": username, "password": password},
             )
 
         retrying = kwargs.get("retrying", False)
@@ -150,7 +151,9 @@ class UnicajaClient:
                 return await self.login(username, password, abck, retrying=True)
 
             return EntityLoginResult(
-                LoginResultCode.LOGIN_REQUIRED, message="abck may not be valid anymore"
+                LoginResultCode.MANUAL_LOGIN,
+                message="abck may not be valid anymore",
+                details={"user": username, "password": password},
             )
 
         else:

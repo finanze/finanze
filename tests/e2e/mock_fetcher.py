@@ -312,9 +312,13 @@ class MockManualLoginReloginFetcher(MockFinancialEntityFetcher):
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         if login_params.session and "abck" not in login_params.credentials:
+            credentials = login_params.credentials
             return EntityLoginResult(
                 code=LoginResultCode.MANUAL_LOGIN,
-                details={"abck": "mock-abck"},
+                details={
+                    "user": credentials.get("user"),
+                    "password": credentials.get("password"),
+                },
             )
 
         session = EntitySession(

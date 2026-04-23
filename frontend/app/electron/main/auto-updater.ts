@@ -74,6 +74,8 @@ export function initializeAutoUpdater(): void {
 
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.allowPrerelease = false
+  autoUpdater.allowDowngrade = false
 
   autoUpdater.on("checking-for-update", () => {
     sendToAllWindows(AUTO_UPDATE_CHANNELS.checking)
