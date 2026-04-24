@@ -316,7 +316,11 @@ export interface LoginResponse {
   processId?: string
   confirmationType?: LoginConfirmationType
   challengeType?: ChallengeType
-  details?: any
+  details?: {
+    challengeDomain?: string
+    wait?: number
+    [key: string]: any
+  }
   entityAccountId?: string
 }
 
@@ -327,6 +331,7 @@ export interface FetchResponse {
     wait?: number
     processId?: string
     challengeType?: ChallengeType
+    challengeDomain?: string
     credentials?: Record<string, string>
   }
   data?: any
@@ -659,6 +664,13 @@ declare global {
           },
         ) => void,
       ) => void
+      requestChallengeWindow: (
+        siteKey: string,
+        domain: string,
+      ) => Promise<{ success: boolean }>
+      onChallengeCompleted: (
+        callback: (token: string | null) => void,
+      ) => () => void
       checkForUpdates: () => Promise<AutoUpdateCheckResult>
       downloadUpdate: () => Promise<AutoUpdateActionResult>
       quitAndInstall: () => Promise<AutoUpdateActionResult>

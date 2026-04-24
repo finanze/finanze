@@ -27,9 +27,7 @@ test.describe('Connect Entity - 2FA/PIN (Wecity)', () => {
         })
 
         for (const digit of MOCK_PIN_CODE) {
-            await page
-                .getByRole('button', { name: digit, exact: true })
-                .click()
+            await page.getByRole('button', { name: digit, exact: true }).click()
         }
 
         await page.getByRole('button', { name: 'Submit' }).click()
@@ -47,7 +45,13 @@ test.describe('Connect Entity - 2FA/PIN (Wecity)', () => {
             .getByRole('heading', { name: 'Integrations' })
             .waitFor({ timeout: 15_000 })
 
-        const reloginButton = page.getByRole('button', { name: 'Relogin' })
+        const wecityCard = page
+            .locator('h3', { hasText: 'Wecity' })
+            .first()
+            .locator('../..')
+        const reloginButton = wecityCard.getByRole('button', {
+            name: 'Relogin',
+        })
         if (await reloginButton.isVisible().catch(() => false)) {
             await reloginButton.click()
         } else {
@@ -67,9 +71,7 @@ test.describe('Connect Entity - 2FA/PIN (Wecity)', () => {
         })
 
         for (const digit of '999999') {
-            await page
-                .getByRole('button', { name: digit, exact: true })
-                .click()
+            await page.getByRole('button', { name: digit, exact: true }).click()
         }
         await page.getByRole('button', { name: 'Submit' }).click()
 

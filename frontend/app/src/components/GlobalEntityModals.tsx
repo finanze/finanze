@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Button } from "@/components/ui/Button"
 import { PinPad } from "@/components/PinPad"
-import { ChallengeModal } from "@/components/ChallengeModal"
-import { ExternalLink, Smartphone, X } from "lucide-react"
+import { ExternalLink, ShieldCheck, Smartphone, X } from "lucide-react"
 
 export function GlobalEntityModals() {
   const {
@@ -16,6 +15,7 @@ export function GlobalEntityModals() {
     challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
+    cancelChallenge,
     view,
     setView,
     isLoggingIn,
@@ -145,7 +145,42 @@ export function GlobalEntityModals() {
 
       <AnimatePresence>
         {challengeRequired && selectedEntity && !isOnEntitiesPage && (
-          <ChallengeModal />
+          <motion.div
+            key="global-challenge-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
+            >
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5" />
+                    {t.login.challengeTitle} {selectedEntity.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-center text-muted-foreground">
+                    {t.login.challengeMessage}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-6"
+                    onClick={cancelChallenge}
+                  >
+                    {t.common.cancel}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>

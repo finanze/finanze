@@ -24,11 +24,6 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
     entity_account_id = body.get("entityAccountId", None)
     account_name = body.get("accountName", None)
 
-    # if not process_id:
-    #    return '{"code": "CODE_REQUESTED", "processId": "aaaa"}'
-    # else:
-    #    return '{"code": "CREATED"}'
-
     login_request = EntityLoginRequest(
         entity_id=entity,
         credentials=credentials,
@@ -42,7 +37,10 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
     if result.message:
         response["message"] = result.message
     if result.details:
-        response["details"] = result.details
+        details = dict(result.details)
+        if "challenge_domain" in details:
+            details["challengeDomain"] = details.pop("challenge_domain")
+        response["details"] = details
     if result.confirmation_type:
         response["confirmationType"] = result.confirmation_type
     if result.process_id:

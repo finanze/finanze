@@ -39,6 +39,7 @@ import {
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
 import { getExternalLoginAPI } from "@/lib/externalLogin"
+import { getChallengeWindowAPI } from "@/lib/challengeWindow"
 
 export interface FetchOptions {
   deep?: boolean
@@ -285,8 +286,46 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   }, [selectedEntity, resetState, setView])
 
   const cancelChallenge = useCallback(() => {
+    if (challengeCleanupRef.current) {
+      challengeCleanupRef.current()
+      challengeCleanupRef.current = null
+    }
     resetState()
   }, [resetState])
+
+  const challengeCleanupRef = useRef<(() => void) | null>(null)
+
+  const openChallengeWindow = useCallback(
+    (siteKey: string, domain: string) => {
+      const challengeAPI = getChallengeWindowAPI()
+      if (!challengeAPI) return false
+
+      if (challengeCleanupRef.current) {
+        challengeCleanupRef.current()
+      }
+
+      const cleanup = challengeAPI.onChallengeCompleted(token => {
+        challengeCleanupRef.current = null
+        if (token) {
+          submitChallengeTokenRef.current(token)
+        } else {
+          resetState()
+        }
+      })
+      challengeCleanupRef.current = cleanup
+
+      challengeAPI.requestChallengeWindow(siteKey, domain).then(result => {
+        if (!result.success) {
+          resetState()
+        }
+      })
+
+      return true
+    },
+    [resetState],
+  )
+
+  const submitChallengeTokenRef = useRef<(token: string) => void>(() => {})
 
   const setOnScrapeCompleted = useCallback(
     (callback: ((entityId: string) => Promise<void>) | null) => {
@@ -483,9 +522,16 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               response.challengeType === ChallengeType.RECAPTCHA &&
               response.processId
             ) {
-              setChallengeProcessId(response.processId)
-              setChallengeType(ChallengeType.RECAPTCHA)
-              setChallengeRequired(true)
+              const domain = response.details?.challengeDomain
+              if (domain && openChallengeWindow(response.processId, domain)) {
+                setChallengeProcessId(response.processId)
+                setChallengeType(ChallengeType.RECAPTCHA)
+                setChallengeRequired(true)
+              } else {
+                showToast(t.common.incompatibleLoginPlatform, "error")
+                resetState()
+                setView("entities")
+              }
               return
             }
           }
@@ -582,6 +628,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     },
     [
       formatCooldownTime,
+      openChallengeWindow,
       processId,
       resetState,
       selectedEntity,
@@ -691,18 +738,29 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
             const processIdValue = response.details?.processId || null
             const challengeTypeValue = response.details?.challengeType || null
+            const challengeDomainValue =
+              response.details?.challengeDomain || null
             if (processIdValue && entity) {
-              setSelectedEntity(entity)
-              setSelectedFeatures(features)
-              setFetchOptions(current => ({
-                ...current,
-                deep: options.deep ?? DEFAULT_FETCH_OPTIONS.deep,
-                avoidNewLogin: options.avoidNewLogin,
-              }))
-              setCurrentAction("scrape")
-              setChallengeProcessId(processIdValue)
-              setChallengeType(challengeTypeValue)
-              setChallengeRequired(true)
+              const opened =
+                challengeDomainValue &&
+                openChallengeWindow(processIdValue, challengeDomainValue)
+              if (opened) {
+                setSelectedEntity(entity)
+                setSelectedFeatures(features)
+                setFetchOptions(current => ({
+                  ...current,
+                  deep: options.deep ?? DEFAULT_FETCH_OPTIONS.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                }))
+                setCurrentAction("scrape")
+                setChallengeProcessId(processIdValue)
+                setChallengeType(challengeTypeValue)
+                setChallengeRequired(true)
+              } else {
+                showToast(t.common.incompatibleLoginPlatform, "error")
+                resetState()
+                setView("entities")
+              }
             }
           } else if (entity) {
             const processIdValue = response.details?.processId || null
@@ -969,6 +1027,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     [
       formatCooldownTime,
       navigate,
+      openChallengeWindow,
       processId,
       setSelectedEntity,
       setSelectedFeatures,
@@ -995,6 +1054,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       setChallengeRequired(false)
       setChallengeProcessId(null)
       setChallengeType(null)
+      if (challengeCleanupRef.current) {
+        challengeCleanupRef.current()
+        challengeCleanupRef.current = null
+      }
       if (currentAction === "login" && storedCredentials) {
         loginEntity({
           entity: selectedEntity.id,
@@ -1076,6 +1139,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       updateEntityStatus,
     ],
   )
+
+  submitChallengeTokenRef.current = submitChallengeToken
 
   const handleScrapeManualLoginCompletion = useCallback(
     async (credentials: Record<string, string>) => {
@@ -1202,9 +1267,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             loginResponse.challengeType === ChallengeType.RECAPTCHA &&
             loginResponse.processId
           ) {
-            setChallengeProcessId(loginResponse.processId)
-            setChallengeType(ChallengeType.RECAPTCHA)
-            setChallengeRequired(true)
+            const domain = loginResponse.details?.challengeDomain
+            if (
+              domain &&
+              openChallengeWindow(loginResponse.processId, domain)
+            ) {
+              setChallengeProcessId(loginResponse.processId)
+              setChallengeType(ChallengeType.RECAPTCHA)
+              setChallengeRequired(true)
+            } else {
+              showToast(t.common.incompatibleLoginPlatform, "error")
+              resetState()
+              setView("entities")
+            }
           } else {
             setPinRequired(true)
             setPinLength(selectedEntity.pin?.positions || 4)
@@ -1234,6 +1309,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     },
     [
       formatCooldownTime,
+      openChallengeWindow,
       resetState,
       scrape,
       selectedEntity,

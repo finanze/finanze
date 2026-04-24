@@ -1,5 +1,6 @@
 import domain.native_entities as native_entities
 from e2e.mock_fetcher import (
+    MockChallengeEntityFetcher,
     MockCryptoExchangeFetcher,
     MockFinancialEntityFetcher,
     MockManualLoginFetcher,
@@ -11,7 +12,6 @@ from e2e.mock_fetcher import (
 
 def get_e2e_financial_fetchers() -> dict:
     simple = [
-        native_entities.MY_INVESTOR,
         native_entities.MINTOS,
         native_entities.F24,
         native_entities.INDEXA_CAPITAL,
@@ -35,5 +35,8 @@ def get_e2e_financial_fetchers() -> dict:
     )
     fetchers[native_entities.BINANCE] = MockCryptoExchangeFetcher(
         native_entities.BINANCE
+    )
+    fetchers[native_entities.MY_INVESTOR] = MockChallengeEntityFetcher(
+        native_entities.MY_INVESTOR
     )
     return fetchers
