@@ -24,6 +24,7 @@ import {
   FinanzeConfig,
 } from "../types"
 import { promptLogin } from "./loginHandlers"
+import { promptChallenge } from "./challengeWindow"
 import packageJson from "../../package.json" with { type: "json" }
 import { BackendController } from "./backend-controller"
 import {
@@ -355,6 +356,12 @@ app.whenReady().then(async () => {
   ipcMain.handle("external-login", async (_, id, request) => {
     return await promptLogin(id, request)
   })
+  ipcMain.handle(
+    "request-challenge-window",
+    async (_, siteKey: string, domain: string) => {
+      return await promptChallenge(siteKey, domain)
+    },
+  )
 
   ipcMain.handle("backend-status", () => backendController.getStatus())
   ipcMain.handle(
@@ -381,6 +388,9 @@ app.whenReady().then(async () => {
 
   ipcMain.on("completed-external-login", (_, id, result) => {
     sendToAllWindows("completed-external-login", id, result)
+  })
+  ipcMain.on("completed-challenge-window", (_, token) => {
+    sendToAllWindows("completed-challenge-window", token)
   })
 
   registerAutoUpdateHandlers()

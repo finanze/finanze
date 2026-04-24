@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     request: ExternalLoginRequest = {},
   ) => ipcRenderer.invoke("external-login", id, request),
 
+  requestChallengeWindow: async (siteKey: string, domain: string) =>
+    ipcRenderer.invoke("request-challenge-window", siteKey, domain),
+
   startBackend: (options?: BackendStartOptions) =>
     ipcRenderer.invoke(
       "backend-start",
@@ -99,6 +102,16 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     })
 
     return () => ipcRenderer.removeAllListeners("completed-external-login")
+  },
+
+  onChallengeCompleted: (callback: (token: string | null) => void) => {
+    ipcRenderer.removeAllListeners("completed-challenge-window")
+
+    ipcRenderer.on("completed-challenge-window", (_, token) => {
+      callback(token)
+    })
+
+    return () => ipcRenderer.removeAllListeners("completed-challenge-window")
   },
 
   onOAuthCallback: (

@@ -15,9 +15,11 @@ from domain.auto_contributions import (
 from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity_login import (
+    ChallengeType,
     EntityLoginParams,
     EntityLoginResult,
     EntitySession,
+    LoginConfirmationType,
     LoginResultCode,
 )
 from domain.fetch_record import DataSource
@@ -437,3 +439,34 @@ class MockCryptoExchangeFetcher(FinancialEntityFetcher):
 
     async def historical_position(self) -> HistoricalPosition:
         return HistoricalPosition(positions={})
+
+
+MOCK_CHALLENGE_TOKEN = "mock-challenge-token"
+MOCK_CHALLENGE_PROCESS_ID = "mock-site-key"
+
+
+class MockChallengeEntityFetcher(MockFinancialEntityFetcher):
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        two_factor = login_params.two_factor
+
+        if not two_factor or not two_factor.token:
+            return EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.RECAPTCHA,
+                process_id=MOCK_CHALLENGE_PROCESS_ID,
+                details={"challenge_domain": "mock-challenge.test"},
+            )
+
+        if two_factor.token != MOCK_CHALLENGE_TOKEN:
+            return EntityLoginResult(code=LoginResultCode.INVALID_CREDENTIALS)
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )

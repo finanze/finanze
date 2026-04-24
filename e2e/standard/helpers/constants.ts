@@ -11,6 +11,7 @@ export const TRADE_REPUBLIC_ID = 'e0000000-0000-0000-0000-000000000003'
 export const UNICAJA_ID = 'e0000000-0000-0000-0000-000000000002'
 export const ING_ID = 'e0000000-0000-0000-0000-000000000010'
 export const BINANCE_ID = 'ce000000-0000-0000-0000-000000000001'
+export const MYINVESTOR_ID = 'e0000000-0000-0000-0000-000000000001'
 
 export const MOCK_PIN_CODE = '123456'
 
@@ -26,5 +27,10 @@ export const TRADE_REPUBLIC_CREDENTIALS = {
 
 export const UNICAJA_CREDENTIALS = {
     user: 'test-unicaja-user',
+    password: 'MockPassword123',
+}
+
+export const MYINVESTOR_CREDENTIALS = {
+    user: 'test@example.com',
     password: 'MockPassword123',
 }

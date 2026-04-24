@@ -6,7 +6,7 @@ import { AddWalletForm, AddWalletSubmitData } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
 import { ManageAccountsDialog } from "@/components/ManageAccountsDialog"
 import { PinPad } from "@/components/PinPad"
-import { ChallengeModal } from "@/components/ChallengeModal"
+import { ShieldCheck } from "lucide-react"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -65,6 +65,7 @@ export default function EntityIntegrationsPage() {
     challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
+    cancelChallenge,
     selectEntity,
     scrape,
     view,
@@ -1055,7 +1056,44 @@ export default function EntityIntegrationsPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {challengeRequired && selectedEntity && <ChallengeModal />}
+        {challengeRequired && selectedEntity && (
+          <motion.div
+            key="challenge-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
+            >
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5" />
+                    {t.login.challengeTitle} {selectedEntity.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-center text-muted-foreground">
+                    {t.login.challengeMessage}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-6"
+                    onClick={cancelChallenge}
+                  >
+                    {t.common.cancel}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Add Wallet Modal */}
