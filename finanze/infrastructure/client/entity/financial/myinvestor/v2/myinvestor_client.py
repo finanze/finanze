@@ -218,6 +218,7 @@ class MyInvestorAPIV2Client:
                 challenge_type=ChallengeType.RECAPTCHA,
                 process_id=self._skey,
                 message=body.get("status", {}).get("message", ""),
+                details={"challenge_domain": "myinvestor.es"},
             )
         else:
             return EntityLoginResult(

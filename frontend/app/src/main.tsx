@@ -13,6 +13,7 @@ import { ModalRegistryProvider } from "@/context/ModalRegistryContext"
 import { DataDisplayModeProvider } from "@/context/DataDisplayModeContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
 import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
+import { initE2eMockChallengeWindow } from "@/lib/dev/initE2eMockChallengeWindow"
 import * as mobile from "@/lib/mobile"
 
 async function bootstrap(): Promise<void> {
@@ -20,6 +21,7 @@ async function bootstrap(): Promise<void> {
 
   initDevPlatformOverride()
   initE2eMockExternalLogin()
+  initE2eMockChallengeWindow()
   mobile.init()
 
   createRoot(document.getElementById("root")!).render(

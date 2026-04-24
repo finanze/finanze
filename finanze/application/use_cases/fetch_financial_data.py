@@ -279,6 +279,9 @@ class FetchFinancialDataImpl(FetchFinancialData):
                     details["processId"] = login_result.process_id
                 if login_result.challenge_type:
                     details["challengeType"] = login_result.challenge_type
+                login_details = login_result.details or {}
+                if "challenge_domain" in login_details:
+                    details["challengeDomain"] = login_details["challenge_domain"]
                 return FetchResult(
                     FetchResultCode.CODE_REQUESTED,
                     details=details,

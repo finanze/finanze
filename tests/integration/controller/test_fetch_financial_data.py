@@ -803,6 +803,47 @@ class TestChallengeFlow:
         assert body["details"]["processId"] == "captcha-001"
 
     @pytest.mark.asyncio
+    async def test_returns_challenge_domain_when_provided(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Solve the captcha",
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.RECAPTCHA,
+                process_id="captcha-002",
+                details={"challenge_domain": "myinvestor.es"},
+            ),
+        )
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["details"]["challengeType"] == "RECAPTCHA"
+        assert body["details"]["processId"] == "captcha-002"
+        assert body["details"]["challengeDomain"] == "myinvestor.es"
+
+    @pytest.mark.asyncio
     async def test_returns_challenge_type_awswaf(
         self,
         client,

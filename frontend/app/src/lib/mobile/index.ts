@@ -25,6 +25,17 @@ export function init() {
     },
   )
 
+  import("@/lib/capacitor/challengeWindow").then(
+    ({ requestChallengeWindow, onChallengeCompleted }) => {
+      import("@/lib/challengeWindow").then(({ setMobileChallengeAPI }) => {
+        setMobileChallengeAPI({
+          requestChallengeWindow,
+          onChallengeCompleted,
+        })
+      })
+    },
+  )
+
   import("@/lib/pyodide/init").then(({ ensureCoreInitialized }) => {
     ensureCoreInitialized()
   })

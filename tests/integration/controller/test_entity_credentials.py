@@ -416,6 +416,37 @@ class TestChallengeFlow:
         credentials_port.save.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_returns_challenge_domain_when_provided(
+        self, client, entity_fetchers, credentials_port
+    ):
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Solve the captcha",
+                challenge_type=ChallengeType.RECAPTCHA,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                process_id="captcha-003",
+                details={"challenge_domain": "myinvestor.es"},
+            ),
+        )
+        response = await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": MY_INVESTOR_ID,
+                "credentials": {"user": "myuser", "password": "mypass"},
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["challengeType"] == "RECAPTCHA"
+        assert body["details"]["challengeDomain"] == "myinvestor.es"
+        credentials_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_returns_challenge_type_awswaf(
         self, client, entity_fetchers, credentials_port
     ):
