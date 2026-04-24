@@ -1,3 +1,9 @@
+## [0.8.1] - 2026-04-24
+
+### 🐛 Bug Fixes
+
+- Deprecate login required
+- Improve recaptcha challenge
 ## [0.8.0] - 2026-04-23
 
 ### 🚀 Features
