@@ -14,6 +14,7 @@ from domain.backup import (
     SyncStatus,
 )
 from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudUserRole
+from domain.exception.exceptions import BackupTransferFailed
 
 GET_BACKUPS_URL = "/api/v1/cloud/backup"
 UPLOAD_URL = "/api/v1/cloud/backup/upload"
@@ -764,3 +765,70 @@ class TestUploadMultipleTypes:
         assert "CONFIG" in body["pieces"]
         assert body["pieces"]["DATA"]["status"] == SyncStatus.SYNC.value
         assert body["pieces"]["CONFIG"]["status"] == SyncStatus.SYNC.value
+
+
+class TestBackupTransferFailed:
+    @pytest.mark.asyncio
+    async def test_import_returns_502_when_download_fails(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backupable_ports,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        local_dt = datetime.now(timezone.utc) - timedelta(hours=3)
+        remote_dt = datetime.now(timezone.utc) - timedelta(hours=1)
+        local_info = _backup_info(BackupFileType.DATA, dt=local_dt)
+        remote_info = _backup_info(BackupFileType.DATA, dt=remote_dt)
+        backup_local_registry.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
+        )
+        backup_repository.get_info = AsyncMock(
+            return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
+        )
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=local_dt - timedelta(minutes=10)
+        )
+        backup_repository.download = AsyncMock(
+            side_effect=BackupTransferFailed("Failed to download backup piece DATA")
+        )
+
+        response = await client.post(IMPORT_URL, json={"types": ["DATA"]})
+        assert response.status_code == 502
+        body = await response.get_json()
+        assert body["code"] == "BACKUP_TRANSFER_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_upload_returns_502_when_upload_fails(
+        self,
+        client,
+        cloud_register,
+        backup_local_registry,
+        backup_repository,
+        backup_processor,
+        backupable_ports,
+        data_initiator,
+    ):
+        cloud_register.get_auth = AsyncMock(return_value=_auth())
+        backup_local_registry.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        backup_repository.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        dt = datetime.now(timezone.utc)
+        backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
+            return_value=dt
+        )
+        backupable_ports[BackupFileType.DATA].export = AsyncMock(
+            return_value=b"export-bytes"
+        )
+        backup_processor.compile = AsyncMock(
+            return_value=BackupProcessResult(payload=b"enc", size=3)
+        )
+        backup_repository.upload = AsyncMock(
+            side_effect=BackupTransferFailed("Failed to upload backup piece DATA")
+        )
+
+        response = await client.post(UPLOAD_URL, json={"types": ["DATA"]})
+        assert response.status_code == 502
+        body = await response.get_json()
+        assert body["code"] == "BACKUP_TRANSFER_FAILED"

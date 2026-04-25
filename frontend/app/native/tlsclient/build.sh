@@ -85,6 +85,7 @@ build_ios() {
   <key>CFBundleExecutable</key><string>Tlsclient</string>
   <key>CFBundlePackageType</key><string>FMWK</string>
   <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>MinimumOSVersion</key><string>15.0</string>
 </dict>
 </plist>

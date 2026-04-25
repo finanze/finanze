@@ -21,6 +21,7 @@ from domain.exception.exceptions import (
     InvalidToken,
     ExecutionConflict,
     BackupConflict,
+    BackupTransferFailed,
     ExternalIntegrationRequired,
     IntegrationNotFound,
     IntegrationSetupError,
@@ -198,6 +199,9 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, BackupConflict):
             status = 409
             data = {"code": "BACKUP_CONFLICT", "message": str(e)}
+        elif isinstance(e, BackupTransferFailed):
+            status = 502
+            data = {"code": "BACKUP_TRANSFER_FAILED", "message": str(e)}
         elif isinstance(e, PermissionDenied):
             status = 403
             data = {"code": "PERMISSION_DENIED", "message": str(e)}

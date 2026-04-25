@@ -697,6 +697,7 @@
       "tooManyRequests": "Too many requests. Please wait a bit before retrying.",
       "cooldownActive": "Please wait a moment before trying again.",
       "conflictRetry": "Sync conflict detected. Choose local or remote.",
+      "transferFailed": "Could not connect to the backup server. Please try again later.",
       "conflictDetected": "Conflict detected",
       "conflictDescription": "There are conflicting changes. Choose which version to keep.",
       "credentialsMismatch": "Password mismatch",

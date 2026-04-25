@@ -181,6 +181,12 @@ class BackupConflict(Exception):
     pass
 
 
+class BackupTransferFailed(Exception):
+    """Raised when backup upload or download to cloud storage fails"""
+
+    pass
+
+
 class UnsupportedBackupProtocol(Exception):
     def __init__(self, protocol_version: int):
         super().__init__(f"Unsupported backup protocol version: {protocol_version}")

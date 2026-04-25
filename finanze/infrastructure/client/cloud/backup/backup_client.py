@@ -18,7 +18,7 @@ from domain.backup import (
     BackupInfoParams,
 )
 from domain.cloud_auth import CloudAuthData
-from domain.exception.exceptions import TooManyRequests
+from domain.exception.exceptions import BackupTransferFailed, TooManyRequests
 from infrastructure.client.cloud.backup.file_transfer_strategy import (
     FileTransferStrategy,
 )
@@ -78,7 +78,6 @@ class BackupClient(BackupRepository):
             # Step 2: Upload each piece to the presigned URL
             uploaded_pieces = []
             for upload_info in upload_response.get("uploads", []):
-                # Find the corresponding piece
                 piece = next(
                     (
                         p
@@ -91,13 +90,19 @@ class BackupClient(BackupRepository):
                     self._log.warning(f"No piece found for type {upload_info['type']}")
                     continue
 
-                await self._file_transfer_strategy.upload(
-                    url=upload_info["url"],
-                    method=upload_info["method"],
-                    payload=piece.payload,
-                    headers=upload_info.get("headers", {}),
-                    backup_type=piece.type,
-                )
+                try:
+                    await self._file_transfer_strategy.upload(
+                        url=upload_info["url"],
+                        method=upload_info["method"],
+                        payload=piece.payload,
+                        headers=upload_info.get("headers", {}),
+                        backup_type=piece.type,
+                    )
+                except Exception as e:
+                    self._log.error(f"Error uploading piece {piece.type.value}: {e}")
+                    raise BackupTransferFailed(
+                        f"Failed to upload backup piece {piece.type.value}"
+                    ) from e
 
                 uploaded_pieces.append(piece)
                 self._log.info(
@@ -169,7 +174,9 @@ class BackupClient(BackupRepository):
 
                 except Exception as e:
                     self._log.error(f"Error downloading piece {backup_type_str}: {e}")
-                    continue
+                    raise BackupTransferFailed(
+                        f"Failed to download backup piece {backup_type_str}"
+                    ) from e
 
             return BackupPieces(pieces=pieces)
 
