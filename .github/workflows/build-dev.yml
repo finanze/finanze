@@ -337,30 +337,29 @@ jobs:
               }
             }
 
-            const androidArtifactName = `finanze-${version}-android`;
-            const androidArtifact = artifacts.artifacts.find(a => a.name === androidArtifactName);
-            let androidSection;
-            if (androidArtifact) {
-              const size = formatSize(androidArtifact.size_in_bytes);
-              const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${androidArtifact.id}`;
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Full | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-              ].join('\n');
-            } else {
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | — | ⏳ Building... |`,
-                `| Full | \`.aab\` | — | ⏳ Building... |`,
-                `| Store | \`.apk\` | — | ⏳ Building... |`,
-                `| Store | \`.aab\` | — | ⏳ Building... |`,
-              ].join('\n');
+            const androidMap = {
+              'android-full-apk': { variant: 'Full', type: '.apk' },
+              'android-full-aab': { variant: 'Full', type: '.aab' },
+              'android-store-apk': { variant: 'Store', type: '.apk' },
+              'android-store-aab': { variant: 'Store', type: '.aab' },
+            };
+            let androidRows = '';
+            for (const [key, info] of Object.entries(androidMap)) {
+              const artifactName = `finanze-${version}-${key}`;
+              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
+              if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
+                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                androidRows += `| ${info.variant} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
+              } else {
+                androidRows += `| ${info.variant} | \`${info.type}\` | — | ⏳ Building... |\n`;
+              }
             }
+            const androidSection = [
+              `| Variant | Type | Size | Link |`,
+              `|---------|------|------|------|`,
+              androidRows.trim(),
+            ].join('\n');
 
             const dockerTag = `pr${prNumber}`;
 
@@ -591,11 +590,32 @@ jobs:
           cp frontend/app/android/app/build/outputs/apk/store/release/app-store-release.apk dist-android/Finanze-${VERSION}-android-store.apk
           cp frontend/app/android/app/build/outputs/bundle/storeRelease/app-store-release.aab dist-android/Finanze-${VERSION}-android-store.aab
 
-      - name: Upload Android artifacts
+      - name: Upload Android full APK
         uses: actions/upload-artifact@v6
         with:
-          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android
-          path: dist-android/
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-apk
+          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.apk
+          if-no-files-found: warn
+
+      - name: Upload Android full AAB
+        uses: actions/upload-artifact@v6
+        with:
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-aab
+          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.aab
+          if-no-files-found: warn
+
+      - name: Upload Android store APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-apk
+          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.apk
+          if-no-files-found: warn
+
+      - name: Upload Android store AAB
+        uses: actions/upload-artifact@v6
+        with:
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-aab
+          path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.aab
           if-no-files-found: warn
 
       - name: Update PR comment with Android status
@@ -639,30 +659,29 @@ jobs:
               }
             }
 
-            const androidArtifactName = `finanze-${version}-android`;
-            const androidArtifact = artifacts.artifacts.find(a => a.name === androidArtifactName);
-            let androidSection;
-            if (androidArtifact) {
-              const size = formatSize(androidArtifact.size_in_bytes);
-              const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${androidArtifact.id}`;
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Full | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-              ].join('\n');
-            } else {
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | — | ⏳ Building... |`,
-                `| Full | \`.aab\` | — | ⏳ Building... |`,
-                `| Store | \`.apk\` | — | ⏳ Building... |`,
-                `| Store | \`.aab\` | — | ⏳ Building... |`,
-              ].join('\n');
+            const androidMap = {
+              'android-full-apk': { variant: 'Full', type: '.apk' },
+              'android-full-aab': { variant: 'Full', type: '.aab' },
+              'android-store-apk': { variant: 'Store', type: '.apk' },
+              'android-store-aab': { variant: 'Store', type: '.aab' },
+            };
+            let androidRows = '';
+            for (const [key, info] of Object.entries(androidMap)) {
+              const artifactName = `finanze-${version}-${key}`;
+              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
+              if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
+                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                androidRows += `| ${info.variant} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
+              } else {
+                androidRows += `| ${info.variant} | \`${info.type}\` | — | ⏳ Building... |\n`;
+              }
             }
+            const androidSection = [
+              `| Variant | Type | Size | Link |`,
+              `|---------|------|------|------|`,
+              androidRows.trim(),
+            ].join('\n');
 
             const dockerTag = `pr${prNumber}`;
 
@@ -901,30 +920,29 @@ jobs:
               dockerSection = `❌ Docker build failed — check the [workflow run](https://github.com/${owner}/${repo}/actions/runs/${runId}) for details.`;
             }
 
-            const androidArtifactName = `finanze-${version}-android`;
-            const androidArtifact = artifacts.artifacts.find(a => a.name === androidArtifactName);
-            let androidSection;
-            if (androidArtifact) {
-              const size = formatSize(androidArtifact.size_in_bytes);
-              const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${androidArtifact.id}`;
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Full | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.apk\` | ${size} | [Download](${downloadUrl}) |`,
-                `| Store | \`.aab\` | ${size} | [Download](${downloadUrl}) |`,
-              ].join('\n');
-            } else {
-              androidSection = [
-                `| Variant | Type | Size | Link |`,
-                `|---------|------|------|------|`,
-                `| Full | \`.apk\` | — | ⏳ Building... |`,
-                `| Full | \`.aab\` | — | ⏳ Building... |`,
-                `| Store | \`.apk\` | — | ⏳ Building... |`,
-                `| Store | \`.aab\` | — | ⏳ Building... |`,
-              ].join('\n');
+            const androidMap = {
+              'android-full-apk': { variant: 'Full', type: '.apk' },
+              'android-full-aab': { variant: 'Full', type: '.aab' },
+              'android-store-apk': { variant: 'Store', type: '.apk' },
+              'android-store-aab': { variant: 'Store', type: '.aab' },
+            };
+            let androidRows = '';
+            for (const [key, info] of Object.entries(androidMap)) {
+              const artifactName = `finanze-${version}-${key}`;
+              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
+              if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
+                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                androidRows += `| ${info.variant} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
+              } else {
+                androidRows += `| ${info.variant} | \`${info.type}\` | — | ⏳ Building... |\n`;
+              }
             }
+            const androidSection = [
+              `| Variant | Type | Size | Link |`,
+              `|---------|------|------|------|`,
+              androidRows.trim(),
+            ].join('\n');
 
             const body = [
               `<!-- finanze-build-artifacts -->`,
