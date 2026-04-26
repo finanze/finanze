@@ -54,4 +54,6 @@ export interface LoginWebViewPlugin {
   removeAllListeners(): Promise<void>
 }
 
-export const LoginWebView = registerPlugin<LoginWebViewPlugin>("LoginWebView")
+export const LoginWebView = __CONNECTIONS__
+  ? registerPlugin<LoginWebViewPlugin>("LoginWebView")
+  : (null as unknown as LoginWebViewPlugin)

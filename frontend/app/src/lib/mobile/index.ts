@@ -14,27 +14,29 @@ export function init() {
   if (!isNativeMobile()) return
 
   // Set up mobile external login API
-  import("@/lib/capacitor/loginHandlers").then(
-    ({ promptLogin, onCompletedExternalLogin }) => {
-      import("@/lib/externalLogin").then(({ setMobileLoginAPI }) => {
-        setMobileLoginAPI({
-          requestExternalLogin: (id, req) => promptLogin(id, req || {}),
-          onCompletedExternalLogin,
+  if (__CONNECTIONS__) {
+    import("@/lib/capacitor/loginHandlers").then(
+      ({ promptLogin, onCompletedExternalLogin }) => {
+        import("@/lib/externalLogin").then(({ setMobileLoginAPI }) => {
+          setMobileLoginAPI({
+            requestExternalLogin: (id, req) => promptLogin(id, req || {}),
+            onCompletedExternalLogin,
+          })
         })
-      })
-    },
-  )
+      },
+    )
 
-  import("@/lib/capacitor/challengeWindow").then(
-    ({ requestChallengeWindow, onChallengeCompleted }) => {
-      import("@/lib/challengeWindow").then(({ setMobileChallengeAPI }) => {
-        setMobileChallengeAPI({
-          requestChallengeWindow,
-          onChallengeCompleted,
+    import("@/lib/capacitor/challengeWindow").then(
+      ({ requestChallengeWindow, onChallengeCompleted }) => {
+        import("@/lib/challengeWindow").then(({ setMobileChallengeAPI }) => {
+          setMobileChallengeAPI({
+            requestChallengeWindow,
+            onChallengeCompleted,
+          })
         })
-      })
-    },
-  )
+      },
+    )
+  }
 
   import("@/lib/pyodide/init").then(({ ensureCoreInitialized }) => {
     ensureCoreInitialized()

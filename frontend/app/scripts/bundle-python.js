@@ -33,6 +33,15 @@ const EXCLUDED_FILES = ["server.py", "logs.py", "args.py", "__main__.py"]
 const EXCLUDED_EXTENSIONS = [".pyc", ".pyo", ".pyd"]
 const CACHE_DIRS = ["__pycache__", ".pytest_cache", ".git", ".ruff_cache"]
 
+const INCLUDE_CONNECTIONS = process.env.INCLUDE_CONNECTIONS !== "0"
+
+const CONNECTION_EXCLUDED_PATTERNS = [
+  "infrastructure/client/entity/crypto/",
+  "infrastructure/client/entity/financial/",
+  "infrastructure/client/entity/exchange/",
+  "infrastructure/client/entity/psd2/",
+]
+
 const CORE_PATTERNS = [
   "finanze/app.py",
   "finanze/app_core.py",
@@ -323,6 +332,14 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
     // Only copy python files or strictly necessary data files
     if (!source.endsWith(".py") && !source.endsWith(".pkl")) return
 
+    // Exclude connection-related files in store builds
+    if (!INCLUDE_CONNECTIONS) {
+      const relToCheck = isCustom
+        ? path.relative(CUSTOM_PYTHON_ROOT, source)
+        : path.relative(SOURCE_ROOT, source)
+      if (matchesPatterns(relToCheck, CONNECTION_EXCLUDED_PATTERNS)) return
+    }
+
     fs.copyFileSync(source, dest)
 
     // Add to manifest (path relative to DEST_ROOT)
@@ -521,6 +538,13 @@ if (fs.existsSync(PYODIDE_ROOT)) {
 }
 
 minifyPythonFiles(DEST_ROOT)
+
+fs.writeFileSync(
+  path.join(DEST_ROOT, "finanze", "build_config.py"),
+  `INCLUDE_CONNECTIONS = ${INCLUDE_CONNECTIONS ? "True" : "False"}\n`,
+  "utf8",
+)
+coreFileList.push("finanze/build_config.py")
 
 const manifestCore = {
   files: coreFileList,

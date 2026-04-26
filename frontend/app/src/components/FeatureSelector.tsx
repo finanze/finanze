@@ -213,8 +213,12 @@ export function FeatureSelector() {
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={handleCancel}>
-              <X className="mr-2 h-4 w-4" />
+            <Button
+              variant="outline"
+              className="flex-1 whitespace-normal"
+              onClick={handleCancel}
+            >
+              <X className="mr-2 h-4 w-4 flex-shrink-0" />
               {isEntityFetching
                 ? t.common.continueInBackground
                 : t.common.cancel}

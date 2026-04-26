@@ -506,7 +506,7 @@
     "generalDescription": "Configure general settings",
     "application": "Application",
     "applicationDescription": "Adjust preferences stored locally on this device",
-    "applicationDisclaimerDescription": "These settings are saved only in this window instance, if you use another device or application they won't be shared.",
+    "applicationDisclaimerDescription": "These settings are saved only in this window instance/device, if you use another device or application they won't be shared.",
     "applicationLanguageTitle": "Language",
     "applicationLanguageDescription": "Choose the language used across the app, used to format dates, numbers, and currencies too.",
     "themeTitle": "Theme",

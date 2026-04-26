@@ -140,29 +140,58 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
 
 
 def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
+    from finanze.build_config import INCLUDE_CONNECTIONS
+
     lz = lazy
 
-    routes = [
+    routes = []
+
+    if INCLUDE_CONNECTIONS:
+        routes += [
+            (
+                "POST",
+                "/api/v1/entities/login",
+                "add_entity_login",
+                "add_entity_login",
+                lz.add_entity_creds,
+            ),
+            (
+                "POST",
+                "/api/v1/data/fetch/financial",
+                "fetch_financial_data",
+                "fetch_financial_data",
+                lz.fetch_financial,
+            ),
+            (
+                "POST",
+                "/api/v1/data/fetch/crypto",
+                "fetch_crypto_data",
+                "fetch_crypto_data",
+                lz.fetch_crypto,
+            ),
+            (
+                "POST",
+                "/api/v1/crypto-wallet",
+                "connect_crypto_wallet",
+                "connect_crypto_wallet",
+                lz.conn_crypto,
+            ),
+            (
+                "DELETE",
+                "/api/v1/entities/login",
+                "disconnect_entity",
+                "disconnect_entity",
+                lz.disconnect_entity,
+            ),
+        ]
+
+    routes += [
         (
-            "POST",
-            "/api/v1/entities/login",
-            "add_entity_login",
-            "add_entity_login",
-            lz.add_entity_creds,
-        ),
-        (
-            "POST",
-            "/api/v1/data/fetch/financial",
-            "fetch_financial_data",
-            "fetch_financial_data",
-            lz.fetch_financial,
-        ),
-        (
-            "POST",
-            "/api/v1/data/fetch/crypto",
-            "fetch_crypto_data",
-            "fetch_crypto_data",
-            lz.fetch_crypto,
+            "GET",
+            "/api/v1/crypto-wallet/derivate",
+            "derive_crypto_addresses",
+            "derive_crypto_addresses",
+            lz.derive_crypto,
         ),
         (
             "POST",
@@ -177,20 +206,6 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
             "export_file",
             "export_file",
             lz.export_file,
-        ),
-        (
-            "POST",
-            "/api/v1/crypto-wallet",
-            "connect_crypto_wallet",
-            "connect_crypto_wallet",
-            lz.conn_crypto,
-        ),
-        (
-            "GET",
-            "/api/v1/crypto-wallet/derivate",
-            "derive_crypto_addresses",
-            "derive_crypto_addresses",
-            lz.derive_crypto,
         ),
         (
             "POST",
@@ -212,13 +227,6 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
             "update_settings",
             "update_settings",
             lz.update_settings,
-        ),
-        (
-            "DELETE",
-            "/api/v1/entities/login",
-            "disconnect_entity",
-            "disconnect_entity",
-            lz.disconnect_entity,
         ),
         (
             "PUT",
