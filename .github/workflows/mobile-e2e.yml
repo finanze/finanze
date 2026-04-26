@@ -351,7 +351,7 @@ jobs:
           api-level: 34
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
 
       - name: Upload test results
         if: ${{ !cancelled() }}
