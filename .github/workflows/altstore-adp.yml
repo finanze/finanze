@@ -31,10 +31,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Resolve version and validate release
+      - name: Resolve version and validate
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATIC_TOKEN: ${{ secrets.STATIC_REPO_TOKEN }}
         run: |
           INPUT_VERSION="${{ inputs.version }}"
           if [ -z "$INPUT_VERSION" ]; then
@@ -56,6 +57,22 @@ jobs:
             fi
             echo "Release $VERSION_TAG found."
           fi
+
+          STATIC_REPO="finanze/static"
+          SOURCE_URL="https://x-access-token:${STATIC_TOKEN}@raw.githubusercontent.com/${STATIC_REPO}/main/store/altstore/source.json"
+          SOURCE=$(curl -sf "$SOURCE_URL")
+          if [ -z "$SOURCE" ]; then
+            echo "::error::Failed to fetch source.json from $STATIC_REPO"
+            exit 1
+          fi
+
+          EXISTING=$(echo "$SOURCE" | jq --arg v "$VERSION" '.apps[0].versions[] | select(.version == $v)')
+          if [ -n "$EXISTING" ]; then
+            echo "::error::Version $VERSION already exists in AltStore source.json"
+            exit 1
+          fi
+          echo "Version $VERSION not yet in source.json, proceeding."
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Fetch ADP status
@@ -159,7 +176,6 @@ jobs:
               version: $version,
               buildVersion: $buildVersion,
               date: $date,
-              localizedDescription: "",
               downloadURL: $downloadURL,
               size: $size,
               minOSVersion: $minOS,
@@ -219,12 +235,6 @@ jobs:
 
           if [ ! -f "$SOURCE_PATH" ]; then
             echo "::error::source.json not found at $SOURCE_PATH"
-            exit 1
-          fi
-
-          EXISTING=$(jq --arg v "$VERSION" '.apps[0].versions[] | select(.version == $v)' "$SOURCE_PATH")
-          if [ -n "$EXISTING" ]; then
-            echo "::error::Version $VERSION already exists in source.json"
             exit 1
           fi
 
