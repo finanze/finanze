@@ -170,6 +170,8 @@ jobs:
           echo "$VERSIONS_JSON" | jq .
           echo "=========================="
 
+          echo "$VERSIONS_JSON" > /tmp/version_entry.json
+
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## AltStore Versions Entry
 
@@ -203,3 +205,40 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
           echo "ADP files uploaded to release $VERSION_TAG"
+
+      - name: Update AltStore source.json
+        env:
+          GH_TOKEN: ${{ secrets.STATIC_REPO_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STATIC_REPO="finanze/static"
+          SOURCE_PATH="store/altstore/source.json"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${STATIC_REPO}.git" static_repo
+          cd static_repo
+
+          if [ ! -f "$SOURCE_PATH" ]; then
+            echo "::error::source.json not found at $SOURCE_PATH"
+            exit 1
+          fi
+
+          EXISTING=$(jq --arg v "$VERSION" '.apps[0].versions[] | select(.version == $v)' "$SOURCE_PATH")
+          if [ -n "$EXISTING" ]; then
+            echo "::error::Version $VERSION already exists in source.json"
+            exit 1
+          fi
+
+          VERSION_ENTRY=$(cat /tmp/version_entry.json)
+          jq --argjson entry "$VERSION_ENTRY" '.apps[0].versions = [$entry] + .apps[0].versions' "$SOURCE_PATH" > tmp_source.json
+          mv tmp_source.json "$SOURCE_PATH"
+
+          echo "Updated source.json:"
+          jq '.apps[0].versions[:2]' "$SOURCE_PATH"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$SOURCE_PATH"
+          git commit -m "chore: add AltStore version $VERSION"
+          git push
+
+          echo "source.json updated and pushed to $STATIC_REPO"
