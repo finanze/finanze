@@ -119,8 +119,8 @@ jobs:
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
 
           ASSET_URLS=$(jq -n \
-            --arg manifestURL "$BASE_URL/manifest.json" \
-            --arg signatureURL "$BASE_URL/signature" \
+            --arg manifestURL "$BASE_URL/altstore-manifest.json" \
+            --arg signatureURL "$BASE_URL/altstore-signature" \
             '{"manifest": $manifestURL, "signature": $signatureURL}')
 
           while IFS= read -r ipa_path; do
@@ -128,7 +128,7 @@ jobs:
             IPA_UUID="${IPA_FILENAME%.ipa}"
             ASSET_URLS=$(echo "$ASSET_URLS" | jq \
               --arg uuid "$IPA_UUID" \
-              --arg url "$BASE_URL/$IPA_FILENAME" \
+              --arg url "$BASE_URL/altstore-$IPA_FILENAME" \
               '. + {($uuid): $url}')
           done <<< "$IPA_FILES"
 
@@ -136,7 +136,7 @@ jobs:
             --arg version "$VERSION" \
             --arg buildVersion "$BUILD_VERSION" \
             --arg date "$DATE" \
-            --arg downloadURL "$BASE_URL/manifest.json" \
+            --arg downloadURL "$BASE_URL/altstore-manifest.json" \
             --argjson size "$IPA_SIZE" \
             --arg minOS "$MIN_OS" \
             --argjson assetURLs "$ASSET_URLS" \
@@ -158,8 +158,6 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## AltStore Versions Entry
 
-          Copy the following JSON into your AltStore source \`versions\` array:
-
           \`\`\`json
           $(echo "$VERSIONS_JSON" | jq .)
           \`\`\`
@@ -172,8 +170,16 @@ jobs:
           VERSION_TAG="v${{ inputs.version }}"
           cd adp_contents
 
-          UPLOAD_FILES="manifest.json signature"
+          mv manifest.json altstore-manifest.json
+          mv signature altstore-signature
           for ipa in $(find . -name '*.ipa' -type f); do
+            IPA_NAME=$(basename "$ipa")
+            IPA_DIR=$(dirname "$ipa")
+            mv "$ipa" "$IPA_DIR/altstore-$IPA_NAME"
+          done
+
+          UPLOAD_FILES="altstore-manifest.json altstore-signature"
+          for ipa in $(find . -name 'altstore-*.ipa' -type f); do
             UPLOAD_FILES="$UPLOAD_FILES $ipa"
           done
 
