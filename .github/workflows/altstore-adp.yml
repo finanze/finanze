@@ -100,20 +100,37 @@ jobs:
             exit 1
           fi
 
-          IPA_FILE=$(find . -maxdepth 1 -name '*.ipa' | head -1)
-          if [ -z "$IPA_FILE" ]; then
-            echo "::error::No .ipa file found in ADP."
+          IPA_FILES=$(find . -name '*.ipa' -type f)
+          if [ -z "$IPA_FILES" ]; then
+            echo "::error::No .ipa files found in ADP."
             exit 1
           fi
-          IPA_FILENAME=$(basename "$IPA_FILE")
-          IPA_UUID="${IPA_FILENAME%.ipa}"
-          IPA_SIZE=$(stat -c%s "$IPA_FILE")
+
+          echo "Found IPA variants:"
+          echo "$IPA_FILES"
+
+          FIRST_IPA=$(echo "$IPA_FILES" | head -1)
+          IPA_SIZE=$(stat -c%s "$FIRST_IPA")
 
           VERSION="${{ inputs.version }}"
           BUILD_VERSION="${{ inputs.build_version }}"
           MIN_OS="${{ inputs.min_os_version }}"
           DATE="${{ steps.adp.outputs.date }}"
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
+
+          ASSET_URLS=$(jq -n \
+            --arg manifestURL "$BASE_URL/manifest.json" \
+            --arg signatureURL "$BASE_URL/signature" \
+            '{"manifest": $manifestURL, "signature": $signatureURL}')
+
+          while IFS= read -r ipa_path; do
+            IPA_FILENAME=$(basename "$ipa_path")
+            IPA_UUID="${IPA_FILENAME%.ipa}"
+            ASSET_URLS=$(echo "$ASSET_URLS" | jq \
+              --arg uuid "$IPA_UUID" \
+              --arg url "$BASE_URL/$IPA_FILENAME" \
+              '. + {($uuid): $url}')
+          done <<< "$IPA_FILES"
 
           VERSIONS_JSON=$(jq -n \
             --arg version "$VERSION" \
@@ -122,10 +139,7 @@ jobs:
             --arg downloadURL "$BASE_URL/manifest.json" \
             --argjson size "$IPA_SIZE" \
             --arg minOS "$MIN_OS" \
-            --arg manifestURL "$BASE_URL/manifest.json" \
-            --arg signatureURL "$BASE_URL/signature" \
-            --arg ipaURL "$BASE_URL/$IPA_FILENAME" \
-            --arg ipaUUID "$IPA_UUID" \
+            --argjson assetURLs "$ASSET_URLS" \
             '{
               version: $version,
               buildVersion: $buildVersion,
@@ -134,11 +148,7 @@ jobs:
               downloadURL: $downloadURL,
               size: $size,
               minOSVersion: $minOS,
-              assetURLs: {
-                "manifest": $manifestURL,
-                "signature": $signatureURL,
-                ($ipaUUID): $ipaURL
-              }
+              assetURLs: $assetURLs
             }')
 
           echo "=== Versions Entry JSON ==="
@@ -161,10 +171,14 @@ jobs:
         run: |
           VERSION_TAG="v${{ inputs.version }}"
           cd adp_contents
+
+          UPLOAD_FILES="manifest.json signature"
+          for ipa in $(find . -name '*.ipa' -type f); do
+            UPLOAD_FILES="$UPLOAD_FILES $ipa"
+          done
+
           gh release upload "$VERSION_TAG" \
-            manifest.json \
-            signature \
-            *.ipa \
+            $UPLOAD_FILES \
             --repo "${{ github.repository }}" \
             --clobber
           echo "ADP files uploaded to release $VERSION_TAG"
