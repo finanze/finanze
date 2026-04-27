@@ -425,6 +425,8 @@
   },
   "entities": {
     "title": "Integraciones",
+    "storeNotice": "Esta versión no soporta conexiones con entidades financieras. Puedes gestionar tus datos manualmente, importar desde archivos, visita {link} para más opciones.",
+    "storeNoticeLink": "finanze.me",
     "connected": "Conectado",
     "requiresLogin": "Requiere inicio de sesión",
     "login": "Iniciar sesión",
@@ -936,6 +938,8 @@
     },
     "noDataTitle": "Aún no tienes datos",
     "noDataSubtitle": "Conecta tus entidades financieras en la sección de integraciones para el resumen, también puedes añadir manualmente o importar tus datos!",
+    "noDataSubtitleStore": "Añade tus datos financieros manualmente, importa desde archivos o restaura una copia de seguridad para empezar.",
+    "goToAssetsButton": "Ir a Mis Activos",
     "noDataButton": "Actualizar datos",
     "connectEntitiesButton": "Conectar entidades",
     "totalValue": "Valor total",

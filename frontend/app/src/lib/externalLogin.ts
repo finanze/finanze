@@ -41,5 +41,6 @@ export function getExternalLoginAPI(): ExternalLoginAPI | null {
 }
 
 export function setMobileLoginAPI(api: ExternalLoginAPI | null) {
+  if (!__CONNECTIONS__) return
   mobileLoginAPI = api
 }

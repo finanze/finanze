@@ -118,6 +118,7 @@ class DeferredComponents:
         )
         from infrastructure.client.http.httpx_patch import apply_httpx_patch
         from infrastructure.calculations.loan_calculator import LoanCalculator
+        from finanze.build_config import INCLUDE_CONNECTIONS
         from application.use_cases.get_available_entities import (
             GetAvailableEntitiesImpl,
         )
@@ -178,24 +179,32 @@ class DeferredComponents:
             self.cloud_register,
         )
 
-        financial_entity_fetcher_stubs = {
-            entity: True
-            for entity in [
-                domain.native_entities.MY_INVESTOR,
-                domain.native_entities.TRADE_REPUBLIC,
-                domain.native_entities.URBANITAE,
-                domain.native_entities.WECITY,
-                domain.native_entities.SEGO,
-                domain.native_entities.MINTOS,
-                domain.native_entities.F24,
-                domain.native_entities.INDEXA_CAPITAL,
-                domain.native_entities.ING,
-                domain.native_entities.CAJAMAR,
-                domain.native_entities.UNICAJA,
-                domain.native_entities.IBKR,
-                domain.native_entities.BINANCE,
-            ]
-        }
+        if INCLUDE_CONNECTIONS:
+            financial_entity_fetcher_stubs = {
+                entity: True
+                for entity in [
+                    domain.native_entities.MY_INVESTOR,
+                    domain.native_entities.TRADE_REPUBLIC,
+                    domain.native_entities.URBANITAE,
+                    domain.native_entities.WECITY,
+                    domain.native_entities.SEGO,
+                    domain.native_entities.MINTOS,
+                    domain.native_entities.F24,
+                    domain.native_entities.INDEXA_CAPITAL,
+                    domain.native_entities.ING,
+                    domain.native_entities.CAJAMAR,
+                    domain.native_entities.UNICAJA,
+                    domain.native_entities.IBKR,
+                    domain.native_entities.BINANCE,
+                    domain.native_entities.BITCOIN,
+                    domain.native_entities.ETHEREUM,
+                    domain.native_entities.LITECOIN,
+                    domain.native_entities.TRON,
+                    domain.native_entities.BSC,
+                ]
+            }
+        else:
+            financial_entity_fetcher_stubs = {}
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,

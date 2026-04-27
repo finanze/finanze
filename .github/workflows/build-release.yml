@@ -124,6 +124,140 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ env.RELEASE_TAG }}" dist/* --clobber
 
+  build-android:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
+    runs-on: ubuntu-latest
+
+    permissions: write-all
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine Release Tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "RELEASE_TAG=v${BRANCH_NAME#release/}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${BRANCH_NAME#release/}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14.2
+
+      - name: Install Python build deps
+        run: pip install python-minifier
+
+      - name: Install packaging & runtime deps
+        shell: bash
+        run: pip install -r requirements-packaging.txt -r requirements.txt
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'ndk;28.0.13004108'
+
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native TLS client (Android)
+        working-directory: frontend/app
+        run: |
+          bash native/tlsclient/build.sh --platform android
+          bash native/tlsclient/install.sh
+
+      - name: Setup Pyodide & Python wheels
+        working-directory: frontend/app
+        run: pnpm install:pyodide
+
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/app/android/finanze-release.jks
+
+      - name: Build full variant
+        working-directory: frontend/app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          pnpm build:mobile
+          pnpm exec cap sync android
+
+      - name: Build full APK & AAB
+        working-directory: frontend/app/android
+        env:
+          STORE_FILE: ${{ github.workspace }}/frontend/app/android/finanze-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleFullRelease bundleFullRelease
+
+      - name: Build store variant
+        working-directory: frontend/app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          pnpm build:mobile:store
+          pnpm exec cap sync android
+
+      - name: Build store APK & AAB
+        working-directory: frontend/app/android
+        env:
+          STORE_FILE: ${{ github.workspace }}/frontend/app/android/finanze-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleStoreRelease bundleStoreRelease
+
+      - name: Rename outputs
+        shell: bash
+        run: |
+          VERSION=${{ env.RELEASE_VERSION }}
+          mkdir -p dist
+          cp frontend/app/android/app/build/outputs/apk/full/release/app-full-release.apk dist/Finanze-${VERSION}-android-full.apk
+          cp frontend/app/android/app/build/outputs/bundle/fullRelease/app-full-release.aab dist/Finanze-${VERSION}-android-full.aab
+          cp frontend/app/android/app/build/outputs/apk/store/release/app-store-release.apk dist/Finanze-${VERSION}-android-store.apk
+          cp frontend/app/android/app/build/outputs/bundle/storeRelease/app-store-release.aab dist/Finanze-${VERSION}-android-store.aab
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ env.RELEASE_TAG }}" dist/* --clobber
+
   docker-release:
     if: |
       github.event.pull_request.merged == true &&

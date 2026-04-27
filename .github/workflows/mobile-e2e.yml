@@ -197,13 +197,13 @@ jobs:
 
       - name: Build Android debug APK
         working-directory: frontend/app/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleFullDebug
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v6
         with:
           name: android-apk
-          path: frontend/app/android/app/build/outputs/apk/debug/app-debug.apk
+          path: frontend/app/android/app/build/outputs/apk/full/debug/app-full-debug.apk
           retention-days: 1
 
   test-ios:
@@ -351,7 +351,7 @@ jobs:
           api-level: 34
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
 
       - name: Upload test results
         if: ${{ !cancelled() }}

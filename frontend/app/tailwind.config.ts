@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss"
 import colors from "tailwindcss/colors"
+import containerQueries from "@tailwindcss/container-queries"
 
 const config: Config = {
   darkMode: ["class"],
@@ -103,7 +104,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [containerQueries],
 }
 
 export default config

@@ -177,6 +177,11 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     entity.id, hd_addresses=False
                 )
                 products = self.CRYPTO_WALLET_PRODUCTS
+                if native_entity:
+                    fetchable = self._entity_fetchers.get(native_entity) is not None
+                else:
+                    fetchable = True
+                dict_entity["fetchable"] = fetchable
 
             last_fetch = {}
             if entity.origin != EntityOrigin.MANUAL:

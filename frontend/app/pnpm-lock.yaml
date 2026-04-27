@@ -143,6 +143,9 @@ importers:
       "@eslint/json":
         specifier: ^1.2.0
         version: 1.2.0
+      "@tailwindcss/container-queries":
+        specifier: ^0.1.1
+        version: 0.1.1(tailwindcss@3.4.19(yaml@2.8.3))
       "@testing-library/jest-dom":
         specifier: ^6.9.1
         version: 6.9.1
@@ -2052,6 +2055,14 @@ packages:
         integrity: sha512-r5bClKrcIusDoo049dSL8CawnHR6mRdDwhlQuIgZRNty68q0x8k3Lf1BtPAMxRf/GgnHBnIO4ujd3+GQdLWzxQ==,
       }
     engines: { node: ">=16.0.0" }
+
+  "@tailwindcss/container-queries@0.1.1":
+    resolution:
+      {
+        integrity: sha512-p18dswChx6WnTSaJCSGx6lTmrGzNNvm2FtXmiO6AuA1V4U5REyoqwmT6kgAsIMdjo07QdAfYXHJ4hnMtfHzWgA==,
+      }
+    peerDependencies:
+      tailwindcss: ">=3.2.0"
 
   "@tanstack/react-virtual@3.13.24":
     resolution:
@@ -8987,6 +8998,10 @@ snapshots:
       defer-to-connect: 2.0.1
 
   "@tabby_ai/hijri-converter@1.0.5": {}
+
+  "@tailwindcss/container-queries@0.1.1(tailwindcss@3.4.19(yaml@2.8.3))":
+    dependencies:
+      tailwindcss: 3.4.19(yaml@2.8.3)
 
   "@tanstack/react-virtual@3.13.24(react-dom@19.2.5(react@19.2.5))(react@19.2.5)":
     dependencies:

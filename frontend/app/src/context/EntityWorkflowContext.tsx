@@ -1435,6 +1435,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const autoRefreshExecutedRef = useRef(false)
 
   useEffect(() => {
+    if (!__CONNECTIONS__) return
     if (autoRefreshExecutedRef.current) return
     if (!entitiesLoaded || entities.length === 0) return
 
