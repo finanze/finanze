@@ -8,8 +8,8 @@ on:
         required: true
         type: string
       version:
-        description: 'Version number (e.g. 0.8.1)'
-        required: true
+        description: 'Version number (e.g. 0.8.1). Leave empty for latest release.'
+        required: false
         type: string
       build_version:
         description: 'Build version number'
@@ -31,17 +31,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate release exists
+      - name: Resolve version and validate release
+        id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION_TAG="v${{ inputs.version }}"
-          echo "Checking for release: $VERSION_TAG"
-          if ! gh release view "$VERSION_TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            echo "::error::Release $VERSION_TAG does not exist. Create the release first."
-            exit 1
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -z "$INPUT_VERSION" ]; then
+            echo "No version provided, fetching latest release..."
+            LATEST_TAG=$(gh release view --repo "${{ github.repository }}" --json tagName -q '.tagName')
+            if [ -z "$LATEST_TAG" ]; then
+              echo "::error::No releases found in the repository."
+              exit 1
+            fi
+            VERSION="${LATEST_TAG#v}"
+            echo "Resolved latest release: $LATEST_TAG (version $VERSION)"
+          else
+            VERSION="$INPUT_VERSION"
+            VERSION_TAG="v$VERSION"
+            echo "Checking for release: $VERSION_TAG"
+            if ! gh release view "$VERSION_TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+              echo "::error::Release $VERSION_TAG does not exist. Create the release first."
+              exit 1
+            fi
+            echo "Release $VERSION_TAG found."
           fi
-          echo "Release $VERSION_TAG found."
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Fetch ADP status
         id: adp
@@ -112,7 +127,7 @@ jobs:
           FIRST_IPA=$(echo "$IPA_FILES" | head -1)
           IPA_SIZE=$(stat -c%s "$FIRST_IPA")
 
-          VERSION="${{ inputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
           BUILD_VERSION="${{ inputs.build_version }}"
           MIN_OS="${{ inputs.min_os_version }}"
           DATE="${{ steps.adp.outputs.date }}"
@@ -167,7 +182,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION_TAG="v${{ inputs.version }}"
+          VERSION_TAG="v${{ steps.version.outputs.version }}"
           cd adp_contents
 
           mv manifest.json altstore-manifest.json
