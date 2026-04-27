@@ -1,0 +1,170 @@
+name: AltStore ADP Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      adp_id:
+        description: 'ADP ID from AltStore'
+        required: true
+        type: string
+      version:
+        description: 'Version number (e.g. 0.8.1)'
+        required: true
+        type: string
+      build_version:
+        description: 'Build version number'
+        required: false
+        type: string
+        default: '1'
+      min_os_version:
+        description: 'Minimum iOS version'
+        required: false
+        type: string
+        default: '15.0'
+
+permissions:
+  contents: write
+
+jobs:
+  upload-adp:
+    name: Download & Upload ADP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION_TAG="v${{ inputs.version }}"
+          echo "Checking for release: $VERSION_TAG"
+          if ! gh release view "$VERSION_TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "::error::Release $VERSION_TAG does not exist. Create the release first."
+            exit 1
+          fi
+          echo "Release $VERSION_TAG found."
+
+      - name: Fetch ADP status
+        id: adp
+        run: |
+          ADP_ID="${{ inputs.adp_id }}"
+          echo "Fetching ADP: $ADP_ID"
+
+          RESPONSE=$(curl -sf "https://api.altstore.io/adps/$ADP_ID")
+          echo "ADP API response:"
+          echo "$RESPONSE" | jq .
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.downloadURL')
+          UPDATED=$(echo "$RESPONSE" | jq -r '.updated')
+
+          if [ "$STATUS" != "success" ]; then
+            echo "::error::ADP status is '$STATUS', expected 'success'."
+            exit 1
+          fi
+
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+            echo "::error::No downloadURL in ADP response."
+            exit 1
+          fi
+
+          DOWNLOAD_EXPIRED=$(echo "$RESPONSE" | jq -r '.downloadExpired')
+          if [ "$DOWNLOAD_EXPIRED" = "true" ]; then
+            echo "::error::ADP download link has expired. Re-process the ADP."
+            exit 1
+          fi
+
+          DATE_ONLY=$(echo "$UPDATED" | cut -dT -f1)
+
+          echo "download_url=$DOWNLOAD_URL" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE_ONLY" >> "$GITHUB_OUTPUT"
+
+      - name: Download and unzip ADP
+        run: |
+          mkdir -p adp_contents
+          curl -sfL "${{ steps.adp.outputs.download_url }}" -o adp.zip
+          unzip adp.zip -d adp_contents
+          echo "ADP contents:"
+          ls -la adp_contents/
+
+      - name: Inspect ADP and generate versions JSON
+        id: json
+        run: |
+          cd adp_contents
+
+          if [ ! -f manifest.json ]; then
+            echo "::error::manifest.json not found in ADP."
+            exit 1
+          fi
+          if [ ! -f signature ]; then
+            echo "::error::signature not found in ADP."
+            exit 1
+          fi
+
+          IPA_FILE=$(find . -maxdepth 1 -name '*.ipa' | head -1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "::error::No .ipa file found in ADP."
+            exit 1
+          fi
+          IPA_FILENAME=$(basename "$IPA_FILE")
+          IPA_UUID="${IPA_FILENAME%.ipa}"
+          IPA_SIZE=$(stat -c%s "$IPA_FILE")
+
+          VERSION="${{ inputs.version }}"
+          BUILD_VERSION="${{ inputs.build_version }}"
+          MIN_OS="${{ inputs.min_os_version }}"
+          DATE="${{ steps.adp.outputs.date }}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
+
+          VERSIONS_JSON=$(jq -n \
+            --arg version "$VERSION" \
+            --arg buildVersion "$BUILD_VERSION" \
+            --arg date "$DATE" \
+            --arg downloadURL "$BASE_URL/manifest.json" \
+            --argjson size "$IPA_SIZE" \
+            --arg minOS "$MIN_OS" \
+            --arg manifestURL "$BASE_URL/manifest.json" \
+            --arg signatureURL "$BASE_URL/signature" \
+            --arg ipaURL "$BASE_URL/$IPA_FILENAME" \
+            --arg ipaUUID "$IPA_UUID" \
+            '{
+              version: $version,
+              buildVersion: $buildVersion,
+              date: $date,
+              localizedDescription: "",
+              downloadURL: $downloadURL,
+              size: $size,
+              minOSVersion: $minOS,
+              assetURLs: {
+                "manifest": $manifestURL,
+                "signature": $signatureURL,
+                ($ipaUUID): $ipaURL
+              }
+            }')
+
+          echo "=== Versions Entry JSON ==="
+          echo "$VERSIONS_JSON" | jq .
+          echo "=========================="
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## AltStore Versions Entry
+
+          Copy the following JSON into your AltStore source \`versions\` array:
+
+          \`\`\`json
+          $(echo "$VERSIONS_JSON" | jq .)
+          \`\`\`
+          EOF
+
+      - name: Upload ADP files to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION_TAG="v${{ inputs.version }}"
+          cd adp_contents
+          gh release upload "$VERSION_TAG" \
+            manifest.json \
+            signature \
+            *.ipa \
+            --repo "${{ github.repository }}" \
+            --clobber
+          echo "ADP files uploaded to release $VERSION_TAG"
