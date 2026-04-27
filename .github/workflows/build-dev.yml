@@ -46,7 +46,7 @@ jobs:
               `| 🐧 Linux | x64 | \`.AppImage\` | — | ⏳ Building... |`,
               `| 🪟 Windows | x64 | \`.exe\` | — | ⏳ Building... |`,
               ``,
-              `### � Android Builds`,
+              `### 📱 Android Builds`,
               ``,
               `| Variant | Type | Size | Link |`,
               `|---------|------|------|------|`,
@@ -55,9 +55,11 @@ jobs:
               `| Store | \`.apk\` | — | ⏳ Building... |`,
               `| Store | \`.aab\` | — | ⏳ Building... |`,
               ``,
-              `### �🐳 Docker Images`,
+              `### 🐳 Docker Images`,
               ``,
+              `<!-- section:docker -->`,
               `⏳ Building on tag \`${dockerTag}\`...`,
+              `<!-- /section:docker -->`,
             ].join('\n');
 
             const marker = '<!-- finanze-build-artifacts -->';
@@ -296,6 +298,71 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: false
 
+      - name: Update PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const runId = context.runId;
+            const prNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            const os = '${{ matrix.os }}';
+            const jobStatus = '${{ job.status }}';
+            const marker = '<!-- finanze-build-artifacts -->';
+
+            const platformInfo = {
+              'macos-latest': { icon: '🍎', label: 'macOS', arch: 'ARM64 (Apple Silicon)', type: '.dmg' },
+              'macos-15-intel': { icon: '🍎', label: 'macOS', arch: 'Intel x64', type: '.dmg' },
+              'ubuntu-latest': { icon: '🐧', label: 'Linux', arch: 'x64', type: '.AppImage' },
+              'windows-latest': { icon: '🪟', label: 'Windows', arch: 'x64', type: '.exe' },
+            };
+            const rowId = {
+              'macos-latest': 'ARM64 (Apple Silicon)',
+              'macos-15-intel': 'Intel x64',
+              'ubuntu-latest': '🐧 Linux',
+              'windows-latest': '🪟 Windows',
+            }[os];
+            const info = platformInfo[os];
+            if (!info || !rowId) return;
+
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
+            let newRow;
+            if (jobStatus === 'success' && version) {
+              const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id: runId });
+              const artifact = artifacts.artifacts.find(a => a.name === `finanze-${version}-${os}`);
+              if (artifact) {
+                const size = formatSize(artifact.size_in_bytes);
+                const url = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                newRow = `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ${size} | [Download](${url}) |`;
+              } else {
+                newRow = `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | — | ⚠️ No artifact |`;
+              }
+            } else {
+              const status = jobStatus === 'cancelled' ? '⚪ Cancelled' : '❌ Failed';
+              newRow = `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | — | ${status} |`;
+            }
+
+            async function doUpdate() {
+              const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: prNumber });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (!existing) return;
+              const lines = existing.body.split('\n');
+              const updated = lines.map(line => line.includes(rowId) ? newRow : line);
+              const newBody = updated.join('\n');
+              if (newBody !== existing.body) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: newBody });
+              }
+            }
+
+            await doUpdate();
+            await new Promise(r => setTimeout(r, 2000));
+            await doUpdate();
+
 
   build-android:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
@@ -513,6 +580,73 @@ jobs:
           path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.aab
           if-no-files-found: warn
 
+      - name: Update PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.dev_version.outputs.dev_version }}';
+            const runId = context.runId;
+            const prNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            const jobStatus = '${{ job.status }}';
+            const marker = '<!-- finanze-build-artifacts -->';
+
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
+            const androidArtifacts = [
+              { key: 'android-full-apk', variant: 'Full', type: '.apk' },
+              { key: 'android-full-aab', variant: 'Full', type: '.aab' },
+              { key: 'android-store-apk', variant: 'Store', type: '.apk' },
+              { key: 'android-store-aab', variant: 'Store', type: '.aab' },
+            ];
+
+            let artifactList = [];
+            if (jobStatus === 'success' && version) {
+              const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id: runId });
+              artifactList = artifacts.artifacts;
+            }
+
+            const newRows = androidArtifacts.map(({ key, variant, type }) => {
+              if (jobStatus === 'success' && version) {
+                const artifact = artifactList.find(a => a.name === `finanze-${version}-${key}`);
+                if (artifact) {
+                  const size = formatSize(artifact.size_in_bytes);
+                  const url = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+                  return { variant, type, row: `| ${variant} | \`${type}\` | ${size} | [Download](${url}) |` };
+                }
+                return { variant, type, row: `| ${variant} | \`${type}\` | — | ⚠️ No artifact |` };
+              }
+              const status = jobStatus === 'cancelled' ? '⚪ Cancelled' : '❌ Failed';
+              return { variant, type, row: `| ${variant} | \`${type}\` | — | ${status} |` };
+            });
+
+            async function doUpdate() {
+              const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: prNumber });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (!existing) return;
+              const lines = existing.body.split('\n');
+              for (const { variant, type, row } of newRows) {
+                for (let i = 0; i < lines.length; i++) {
+                  if (lines[i].includes(`| ${variant} |`) && lines[i].includes(type)) {
+                    lines[i] = row;
+                    break;
+                  }
+                }
+              }
+              const newBody = lines.join('\n');
+              if (newBody !== existing.body) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: newBody });
+              }
+            }
+
+            await doUpdate();
+            await new Promise(r => setTimeout(r, 2000));
+            await doUpdate();
+
 
   build-docker:
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
@@ -646,160 +780,51 @@ jobs:
           buildargs: SELENIUM_SUPPORT=false
           tags: ${{ steps.docker_tag.outputs.docker_tag }},${{ steps.docker_tag.outputs.docker_tag }}-no-selenium
 
-  pr-comment-update:
-    if: ${{ always() && github.event_name == 'pull_request' && ((github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build'))) }}
-    needs: [build-app, build-android, build-docker]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Install CD deps
-        run: pip install -r requirements-cd.txt
-
-      - name: Compute Dev Version
-        id: dev_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --tags --quiet || true
-          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
-          BASE_NO_V=${BASE_VERSION#v}
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
-          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Update PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
         with:
           script: |
-            const version = '${{ steps.dev_version.outputs.dev_version }}';
             const runId = context.runId;
             const prNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
-
-            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
-              owner,
-              repo,
-              run_id: runId,
-            });
-
-            const formatSize = (bytes) => {
-              const mb = bytes / 1024 / 1024;
-              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
-            };
-
-            const platformMap = {
-              'macos-latest': { label: 'macOS', arch: 'ARM64 (Apple Silicon)', icon: '🍎', type: '.dmg' },
-              'macos-15-intel': { label: 'macOS', arch: 'Intel x64', icon: '🍎', type: '.dmg' },
-              'ubuntu-latest': { label: 'Linux', arch: 'x64', icon: '🐧', type: '.AppImage' },
-              'windows-latest': { label: 'Windows', arch: 'x64', icon: '🪟', type: '.exe' },
-            };
-
-            let desktopRows = '';
-            for (const [osKey, info] of Object.entries(platformMap)) {
-              const artifactName = `finanze-${version}-${osKey}`;
-              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
-              if (artifact) {
-                const size = formatSize(artifact.size_in_bytes);
-                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
-                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
-              } else {
-                const buildAppResult = '${{ needs.build-app.result }}';
-                const status = buildAppResult === 'failure' ? '❌ Failed' : buildAppResult === 'cancelled' ? '⚪ Cancelled' : '⏳ Building...';
-                desktopRows += `| ${info.icon} ${info.label} | ${info.arch} | \`${info.type}\` | — | ${status} |\n`;
-              }
-            }
-
-            const androidMap = {
-              'android-full-apk': { variant: 'Full', type: '.apk' },
-              'android-full-aab': { variant: 'Full', type: '.aab' },
-              'android-store-apk': { variant: 'Store', type: '.apk' },
-              'android-store-aab': { variant: 'Store', type: '.aab' },
-            };
-            let androidRows = '';
-            for (const [key, info] of Object.entries(androidMap)) {
-              const artifactName = `finanze-${version}-${key}`;
-              const artifact = artifacts.artifacts.find(a => a.name === artifactName);
-              if (artifact) {
-                const size = formatSize(artifact.size_in_bytes);
-                const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
-                androidRows += `| ${info.variant} | \`${info.type}\` | ${size} | [Download](${downloadUrl}) |\n`;
-              } else {
-                const buildAndroidResult = '${{ needs.build-android.result }}';
-                const status = buildAndroidResult === 'failure' ? '❌ Failed' : buildAndroidResult === 'cancelled' ? '⚪ Cancelled' : '⏳ Building...';
-                androidRows += `| ${info.variant} | \`${info.type}\` | — | ${status} |\n`;
-              }
-            }
-            const androidSection = [
-              `| Variant | Type | Size | Link |`,
-              `|---------|------|------|------|`,
-              androidRows.trim(),
-            ].join('\n');
-
+            const jobStatus = '${{ job.status }}';
+            const marker = '<!-- finanze-build-artifacts -->';
             const dockerTag = `pr${prNumber}`;
-            const dockerResult = '${{ needs.build-docker.result }}';
-            let dockerSection;
-            if (dockerResult === 'success') {
-              dockerSection = [
+
+            let dockerContent;
+            if (jobStatus === 'success') {
+              dockerContent = [
                 `| Image | Tag | Pull Command |`,
                 `|-------|-----|-------------|`,
                 `| \`finanze/finanze\` | \`${dockerTag}\` | \`docker pull finanze/finanze:${dockerTag}\` |`,
                 `| \`finanze/finanze\` | \`${dockerTag}-selenium\` | \`docker pull finanze/finanze:${dockerTag}-selenium\` |`,
                 `| \`finanze/finanze-frontend\` | \`${dockerTag}\` | \`docker pull finanze/finanze-frontend:${dockerTag}\` |`,
               ].join('\n');
-            } else if (dockerResult === 'failure') {
-              dockerSection = `❌ Docker build failed — check the [workflow run](https://github.com/${owner}/${repo}/actions/runs/${runId}) for details.`;
-            } else if (dockerResult === 'cancelled') {
-              dockerSection = `⚪ Docker build was cancelled.`;
+            } else if (jobStatus === 'cancelled') {
+              dockerContent = `⚪ Docker build was cancelled.`;
             } else {
-              dockerSection = `⏳ Docker build status unknown.`;
+              dockerContent = `❌ Docker build failed — check the [workflow run](https://github.com/${owner}/${repo}/actions/runs/${runId}) for details.`;
             }
 
-            const body = [
-              `<!-- finanze-build-artifacts -->`,
-              `## 📦 Build Artifacts`,
-              ``,
-              `**Version:** \`${version}\``,
-              `**Workflow run:** [#${runId}](https://github.com/${owner}/${repo}/actions/runs/${runId})`,
-              ``,
-              `### Desktop Builds`,
-              ``,
-              `| Platform | Architecture | Type | Size | Link |`,
-              `|----------|-------------|------|------|------|`,
-              desktopRows.trim(),
-              ``,
-              `### 📱 Android Builds`,
-              ``,
-              androidSection,
-              ``,
-              `### 🐳 Docker Images`,
-              ``,
-              dockerSection,
-            ].join('\n');
-
-            const marker = '<!-- finanze-build-artifacts -->';
-            const { data: comments } = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number: prNumber,
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body,
-              });
+            async function doUpdate() {
+              const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: prNumber });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (!existing) return;
+              const body = existing.body;
+              const startMarker = '<!-- section:docker -->';
+              const endMarker = '<!-- /section:docker -->';
+              const startIdx = body.indexOf(startMarker);
+              const endIdx = body.indexOf(endMarker);
+              if (startIdx === -1 || endIdx === -1) return;
+              const before = body.substring(0, startIdx + startMarker.length);
+              const after = body.substring(endIdx);
+              const newBody = before + '\n' + dockerContent + '\n' + after;
+              if (newBody !== existing.body) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: newBody });
+              }
             }
+
+            await doUpdate();
+            await new Promise(r => setTimeout(r, 2000));
+            await doUpdate();

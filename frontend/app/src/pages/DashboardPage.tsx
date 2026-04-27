@@ -1590,11 +1590,19 @@ export default function DashboardPage() {
                 {t.dashboard.noDataTitle}
               </h2>
               <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
-                {t.dashboard.noDataSubtitle}
+                {__CONNECTIONS__
+                  ? t.dashboard.noDataSubtitle
+                  : t.dashboard.noDataSubtitleStore}
               </p>
-              <Button onClick={() => navigate("/entities")}>
-                {t.dashboard.connectEntitiesButton}
-              </Button>
+              {__CONNECTIONS__ ? (
+                <Button onClick={() => navigate("/entities")}>
+                  {t.dashboard.connectEntitiesButton}
+                </Button>
+              ) : (
+                <Button onClick={() => navigate("/investments")}>
+                  {t.dashboard.goToAssetsButton}
+                </Button>
+              )}
             </AnimatedContainer>
           ) : (
             <div className="space-y-6">

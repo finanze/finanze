@@ -552,6 +552,23 @@ export default function EntityIntegrationsPage() {
           <h1 className="text-3xl font-bold">{t.entities.title}</h1>
         </motion.div>
 
+        {!__CONNECTIONS__ && (
+          <motion.div variants={fadeListItem}>
+            <p className="text-sm text-muted-foreground">
+              {t.entities.storeNotice.split("{link}")[0]}
+              <a
+                href="https://finanze.me"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                {t.entities.storeNoticeLink}
+              </a>
+              {t.entities.storeNotice.split("{link}")[1]}
+            </p>
+          </motion.div>
+        )}
+
         <motion.div variants={fadeListItem}>
           <AnimatePresence mode="wait">
             {isLoadingEntities ? (
