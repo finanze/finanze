@@ -558,7 +558,6 @@ jobs:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-apk
           path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.apk
           if-no-files-found: warn
-          compression-level: 0
 
       - name: Upload Android full AAB
         uses: actions/upload-artifact@v6
@@ -566,7 +565,6 @@ jobs:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-full-aab
           path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-full.aab
           if-no-files-found: warn
-          compression-level: 0
 
       - name: Upload Android store APK
         uses: actions/upload-artifact@v6
@@ -574,7 +572,6 @@ jobs:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-apk
           path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.apk
           if-no-files-found: warn
-          compression-level: 0
 
       - name: Upload Android store AAB
         uses: actions/upload-artifact@v6
@@ -582,7 +579,6 @@ jobs:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-android-store-aab
           path: dist-android/Finanze-${{ steps.dev_version.outputs.dev_version }}-android-store.aab
           if-no-files-found: warn
-          compression-level: 0
 
       - name: Update PR comment
         if: ${{ always() && github.event_name == 'pull_request' }}
