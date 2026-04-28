@@ -104,6 +104,7 @@ jobs:
       - name: Build iOS app for simulator
         working-directory: frontend/app/ios/App
         run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
           SIMULATOR=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
           echo "Building for simulator: $SIMULATOR"
           xcodebuild \

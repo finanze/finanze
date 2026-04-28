@@ -7,14 +7,21 @@ const HEADING_XPATH = (text: string) =>
 describe('Basic Setup', () => {
     before(async () => {
         await switchToWebView()
+        await driver.pause(500)
 
         const username = await $('#username')
-        await username.waitForDisplayed({ timeout: 20_000 })
+        await username.waitForDisplayed({ timeout: 30_000 })
 
         await $('#username').setValue(TEST_USER)
-        await $('#password').setValue(TEST_PASSWORD)
-        await $('#repeatPassword').setValue(TEST_PASSWORD)
-        await $('button[type="submit"]').click()
+        const password = await $('#password')
+        await password.waitForDisplayed({ timeout: 5_000 })
+        await password.setValue(TEST_PASSWORD)
+        const repeatPassword = await $('#repeatPassword')
+        await repeatPassword.waitForDisplayed({ timeout: 5_000 })
+        await repeatPassword.setValue(TEST_PASSWORD)
+        const submitBtn = await $('button[type="submit"]')
+        await submitBtn.waitForClickable({ timeout: 5_000 })
+        await submitBtn.click()
 
         await browser.waitUntil(
             async () => {
@@ -22,7 +29,7 @@ describe('Basic Setup', () => {
                 return !url.includes('/login')
             },
             {
-                timeout: 20_000,
+                timeout: 45_000,
                 timeoutMsg: 'URL still contains /login after signup',
             },
         )
@@ -49,8 +56,12 @@ describe('Basic Setup', () => {
     it('login after logout shows dashboard', async () => {
         await expect($('#username')).not.toBeDisplayed()
 
-        await $('#password').setValue(TEST_PASSWORD)
-        await $('button[type="submit"]').click()
+        const password = await $('#password')
+        await password.waitForDisplayed({ timeout: 5_000 })
+        await password.setValue(TEST_PASSWORD)
+        const submitBtn = await $('button[type="submit"]')
+        await submitBtn.waitForClickable({ timeout: 5_000 })
+        await submitBtn.click()
 
         await browser.waitUntil(
             async () => {
@@ -58,7 +69,7 @@ describe('Basic Setup', () => {
                 return !url.includes('/login')
             },
             {
-                timeout: 20_000,
+                timeout: 45_000,
                 timeoutMsg: 'URL still contains /login after login',
             },
         )

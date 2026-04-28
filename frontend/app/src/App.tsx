@@ -33,6 +33,7 @@ import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { BackupAlertSync } from "./components/BackupAlertSync"
 import { useState, useEffect } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
+import { isNativeMobile } from "@/lib/platform"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
@@ -43,7 +44,7 @@ function App() {
     downloadUpdate: startAutoUpdateDownload,
     quitAndInstall: startAutoUpdateInstallation,
   } = useAutoUpdater({
-    checkOnMount: isAuthenticated && !isInitializing,
+    checkOnMount: isAuthenticated && !isInitializing && !isNativeMobile(),
   })
 
   // Load skipped versions from localStorage on mount
@@ -71,7 +72,7 @@ function App() {
   }, [skippedVersions])
 
   const { updateInfo } = useReleaseUpdate({
-    checkOnMount: isAuthenticated && !isInitializing,
+    checkOnMount: isAuthenticated && !isInitializing && !isNativeMobile(),
     skipVersions: skippedVersions,
     onUpdateAvailable: () => {
       // Only show modal if user is authenticated and not already shown
@@ -93,6 +94,7 @@ function App() {
   useEffect(() => {
     if (
       isAuthenticated &&
+      !isNativeMobile() &&
       autoUpdateState.isSupported &&
       autoUpdateState.updateInfo &&
       !showReleaseModal
@@ -185,29 +187,32 @@ function App() {
           </Layout>
 
           {/* Release Update Modal */}
-          {showReleaseModal && updateInfo?.hasUpdate && updateInfo.release && (
-            <ReleaseUpdateModal
-              isOpen={showReleaseModal}
-              onClose={handleCloseReleaseModal}
-              currentVersion={updateInfo.currentVersion}
-              latestVersion={updateInfo.latestVersion}
-              release={updateInfo.release}
-              onSkipVersion={handleSkipVersion}
-              autoUpdateSupported={autoUpdateState.isSupported}
-              isAutoUpdateDownloading={autoUpdateState.isDownloading}
-              autoUpdateProgress={autoUpdateState.progress}
-              autoUpdateDownloadedBytes={autoUpdateState.downloadedBytes}
-              autoUpdateTotalBytes={autoUpdateState.totalBytes}
-              isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
-              autoUpdateErrorMessage={autoUpdateState.error?.message ?? null}
-              onStartAutoUpdate={() => {
-                void startAutoUpdateDownload()
-              }}
-              onInstallAutoUpdate={() => {
-                void startAutoUpdateInstallation()
-              }}
-            />
-          )}
+          {!isNativeMobile() &&
+            showReleaseModal &&
+            updateInfo?.hasUpdate &&
+            updateInfo.release && (
+              <ReleaseUpdateModal
+                isOpen={showReleaseModal}
+                onClose={handleCloseReleaseModal}
+                currentVersion={updateInfo.currentVersion}
+                latestVersion={updateInfo.latestVersion}
+                release={updateInfo.release}
+                onSkipVersion={handleSkipVersion}
+                autoUpdateSupported={autoUpdateState.isSupported}
+                isAutoUpdateDownloading={autoUpdateState.isDownloading}
+                autoUpdateProgress={autoUpdateState.progress}
+                autoUpdateDownloadedBytes={autoUpdateState.downloadedBytes}
+                autoUpdateTotalBytes={autoUpdateState.totalBytes}
+                isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
+                autoUpdateErrorMessage={autoUpdateState.error?.message ?? null}
+                onStartAutoUpdate={() => {
+                  void startAutoUpdateDownload()
+                }}
+                onInstallAutoUpdate={() => {
+                  void startAutoUpdateInstallation()
+                }}
+              />
+            )}
 
           <GlobalEntityModals />
         </PinnedShortcutsProvider>

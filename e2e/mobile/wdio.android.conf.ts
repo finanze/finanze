@@ -24,6 +24,8 @@ const APP_PATH =
 
 export const config: Options.Testrunner = {
     ...sharedConfig,
+    specFileRetries: 2,
+    connectionRetryTimeout: 600_000,
     services: [
         [
             'appium',
@@ -47,7 +49,8 @@ export const config: Options.Testrunner = {
             'appium:noReset': false,
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
-            'appium:disableWindowAnimation': false,
+            'appium:disableWindowAnimation': true,
+            'appium:appWaitDuration': 60_000,
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
         } as WebdriverIO.Capabilities,

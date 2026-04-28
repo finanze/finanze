@@ -22,6 +22,10 @@ const PYODIDE_REQUIREMENTS_DEFERRED_PATH = path.resolve(
   __dirname,
   "../requirements-pyodide-deferred.txt",
 )
+const PYODIDE_REQUIREMENTS_LAZY_PATH = path.resolve(
+  __dirname,
+  "../requirements-pyodide-lazy.txt",
+)
 
 const SYNC_MODE = (
   process.env.FINANZE_PYODIDE_SYNC_MODE ?? "minimal"
@@ -107,6 +111,7 @@ function readPyodidePackagesFromRequirementsFile() {
   const files = [
     PYODIDE_REQUIREMENTS_CORE_PATH,
     PYODIDE_REQUIREMENTS_DEFERRED_PATH,
+    PYODIDE_REQUIREMENTS_LAZY_PATH,
   ]
   const allLines = []
 
@@ -311,7 +316,7 @@ async function main() {
     )
     if (MINIMAL_MODE) {
       console.log(
-        `[Pyodide] Minimal package set derived from requirements-pyodide-core.txt + requirements-pyodide-deferred.txt (plus ${ALWAYS_INCLUDE_PACKAGES.join(", ")}).`,
+        `[Pyodide] Minimal package set derived from requirements-pyodide-core.txt + requirements-pyodide-deferred.txt + requirements-pyodide-lazy.txt (plus ${ALWAYS_INCLUDE_PACKAGES.join(", ")}).`,
       )
       console.log(
         "[Pyodide] To force a full sync, set FINANZE_PYODIDE_SYNC_MODE=full.",

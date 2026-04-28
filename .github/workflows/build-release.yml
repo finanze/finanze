@@ -315,7 +315,11 @@ jobs:
             ${{ env.RELEASE_TAG }}-no-selenium,${{ env.RELEASE_TAG }},latest-no-selenium,latest
 
   update-release-description:
-    if: always()
+    if: |
+      always() &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
     needs: [build-app, build-android, docker-release]
     runs-on: ubuntu-latest
     permissions:

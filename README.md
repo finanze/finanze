@@ -28,8 +28,8 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
       <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
     </td>
     <td align="center">
-      Install with <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a><br>
-      Add source: <code>altstore.finanze.me</code>
+      First, install <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a><br>
+      Then <a href="altstore://source?url=https://altstore.finanze.me">add the app!</a>
     </td>
   </tr>
 </table>
