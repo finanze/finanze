@@ -29,7 +29,7 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
     </td>
     <td align="center">
       First, install <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a><br>
-      Then <a href="altstore://source?url=https://altstore.finanze.me">add the app!</a>
+      Then <a href="https://addaltstore.finanze.me">add the app!</a>
     </td>
   </tr>
 </table>
