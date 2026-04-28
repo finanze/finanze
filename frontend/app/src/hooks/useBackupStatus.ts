@@ -588,6 +588,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         setHasCredentialsMismatch(true)
       } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
         setStatusMessage(t.settings.backup.transferFailed)
+      } else {
+        setStatusMessage(t.common.unexpectedError)
       }
     } finally {
       setIsUploading(false)
@@ -665,6 +667,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         setHasCredentialsMismatch(true)
       } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
         setStatusMessage(t.settings.backup.transferFailed)
+      } else {
+        setStatusMessage(t.common.unexpectedError)
       }
     } finally {
       setIsImporting(false)
