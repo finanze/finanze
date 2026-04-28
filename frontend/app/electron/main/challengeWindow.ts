@@ -1,12 +1,10 @@
-import { BrowserWindow, ipcMain, session } from "electron"
+import { BrowserWindow, ipcMain } from "electron"
 
 export async function promptChallenge(
   siteKey: string,
   domain: string,
 ): Promise<{ success: boolean }> {
-  const partition = "persist:challenge"
-  const challengeSession = session.fromPartition(partition)
-  await challengeSession.clearStorageData()
+  const partition = `persist:challenge-${domain}`
 
   let challengeWindow: BrowserWindow | null = new BrowserWindow({
     width: 450,
