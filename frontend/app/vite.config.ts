@@ -13,6 +13,7 @@ export default defineConfig(({ command, mode }) => {
   const isMobileDev = mode === "mobile" || process.env.MOBILE_DEV === "1"
   const isMobileBuild = process.env.MOBILE_BUILD === "1"
   const isMobile = isMobileDev || isMobileBuild
+  const includeConnections = process.env.INCLUDE_CONNECTIONS !== "0"
   if (!isMobile) {
     rmSync("dist-electron", { recursive: true, force: true })
   }
@@ -58,6 +59,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     define: {
       __MOBILE__: JSON.stringify(isMobile),
+      __CONNECTIONS__: JSON.stringify(includeConnections),
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
     },
     resolve: {

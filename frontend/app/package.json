@@ -1,6 +1,6 @@
 {
   "name": "finanze",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.32.1",
@@ -14,6 +14,7 @@
     "build": "tsc && vite build",
     "build:python": "node scripts/bundle-python.js",
     "build:mobile": "MOBILE_BUILD=1 pnpm run build && pnpm run build:python",
+    "build:mobile:store": "export MOBILE_BUILD=1 INCLUDE_CONNECTIONS=0 && pnpm run build && pnpm run build:python",
     "install:pyodide": "node scripts/sync-python-wheels.mjs && node scripts/sync-pyodide.mjs",
     "clean": "node scripts/clean-offline.mjs",
     "preview": "vite preview",
@@ -31,8 +32,11 @@
     "native:setup:ios": "bash native/tlsclient/build.sh --platform ios && bash native/tlsclient/install.sh",
     "native:setup:android": "bash native/tlsclient/build.sh --platform android && bash native/tlsclient/install.sh",
     "cap:sync": "pnpm build:mobile && pnpm exec cap sync",
+    "cap:sync:store": "pnpm build:mobile:store && pnpm exec cap sync",
     "cap:ios": "pnpm build:mobile && pnpm exec cap sync ios && pnpm exec cap open ios",
-    "cap:android": "pnpm build:mobile && pnpm exec cap sync android && pnpm exec cap open android"
+    "cap:ios:store": "pnpm build:mobile:store && pnpm exec cap sync ios && pnpm exec cap open ios",
+    "cap:android": "pnpm build:mobile && pnpm exec cap sync android && pnpm exec cap open android",
+    "cap:android:store": "pnpm build:mobile:store && pnpm exec cap sync android && pnpm exec cap open android"
   },
   "lint-staged": {
     "*": "eslint .",
@@ -81,6 +85,7 @@
     "@eslint/css": "^1.1.0",
     "@eslint/js": "^10.0.1",
     "@eslint/json": "^1.2.0",
+    "@tailwindcss/container-queries": "^0.1.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.12.2",

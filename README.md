@@ -1,3 +1,7 @@
+<a href="https://github.com/finanze/finanze/releases/latest">
+  <img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest Release">
+</a>
+
 <p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
 <h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
 
@@ -5,6 +9,30 @@
 <a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
 platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
 </p>
+
+<h3 align="center">Available On</h3>
+
+<table align="center">
+  <tr>
+    <td align="center" width="30%"><b>🖥️ Desktop</b></td>
+    <td align="center" width="30%"><b>📱 Android</b></td>
+    <td align="center" width="40%"><b>🍎 iOS</b></td>
+  </tr>
+  <tr>
+    <td align="center">
+      Latest release<br>
+      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+    </td>
+    <td align="center">
+      Latest release<br>
+      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+    </td>
+    <td align="center">
+      First, install <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a><br>
+      Then <a href="https://addaltstore.finanze.me">add the app!</a>
+    </td>
+  </tr>
+</table>
 
 <h2 align="center"></h2>
 
@@ -210,7 +238,7 @@ For the frontend use `pnpm`, and `node 24`.
 
     ```sh
     pip install -r requirements.txt -r requirements-dev.txt -r requirements-lint.txt -r requirements-packaging.txt
-    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA, only for mintos
+    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA, only for Mintos
     pre-commit install
     ```
 
@@ -219,6 +247,7 @@ For the frontend use `pnpm`, and `node 24`.
     ```sh
     cd frontend/app
     pnpm install
+                         # ---- Mobile SPECIFIC ----
     pnpm install:pyodide # For mobile app initial setup, it will download Pyodide and all required Python dependencies for mobile backend
     ```
 
@@ -228,12 +257,19 @@ For the frontend use `pnpm`, and `node 24`.
     python ./finanze/finanze --port 7592 --data-dir .storage --log-dir .storage/logs --log-level DEBUG --third-party-log-level DEBUG
 
     cd frontend/app
-    pnpm dev          # For electron desktop app
-    pnpm dev:mobile   # For mobile app (web feature limited, but useful for basic development and testing)
-    pnpm cap:ios      # For iOS development (requires Xcode and Mac)
-    pnpm cap:android  # For Android development (requires Android Studio and related SDKs
-    pnpm cap:sync     # To sync changes to native projects after frontend development
+    pnpm dev            # For electron desktop app
+
+                        # ---- Mobile SPECIFIC ----
+    pnpm dev:mobile     # For mobile app (web feature limited, but useful for basic development and testing)
+    pnpm cap:ios        # For iOS development (requires Xcode and Mac)
+    pnpm cap:android    # For Android development (requires Android Studio and related SDKs
+    pnpm cap:sync       # To sync changes to native projects after frontend development
+
+                        # ---- App Store SPECIFIC ----
+    pnpm cap:sync:store # Same as above but this excludes all non App/Play Store compliant stuff (entity connections)
     ```
+
+#### Mobile specific step
 
 6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
 
@@ -243,6 +279,32 @@ For the frontend use `pnpm`, and `node 24`.
     cd frontend/app           # If not already
     go mod tidy -C native/tlsclient
     pnpm native:setup         # Builds iOS xcframework + Android AAR and copies to native projects
+    ```
+
+#### Other
+
+##### Formatting
+
+    ```sh
+    ruff format
+
+    cd frontend/app
+    pnpm format
+    ```
+
+##### Executing tests
+
+    ```sh
+    pytest              # Backend
+
+    cd frontend/app
+    pnpm test           # Frontend
+
+    cd e2e/standard
+    pnpm test           # Web based E2E
+
+    cd e2e/mobile
+    pnpm local:both     # Mobile based basic E2E
     ```
 
 ### Environment Variables
@@ -258,6 +320,7 @@ important ones are::
 
 - Powered by [CoinGecko](https://www.coingecko.com/).
 - Powered by [CryptoCompare](https://www.cryptocompare.com/).
+- [Pyodide](https://github.com/pyodide/pyodide) is used for mobile backend compatibility.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
   heavily
   modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this

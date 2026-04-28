@@ -4,6 +4,7 @@ from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
     AddressNotFound,
     BackupConflict,
+    BackupTransferFailed,
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
@@ -109,6 +110,10 @@ def handle_backup_conflict(e):
     return jsonify({"code": "BACKUP_CONFLICT", "message": str(e)}), 409
 
 
+def handle_backup_transfer_failed(e):
+    return jsonify({"code": "BACKUP_TRANSFER_FAILED", "message": str(e)}), 502
+
+
 def handle_permission_denied(e):
     return jsonify({"code": "PERMISSION_DENIED", "message": str(e)}), 403
 
@@ -133,6 +138,7 @@ def register_exception_handlers(app):
     app.register_error_handler(UnauthorizedToken, handle_unauthorized_token)
     app.register_error_handler(InvalidToken, handle_invalid_token)
     app.register_error_handler(BackupConflict, handle_backup_conflict)
+    app.register_error_handler(BackupTransferFailed, handle_backup_transfer_failed)
     app.register_error_handler(PermissionDenied, handle_permission_denied)
 
     app.register_error_handler(500, handle_unexpected_error)

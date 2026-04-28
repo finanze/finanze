@@ -104,6 +104,7 @@ jobs:
       - name: Build iOS app for simulator
         working-directory: frontend/app/ios/App
         run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
           SIMULATOR=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
           echo "Building for simulator: $SIMULATOR"
           xcodebuild \
@@ -197,13 +198,13 @@ jobs:
 
       - name: Build Android debug APK
         working-directory: frontend/app/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleFullDebug
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v6
         with:
           name: android-apk
-          path: frontend/app/android/app/build/outputs/apk/debug/app-debug.apk
+          path: frontend/app/android/app/build/outputs/apk/full/debug/app-full-debug.apk
           retention-days: 1
 
   test-ios:
@@ -351,7 +352,7 @@ jobs:
           api-level: 34
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-debug.apk pnpm test:android
+          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
 
       - name: Upload test results
         if: ${{ !cancelled() }}

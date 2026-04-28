@@ -1,3 +1,18 @@
+## [0.8.2] - 2026-04-28
+
+### 🚀 Features
+
+- Thx tbas for blocking cloudflare
+- Add store compliant build variant (#100)
+- Improve recaptcha handling & fix android bundle (#102)
+
+### 📚 Documentation
+
+- Add installation in readme
+
+### ⚙️ Miscellaneous Tasks
+
+- Add alt store publishing and release build table (#101)
 ## [0.8.1] - 2026-04-24
 
 ### 🐛 Bug Fixes

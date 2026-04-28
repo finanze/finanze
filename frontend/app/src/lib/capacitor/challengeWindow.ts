@@ -107,7 +107,7 @@ export async function requestChallengeWindow(
     await LoginWebView.open({
       url: `https://${domain}`,
       title: "Security Challenge",
-      clearSession: true,
+      clearSession: false,
       interceptUrlPatterns: ["finanze://challenge-token"],
     })
 

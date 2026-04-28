@@ -1,3 +1,4 @@
+#if CONNECTIONS
 import Foundation
 import Capacitor
 import WebKit
@@ -499,3 +500,4 @@ private class LoginSchemeHandler: NSObject, WKURLSchemeHandler {
         // No-op
     }
 }
+#endif

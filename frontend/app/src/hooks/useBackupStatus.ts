@@ -586,6 +586,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
         setHasCredentialsMismatch(true)
+      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+        setStatusMessage(t.settings.backup.transferFailed)
+      } else {
+        setStatusMessage(t.common.unexpectedError)
       }
     } finally {
       setIsUploading(false)
@@ -661,6 +665,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
         setHasCredentialsMismatch(true)
+      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+        setStatusMessage(t.settings.backup.transferFailed)
+      } else {
+        setStatusMessage(t.common.unexpectedError)
       }
     } finally {
       setIsImporting(false)
@@ -851,6 +859,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       const errorCode = getErrorCode(error)
       if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
         setHasCredentialsMismatch(true)
+      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+        setStatusMessage(t.settings.backup.transferFailed)
       }
       window.dispatchEvent(
         new CustomEvent("backup-auto-sync-complete", {

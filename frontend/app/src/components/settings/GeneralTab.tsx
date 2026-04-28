@@ -483,169 +483,176 @@ export function GeneralTab() {
           </CardContent>
         </Card>
       </motion.div>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.05 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.settings.dataSettings.title}</CardTitle>
-            <CardDescription>
-              {t.settings.dataSettings.description}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div
-                className="flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/30 dark:bg-muted/10 dark:hover:bg-muted/20"
-                onClick={() => toggleSection("dataAutoRefresh")}
-              >
-                <div className="flex items-start gap-3">
-                  <Database className="mt-0.5 h-5 w-5 text-primary" />
-                  <div>
-                    <p className="font-medium">
-                      {t.settings.dataSettings.autoRefresh.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.settings.dataSettings.autoRefresh.description}
-                    </p>
-                  </div>
-                </div>
-                {expandedSections.dataAutoRefresh ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </div>
-              {expandedSections.dataAutoRefresh && (
-                <div className="space-y-4 rounded-md border border-dashed border-border/60 bg-background/60 p-4 dark:bg-muted/10">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        {t.settings.dataSettings.autoRefresh.enableLabel}
+      {__CONNECTIONS__ && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.05 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+              <CardDescription>
+                {t.settings.dataSettings.description}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div
+                  className="flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/30 dark:bg-muted/10 dark:hover:bg-muted/20"
+                  onClick={() => toggleSection("dataAutoRefresh")}
+                >
+                  <div className="flex items-start gap-3">
+                    <Database className="mt-0.5 h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium">
+                        {t.settings.dataSettings.autoRefresh.title}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {t.settings.dataSettings.autoRefresh.enableDescription}
+                        {t.settings.dataSettings.autoRefresh.description}
                       </p>
                     </div>
-                    <Switch
-                      checked={autoRefreshEnabled}
-                      onCheckedChange={handleAutoRefreshEnabledChange}
-                    />
                   </div>
-                  {autoRefreshEnabled && (
-                    <>
-                      <div className="border-t border-border/50 pt-4">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <Label htmlFor="max-outdated">
-                              {
-                                t.settings.dataSettings.autoRefresh
-                                  .maxOutdatedLabel
-                              }
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              {
-                                t.settings.dataSettings.autoRefresh
-                                  .maxOutdatedDescription
-                              }
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.values(AutoRefreshMaxOutdatedTime)
-                              .filter(
-                                option =>
-                                  import.meta.env.DEV ||
-                                  option !==
-                                    AutoRefreshMaxOutdatedTime.THREE_HOURS,
-                              )
-                              .map(option => (
-                                <button
-                                  key={option}
-                                  type="button"
-                                  onClick={() =>
-                                    handleAutoRefreshMaxOutdatedChange(option)
-                                  }
-                                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                                    autoRefreshMaxOutdated === option
-                                      ? "bg-primary text-primary-foreground"
-                                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                                  }`}
-                                >
-                                  {
-                                    t.settings.dataSettings.autoRefresh
-                                      .maxOutdatedOptions[option]
-                                  }
-                                </button>
-                              ))}
+                  {expandedSections.dataAutoRefresh ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+                {expandedSections.dataAutoRefresh && (
+                  <div className="space-y-4 rounded-md border border-dashed border-border/60 bg-background/60 p-4 dark:bg-muted/10">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          {t.settings.dataSettings.autoRefresh.enableLabel}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {
+                            t.settings.dataSettings.autoRefresh
+                              .enableDescription
+                          }
+                        </p>
+                      </div>
+                      <Switch
+                        checked={autoRefreshEnabled}
+                        onCheckedChange={handleAutoRefreshEnabledChange}
+                      />
+                    </div>
+                    {autoRefreshEnabled && (
+                      <>
+                        <div className="border-t border-border/50 pt-4">
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="max-outdated">
+                                {
+                                  t.settings.dataSettings.autoRefresh
+                                    .maxOutdatedLabel
+                                }
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                {
+                                  t.settings.dataSettings.autoRefresh
+                                    .maxOutdatedDescription
+                                }
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {Object.values(AutoRefreshMaxOutdatedTime)
+                                .filter(
+                                  option =>
+                                    import.meta.env.DEV ||
+                                    option !==
+                                      AutoRefreshMaxOutdatedTime.THREE_HOURS,
+                                )
+                                .map(option => (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    onClick={() =>
+                                      handleAutoRefreshMaxOutdatedChange(option)
+                                    }
+                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                                      autoRefreshMaxOutdated === option
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                    }`}
+                                  >
+                                    {
+                                      t.settings.dataSettings.autoRefresh
+                                        .maxOutdatedOptions[option]
+                                    }
+                                  </button>
+                                ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="border-t border-border/50 pt-4">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <Label>
-                              {
-                                t.settings.dataSettings.autoRefresh
-                                  .entitiesLabel
+                        <div className="border-t border-border/50 pt-4">
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <Label>
+                                {
+                                  t.settings.dataSettings.autoRefresh
+                                    .entitiesLabel
+                                }
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                {
+                                  t.settings.dataSettings.autoRefresh
+                                    .entitiesDescription
+                                }
+                              </p>
+                            </div>
+                            <EntitySelector
+                              entities={getAutoRefreshCompatibleEntities(
+                                entities,
+                              )}
+                              selectedEntityIds={autoRefreshEntityIds}
+                              onSelectionChange={
+                                handleAutoRefreshEntitiesChange
                               }
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              {
+                              description={
                                 t.settings.dataSettings.autoRefresh
                                   .entitiesDescription
                               }
-                            </p>
+                              emptyMessage={
+                                t.settings.dataSettings.autoRefresh
+                                  .noEntitiesAvailable
+                              }
+                              placeholder={
+                                t.settings.dataSettings.autoRefresh
+                                  .entitiesPlaceholder
+                              }
+                              emptySelectionBadge={
+                                t.settings.dataSettings.autoRefresh.allEntities
+                              }
+                              entityWarning={entityHasPin}
+                              warningBanner={
+                                getAutoRefreshCompatibleEntities(entities).some(
+                                  entityHasPin,
+                                ) ? (
+                                  <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 m-1.5 text-xs">
+                                    <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-amber-500" />
+                                    <p className="text-muted-foreground">
+                                      {
+                                        t.settings.dataSettings.autoRefresh
+                                          .pinWarningTooltip
+                                      }
+                                    </p>
+                                  </div>
+                                ) : undefined
+                              }
+                            />
                           </div>
-                          <EntitySelector
-                            entities={getAutoRefreshCompatibleEntities(
-                              entities,
-                            )}
-                            selectedEntityIds={autoRefreshEntityIds}
-                            onSelectionChange={handleAutoRefreshEntitiesChange}
-                            description={
-                              t.settings.dataSettings.autoRefresh
-                                .entitiesDescription
-                            }
-                            emptyMessage={
-                              t.settings.dataSettings.autoRefresh
-                                .noEntitiesAvailable
-                            }
-                            placeholder={
-                              t.settings.dataSettings.autoRefresh
-                                .entitiesPlaceholder
-                            }
-                            emptySelectionBadge={
-                              t.settings.dataSettings.autoRefresh.allEntities
-                            }
-                            entityWarning={entityHasPin}
-                            warningBanner={
-                              getAutoRefreshCompatibleEntities(entities).some(
-                                entityHasPin,
-                              ) ? (
-                                <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 m-1.5 text-xs">
-                                  <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0 text-amber-500" />
-                                  <p className="text-muted-foreground">
-                                    {
-                                      t.settings.dataSettings.autoRefresh
-                                        .pinWarningTooltip
-                                    }
-                                  </p>
-                                </div>
-                              ) : undefined
-                            }
-                          />
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

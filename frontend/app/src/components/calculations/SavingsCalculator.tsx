@@ -1054,7 +1054,7 @@ export function SavingsCalculator() {
     <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-1 space-y-4">
-          <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+          <Card className="@container -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
@@ -1108,14 +1108,14 @@ export function SavingsCalculator() {
 
               <div className="space-y-2">
                 <Label>{t.calculations.savings.periodicity}</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap @[280px]:flex-nowrap gap-2">
                   {Object.values(SavingsPeriodicity).map(p => (
                     <Button
                       key={p}
                       variant={periodicity === p ? "default" : "outline"}
                       size="sm"
                       onClick={() => setPeriodicity(p)}
-                      className="flex-1"
+                      className="flex-1 h-9"
                     >
                       {t.calculations.savings.periodicities[p]}
                     </Button>

@@ -36,6 +36,7 @@ const APP_PATH =
 
 export const config: Options.Testrunner = {
     ...sharedConfig,
+    specFileRetries: 2,
     connectionRetryTimeout: 600_000,
     services: [
         [

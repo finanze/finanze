@@ -1,3 +1,4 @@
+#if CONNECTIONS
 import Foundation
 import Capacitor
 
@@ -170,3 +171,4 @@ public class TlsHttpPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 }
+#endif

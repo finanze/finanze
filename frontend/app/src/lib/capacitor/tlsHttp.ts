@@ -20,4 +20,6 @@ export interface TlsHttpPlugin {
   destroySession(options: { sessionId: string }): Promise<void>
 }
 
-export const TlsHttp = registerPlugin<TlsHttpPlugin>("TlsHttp")
+export const TlsHttp = __CONNECTIONS__
+  ? registerPlugin<TlsHttpPlugin>("TlsHttp")
+  : (null as unknown as TlsHttpPlugin)

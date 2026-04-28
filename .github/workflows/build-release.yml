@@ -124,6 +124,140 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ env.RELEASE_TAG }}" dist/* --clobber
 
+  build-android:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
+    runs-on: ubuntu-latest
+
+    permissions: write-all
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine Release Tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "RELEASE_TAG=v${BRANCH_NAME#release/}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${BRANCH_NAME#release/}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/app/.nvmrc
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14.2
+
+      - name: Install Python build deps
+        run: pip install python-minifier
+
+      - name: Install packaging & runtime deps
+        shell: bash
+        run: pip install -r requirements-packaging.txt -r requirements.txt
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'ndk;28.0.13004108'
+
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native TLS client (Android)
+        working-directory: frontend/app
+        run: |
+          bash native/tlsclient/build.sh --platform android
+          bash native/tlsclient/install.sh
+
+      - name: Setup Pyodide & Python wheels
+        working-directory: frontend/app
+        run: pnpm install:pyodide
+
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/app/android/finanze-release.jks
+
+      - name: Build full variant
+        working-directory: frontend/app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          pnpm build:mobile
+          pnpm exec cap sync android
+
+      - name: Build full APK & AAB
+        working-directory: frontend/app/android
+        env:
+          STORE_FILE: ${{ github.workspace }}/frontend/app/android/finanze-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleFullRelease bundleFullRelease
+
+      - name: Build store variant
+        working-directory: frontend/app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          pnpm build:mobile:store
+          pnpm exec cap sync android
+
+      - name: Build store APK & AAB
+        working-directory: frontend/app/android
+        env:
+          STORE_FILE: ${{ github.workspace }}/frontend/app/android/finanze-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleStoreRelease bundleStoreRelease
+
+      - name: Rename outputs
+        shell: bash
+        run: |
+          VERSION=${{ env.RELEASE_VERSION }}
+          mkdir -p dist
+          cp frontend/app/android/app/build/outputs/apk/full/release/app-full-release.apk dist/Finanze-${VERSION}-android-full.apk
+          cp frontend/app/android/app/build/outputs/bundle/fullRelease/app-full-release.aab dist/Finanze-${VERSION}-android-full.aab
+          cp frontend/app/android/app/build/outputs/apk/store/release/app-store-release.apk dist/Finanze-${VERSION}-android-store.apk
+          cp frontend/app/android/app/build/outputs/bundle/storeRelease/app-store-release.aab dist/Finanze-${VERSION}-android-store.aab
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ env.RELEASE_TAG }}" dist/* --clobber
+
   docker-release:
     if: |
       github.event.pull_request.merged == true &&
@@ -179,3 +313,146 @@ jobs:
           buildargs: SELENIUM_SUPPORT=false
           tags: |
             ${{ env.RELEASE_TAG }}-no-selenium,${{ env.RELEASE_TAG }},latest-no-selenium,latest
+
+  update-release-description:
+    if: |
+      always() &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    needs: [build-app, build-android, docker-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Determine Release Tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "RELEASE_TAG=v${BRANCH_NAME#release/}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${BRANCH_NAME#release/}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Update release description with build table
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const version = process.env.RELEASE_VERSION;
+
+            let release;
+            for (let attempt = 0; attempt < 10; attempt++) {
+              try {
+                const resp = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+                release = resp.data;
+                break;
+              } catch (e) {
+                if (attempt < 9) {
+                  core.info(`Release not found yet (attempt ${attempt + 1}/10), waiting 30s...`);
+                  await new Promise(r => setTimeout(r, 30000));
+                } else {
+                  core.setFailed(`Release for tag ${tag} not found after 10 attempts`);
+                  return;
+                }
+              }
+            }
+
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner, repo, release_id: release.id,
+            });
+
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
+            const desktopBuilds = [
+              { icon: '🍎', label: 'macOS', arch: 'ARM64 (Apple Silicon)', pattern: '-mac-arm64.dmg' },
+              { icon: '🍎', label: 'macOS', arch: 'Intel x64', pattern: '-mac-x64.dmg' },
+              { icon: '🐧', label: 'Linux', arch: 'x64', pattern: '-linux-x86_64.AppImage' },
+              { icon: '🪟', label: 'Windows', arch: 'x64', pattern: '-win-x64.exe' },
+            ];
+
+            const buildAppResult = '${{ needs.build-app.result }}';
+            let desktopRows = '';
+            for (const build of desktopBuilds) {
+              const asset = assets.find(a => a.name.endsWith(build.pattern));
+              if (asset) {
+                const size = formatSize(asset.size);
+                desktopRows += `| ${build.icon} ${build.label} | ${build.arch} | ${size} | [Download](${asset.browser_download_url}) |\n`;
+              } else {
+                const status = buildAppResult === 'failure' ? '❌ Failed' : buildAppResult === 'cancelled' ? '⚪ Cancelled' : '⚠️ Not found';
+                desktopRows += `| ${build.icon} ${build.label} | ${build.arch} | — | ${status} |\n`;
+              }
+            }
+
+            const androidBuilds = [
+              { type: '.apk', pattern: `-android-full.apk` },
+              { type: '.aab', pattern: `-android-full.aab` },
+            ];
+
+            const buildAndroidResult = '${{ needs.build-android.result }}';
+            let androidRows = '';
+            for (const build of androidBuilds) {
+              const asset = assets.find(a => a.name.endsWith(build.pattern));
+              if (asset) {
+                const size = formatSize(asset.size);
+                androidRows += `| \`${build.type}\` | ${size} | [Download](${asset.browser_download_url}) |\n`;
+              } else {
+                const status = buildAndroidResult === 'failure' ? '❌ Failed' : buildAndroidResult === 'cancelled' ? '⚪ Cancelled' : '⚠️ Not found';
+                androidRows += `| \`${build.type}\` | — | ${status} |\n`;
+              }
+            }
+
+            const dockerResult = '${{ needs.docker-release.result }}';
+            let dockerSection;
+            if (dockerResult === 'success') {
+              dockerSection = [
+                `| Image | Tag | Pull Command |`,
+                `|-------|-----|-------------|`,
+                `| \`finanze/finanze\` | \`${version}\` | \`docker pull finanze/finanze:${version}\` |`,
+                `| \`finanze/finanze-frontend\` | \`${version}\` | \`docker pull finanze/finanze-frontend:${version}\` |`,
+              ].join('\n');
+            } else if (dockerResult === 'failure') {
+              dockerSection = `❌ Docker build failed.`;
+            } else if (dockerResult === 'cancelled') {
+              dockerSection = `⚪ Docker build was cancelled.`;
+            } else {
+              dockerSection = `⚠️ Docker build status unknown.`;
+            }
+
+            const table = [
+              ``,
+              `## 📦 Build Assets`,
+              ``,
+              `### Desktop`,
+              ``,
+              `| Platform | Architecture | Size | Link |`,
+              `|----------|-------------|------|------|`,
+              desktopRows.trim(),
+              ``,
+              `### 📱 Android`,
+              ``,
+              `| Type | Size | Link |`,
+              `|------|------|------|`,
+              androidRows.trim(),
+              ``,
+              `### 🐳 Docker Images`,
+              ``,
+              dockerSection,
+            ].join('\n');
+
+            const existingBody = release.body || '';
+            const buildMarker = '## 📦 Build Assets';
+            let newBody;
+            if (existingBody.includes(buildMarker)) {
+              newBody = existingBody.substring(0, existingBody.indexOf(buildMarker)).trimEnd() + '\n' + table;
+            } else {
+              newBody = existingBody.trimEnd() + '\n' + table;
+            }
+
+            await github.rest.repos.updateRelease({
+              owner, repo, release_id: release.id,
+              body: newBody,
+            });
