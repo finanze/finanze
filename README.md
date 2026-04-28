@@ -1,3 +1,7 @@
+<a href="https://github.com/finanze/finanze/releases/latest">
+  <img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest Release">
+</a>
+
 <p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
 <h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
 
@@ -5,6 +9,30 @@
 <a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
 platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
 </p>
+
+<h3 align="center">Available On</h3>
+
+<table align="center">
+  <tr>
+    <td align="center" width="30%"><b>🖥️ Desktop</b></td>
+    <td align="center" width="30%"><b>📱 Android</b></td>
+    <td align="center" width="40%"><b>🍎 iOS</b></td>
+  </tr>
+  <tr>
+    <td align="center">
+      Latest release<br>
+      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+    </td>
+    <td align="center">
+      Latest release<br>
+      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+    </td>
+    <td align="center">
+      Install with <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a><br>
+      Add source: <code>altstore.finanze.me</code>
+    </td>
+  </tr>
+</table>
 
 <h2 align="center"></h2>
 
