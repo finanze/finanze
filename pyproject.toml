@@ -1,7 +1,7 @@
 [project]
 name = "finanze"
 authors = [{ name = "Marcos Alvarez", email = "contact@marcosav.com" }]
-version = "0.8.1"
+version = "0.8.2"
 description = "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites."
 readme = "README.md"
 requires-python = ">=3.14"
