@@ -521,7 +521,7 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleFullRelease bundleFullRelease
+        run: ./gradlew assembleFullDebug bundleFullDebug
 
       - name: Build store variant
         working-directory: frontend/app
@@ -547,8 +547,8 @@ jobs:
         run: |
           VERSION=${{ steps.dev_version.outputs.dev_version }}
           mkdir -p dist-android
-          cp frontend/app/android/app/build/outputs/apk/full/release/app-full-release.apk dist-android/Finanze-${VERSION}-android-full.apk
-          cp frontend/app/android/app/build/outputs/bundle/fullRelease/app-full-release.aab dist-android/Finanze-${VERSION}-android-full.aab
+          cp frontend/app/android/app/build/outputs/apk/full/debug/app-full-release.apk dist-android/Finanze-${VERSION}-android-full.apk
+          cp frontend/app/android/app/build/outputs/bundle/fullDebug/app-full-release.aab dist-android/Finanze-${VERSION}-android-full.aab
           cp frontend/app/android/app/build/outputs/apk/store/release/app-store-release.apk dist-android/Finanze-${VERSION}-android-store.apk
           cp frontend/app/android/app/build/outputs/bundle/storeRelease/app-store-release.aab dist-android/Finanze-${VERSION}-android-store.aab
 
