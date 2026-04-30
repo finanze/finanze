@@ -251,10 +251,6 @@ jobs:
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
 
-      - name: Install Appium drivers
-        working-directory: e2e/mobile
-        run: pnpm exec appium driver install xcuitest || true
-
       - name: Boot iOS Simulator
         run: |
           DEVICE_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
@@ -341,10 +337,6 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
-
-      - name: Install Appium drivers
-        working-directory: e2e/mobile
-        run: pnpm exec appium driver install uiautomator2 || true
 
       - name: Run Android tests
         uses: reactivecircus/android-emulator-runner@v2
