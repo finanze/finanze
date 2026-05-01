@@ -1,6 +1,6 @@
 import type React from "react"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Card,
   CardContent,
@@ -41,7 +41,7 @@ import {
 import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { getApiServerInfo, checkStatus } from "@/services/api"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
-import { isNativeMobile } from "@/lib/platform"
+import { isNativeMobile, isAndroid } from "@/lib/platform"
 import { useTheme } from "@/context/ThemeContext"
 import {
   authenticateWithBiometric,
@@ -99,7 +99,15 @@ export default function LoginPage() {
       typeof window !== "undefined" &&
       !window.matchMedia("(prefers-color-scheme: dark)").matches)
 
-  const floatingLogos = useMemo(() => generateFloatingLogos(), [])
+  const floatingLogos = useMemo(() => {
+    const count = window.innerWidth >= 900 ? 120 : 80
+    return generateFloatingLogos(count, count * 8)
+  }, [])
+
+  const initialHeightRef = useRef<number | null>(null)
+  if (isMobile && isAndroid() && initialHeightRef.current === null) {
+    initialHeightRef.current = window.innerHeight
+  }
 
   const isLoginMode = !isSignupMode && !isChangingPassword
 
@@ -381,292 +389,299 @@ export default function LoginPage() {
 
   if (isMobile) {
     const inputClass = cn(
-      "w-full bg-transparent border-0 border-b rounded-none px-1 py-3 text-base outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200",
+      "w-full bg-transparent border-0 border-b rounded-none px-1 py-3 text-base text-center outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200",
       isLight
         ? "border-black/15 text-black placeholder:text-black/30 focus-visible:border-black/40"
         : "border-white/15 text-white placeholder:text-white/30 focus-visible:border-white/40",
     )
     const passwordValueClass =
-      "[&:not(:placeholder-shown)]:text-[22px] [&:not(:placeholder-shown)]:tracking-[6px]"
+      "[&:not(:placeholder-shown)]:text-[22px] [&:not(:placeholder-shown)]:tracking-[4px]"
 
     return (
       <div
-        className={`select-none min-h-screen flex flex-col items-center justify-center ${isLight ? "bg-white" : "bg-black"}`}
+        className={`select-none ${isLight ? "bg-white" : "bg-black"}`}
         style={{
-          paddingTop: "max(24px, env(safe-area-inset-top, 0px))",
-          paddingBottom: "max(24px, env(safe-area-inset-bottom, 0px))",
+          height: "100dvh",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <div
-          className="absolute inset-x-0 top-0 pointer-events-none overflow-hidden"
+          className="relative flex flex-col items-center justify-center"
           style={{
-            height: "55vh",
-            maskImage:
-              "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)",
+            minHeight: initialHeightRef.current
+              ? `${initialHeightRef.current}px`
+              : "100vh",
+            paddingTop: "max(24px, env(safe-area-inset-top, 0px))",
+            paddingBottom: "max(24px, env(safe-area-inset-bottom, 0px))",
           }}
         >
-          {floatingLogos.map((pos, i) => (
+          <div
+            className="absolute inset-x-0 top-0 pointer-events-none overflow-hidden"
+            style={{
+              height: "55vh",
+              maskImage:
+                "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)",
+            }}
+          >
+            {floatingLogos.map((pos, i) => (
+              <img
+                key={i}
+                src="finanze-fg.svg"
+                alt=""
+                className={`absolute select-none pointer-events-none ${isLight ? "invert" : ""}`}
+                style={{
+                  left: `${pos.x}%`,
+                  top: `${pos.y}%`,
+                  width: pos.size,
+                  height: pos.size,
+                  opacity: pos.opacity,
+                  transform: `rotate(${pos.rotation}deg)`,
+                }}
+                draggable={false}
+              />
+            ))}
+          </div>
+
+          <div className="absolute bottom-6 left-6">
+            <LoginQuickSettings
+              isDesktop={false}
+              onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
+              versionMismatch={versionMismatch}
+            />
+          </div>
+
+          {isChangingPassword && (
+            <button
+              type="button"
+              className={`absolute left-6 p-2 z-10 ${isLight ? "text-black/60" : "text-white/60"}`}
+              onClick={handleCancelPasswordChange}
+              disabled={isLoading}
+              aria-label={t.common.cancel}
+              style={{ top: "max(16px, env(safe-area-inset-top, 0px))" }}
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </button>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="w-full max-w-sm flex flex-col items-center px-10 z-10"
+          >
             <img
-              key={i}
               src="finanze-fg.svg"
-              alt=""
-              className={`absolute select-none pointer-events-none ${isLight ? "invert" : ""}`}
-              style={{
-                left: `${pos.x}%`,
-                top: `${pos.y}%`,
-                width: pos.size,
-                height: pos.size,
-                opacity: pos.opacity,
-                transform: `rotate(${pos.rotation}deg)`,
-              }}
+              alt="Finanze Logo"
+              className={`select-none pointer-events-none mb-5 ${isLight ? "invert" : ""}`}
+              style={{ width: 56, height: 56 }}
               draggable={false}
             />
-          ))}
-        </div>
 
-        <div className="absolute bottom-6 left-6">
-          <LoginQuickSettings
-            isDesktop={false}
-            onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
-            versionMismatch={versionMismatch}
-          />
-        </div>
+            <h1
+              className={`text-xl font-medium text-center mb-10 tracking-tight ${isLight ? "text-black" : "text-white"}`}
+            >
+              {getTitle()}
+            </h1>
 
-        {isChangingPassword && (
-          <button
-            type="button"
-            className={`absolute left-6 p-2 z-10 ${isLight ? "text-black/60" : "text-white/60"}`}
-            onClick={handleCancelPasswordChange}
-            disabled={isLoading}
-            aria-label={t.common.cancel}
-            style={{ top: "max(16px, env(safe-area-inset-top, 0px))" }}
-          >
-            <ArrowLeft className="h-6 w-6" />
-          </button>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-sm flex flex-col items-center px-10 z-10"
-        >
-          <img
-            src="finanze-fg.svg"
-            alt="Finanze Logo"
-            className={`select-none pointer-events-none mb-5 ${isLight ? "invert" : ""}`}
-            style={{ width: 56, height: 56 }}
-            draggable={false}
-          />
-
-          <h1
-            className={`text-xl font-medium text-center mb-10 tracking-tight ${isLight ? "text-black" : "text-white"}`}
-          >
-            {getTitle()}
-          </h1>
-
-          <form
-            onSubmit={handleSubmit}
-            className="w-full space-y-5"
-            noValidate={isChangingPassword}
-          >
-            {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder={t.login.usernamePlaceholder}
-                required={!isChangingPassword}
-                autoCapitalize="off"
-                className={inputClass}
-              />
-            )}
-
-            {isChangingPassword && (
-              <input
-                id="oldPassword"
-                type="password"
-                value={oldPassword}
-                onChange={e => setOldPassword(e.target.value)}
-                placeholder={t.login.oldPasswordPlaceholder}
-                required
-                className={cn(inputClass, passwordValueClass)}
-              />
-            )}
-
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder={
-                isChangingPassword
-                  ? t.login.newPasswordPlaceholder
-                  : t.login.passwordPlaceholder
-              }
-              required
-              className={cn(
-                inputClass,
-                !isChangingPassword && !isSignupMode && lastLoggedUser
-                  ? passwordValueClass
-                  : "",
+            <form
+              onSubmit={handleSubmit}
+              className="w-full space-y-5"
+              noValidate={isChangingPassword}
+            >
+              {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder={t.login.usernamePlaceholder}
+                  required={!isChangingPassword}
+                  autoCapitalize="off"
+                  className={inputClass}
+                />
               )}
-            />
 
-            {(isSignupMode || isChangingPassword) && (
+              {isChangingPassword && (
+                <input
+                  id="oldPassword"
+                  type="password"
+                  value={oldPassword}
+                  onChange={e => setOldPassword(e.target.value)}
+                  placeholder={t.login.oldPasswordPlaceholder}
+                  required
+                  className={cn(inputClass, passwordValueClass)}
+                />
+              )}
+
               <input
-                id="repeatPassword"
+                id="password"
                 type="password"
-                value={repeatPassword}
-                onChange={e => setRepeatPassword(e.target.value)}
-                placeholder={t.login.repeatPasswordPlaceholder}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={
+                  isChangingPassword
+                    ? t.login.newPasswordPlaceholder
+                    : t.login.passwordPlaceholder
+                }
                 required
                 className={cn(inputClass, passwordValueClass)}
               />
-            )}
 
-            {biometricAvailability?.isAvailable &&
-              (!isLoginMode || !hasStoredCredentials) && (
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-2">
-                    {biometricTypeForDisplay === BiometricType.FACE ? (
-                      <ScanFace
-                        className={`h-5 w-5 ${isLight ? "text-black/40" : "text-white/40"}`}
-                      />
-                    ) : (
-                      <Fingerprint
-                        className={`h-5 w-5 ${isLight ? "text-black/40" : "text-white/40"}`}
-                      />
-                    )}
-                    <span
-                      className={`text-sm ${isLight ? "text-black/50" : "text-white/50"}`}
-                    >
-                      {t.login.enableBiometric.replace(
-                        "{type}",
-                        biometricTypeForDisplay === BiometricType.FACE
-                          ? t.login.biometricFaceId
-                          : t.login.biometricFingerprint,
+              {(isSignupMode || isChangingPassword) && (
+                <input
+                  id="repeatPassword"
+                  type="password"
+                  value={repeatPassword}
+                  onChange={e => setRepeatPassword(e.target.value)}
+                  placeholder={t.login.repeatPasswordPlaceholder}
+                  required
+                  className={cn(inputClass, passwordValueClass)}
+                />
+              )}
+
+              {biometricAvailability?.isAvailable &&
+                (!isLoginMode || !hasStoredCredentials) && (
+                  <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2">
+                      {biometricTypeForDisplay === BiometricType.FACE ? (
+                        <ScanFace
+                          className={`h-5 w-5 ${isLight ? "text-black/40" : "text-white/40"}`}
+                        />
+                      ) : (
+                        <Fingerprint
+                          className={`h-5 w-5 ${isLight ? "text-black/40" : "text-white/40"}`}
+                        />
                       )}
-                    </span>
+                      <span
+                        className={`text-sm ${isLight ? "text-black/50" : "text-white/50"}`}
+                      >
+                        {t.login.enableBiometric.replace(
+                          "{type}",
+                          biometricTypeForDisplay === BiometricType.FACE
+                            ? t.login.biometricFaceId
+                            : t.login.biometricFingerprint,
+                        )}
+                      </span>
+                    </div>
+                    <Switch
+                      id="enableBiometric"
+                      checked={enableBiometric}
+                      onCheckedChange={setEnableBiometric}
+                    />
                   </div>
-                  <Switch
-                    id="enableBiometric"
-                    checked={enableBiometric}
-                    onCheckedChange={setEnableBiometric}
-                  />
-                </div>
+                )}
+
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-red-500 text-center flex items-center justify-center"
+                >
+                  {error}
+                  {errorCode === AuthResultCode.UNEXPECTED_ERROR &&
+                    errorDetails && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="ml-2 p-1 text-red-500"
+                            aria-label={t.login.viewErrorDetails}
+                          >
+                            <Wrench className="h-4 w-4" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
+                          sideOffset={8}
+                        >
+                          <p className="font-medium text-foreground">
+                            {t.login.errorDetailsTitle}
+                          </p>
+                          <p className="mt-2 text-muted-foreground break-words">
+                            {errorDetails}
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                </motion.div>
               )}
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-sm text-red-500 text-center flex items-center justify-center"
-              >
-                {error}
-                {errorCode === AuthResultCode.UNEXPECTED_ERROR &&
-                  errorDetails && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="ml-2 p-1 text-red-500"
-                          aria-label={t.login.viewErrorDetails}
-                        >
-                          <Wrench className="h-4 w-4" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
-                        sideOffset={8}
-                      >
-                        <p className="font-medium text-foreground">
-                          {t.login.errorDetailsTitle}
-                        </p>
-                        <p className="mt-2 text-muted-foreground break-words">
-                          {errorDetails}
-                        </p>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-              </motion.div>
-            )}
-
-            {hasStoredCredentials && isLoginMode ? (
-              <div className="flex items-center justify-center gap-6 pt-6">
+              {hasStoredCredentials && isLoginMode ? (
+                <div className="flex items-center justify-center gap-6 pt-6">
+                  <button
+                    type="submit"
+                    className={cn(
+                      "text-lg font-medium tracking-wide transition-opacity duration-200",
+                      isLight ? "text-black" : "text-white",
+                      isLoading ? "opacity-40" : "active:opacity-60",
+                    )}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <LoadingSpinner size="sm" /> : t.common.unlock}
+                  </button>
+                  <div
+                    className={`h-5 w-px ${isLight ? "bg-black/15" : "bg-white/15"}`}
+                  />
+                  <button
+                    type="button"
+                    className={cn(
+                      "transition-opacity duration-200",
+                      isLight ? "text-black/60" : "text-white/60",
+                      isBiometricLoading ? "opacity-40" : "active:opacity-40",
+                    )}
+                    disabled={isBiometricLoading}
+                    onClick={handleBiometricLogin}
+                    aria-label={t.login.biometricAuth}
+                  >
+                    {isBiometricLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : biometricTypeForDisplay === BiometricType.FACE ? (
+                      <ScanFace className="h-6 w-6" />
+                    ) : (
+                      <Fingerprint className="h-6 w-6" />
+                    )}
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="submit"
                   className={cn(
-                    "text-lg font-medium tracking-wide transition-opacity duration-200",
+                    "w-full flex items-center justify-center text-lg font-medium tracking-wide py-4 transition-opacity duration-200 mt-4",
                     isLight ? "text-black" : "text-white",
                     isLoading ? "opacity-40" : "active:opacity-60",
                   )}
                   disabled={isLoading}
                 >
-                  {isLoading ? <LoadingSpinner size="sm" /> : t.common.unlock}
-                </button>
-                <div
-                  className={`h-5 w-px ${isLight ? "bg-black/15" : "bg-white/15"}`}
-                />
-                <button
-                  type="button"
-                  className={cn(
-                    "transition-opacity duration-200",
-                    isLight ? "text-black/60" : "text-white/60",
-                    isBiometricLoading ? "opacity-40" : "active:opacity-40",
-                  )}
-                  disabled={isBiometricLoading}
-                  onClick={handleBiometricLogin}
-                  aria-label={t.login.biometricAuth}
-                >
-                  {isBiometricLoading ? (
+                  {isLoading ? (
                     <LoadingSpinner size="sm" />
-                  ) : biometricTypeForDisplay === BiometricType.FACE ? (
-                    <ScanFace className="h-6 w-6" />
+                  ) : isChangingPassword ? (
+                    t.login.changePassword
+                  ) : isSignupMode ? (
+                    t.login.signup
                   ) : (
-                    <Fingerprint className="h-6 w-6" />
+                    t.common.unlock
                   )}
                 </button>
-              </div>
-            ) : (
-              <button
-                type="submit"
-                className={cn(
-                  "w-full text-lg font-medium tracking-wide py-4 transition-opacity duration-200 mt-4",
-                  isLight ? "text-black" : "text-white",
-                  isLoading ? "opacity-40" : "active:opacity-60",
-                )}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <LoadingSpinner size="sm" />
-                ) : isChangingPassword ? (
-                  t.login.changePassword
-                ) : isSignupMode ? (
-                  t.login.signup
-                ) : (
-                  t.common.unlock
-                )}
-              </button>
-            )}
+              )}
 
-            {(isSignupMode || isChangingPassword) && (
-              <p
-                className={`text-xs text-center mt-2 ${isLight ? "text-black/35" : "text-white/35"}`}
-              >
-                {t.login.syncPasswordHint}
-              </p>
-            )}
-          </form>
-        </motion.div>
+              {(isSignupMode || isChangingPassword) && (
+                <p
+                  className={`text-xs text-center mt-2 ${isLight ? "text-black/35" : "text-white/35"}`}
+                >
+                  {t.login.syncPasswordHint}
+                </p>
+              )}
+            </form>
+          </motion.div>
 
-        <AdvancedSettings
-          isOpen={showAdvancedSettings}
-          onClose={() => setShowAdvancedSettings(false)}
-        />
+          <AdvancedSettings
+            isOpen={showAdvancedSettings}
+            onClose={() => setShowAdvancedSettings(false)}
+          />
+        </div>
       </div>
     )
   }

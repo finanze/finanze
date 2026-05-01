@@ -32,12 +32,14 @@ export function generateFloatingLogos(
     const x = rand() * 94 + 3
     const y = rand() * 100
     if (tooClose(x, y, size)) continue
+    const baseOpacity = 0.12 + rand() * 0.14
+    const yFactor = 1 - y / 100
     items.push({
       x,
       y,
       rotation: rand() * 120 - 60,
       size,
-      opacity: 0.06 + rand() * 0.1,
+      opacity: baseOpacity * (0.4 + yFactor * 0.6),
     })
   }
   return items
