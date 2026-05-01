@@ -42,6 +42,7 @@ import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { getApiServerInfo, checkStatus } from "@/services/api"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
 import { isNativeMobile, isAndroid } from "@/lib/platform"
+import { StatusBar, Style } from "@capacitor/status-bar"
 import { useTheme } from "@/context/ThemeContext"
 import {
   authenticateWithBiometric,
@@ -98,6 +99,11 @@ export default function LoginPage() {
     (theme === "system" &&
       typeof window !== "undefined" &&
       !window.matchMedia("(prefers-color-scheme: dark)").matches)
+
+  useEffect(() => {
+    if (!isNativeMobile()) return
+    StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark })
+  }, [isLight])
 
   const floatingLogos = useMemo(() => {
     const count = window.innerWidth >= 900 ? 120 : 80
@@ -445,7 +451,13 @@ export default function LoginPage() {
             ))}
           </div>
 
-          <div className="absolute bottom-6 left-6">
+          <div
+            className="absolute left-6"
+            style={{
+              bottom:
+                "calc(24px + max(calc(var(--safe-area-inset-bottom, 0px) - 24px), 0px))",
+            }}
+          >
             <LoginQuickSettings
               isDesktop={false}
               onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
