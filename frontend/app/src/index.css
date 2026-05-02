@@ -65,27 +65,28 @@
 }
 
 @layer base {
-  html,
-  body,
+  html {
+    min-height: 100%;
+    @apply bg-background;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    height: 100%;
+    height: 100dvh;
+    @apply bg-background text-foreground;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   #root {
     height: 100%;
   }
 
-  html {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
-
   * {
     @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    overflow: hidden;
-    overscroll-behavior: none;
   }
 }
 

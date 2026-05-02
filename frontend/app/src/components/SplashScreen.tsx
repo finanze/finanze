@@ -7,6 +7,7 @@ import { useTheme } from "@/context/ThemeContext"
 import { getApiServerInfo, type ApiServerInfo } from "@/services/api"
 import { hasConfig } from "@/services/configStorage"
 import { isElectron, isNativeMobile } from "@/lib/platform"
+import { StatusBar, Style } from "@capacitor/status-bar"
 
 const getServerDisplayName = (url: string): string => {
   return url.replace(/^https?:\/\//, "")
@@ -33,6 +34,11 @@ export default function SplashScreen() {
     (theme === "system" &&
       typeof window !== "undefined" &&
       !window.matchMedia("(prefers-color-scheme: dark)").matches)
+
+  useEffect(() => {
+    if (!isNativeMobile()) return
+    StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark })
+  }, [isLight])
   const gradientClass = isLight
     ? "from-gray-400 via-gray-700 to-gray-300"
     : "from-gray-800 via-white to-gray-700"
@@ -89,7 +95,13 @@ export default function SplashScreen() {
           />
         </div>
       )}
-      <div className="absolute bottom-6 left-6">
+      <div
+        className="absolute left-6"
+        style={{
+          bottom:
+            "calc(24px + max(calc(var(--safe-area-inset-bottom, 0px) - 24px), 0px))",
+        }}
+      >
         <LoginQuickSettings
           isDesktop={isElectron()}
           onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}

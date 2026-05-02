@@ -345,6 +345,9 @@
       "apiKey": "Clave API",
       "secretKey": "Clave Secreta"
     },
+    "entityNotes": {
+      "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)"
+    },
     "addAccountName": "Nombrar esta cuenta",
     "accountNamePlaceholder": "Nombre de cuenta (opcional)",
     "credentialsSecurityTitle": "Tus datos están seguros",

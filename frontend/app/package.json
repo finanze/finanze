@@ -55,6 +55,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@capgo/capacitor-native-biometric": "^8.4.2",
     "@capgo/capacitor-social-login": "^8.3.14",
     "@radix-ui/react-popover": "^1.1.15",

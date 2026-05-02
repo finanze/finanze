@@ -58,6 +58,9 @@ importers:
       "@capacitor/splash-screen":
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.3.1)
+      "@capacitor/status-bar":
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.3.1)
       "@capgo/capacitor-native-biometric":
         specifier: ^8.4.2
         version: 8.4.2(@capacitor/core@8.3.1)
@@ -535,6 +538,14 @@ packages:
     resolution:
       {
         integrity: sha512-c/ew/Z3eA7z8l06WoRAtzVF16VwYYrExmHmfGq1Cg675pVzaC/yuucB8/1xG1vhEfnW4fZ1KhSf/kzR1RiVYgg==,
+      }
+    peerDependencies:
+      "@capacitor/core": ">=8.0.0"
+
+  "@capacitor/status-bar@8.0.2":
+    resolution:
+      {
+        integrity: sha512-WXs8YB8B9eEaPZz+bcdY6t2nForF1FLoj/JU0Dl9RRgQnddnS98FEEyDooQhaY7wivr000j4+SC1FyeJkrFO7A==,
       }
     peerDependencies:
       "@capacitor/core": ">=8.0.0"
@@ -8069,6 +8080,10 @@ snapshots:
       "@capacitor/core": 8.3.1
 
   "@capacitor/splash-screen@8.0.1(@capacitor/core@8.3.1)":
+    dependencies:
+      "@capacitor/core": 8.3.1
+
+  "@capacitor/status-bar@8.0.2(@capacitor/core@8.3.1)":
     dependencies:
       "@capacitor/core": 8.3.1
 

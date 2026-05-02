@@ -347,6 +347,9 @@
       "apiKey": "API Key",
       "secretKey": "Secret Key"
     },
+    "entityNotes": {
+      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)"
+    },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
     "credentialsSecurityTitle": "Your data is safe",
