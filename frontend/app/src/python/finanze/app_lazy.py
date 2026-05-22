@@ -127,6 +127,9 @@ class LazyComponents:
                 FetchFinancialDataImpl,
             )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
+            from application.use_cases.cancel_entity_login import (
+                CancelEntityLoginImpl,
+            )
         from application.use_cases.export_file import ExportFileImpl
         from application.use_cases.import_file import ImportFileImpl
         from application.use_cases.import_backup import ImportBackupImpl
@@ -308,6 +311,7 @@ class LazyComponents:
                 d.auto_repo,
                 historic_repo,
             )
+            self.cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
 
         self.derive_crypto = DeriveCryptoAddressesImpl(
             public_key_derivation, d.entity_repo

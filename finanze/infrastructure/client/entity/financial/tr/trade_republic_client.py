@@ -1,14 +1,21 @@
+import asyncio
+import base64
+import hashlib
+import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
 import httpx
 from aiocache import cached
 from dateutil.tz import tzlocal
+from tzlocal import get_localzone
 
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
+    LoginConfirmationType,
     LoginOptions,
     LoginResultCode,
 )
@@ -64,9 +71,57 @@ def _rebuild_cookie_jar(cookie_list: list[dict]) -> httpx.Cookies:
 
 
 class TradeRepublicClient:
-    def __init__(self):
+    IN_APP_POLL_INTERVAL = 3
+    _V2_HEADERS = {
+        "x-tr-platform": "web",
+        "x-tr-app-version": "15.7.0",
+    }
+
+    def __init__(self, use_v2: bool = False):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
+        self._use_v2 = use_v2
+        self._cancel_event: asyncio.Event = asyncio.Event()
+        self._stable_device_id: str | None = None
+
+    @staticmethod
+    def _generate_stable_device_id() -> str:
+        return hashlib.sha512(os.urandom(64)).hexdigest()
+
+    def _build_device_info_header(self) -> str:
+        now = datetime.now(tzlocal())
+        utc_offset_minutes = int(now.utcoffset().total_seconds() // 60)
+        device_info = {
+            "stableDeviceId": self._stable_device_id,
+            "model": "Apple Macintosh",
+            "browser": "Firefox",
+            "browserVersion": "138.0",
+            "os": "Mac OS",
+            "osVersion": "10.15",
+            "timezone": self._get_timezone(),
+            "timezoneOffset": -utc_offset_minutes,
+            "screen": "2560x1440x24",
+            "preferredLanguages": ["en-US", "en"],
+            "numberOfCores": 4,
+        }
+        return base64.b64encode(
+            json.dumps(device_info, separators=(",", ":")).encode()
+        ).decode()
+
+    @staticmethod
+    def _get_timezone() -> str:
+        try:
+            import js
+
+            return str(js.Intl.DateTimeFormat().resolvedOptions().timeZone)
+        except Exception:
+            return str(get_localzone())
+
+    def _get_v2_headers(self) -> dict:
+        return {
+            **self._V2_HEADERS,
+            "x-tr-device-info": self._build_device_info_header(),
+        }
 
     async def login(
         self,
@@ -78,6 +133,12 @@ class TradeRepublicClient:
         waf_token: str = None,
         session: Optional[EntitySession] = None,
     ) -> EntityLoginResult:
+        if not phone.startswith("+"):
+            return EntityLoginResult(
+                LoginResultCode.INVALID_CREDENTIALS,
+                message="Phone number must start with international prefix (like +34)",
+            )
+
         self._tr_api = TradeRepublicApi(
             phone_no=phone,
             pin=pin,
@@ -97,6 +158,9 @@ class TradeRepublicClient:
                 LoginResultCode.MANUAL_LOGIN,
                 details={"phone": phone, "password": pin},
             )
+
+        if not self._stable_device_id:
+            self._stable_device_id = self._generate_stable_device_id()
 
         if code and process_id:
             self._tr_api._process_id = process_id
@@ -125,40 +189,10 @@ class TradeRepublicClient:
 
         elif not code or not process_id:
             if not login_options.avoid_new_login:
-                try:
-                    result = await self._initiate_weblogin()
-                    if isinstance(result, EntityLoginResult):
-                        return result
-                    else:
-                        countdown = result
-
-                except httpx.HTTPStatusError as e:
-                    if e.response.status_code in (403, 405):
-                        return EntityLoginResult(
-                            LoginResultCode.UNEXPECTED_ERROR,
-                            message="Invalid challenge token",
-                        )
-                    else:
-                        self._log.error("Unexpected error during login", exc_info=e)
-                    return EntityLoginResult(
-                        LoginResultCode.UNEXPECTED_ERROR,
-                        message=f"Got unexpected error {e.response.status_code} during login, {e.response.text}",
-                    )
-
-                except ValueError as e:
-                    if str(e) == "NUMBER_INVALID":
-                        return EntityLoginResult(
-                            LoginResultCode.INVALID_CREDENTIALS,
-                            message="Invalid phone number, maybe missing international prefix",
-                        )
-                    raise
-
-                process_id = self._tr_api._process_id
-                return EntityLoginResult(
-                    LoginResultCode.CODE_REQUESTED,
-                    process_id=process_id,
-                    details={"wait": countdown},
-                )
+                if self._use_v2:
+                    return await self._login_v2()
+                else:
+                    return await self._login_v1()
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
@@ -166,6 +200,105 @@ class TradeRepublicClient:
             LoginResultCode.UNEXPECTED_ERROR,
             message="Unexpected behavior during login",
         )
+
+    async def _login_v1(self) -> EntityLoginResult:
+        try:
+            result = await self._initiate_weblogin()
+            if isinstance(result, EntityLoginResult):
+                return result
+            else:
+                countdown = result
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (403, 405):
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Invalid challenge token",
+                )
+            else:
+                self._log.error("Unexpected error during login", exc_info=e)
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected error {e.response.status_code} during login, {e.response.text}",
+            )
+
+        except ValueError as e:
+            if str(e) == "NUMBER_INVALID":
+                return EntityLoginResult(
+                    LoginResultCode.INVALID_CREDENTIALS,
+                    message="Invalid phone number, maybe missing international prefix",
+                )
+            raise
+
+        process_id = self._tr_api._process_id
+        return EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            process_id=process_id,
+            details={"wait": countdown},
+        )
+
+    async def _login_v2(self) -> EntityLoginResult:
+        try:
+            result = await self._initiate_weblogin_v2()
+            if isinstance(result, EntityLoginResult):
+                return result
+            else:
+                process_id = result
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (403, 405):
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Invalid challenge token",
+                )
+            else:
+                self._log.error("Unexpected error during login", exc_info=e)
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected error {e.response.status_code} during login, {e.response.text}",
+            )
+
+        except ValueError as e:
+            if str(e) == "NUMBER_INVALID":
+                return EntityLoginResult(
+                    LoginResultCode.INVALID_CREDENTIALS,
+                    message="Invalid phone number, maybe missing international prefix",
+                )
+            raise
+
+        return EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id=process_id,
+        )
+
+    def cancel_login(self) -> None:
+        self._cancel_event.set()
+
+    async def complete_login(
+        self, process_id: str, waf_token: str
+    ) -> EntityLoginResult:
+        if not self._tr_api:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="No login in progress",
+            )
+
+        if not self._stable_device_id:
+            self._stable_device_id = self._generate_stable_device_id()
+
+        self._cancel_event.clear()
+        result = await self._poll_weblogin_v2(process_id)
+        if result is not None:
+            return result
+
+        self._tr_api._weblogin = True
+        sess_created_at = datetime.now(tzlocal())
+        session_payload = self._export_session(waf_token)
+        new_session = EntitySession(
+            creation=sess_created_at, expiration=None, payload=session_payload
+        )
+        return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
     async def _resumable_session(self) -> bool:
         try:
@@ -230,10 +363,112 @@ class TradeRepublicClient:
         r.raise_for_status()
         return int(j.get("countdownInSeconds", 0)) + 1
 
+    async def _initiate_weblogin_v2(self) -> str | EntityLoginResult:
+        r = await self._tr_api._websession.post(
+            f"{self._tr_api._host}/api/v2/auth/web/login",
+            json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
+            headers=self._get_v2_headers(),
+        )
+
+        j = await r.json()
+
+        errs = j.get("errors")
+        err = {}
+        if errs:
+            err = errs[0]
+        try:
+            if (
+                r.status == 429
+                or errs
+                and err
+                and err.get("errorCode") == "TOO_MANY_REQUESTS"
+            ):
+                next_attempt_secs = err.get("meta", {}).get("nextAttemptInSeconds", 60)
+                details = {
+                    "wait": next_attempt_secs,
+                }
+                return EntityLoginResult(
+                    LoginResultCode.COOLDOWN,
+                    message=f"Too many attempts, wait {next_attempt_secs} seconds before retrying",
+                    details=details,
+                )
+
+            elif errs and err and err.get("errorCode"):
+                r.raise_for_status()
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got a unexpected error during login, {err.get('errorMessage')}",
+                )
+
+            self._tr_api._process_id = j["processId"]
+
+        except KeyError:
+            r.raise_for_status()
+            if errs:
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got a unexpected error during login, {errs}",
+                )
+            else:
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="processId not in response",
+                )
+
+        r.raise_for_status()
+        return self._tr_api._process_id
+
+    async def _poll_weblogin_v2(self, process_id: str) -> EntityLoginResult | None:
+        expires_at = None
+        while True:
+            try:
+                r = await self._tr_api._websession.get(
+                    f"{self._tr_api._host}/api/v2/auth/web/login/processes/{process_id}",
+                    headers=self._get_v2_headers(),
+                )
+                r.raise_for_status()
+                j = await r.json()
+
+                status = j.get("status", "").upper()
+                if status == "CONFIRMED":
+                    self._log.info("TR in-app confirmation succeeded")
+                    return None
+
+                if expires_at is None:
+                    raw_expires = j.get("expiresAt")
+                    if raw_expires:
+                        expires_at = datetime.fromisoformat(raw_expires)
+
+                if expires_at and datetime.now(expires_at.tzinfo) >= expires_at:
+                    break
+
+                self._log.debug("TR in-app confirmation pending")
+            except httpx.HTTPStatusError as e:
+                self._log.error("Error polling TR login status", exc_info=e)
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Error checking login status: {e.response.status_code}",
+                )
+
+            await asyncio.sleep(self.IN_APP_POLL_INTERVAL)
+            if self._cancel_event.is_set():
+                self._log.info("TR in-app confirmation cancelled by user")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Login cancelled by user.",
+                )
+
+        self._log.warning("TR in-app confirmation timed out")
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message="In-app confirmation timed out. Please try again.",
+        )
+
     def _export_session(self, waf_token: str) -> dict:
         return {
             "cookies": _json_cookie_jar(self._tr_api._websession.cookies),
             "waf_token": waf_token,
+            "stable_device_id": self._stable_device_id,
         }
 
     def _inject_session(self, session: EntitySession):
@@ -244,6 +479,9 @@ class TradeRepublicClient:
         waf_token = session.payload.get("waf_token")
         if waf_token:
             self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
+        stable_id = session.payload.get("stable_device_id")
+        if stable_id:
+            self._stable_device_id = stable_id
         self._tr_api._weblogin = True
 
     async def close(self):

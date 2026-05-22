@@ -135,7 +135,7 @@ INSTALLMENT_TO_FLOW_FREQ = {
 
 
 def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> str:
-    canonical_amount = str(Dezimal(loan_amount))
+    canonical_amount = f"{Dezimal(loan_amount).val:.2f}"
     raw = f"{entity_id}|{canonical_amount}|{creation_date}"
     return hashlib.shake_128(raw.encode()).hexdigest(16)
 

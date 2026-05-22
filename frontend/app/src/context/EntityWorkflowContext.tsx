@@ -762,6 +762,106 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setView("entities")
               }
             }
+          } else if (
+            response.confirmationType === LoginConfirmationType.IN_APP &&
+            entity
+          ) {
+            const processIdValue = response.details?.processId || null
+            if (processIdValue) {
+              setSelectedEntity(entity)
+              setInAppConfirmation(true)
+              try {
+                const accountId = entityAccountId || entity.accounts?.[0]?.id
+                const confirmResponse = await fetchFinancialEntity({
+                  entity: entity.id,
+                  features: features,
+                  processId: processIdValue,
+                  deep: options.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                  entityAccountId: accountId,
+                })
+                if (
+                  confirmResponse.code === FetchResultCode.COMPLETED ||
+                  confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
+                ) {
+                  const isPartial =
+                    confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
+                  const successMessage = isPartial
+                    ? t.errors.PARTIALLY_COMPLETED.replace(
+                        "{entity}",
+                        entity.name,
+                      )
+                    : t.common.fetchSuccessEntity.replace(
+                        "{entity}",
+                        entity.name,
+                      )
+                  notify(successMessage, isPartial ? "warning" : "success")
+                  if (!isPartial) {
+                    recordAutoRefreshSuccess(entity.id)
+                  }
+                  updateEntityLastFetch(entity.id, features)
+                  pendingScrapeParamsRef.current.delete(entity.id)
+                  if (activePinEntityId === entity.id) {
+                    setActivePinEntityId(null)
+                  }
+                  let advancedToNext = false
+                  if (pendingScrapeParamsRef.current.size > 0) {
+                    advancedToNext = activateNextPending()
+                  }
+                  if (onScrapeCompletedRef.current) {
+                    try {
+                      await onScrapeCompletedRef.current(entity.id)
+                    } catch (error) {
+                      console.error(
+                        "Error refreshing financial data after scrape:",
+                        error,
+                      )
+                    }
+                  }
+                  if (!advancedToNext) {
+                    setSelectedEntity(currentSelected => {
+                      if (
+                        !currentSelected ||
+                        currentSelected.id === entity.id
+                      ) {
+                        resetState()
+                        setView("entities")
+                      }
+                      return currentSelected
+                    })
+                  }
+                } else if (confirmResponse.code === FetchResultCode.COOLDOWN) {
+                  const waitSeconds = confirmResponse.details?.wait ?? null
+                  const cooldownMessage = waitSeconds
+                    ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                        "{time}",
+                        formatCooldownTime(waitSeconds),
+                      ).replace("{entity}", entity.name)
+                    : t.errors.COOLDOWN.replace("{entity}", entity.name)
+                  notify(cooldownMessage, "warning")
+                  resetState({ preserveSelectedFeatures: true })
+                } else {
+                  const errorKey = confirmResponse.code as keyof typeof t.errors
+                  notify(
+                    t.errors[errorKey] ||
+                      t.common.fetchErrorEntity.replace(
+                        "{entity}",
+                        entity.name,
+                      ),
+                    "error",
+                  )
+                  resetState({ preserveSelectedFeatures: true })
+                }
+              } catch {
+                notify(
+                  t.common.fetchErrorEntity.replace("{entity}", entity.name),
+                  "error",
+                )
+                resetState({ preserveSelectedFeatures: true })
+              } finally {
+                setInAppConfirmation(false)
+              }
+            }
           } else if (entity) {
             const processIdValue = response.details?.processId || null
             const pinLen = entity.pin?.positions || 4

@@ -740,6 +740,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
         setHasCredentialsMismatch(true)
+      } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
+        setStatusMessage(t.settings.backup.transferFailed)
       }
     } finally {
       setIsSyncing(false)

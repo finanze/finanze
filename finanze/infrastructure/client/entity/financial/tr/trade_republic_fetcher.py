@@ -151,6 +151,9 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         self._client = TradeRepublicClient()
         self._log = logging.getLogger(__name__)
 
+    def cancel_login(self) -> None:
+        self._client.cancel_login()
+
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         two_factor = login_params.two_factor
@@ -160,6 +163,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         process_id, code = None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
+
+        if process_id and not code:
+            return await self._client.complete_login(process_id, waf_token)
+
         return await self._client.login(
             phone,
             pin,

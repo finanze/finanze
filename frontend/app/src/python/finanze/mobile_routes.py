@@ -183,6 +183,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
                 "disconnect_entity",
                 lz.disconnect_entity,
             ),
+            (
+                "POST",
+                "/api/v1/entities/login/cancel",
+                "cancel_entity_login",
+                "cancel_entity_login",
+                lz.cancel_entity_login,
+            ),
         ]
 
     routes += [
