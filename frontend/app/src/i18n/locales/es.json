@@ -664,6 +664,7 @@
         "user_banned": "Tu cuenta está bloqueada. Si crees que es un error, contacta con soporte.",
         "temporarily_unavailable": "El servicio de autenticación no está disponible temporalmente. Inténtalo más tarde.",
         "signup_disabled": "No se ha podido encontrar una cuenta asociada, ¿te has registrado?",
+        "otp_expired": "El enlace de confirmación ha expirado. Por favor, solicita uno nuevo.",
         "unknown": "Error de autenticación ({error}). Inténtalo de nuevo."
       },
       "oauthRedirectTitle": "Finalizando inicio de sesión",

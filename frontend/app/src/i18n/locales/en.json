@@ -665,6 +665,7 @@
         "user_banned": "Your account is banned. Please contact support if this is unexpected.",
         "temporarily_unavailable": "The authentication service is temporarily unavailable. Please try again later.",
         "signup_disabled": "Could not find a related account, have you signed up yet?",
+        "otp_expired": "The confirmation link has expired. Please request a new one.",
         "unknown": "Authentication failed ({error}). Please try again."
       },
       "oauthRedirectTitle": "Finishing sign in",
