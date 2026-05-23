@@ -98,6 +98,8 @@
     "continueInBackground": "Continuar por detrás",
     "connectingToServer": "Conectando a",
     "startingServer": "Iniciando servidor",
+    "unsupportedWebView": "Tu Android System WebView está desactualizado y no es compatible. Por favor, actualízalo desde la Play Store para usar esta aplicación.",
+    "updateWebView": "Actualizar WebView",
     "officialWebpage": "finanze.me",
     "officialWebpageUrl": "https://finanze.me",
     "optional": "Opcional",

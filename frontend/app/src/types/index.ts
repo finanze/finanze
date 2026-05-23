@@ -496,6 +496,7 @@ export interface PlatformInfo {
   chromiumVersion?: string | null
   nodeVersion?: string | null
   webViewVersion?: string | null
+  unsupportedWebView?: boolean
 }
 
 export type ThemeMode = "light" | "dark" | "system"

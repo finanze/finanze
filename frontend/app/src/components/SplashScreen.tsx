@@ -87,12 +87,32 @@ export default function SplashScreen() {
           </p>
         </div>
       )}
-      {isMobile && (
+      {isMobile && !window.platform?.unsupportedWebView && (
         <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2">
           <LoadingSpinner
             size="md"
             className={isLight ? "text-black" : "text-white"}
           />
+        </div>
+      )}
+      {isMobile && window.platform?.unsupportedWebView && (
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 w-72 text-center">
+          <p className={`text-sm ${isLight ? "text-black" : "text-white"}`}>
+            {t.common.unsupportedWebView}
+          </p>
+          <button
+            onClick={() =>
+              window.open(
+                "market://details?id=com.google.android.webview",
+                "_system",
+              )
+            }
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              isLight ? "bg-black text-white" : "bg-white text-black"
+            }`}
+          >
+            {t.common.updateWebView}
+          </button>
         </div>
       )}
       <div
