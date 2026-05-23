@@ -55,10 +55,20 @@ export async function initializeCapacitorPlatform(): Promise<void> {
     osVersion = undefined
   }
 
+  const MIN_WEBVIEW_VERSION = 95
+  let unsupportedWebView = false
+  if (platformType === PlatformType.ANDROID && webViewVersion) {
+    const major = parseInt(webViewVersion.split(".")[0], 10)
+    if (!isNaN(major) && major < MIN_WEBVIEW_VERSION) {
+      unsupportedWebView = true
+    }
+  }
+
   const info: PlatformInfo = {
     type: platformType,
     osVersion,
     webViewVersion,
+    unsupportedWebView,
   }
 
   window.platform = info

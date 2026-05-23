@@ -35,6 +35,7 @@ import {
   recordAutoRefreshSuccess,
   recordAutoRefreshFailure,
   getAutoRefreshCandidates,
+  type AutoRefreshCandidate,
 } from "@/services/autoRefreshService"
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
@@ -128,6 +129,9 @@ interface EntityWorkflowContextValue {
   pendingPinEntityIds: () => string[]
   switchActivePinEntity: (entityId: string) => void
   getPendingPinEntities: () => { id: string; name: string }[]
+  pendingAutoRefreshCandidates: AutoRefreshCandidate[]
+  autoRefreshCountdown: number | null
+  cancelAutoRefresh: (entityId?: string) => void
 }
 
 const EntityWorkflowContext = createContext<
@@ -760,6 +764,106 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 showToast(t.common.incompatibleLoginPlatform, "error")
                 resetState()
                 setView("entities")
+              }
+            }
+          } else if (
+            response.confirmationType === LoginConfirmationType.IN_APP &&
+            entity
+          ) {
+            const processIdValue = response.details?.processId || null
+            if (processIdValue) {
+              setSelectedEntity(entity)
+              setInAppConfirmation(true)
+              try {
+                const accountId = entityAccountId || entity.accounts?.[0]?.id
+                const confirmResponse = await fetchFinancialEntity({
+                  entity: entity.id,
+                  features: features,
+                  processId: processIdValue,
+                  deep: options.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                  entityAccountId: accountId,
+                })
+                if (
+                  confirmResponse.code === FetchResultCode.COMPLETED ||
+                  confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
+                ) {
+                  const isPartial =
+                    confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
+                  const successMessage = isPartial
+                    ? t.errors.PARTIALLY_COMPLETED.replace(
+                        "{entity}",
+                        entity.name,
+                      )
+                    : t.common.fetchSuccessEntity.replace(
+                        "{entity}",
+                        entity.name,
+                      )
+                  notify(successMessage, isPartial ? "warning" : "success")
+                  if (!isPartial) {
+                    recordAutoRefreshSuccess(entity.id)
+                  }
+                  updateEntityLastFetch(entity.id, features)
+                  pendingScrapeParamsRef.current.delete(entity.id)
+                  if (activePinEntityId === entity.id) {
+                    setActivePinEntityId(null)
+                  }
+                  let advancedToNext = false
+                  if (pendingScrapeParamsRef.current.size > 0) {
+                    advancedToNext = activateNextPending()
+                  }
+                  if (onScrapeCompletedRef.current) {
+                    try {
+                      await onScrapeCompletedRef.current(entity.id)
+                    } catch (error) {
+                      console.error(
+                        "Error refreshing financial data after scrape:",
+                        error,
+                      )
+                    }
+                  }
+                  if (!advancedToNext) {
+                    setSelectedEntity(currentSelected => {
+                      if (
+                        !currentSelected ||
+                        currentSelected.id === entity.id
+                      ) {
+                        resetState()
+                        setView("entities")
+                      }
+                      return currentSelected
+                    })
+                  }
+                } else if (confirmResponse.code === FetchResultCode.COOLDOWN) {
+                  const waitSeconds = confirmResponse.details?.wait ?? null
+                  const cooldownMessage = waitSeconds
+                    ? t.errors.COOLDOWN_WITH_WAIT.replace(
+                        "{time}",
+                        formatCooldownTime(waitSeconds),
+                      ).replace("{entity}", entity.name)
+                    : t.errors.COOLDOWN.replace("{entity}", entity.name)
+                  notify(cooldownMessage, "warning")
+                  resetState({ preserveSelectedFeatures: true })
+                } else {
+                  const errorKey = confirmResponse.code as keyof typeof t.errors
+                  notify(
+                    t.errors[errorKey] ||
+                      t.common.fetchErrorEntity.replace(
+                        "{entity}",
+                        entity.name,
+                      ),
+                    "error",
+                  )
+                  resetState({ preserveSelectedFeatures: true })
+                }
+              } catch {
+                notify(
+                  t.common.fetchErrorEntity.replace("{entity}", entity.name),
+                  "error",
+                )
+                resetState({ preserveSelectedFeatures: true })
+              } finally {
+                setInAppConfirmation(false)
               }
             }
           } else if (entity) {
@@ -1433,6 +1537,61 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   ])
 
   const autoRefreshExecutedRef = useRef(false)
+  const [pendingAutoRefreshCandidates, setPendingAutoRefreshCandidates] =
+    useState<AutoRefreshCandidate[]>([])
+  const [autoRefreshCountdown, setAutoRefreshCountdown] = useState<
+    number | null
+  >(null)
+  const autoRefreshCancelledRef = useRef(false)
+  const pendingAutoRefreshRef = useRef<AutoRefreshCandidate[]>([])
+  pendingAutoRefreshRef.current = pendingAutoRefreshCandidates
+
+  const cancelAutoRefresh = useCallback((entityId?: string) => {
+    if (entityId) {
+      setPendingAutoRefreshCandidates(prev => {
+        const next = prev.filter(c => c.entity.id !== entityId)
+        if (next.length === 0) {
+          autoRefreshExecutedRef.current = true
+          autoRefreshCancelledRef.current = true
+          setAutoRefreshCountdown(null)
+        }
+        return next
+      })
+    } else {
+      autoRefreshExecutedRef.current = true
+      autoRefreshCancelledRef.current = true
+      setPendingAutoRefreshCandidates([])
+      setAutoRefreshCountdown(null)
+    }
+  }, [])
+
+  const startAutoRefreshCountdown = useCallback(() => {
+    if (autoRefreshCancelledRef.current) return
+    setAutoRefreshCountdown(3)
+  }, [])
+
+  useEffect(() => {
+    if (autoRefreshCountdown === null || autoRefreshCountdown < 0) return
+
+    if (autoRefreshCountdown === 0) {
+      const remaining = pendingAutoRefreshRef.current
+      autoRefreshExecutedRef.current = true
+      setPendingAutoRefreshCandidates([])
+      setAutoRefreshCountdown(null)
+      remaining.forEach(({ entity, features }) => {
+        scrape(entity, features, { silent: true, avoidNewLogin: true })
+      })
+      return
+    }
+
+    const timerId = setTimeout(() => {
+      setAutoRefreshCountdown(prev =>
+        prev !== null && prev > 0 ? prev - 1 : null,
+      )
+    }, 1000)
+
+    return () => clearTimeout(timerId)
+  }, [autoRefreshCountdown, scrape])
 
   useEffect(() => {
     if (!__CONNECTIONS__) return
@@ -1454,15 +1613,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
     if (candidates.length === 0) return
 
-    // If backup mode is AUTO, wait for sync to complete before fetching entities
+    setPendingAutoRefreshCandidates(candidates)
+    autoRefreshCancelledRef.current = false
+
     if (backupMode === BackupMode.AUTO) {
       const handleSyncComplete = () => {
-        setTimeout(() => {
-          autoRefreshExecutedRef.current = true
-          candidates.forEach(({ entity, features }) => {
-            scrape(entity, features, { silent: true, avoidNewLogin: true })
-          })
-        }, 3000)
+        if (autoRefreshCancelledRef.current) return
+        startAutoRefreshCountdown()
       }
 
       window.addEventListener("backup-auto-sync-complete", handleSyncComplete, {
@@ -1477,16 +1634,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Non-AUTO mode: use normal delay
-    const timeoutId = setTimeout(() => {
-      autoRefreshExecutedRef.current = true
-      candidates.forEach(({ entity, features }) => {
-        scrape(entity, features, { silent: true, avoidNewLogin: true })
-      })
-    }, 3000)
-
-    return () => clearTimeout(timeoutId)
-  }, [entitiesLoaded, entities, settings, scrape, backupMode])
+    startAutoRefreshCountdown()
+  }, [
+    entitiesLoaded,
+    entities,
+    settings,
+    backupMode,
+    startAutoRefreshCountdown,
+  ])
 
   const disconnectEntityHandler = useCallback(
     async (entityId: string, entityAccountId: string) => {
@@ -1583,6 +1738,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               id: pending.entity.id,
               name: pending.entity.name,
             })),
+        pendingAutoRefreshCandidates,
+        autoRefreshCountdown,
+        cancelAutoRefresh,
       }}
     >
       {children}

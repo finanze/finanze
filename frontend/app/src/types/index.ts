@@ -496,6 +496,7 @@ export interface PlatformInfo {
   chromiumVersion?: string | null
   nodeVersion?: string | null
   webViewVersion?: string | null
+  unsupportedWebView?: boolean
 }
 
 export type ThemeMode = "light" | "dark" | "system"
@@ -562,6 +563,7 @@ export interface BackendStatus {
   startedAt: number | null
   exitedAt: number | null
   error: BackendErrorInfo | null
+  output: string | null
 }
 
 export interface BackendActionResult {

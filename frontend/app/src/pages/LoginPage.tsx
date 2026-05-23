@@ -24,6 +24,9 @@ import {
   ScanFace,
   Fingerprint,
   ArrowLeft,
+  Copy,
+  Check,
+  Info,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -56,6 +59,10 @@ import {
 import type { BiometricAvailability } from "@/lib/mobile/biometric"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { generateFloatingLogos } from "@/lib/floatingLogos"
+import { copyToClipboard } from "@/lib/clipboard"
+
+const USERNAME_PATTERN = /^[a-zA-Z0-9_\-.$€#]{2,}$/
+const PASSWORD_PATTERN = /^[\x21-\x7e]{8,}$/
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -68,6 +75,7 @@ export default function LoginPage() {
   const [isSignupMode, setIsSignupMode] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [isDesktopApp, setIsDesktopApp] = useState(false)
+  const [detailsCopied, setDetailsCopied] = useState(false)
 
   useModalBackHandler(showAdvancedSettings, () =>
     setShowAdvancedSettings(false),
@@ -263,6 +271,19 @@ export default function LoginPage() {
 
     if ((isSignupMode || isChangingPassword) && password !== repeatPassword) {
       setError(t.login.passwordsDontMatch)
+      return
+    }
+
+    if (isSignupMode && !USERNAME_PATTERN.test(username)) {
+      setError(t.login.invalidUsername)
+      return
+    }
+
+    if (
+      (isSignupMode || isChangingPassword) &&
+      !PASSWORD_PATTERN.test(password)
+    ) {
+      setError(t.login.invalidPasswordFormat)
       return
     }
 
@@ -504,16 +525,36 @@ export default function LoginPage() {
               noValidate={isChangingPassword}
             >
               {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder={t.login.usernamePlaceholder}
-                  required={!isChangingPassword}
-                  autoCapitalize="off"
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder={t.login.usernamePlaceholder}
+                    required={!isChangingPassword}
+                    autoCapitalize="off"
+                    className={inputClass}
+                  />
+                  {isSignupMode && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={`absolute right-0 top-1/2 -translate-y-1/2 p-2 ${isLight ? "text-black/30" : "text-white/30"}`}
+                          aria-label={t.login.usernameInfoTooltip}
+                        >
+                          <Info className="h-4 w-4" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 text-sm" sideOffset={8}>
+                        <p className="text-muted-foreground">
+                          {t.login.usernameInfoTooltip}
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
               )}
 
               {isChangingPassword && (
@@ -609,9 +650,30 @@ export default function LoginPage() {
                           className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
                           sideOffset={8}
                         >
-                          <p className="font-medium text-foreground">
-                            {t.login.errorDetailsTitle}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-foreground">
+                              {t.login.errorDetailsTitle}
+                            </p>
+                            <button
+                              type="button"
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={async () => {
+                                if (await copyToClipboard(errorDetails || "")) {
+                                  setDetailsCopied(true)
+                                  setTimeout(
+                                    () => setDetailsCopied(false),
+                                    2000,
+                                  )
+                                }
+                              }}
+                            >
+                              {detailsCopied ? (
+                                <Check className="h-3.5 w-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
                           <p className="mt-2 text-muted-foreground break-words">
                             {errorDetails}
                           </p>
@@ -755,7 +817,27 @@ export default function LoginPage() {
               {/* Username field - show for signup or when no lastLoggedUser, but NOT in change password mode */}
               {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
                 <div className="space-y-2">
-                  <Label htmlFor="username">{t.login.usernameLabel}</Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="username">{t.login.usernameLabel}</Label>
+                    {isSignupMode && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label={t.login.usernameInfoTooltip}
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 text-sm" sideOffset={8}>
+                          <p className="text-muted-foreground">
+                            {t.login.usernameInfoTooltip}
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
                   <div className="relative">
                     <Input
                       id="username"
@@ -920,9 +1002,30 @@ export default function LoginPage() {
                           className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
                           sideOffset={8}
                         >
-                          <p className="font-medium text-foreground">
-                            {t.login.errorDetailsTitle}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-foreground">
+                              {t.login.errorDetailsTitle}
+                            </p>
+                            <button
+                              type="button"
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={async () => {
+                                if (await copyToClipboard(errorDetails || "")) {
+                                  setDetailsCopied(true)
+                                  setTimeout(
+                                    () => setDetailsCopied(false),
+                                    2000,
+                                  )
+                                }
+                              }}
+                            >
+                              {detailsCopied ? (
+                                <Check className="h-3.5 w-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
                           <p className="mt-2 text-muted-foreground break-words">
                             {errorDetails}
                           </p>

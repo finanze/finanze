@@ -13,6 +13,7 @@ import {
   History,
   ChevronDown,
   AlertCircle,
+  X,
 } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatTimeAgoAbbr } from "@/lib/timeUtils"
@@ -30,14 +31,25 @@ import { isAutoRefreshCompatibleEntity } from "@/utils/autoRefreshUtils"
 
 export function EntityRefreshDropdown() {
   const { entities } = useAppContext()
-  const { scrape, fetchingEntityState, setFetchingEntityState } =
-    useEntityWorkflow()
+  const {
+    scrape,
+    fetchingEntityState,
+    setFetchingEntityState,
+    pendingAutoRefreshCandidates,
+    autoRefreshCountdown,
+    cancelAutoRefresh,
+  } = useEntityWorkflow()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const [entityImages, setEntityImages] = useState<Record<string, string>>({})
   const [refreshCooldown, setRefreshCooldown] = useState(false)
 
   const { fetchingEntityIds } = fetchingEntityState
+
+  const pendingAutoRefreshIds = useMemo(
+    () => new Set(pendingAutoRefreshCandidates.map(c => c.entity.id)),
+    [pendingAutoRefreshCandidates],
+  )
 
   const connectedEntities = useMemo(
     () =>
@@ -279,6 +291,28 @@ export function EntityRefreshDropdown() {
                 <History className="h-4 w-4 mr-2" />
                 {t.entities.refreshEntity}
               </div>
+              {pendingAutoRefreshCandidates.length > 0 && (
+                <div className="px-4 pb-2 flex items-center justify-between">
+                  <span className="text-xs text-neutral-400">
+                    {autoRefreshCountdown !== null
+                      ? t.entities.autoRefreshCountdown.replace(
+                          "{countdown}",
+                          String(autoRefreshCountdown),
+                        )
+                      : t.entities.autoRefreshWaiting}
+                  </span>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      cancelAutoRefresh()
+                    }}
+                    className="p-0.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                    aria-label={t.entities.cancelAutoRefresh}
+                  >
+                    <X className="h-4 w-4 text-red-400" />
+                  </button>
+                </div>
+              )}
               <div className="max-h-80 overflow-y-auto">
                 {entitiesWithLastUpdate.map(item => {
                   if (item.type === "entity") {
@@ -347,6 +381,17 @@ export function EntityRefreshDropdown() {
                               <div className="p-1.5">
                                 <LoadingSpinner size="sm" className="p-1.5" />
                               </div>
+                            ) : pendingAutoRefreshIds.has(entity.id) ? (
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  cancelAutoRefresh(entity.id)
+                                }}
+                                className="p-1.5 rounded-full transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                aria-label={t.entities.cancelAutoRefresh}
+                              >
+                                <X className="h-4 w-4 text-red-400" />
+                              </button>
                             ) : (
                               <button
                                 onClick={e => handleRefreshEntity(entity, e)}

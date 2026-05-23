@@ -43,18 +43,20 @@ public class NativeCookiesPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        cookieStore().getAllCookies { allCookies in
-            let matching = self.cookiesFor(url: url, from: allCookies)
+        DispatchQueue.main.async {
+            self.cookieStore().getAllCookies { allCookies in
+                let matching = self.cookiesFor(url: url, from: allCookies)
 
-            var cookiesObj: [String: String] = [:]
-            for cookie in matching {
-                cookiesObj[cookie.name] = cookie.value
+                var cookiesObj: [String: String] = [:]
+                for cookie in matching {
+                    cookiesObj[cookie.name] = cookie.value
+                }
+
+                call.resolve([
+                    "cookies": cookiesObj,
+                    "raw": self.buildCookieHeader(matching)
+                ])
             }
-
-            call.resolve([
-                "cookies": cookiesObj,
-                "raw": self.buildCookieHeader(matching)
-            ])
         }
     }
 
@@ -69,12 +71,14 @@ public class NativeCookiesPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        cookieStore().getAllCookies { allCookies in
-            let matching = self.cookiesFor(url: url, from: allCookies)
-            if let cookie = matching.first(where: { $0.name == name }) {
-                call.resolve(["value": cookie.value])
-            } else {
-                call.resolve([:])
+        DispatchQueue.main.async {
+            self.cookieStore().getAllCookies { allCookies in
+                let matching = self.cookiesFor(url: url, from: allCookies)
+                if let cookie = matching.first(where: { $0.name == name }) {
+                    call.resolve(["value": cookie.value])
+                } else {
+                    call.resolve([:])
+                }
             }
         }
     }

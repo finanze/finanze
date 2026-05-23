@@ -4,11 +4,12 @@ from datetime import datetime, date
 from typing import Optional
 
 import tzlocal
+from aiocache import cached
 from requests_toolbelt import MultipartEncoder
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
-from infrastructure.client.http.http_session import new_http_session
 from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.http_session import new_http_session
 
 DATE_FORMAT = "%Y-%m-%d"
 
@@ -18,7 +19,6 @@ class F24APIClient:
 
     def __init__(self):
         self._session = None
-        self._user_info = None
         self._log = logging.getLogger(__name__)
 
     async def _execute_request(
@@ -79,10 +79,17 @@ class F24APIClient:
         self._session = new_http_session()
         self._session.headers["Origin"] = self.BASE_URL
 
-        first_login_response = await self._request_login(username, password)
+        timezone_name = tzlocal.get_localzone_name()
+        timezone_offset = int(
+            datetime.now().astimezone().utcoffset().seconds // 3600 * -1
+        )
 
-        if first_login_response.ok:
-            response_body = await first_login_response.json()
+        auth_response = await self.auth_by_login(
+            username, password, timezone_name, timezone_offset
+        )
+
+        if auth_response.ok:
+            response_body = await auth_response.json()
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
@@ -91,26 +98,25 @@ class F24APIClient:
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR, message=error
                     )
-            else:
-                self._user_info = response_body
         else:
-            body = await first_login_response.text()
+            body = await auth_response.text()
             if "maintenance" in body:
                 return EntityLoginResult(
-                    LoginResultCode.UNEXPECTED_ERROR,
+                    LoginResultCode.CURRENTLY_UNAVAILABLE,
                     message="Entity portal under maintenance",
                 )
 
             return EntityLoginResult(
                 LoginResultCode.UNEXPECTED_ERROR,
-                message=f"Got unexpected response code {first_login_response.status}",
+                message=f"Got unexpected response code {auth_response.status}",
             )
 
         user_id = None
-        accounts = self._user_info["accounts"]
-        for acc in accounts:
-            if acc["account_type"] == "brokerage":
-                user_id = str(acc["user_id"])
+        users = await self.get_connected_users_assets()
+        users = users.get("users", [])
+        for user in users:
+            if user.get("account_type") == "brokerage":
+                user_id = str(user.get("id"))
                 break
 
         login_response = await self._request_login(username, password, user_id)
@@ -142,9 +148,6 @@ class F24APIClient:
                 LoginResultCode.UNEXPECTED_ERROR,
                 message=f"Got unexpected response code {login_response.status}",
             )
-
-    def get_user_info(self) -> dict:
-        return self._user_info
 
     async def get_cash_flows(self) -> dict:
         data = {"q": '{"cmd":"getUserCashFlows","params":{"filter":{}}}'}
@@ -211,10 +214,35 @@ class F24APIClient:
             "/api?cmd=switchToConnectedUser", data=data, headers=headers
         )
 
+    @cached(
+        ttl=20,
+        key_builder=lambda f, self: "f24_connected_users_assets",
+    )
     async def get_connected_users_assets(self):
         data = {"q": '{"cmd":"getConnectedUsersAssets"}'}
         resp = await self._multi_part("/api?cmd=getConnectedUsersAssets", data=data)
         return await resp.json()
+
+    async def auth_by_login(
+        self, username: str, password: str, timezone_name: str, timezone_offset: int
+    ):
+        payload = {
+            "cmd": "authByLogin",
+            "params": {
+                "login": username,
+                "password": password,
+                "rememberMe": 1,
+                "viewOnlyMode": False,
+                "authCodeId": None,
+                "getAccounts": True,
+                "timezone": {
+                    "timezone": timezone_name,
+                    "offset": timezone_offset,
+                },
+            },
+        }
+        data = {"q": json.dumps(payload)}
+        return await self._multi_part("/api?cmd=authByLogin", data=data)
 
     async def find_by_ticker(self, ticker: str):
         data = (

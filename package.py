@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 logger = logging.getLogger("packager")
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 cwd = Path.cwd()
 dist_directory = cwd / "dist"
@@ -40,6 +41,12 @@ parser.add_argument(
     default=None,
     help='Specify target architecture: "x64" or "arm64" (default: None, only applies to macOS)',
 )
+parser.add_argument(
+    "--no-sign",
+    action="store_true",
+    default=False,
+    help="Disable code signing to speed up packaging (dev only)",
+)
 args = parser.parse_args()
 
 # --- Backend Packaging ---
@@ -60,6 +67,9 @@ if args.target in ["frontend", "full"]:
     front_dir = cwd / "frontend" / "app"
 
     env = os.environ.copy()
+    if args.no_sign:
+        env["CSC_IDENTITY_AUTO_DISCOVERY"] = "false"
+        logger.info("Code signing disabled (--no-sign)")
 
     os.chdir(front_dir)
     pinstall_front = subprocess.call("pnpm install", shell=True, env=env)
@@ -73,6 +83,20 @@ if args.target in ["frontend", "full"]:
         pnpm_dist_cmd += f":{args.os}"
         if args.arch and args.os == "mac":
             pnpm_dist_cmd += f":{args.arch}"
+
+    if args.no_sign:
+        vite_build = subprocess.call("pnpm exec vite build", shell=True, env=env)
+        if vite_build != 0:
+            logger.error("Vite build failed")
+            sys.exit(1)
+
+        eb_cmd = "pnpm exec electron-builder"
+        if args.os:
+            eb_cmd += f" --{args.os}"
+            if args.arch and args.os == "mac":
+                eb_cmd += f" --{args.arch}"
+        eb_cmd += " --config.mac.identity=null --config.mac.notarize=false"
+        pnpm_dist_cmd = eb_cmd
 
     logger.info(f"Running: {pnpm_dist_cmd}")
     if "VITE_SUPABASE_URL" in env:

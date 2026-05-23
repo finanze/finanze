@@ -179,11 +179,27 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
     email: string,
     options?: { emailRedirectTo?: string },
   ): Promise<void> {
-    const { error } = await this.getClient().auth.resetPasswordForEmail(email, {
-      redirectTo: options?.emailRedirectTo,
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        email,
+        gotrue_meta_security: {},
+        ...(options?.emailRedirectTo && {
+          redirect_to: options.emailRedirectTo,
+        }),
+      }),
     })
-    if (error) {
-      throw error
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(
+        body.msg ||
+          body.message ||
+          `Password reset failed (${response.status})`,
+      )
     }
   }
 

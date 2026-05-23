@@ -43,13 +43,13 @@ jobs:
         if: ${{ !startsWith(matrix.os, 'macos-') }}
         uses: actions/setup-python@v6
         with:
-          python-version: 3.14.2
+          python-version: 3.14.5
 
       - name: Setup python (macOS)
         if: ${{ startsWith(matrix.os, 'macos-') }}
         shell: bash
         run: |
-          brew install pyenv pyenv-virtualenv
+          brew update && brew install pyenv pyenv-virtualenv
 
           export PYENV_ROOT="$HOME/.pyenv"
           export PATH="$PYENV_ROOT/bin:$PATH"
@@ -59,11 +59,11 @@ jobs:
           eval "$(pyenv init -)"      # Sets up shims and other integrations
           eval "$(pyenv virtualenv-init -)" # Defines 'pyenv activate' and other venv functions
 
-          pyenv install --skip-existing 3.14.2
+          pyenv install --skip-existing 3.14.5
           
           # Create virtualenv if it doesn't exist
           if ! pyenv virtualenvs --bare | grep -q "^finanze$"; then
-            pyenv virtualenv 3.14.2 finanze
+            pyenv virtualenv 3.14.5 finanze
           else
             echo "Virtualenv 'finanze' already exists."
           fi
@@ -163,7 +163,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: 3.14.2
+          python-version: 3.14.5
 
       - name: Install Python build deps
         run: pip install python-minifier

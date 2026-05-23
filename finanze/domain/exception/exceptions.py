@@ -52,6 +52,14 @@ class UserAlreadyExists(Exception):
     pass
 
 
+class InvalidUsername(Exception):
+    pass
+
+
+class InvalidPassword(Exception):
+    pass
+
+
 class InvalidProvidedCredentials(Exception):
     pass
 

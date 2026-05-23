@@ -39,8 +39,8 @@ class TestChangePasswordRaisesWhenLoggedIn:
         use_case, _, _ = _build_use_case(unlocked=True)
         request = ChangePasswordRequest(
             username="testuser",
-            old_password="old",
-            new_password="new",
+            old_password="oldpass!1",
+            new_password="newpass!1",
         )
 
         with pytest.raises(UserAlreadyLoggedIn):
@@ -53,8 +53,8 @@ class TestChangePasswordRaisesOnSamePassword:
         use_case, _, _ = _build_use_case(unlocked=False)
         request = ChangePasswordRequest(
             username="testuser",
-            old_password="samepass",
-            new_password="samepass",
+            old_password="samepass1",
+            new_password="samepass1",
         )
 
         with pytest.raises(ValueError, match="different"):
@@ -67,8 +67,8 @@ class TestChangePasswordRaisesWhenUserNotFound:
         use_case, _, _ = _build_use_case(unlocked=False, user=None)
         request = ChangePasswordRequest(
             username="nonexistent",
-            old_password="old",
-            new_password="new",
+            old_password="oldpass!1",
+            new_password="newpass!1",
         )
 
         with pytest.raises(UserNotFound):
@@ -82,8 +82,8 @@ class TestChangePasswordSuccess:
         use_case, source_initiator, _ = _build_use_case(unlocked=False, user=user)
         request = ChangePasswordRequest(
             username="testuser",
-            old_password="oldpass",
-            new_password="newpass",
+            old_password="oldpass!1",
+            new_password="newpass!1",
         )
 
         await use_case.execute(request)
@@ -93,5 +93,5 @@ class TestChangePasswordSuccess:
         params = call_args[0][0]
         new_password = call_args[1]["new_password"]
         assert params.user is user
-        assert params.password == "oldpass"
-        assert new_password == "newpass"
+        assert params.password == "oldpass!1"
+        assert new_password == "newpass!1"
