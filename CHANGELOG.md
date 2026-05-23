@@ -1,3 +1,19 @@
+## [0.8.3] - 2026-05-23
+
+### 🚀 Features
+
+- Redesigned mobile login, overall display & update and improve mobile e2e test (#106)
+- Mobile oauth support
+- Use Python 3.14.5 and set min to 3.13
+- Add auto refresh abortion
+- Use sqlcipher3
+- Better error handling on load & better username and password validation
+- Add icons to charts
+
+### 🐛 Bug Fixes
+
+- F24 update, TR new mobile approval flow support (non default), backup upload error hanling & proper loan and real estate linkage
+- Warn outdated Android WebView versions
 ## [0.8.2] - 2026-04-28
 
 ### 🚀 Features
