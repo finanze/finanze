@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getColorForName, getCurrencySymbol, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -470,6 +471,20 @@ function FundsInvestmentPageContent({
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [displayPositions])
 
+  const orbitBubbleData = useMemo<OrbitBubbleItem[]>(() => {
+    if (fundsChartView !== "asset") return []
+    const iconMap = new Map<string, string | null>()
+    displayPositions.forEach(p => {
+      if (!iconMap.has(p.name)) {
+        iconMap.set(p.name, getIssuerIconPath(p.issuer) ?? null)
+      }
+    })
+    return chartData.map(entry => ({
+      ...entry,
+      iconUrl: iconMap.get(entry.name) ?? null,
+    }))
+  }, [chartData, displayPositions, fundsChartView])
+
   // Inner donut (asset class split)
   const { assetTypeInnerData, assetTypeSplitPercentages } = useMemo(() => {
     if (!displayPositions.length) {
@@ -844,6 +859,7 @@ function FundsInvestmentPageContent({
                       value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
                     },
                   ]}
+                  orbitBubbles={orbitBubbleData}
                 />
               </CardContent>
             </Card>

@@ -1579,6 +1579,8 @@ export default function AutoContributionsPage() {
                   hideLegend
                   containerClassName="overflow-visible w-full"
                   variant="bare"
+                  orbitBubbles={chartData}
+                  orbitBubblesCollapsedHidden
                   toggleConfig={{
                     activeView: "target",
                     onViewChange: () => {},

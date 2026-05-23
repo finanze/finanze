@@ -79,7 +79,7 @@ class TradeRepublicClient:
     _APP_VERSION_URL = "https://app.traderepublic.com/app-version.txt"
     _DEFAULT_APP_VERSION = "15.7.0"
 
-    def __init__(self, use_v2: bool = True):
+    def __init__(self, use_v2: bool = False):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
         self._use_v2 = use_v2
