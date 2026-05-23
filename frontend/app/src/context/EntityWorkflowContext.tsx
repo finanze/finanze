@@ -35,6 +35,7 @@ import {
   recordAutoRefreshSuccess,
   recordAutoRefreshFailure,
   getAutoRefreshCandidates,
+  type AutoRefreshCandidate,
 } from "@/services/autoRefreshService"
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
@@ -128,6 +129,9 @@ interface EntityWorkflowContextValue {
   pendingPinEntityIds: () => string[]
   switchActivePinEntity: (entityId: string) => void
   getPendingPinEntities: () => { id: string; name: string }[]
+  pendingAutoRefreshCandidates: AutoRefreshCandidate[]
+  autoRefreshCountdown: number | null
+  cancelAutoRefresh: (entityId?: string) => void
 }
 
 const EntityWorkflowContext = createContext<
@@ -1533,6 +1537,61 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   ])
 
   const autoRefreshExecutedRef = useRef(false)
+  const [pendingAutoRefreshCandidates, setPendingAutoRefreshCandidates] =
+    useState<AutoRefreshCandidate[]>([])
+  const [autoRefreshCountdown, setAutoRefreshCountdown] = useState<
+    number | null
+  >(null)
+  const autoRefreshCancelledRef = useRef(false)
+  const pendingAutoRefreshRef = useRef<AutoRefreshCandidate[]>([])
+  pendingAutoRefreshRef.current = pendingAutoRefreshCandidates
+
+  const cancelAutoRefresh = useCallback((entityId?: string) => {
+    if (entityId) {
+      setPendingAutoRefreshCandidates(prev => {
+        const next = prev.filter(c => c.entity.id !== entityId)
+        if (next.length === 0) {
+          autoRefreshExecutedRef.current = true
+          autoRefreshCancelledRef.current = true
+          setAutoRefreshCountdown(null)
+        }
+        return next
+      })
+    } else {
+      autoRefreshExecutedRef.current = true
+      autoRefreshCancelledRef.current = true
+      setPendingAutoRefreshCandidates([])
+      setAutoRefreshCountdown(null)
+    }
+  }, [])
+
+  const startAutoRefreshCountdown = useCallback(() => {
+    if (autoRefreshCancelledRef.current) return
+    setAutoRefreshCountdown(3)
+  }, [])
+
+  useEffect(() => {
+    if (autoRefreshCountdown === null || autoRefreshCountdown < 0) return
+
+    if (autoRefreshCountdown === 0) {
+      const remaining = pendingAutoRefreshRef.current
+      autoRefreshExecutedRef.current = true
+      setPendingAutoRefreshCandidates([])
+      setAutoRefreshCountdown(null)
+      remaining.forEach(({ entity, features }) => {
+        scrape(entity, features, { silent: true, avoidNewLogin: true })
+      })
+      return
+    }
+
+    const timerId = setTimeout(() => {
+      setAutoRefreshCountdown(prev =>
+        prev !== null && prev > 0 ? prev - 1 : null,
+      )
+    }, 1000)
+
+    return () => clearTimeout(timerId)
+  }, [autoRefreshCountdown, scrape])
 
   useEffect(() => {
     if (!__CONNECTIONS__) return
@@ -1554,15 +1613,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
     if (candidates.length === 0) return
 
-    // If backup mode is AUTO, wait for sync to complete before fetching entities
+    setPendingAutoRefreshCandidates(candidates)
+    autoRefreshCancelledRef.current = false
+
     if (backupMode === BackupMode.AUTO) {
       const handleSyncComplete = () => {
-        setTimeout(() => {
-          autoRefreshExecutedRef.current = true
-          candidates.forEach(({ entity, features }) => {
-            scrape(entity, features, { silent: true, avoidNewLogin: true })
-          })
-        }, 3000)
+        if (autoRefreshCancelledRef.current) return
+        startAutoRefreshCountdown()
       }
 
       window.addEventListener("backup-auto-sync-complete", handleSyncComplete, {
@@ -1577,16 +1634,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Non-AUTO mode: use normal delay
-    const timeoutId = setTimeout(() => {
-      autoRefreshExecutedRef.current = true
-      candidates.forEach(({ entity, features }) => {
-        scrape(entity, features, { silent: true, avoidNewLogin: true })
-      })
-    }, 3000)
-
-    return () => clearTimeout(timeoutId)
-  }, [entitiesLoaded, entities, settings, scrape, backupMode])
+    startAutoRefreshCountdown()
+  }, [
+    entitiesLoaded,
+    entities,
+    settings,
+    backupMode,
+    startAutoRefreshCountdown,
+  ])
 
   const disconnectEntityHandler = useCallback(
     async (entityId: string, entityAccountId: string) => {
@@ -1683,6 +1738,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               id: pending.entity.id,
               name: pending.entity.name,
             })),
+        pendingAutoRefreshCandidates,
+        autoRefreshCountdown,
+        cancelAutoRefresh,
       }}
     >
       {children}
