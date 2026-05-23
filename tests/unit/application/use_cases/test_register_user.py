@@ -68,7 +68,7 @@ class TestRegisterUserRejection:
         )
 
         with pytest.raises(ValueError, match="Cannot register users while logged in"):
-            await use_case.execute(LoginRequest(username="alice", password="pass"))
+            await use_case.execute(LoginRequest(username="alice", password="pass1234"))
 
     @pytest.mark.asyncio
     async def test_raises_when_user_exists_and_multi_user_not_set(self, monkeypatch):
@@ -91,7 +91,7 @@ class TestRegisterUserRejection:
         )
 
         with pytest.raises(ValueError, match="only one user is supported"):
-            await use_case.execute(LoginRequest(username="alice", password="pass"))
+            await use_case.execute(LoginRequest(username="alice", password="pass1234"))
 
     @pytest.mark.asyncio
     async def test_raises_when_user_exists_and_multi_user_is_zero(self, monkeypatch):
@@ -114,7 +114,7 @@ class TestRegisterUserRejection:
         )
 
         with pytest.raises(ValueError, match="only one user is supported"):
-            await use_case.execute(LoginRequest(username="alice", password="pass"))
+            await use_case.execute(LoginRequest(username="alice", password="pass1234"))
 
 
 class TestRegisterUserSuccess:
@@ -137,7 +137,7 @@ class TestRegisterUserSuccess:
             cloud_register=cloud_register,
         )
 
-        await use_case.execute(LoginRequest(username="alice", password="secret"))
+        await use_case.execute(LoginRequest(username="alice", password="secret12"))
 
         data_manager.create_user.assert_called_once()
         assert data_manager.create_user.call_args[0][0].username == "alice"
@@ -157,7 +157,7 @@ class TestRegisterUserSuccess:
         source_initiator.initialize.assert_called_once()
         params = source_initiator.initialize.call_args[0][0]
         assert params.user.username == "alice"
-        assert params.password == "secret"
+        assert params.password == "secret12"
         assert params.context.config is config_port
 
     @pytest.mark.asyncio
@@ -180,7 +180,7 @@ class TestRegisterUserSuccess:
             cloud_register=cloud_register,
         )
 
-        await use_case.execute(LoginRequest(username="bob", password="pass"))
+        await use_case.execute(LoginRequest(username="bob", password="pass1234"))
 
 
 class TestRegisterUserCallOrder:
@@ -211,7 +211,7 @@ class TestRegisterUserCallOrder:
             cloud_register=cloud_register,
         )
 
-        await use_case.execute(LoginRequest(username="alice", password="secret"))
+        await use_case.execute(LoginRequest(username="alice", password="secret12"))
 
         call_names = [c[0] for c in manager.mock_calls]
         assert call_names == [

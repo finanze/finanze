@@ -407,8 +407,8 @@ app.whenReady().then(async () => {
       rendererConfig.backend,
     )
     if (!startupBackendResult.success && startupBackendResult.error) {
-      dialog.showErrorBox(
-        "Failed to start backend",
+      console.error(
+        "Failed to start backend:",
         startupBackendResult.error.message,
       )
     }

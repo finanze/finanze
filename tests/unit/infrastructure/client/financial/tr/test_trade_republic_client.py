@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from dateutil.tz import tzlocal
 
@@ -50,6 +51,7 @@ def _make_client(use_v2=True):
     client = TradeRepublicClient(use_v2=use_v2)
     client._tr_api = _make_mock_api()
     client._stable_device_id = "a" * 128
+    client._fetch_app_version = AsyncMock(return_value="15.7.0")
     return client
 
 
@@ -212,6 +214,7 @@ class TestLoginV2Flow:
 
         with patch(API_CLASS, return_value=mock_api):
             client = TradeRepublicClient(use_v2=True)
+            client._fetch_app_version = AsyncMock(return_value="15.7.0")
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
@@ -339,14 +342,48 @@ class TestDeviceInfo:
         assert decoded["os"] == "Mac OS"
         assert "preferredLanguages" in decoded
 
-    def test_get_v2_headers_includes_device_info(self):
+    @pytest.mark.asyncio
+    async def test_get_v2_headers_includes_device_info(self):
         client = _make_client()
 
-        headers = client._get_v2_headers()
+        headers = await client._get_v2_headers()
 
         assert headers["x-tr-platform"] == "web"
         assert headers["x-tr-app-version"] == "15.7.0"
         assert "x-tr-device-info" in headers
+
+    @pytest.mark.asyncio
+    async def test_fetch_app_version_returns_remote_version(self):
+        await TradeRepublicClient._fetch_app_version.cache.clear()
+        client = TradeRepublicClient(use_v2=True)
+        mock_response = MagicMock()
+        mock_response.text = AsyncMock(return_value="16.0.0\n")
+        mock_response.raise_for_status = MagicMock()
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "infrastructure.client.entity.financial.tr.trade_republic_client.get_http_session",
+            return_value=mock_session,
+        ):
+            version = await client._fetch_app_version()
+
+        assert version == "16.0.0"
+
+    @pytest.mark.asyncio
+    async def test_fetch_app_version_returns_default_on_error(self):
+        await TradeRepublicClient._fetch_app_version.cache.clear()
+        client = TradeRepublicClient(use_v2=True)
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(side_effect=httpx.HTTPError("connection failed"))
+
+        with patch(
+            "infrastructure.client.entity.financial.tr.trade_republic_client.get_http_session",
+            return_value=mock_session,
+        ):
+            version = await client._fetch_app_version()
+
+        assert version == "15.7.0"
 
     def test_stable_device_id_persists_in_session_export(self):
         client = _make_client()
@@ -381,6 +418,7 @@ class TestDeviceInfo:
 
         with patch(API_CLASS, return_value=mock_api):
             client = TradeRepublicClient(use_v2=True)
+            client._fetch_app_version = AsyncMock(return_value="15.7.0")
             assert client._stable_device_id is None
             await client.login(
                 phone="+49123456789",

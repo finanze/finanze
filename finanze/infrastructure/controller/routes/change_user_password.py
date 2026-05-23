@@ -2,6 +2,7 @@ from quart import jsonify, request
 
 from domain.data_init import DecryptionError
 from domain.exception.exceptions import (
+    InvalidPassword,
     UserAlreadyLoggedIn,
     UserNotFound,
     InvalidUserCredentials,
@@ -38,6 +39,9 @@ async def change_user_password(change_user_password_uc: ChangeUserPassword):
 
     except UserAlreadyLoggedIn as e:
         return jsonify({"message": str(e)}), 400
+
+    except InvalidPassword:
+        return jsonify({"message": "Invalid password"}), 400
 
     except ValueError as e:
         return jsonify({"message": str(e)}), 400

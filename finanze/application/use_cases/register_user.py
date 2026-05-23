@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from uuid import uuid4
 
 from application.ports.cloud_register import CloudRegister
@@ -8,9 +9,13 @@ from application.ports.data_manager import DataManager
 from application.ports.datasource_initiator import DatasourceInitiator
 from application.ports.sheets_initiator import SheetsInitiator
 from domain.data_init import DatasourceInitContext, DatasourceInitParams
+from domain.exception.exceptions import InvalidPassword, InvalidUsername
 from domain.use_cases.register_user import RegisterUser
 from domain.user import UserRegistration
 from domain.user_login import LoginRequest
+
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_\-.$€#]{2,}$")
+PASSWORD_PATTERN = re.compile(r"^[\x21-\x7e]{8,}$")
 
 
 class RegisterUserImpl(RegisterUser):
@@ -30,6 +35,12 @@ class RegisterUserImpl(RegisterUser):
         self._log = logging.getLogger(__name__)
 
     async def execute(self, login_request: LoginRequest):
+        if not USERNAME_PATTERN.match(login_request.username):
+            raise InvalidUsername()
+
+        if not PASSWORD_PATTERN.match(login_request.password):
+            raise InvalidPassword()
+
         if self._source_initiator.unlocked:
             raise ValueError("Cannot register users while logged in")
 

@@ -23,6 +23,7 @@ from infrastructure.client.entity.financial.tr.api import TradeRepublicApi
 from infrastructure.client.entity.financial.tr.portfolio import Portfolio
 from infrastructure.client.entity.financial.tr.tr_details import TRDetails
 from infrastructure.client.entity.financial.tr.tr_timeline import TRTimeline
+from infrastructure.client.http.http_session import get_http_session
 
 
 def _json_cookie_jar(jar: httpx.Cookies) -> list[dict]:
@@ -74,10 +75,11 @@ class TradeRepublicClient:
     IN_APP_POLL_INTERVAL = 3
     _V2_HEADERS = {
         "x-tr-platform": "web",
-        "x-tr-app-version": "15.7.0",
     }
+    _APP_VERSION_URL = "https://app.traderepublic.com/app-version.txt"
+    _DEFAULT_APP_VERSION = "15.7.0"
 
-    def __init__(self, use_v2: bool = False):
+    def __init__(self, use_v2: bool = True):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
         self._use_v2 = use_v2
@@ -117,11 +119,26 @@ class TradeRepublicClient:
         except Exception:
             return str(get_localzone())
 
-    def _get_v2_headers(self) -> dict:
+    async def _get_v2_headers(self) -> dict:
+        app_version = await self._fetch_app_version()
         return {
             **self._V2_HEADERS,
+            "x-tr-app-version": app_version,
             "x-tr-device-info": self._build_device_info_header(),
         }
+
+    @cached(ttl=86400, noself=True)
+    async def _fetch_app_version(self) -> str:
+        try:
+            session = get_http_session()
+            r = await session.get(self._APP_VERSION_URL)
+            r.raise_for_status()
+            version = (await r.text()).strip()
+            if version:
+                return version
+        except Exception:
+            self._log.warning("Failed to fetch TR app version, using default")
+        return self._DEFAULT_APP_VERSION
 
     async def login(
         self,
@@ -367,7 +384,7 @@ class TradeRepublicClient:
         r = await self._tr_api._websession.post(
             f"{self._tr_api._host}/api/v2/auth/web/login",
             json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
-            headers=self._get_v2_headers(),
+            headers=await self._get_v2_headers(),
         )
 
         j = await r.json()
@@ -424,7 +441,7 @@ class TradeRepublicClient:
             try:
                 r = await self._tr_api._websession.get(
                     f"{self._tr_api._host}/api/v2/auth/web/login/processes/{process_id}",
-                    headers=self._get_v2_headers(),
+                    headers=await self._get_v2_headers(),
                 )
                 r.raise_for_status()
                 j = await r.json()
