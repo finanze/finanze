@@ -9,7 +9,7 @@ IOS_APP_PATH="${IOS_APP_PATH:-$(find "$HOME/Library/Developer/Xcode/DerivedData"
   -path "*/Debug-iphonesimulator/App.app/Info.plist" -type f 2>/dev/null \
   | xargs ls -t 2>/dev/null | head -1 | sed 's|/Info.plist$||' || echo "")}"
 
-ANDROID_APP_PATH="${ANDROID_APP_PATH:-$FRONTEND_APP/android/app/build/outputs/apk/debug/app-debug.apk}"
+ANDROID_APP_PATH="${ANDROID_APP_PATH:-$FRONTEND_APP/android/app/build/outputs/apk/full/debug/app-full-debug.apk}"
 
 usage() {
   echo "Usage: $0 <ios|android|both>"

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
@@ -35,8 +35,8 @@ import {
 } from "lucide-react"
 import { Switch } from "@/components/ui/Switch"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { getImageUrl } from "@/services/api"
 import { EntityOrigin, DataDisplayMode } from "@/types"
+import { useEntityImages } from "@/hooks/useEntityImages"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 
 type DistributionItem = {
@@ -110,7 +110,7 @@ export function PortfolioDonutChart({
   const isPrivate = dataDisplayMode === DataDisplayMode.PRIVATE
   const navigate = useNavigate()
   const [legendExpanded, setLegendExpanded] = useState(false)
-  const [entityImages, setEntityImages] = useState<Record<string, string>>({})
+  const entityImages = useEntityImages(entities)
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
   const optionsRef = useRef<HTMLDivElement>(null)
   const isDarkMode = resolvedTheme === "dark"
@@ -121,31 +121,6 @@ export function PortfolioDonutChart({
     "forecast-cash-delta",
     "commodity",
   ])
-
-  useEffect(() => {
-    const loadImages = async () => {
-      const images: Record<string, string> = {}
-      for (const entity of entities) {
-        try {
-          if (entity.icon_url) {
-            images[entity.id] = entity.icon_url
-          } else if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
-            images[entity.id] = await getImageUrl(
-              `/static/entities/logos/${entity.id}.png`,
-            )
-          } else if (entity.origin === EntityOrigin.NATIVE) {
-            images[entity.id] = `entities/${entity.id}.png`
-          } else {
-            images[entity.id] = ""
-          }
-        } catch {
-          images[entity.id] = ""
-        }
-      }
-      setEntityImages(images)
-    }
-    loadImages()
-  }, [entities])
 
   const currentDistribution = useMemo(() => {
     const items =

@@ -1,6 +1,6 @@
 import type React from "react"
 import { useState, useEffect } from "react"
-import { ArrowRight, Clock, LockKeyhole, Plus, X } from "lucide-react"
+import { ArrowRight, Clock, Info, LockKeyhole, Plus, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
@@ -48,6 +48,10 @@ export function LoginForm() {
   const showTransactionsLoadingNotice =
     selectedFeatures.includes("TRANSACTIONS") &&
     (!hasTransactionsHistory || isDeepFetch)
+
+  const entityNote = (t.login as any).entityNotes?.[selectedEntity.id] as
+    | string
+    | undefined
 
   const handleInputChange = (key: string, value: string) => {
     setCredentials(prev => ({ ...prev, [key]: value }))
@@ -144,6 +148,12 @@ export function LoginForm() {
               </div>
             )
           })}
+          {entityNote && (
+            <div className="flex items-start gap-2 rounded-lg border border-blue-200/50 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              <Info className="mt-[2px] h-4 w-4 flex-shrink-0" />
+              <span>{entityNote}</span>
+            </div>
+          )}
           {!showAccountName ? (
             <button
               type="button"

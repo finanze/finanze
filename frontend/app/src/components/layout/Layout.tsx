@@ -8,7 +8,13 @@ import { motion, AnimatePresence } from "framer-motion"
 import { PlatformType } from "@/types"
 import { useI18n } from "@/i18n"
 import { useLocation, useNavigate } from "react-router-dom"
-import { getPlatformType, isAndroid, isNativeMobile } from "@/lib/platform"
+import {
+  getPlatformType,
+  isAndroid,
+  isNativeMobile,
+  isPWAStandalone,
+} from "@/lib/platform"
+import { StatusBarBlur } from "./StatusBarBlur"
 import {
   LayoutScrollProvider,
   useLayoutScroll,
@@ -80,6 +86,7 @@ function LayoutContent({ children }: LayoutProps) {
   const platform = getPlatformType()
   const { handleScroll, resetScroll } = useLayoutScroll()
   const isMobilePlatform = isNativeMobile()
+  const isMobileViewport = isMobilePlatform || isPWAStandalone()
 
   const [isNarrowView, setIsNarrowView] = useState(() => {
     if (typeof window !== "undefined") {
@@ -112,7 +119,7 @@ function LayoutContent({ children }: LayoutProps) {
         <main
           className={cn(
             "flex-1 min-h-0 overflow-auto",
-            isMobilePlatform && "pt-[max(12px,var(--safe-area-inset-top,0px))]",
+            isMobileViewport && "pt-[max(12px,var(--safe-area-inset-top,0px))]",
             (platform === PlatformType.WINDOWS ||
               platform === PlatformType.LINUX) &&
               "pt-4",
@@ -127,7 +134,7 @@ function LayoutContent({ children }: LayoutProps) {
               transition={{ duration: 0.2 }}
               className={cn(
                 "min-h-full",
-                isMobilePlatform ? "px-6" : "p-6",
+                isMobileViewport ? "px-6" : "p-6",
                 isNarrowView
                   ? "pb-[calc(64px+max(12px,var(--safe-area-inset-bottom,0px)))] sm:pb-[calc(64px+max(16px,var(--safe-area-inset-bottom,0px)))]"
                   : "pb-[max(1.5rem,var(--safe-area-inset-bottom,0px))]",
@@ -138,6 +145,7 @@ function LayoutContent({ children }: LayoutProps) {
           </SwipeBackGesture>
         </main>
         {isNarrowView && <FloatingBottomNav />}
+        {isNarrowView && <StatusBarBlur />}
       </div>
 
       <AnimatePresence>

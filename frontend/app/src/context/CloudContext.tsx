@@ -91,6 +91,10 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   >(null)
   const isExplicitSignOutRef = useRef(false)
   const recoveryAttemptedRef = useRef(false)
+  const pendingOAuthCallbackUrlRef = useRef<string | null>(null)
+  const launchUrlHandledRef = useRef(false)
+  const isAuthenticatedRef = useRef(isAuthenticated)
+  isAuthenticatedRef.current = isAuthenticated
 
   const getProvider = useCallback(() => {
     if (!authProviderRef.current) {
@@ -366,6 +370,17 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         await provider.initialize()
         if (cancelled) return
 
+        const pendingUrl = pendingOAuthCallbackUrlRef.current
+        if (pendingUrl) {
+          pendingOAuthCallbackUrlRef.current = null
+          try {
+            await provider.handleAuthCallbackUrl(pendingUrl)
+          } catch (error) {
+            console.error("Failed to process pending auth callback:", error)
+          }
+        }
+        if (cancelled) return
+
         let session = await provider.getSession()
         if (cancelled) return
 
@@ -387,6 +402,18 @@ export function CloudProvider({ children }: { children: ReactNode }) {
             } catch (error) {
               console.error("Failed to set local session from backend:", error)
             }
+          } else if (session && pendingUrl) {
+            try {
+              const { role: backendRole, permissions: backendPermissions } =
+                await syncWithBackend(session)
+              setRole(backendRole)
+              setPermissions(backendPermissions)
+            } catch (error) {
+              console.error(
+                "Failed to sync deep-link session with backend:",
+                error,
+              )
+            }
           } else {
             if (session) {
               try {
@@ -402,6 +429,23 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Failed to fetch cloud session from backend:", error)
+        }
+
+        if (cancelled) return
+
+        if (session && pendingUrl) {
+          const pendingUrlObj = new URL(pendingUrl)
+          const pendingType =
+            pendingUrlObj.searchParams.get("type") ??
+            new URLSearchParams(
+              pendingUrlObj.hash.startsWith("#")
+                ? pendingUrlObj.hash.substring(1)
+                : pendingUrlObj.hash,
+            ).get("type")
+          if (pendingType === "recovery") {
+            setIsPasswordRecoveryActive(true)
+          }
+          navigate("/settings?tab=cloud")
         }
 
         if (cancelled) return
@@ -439,18 +483,19 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       cancelled = true
       unsubscribe?.()
     }
-  }, [getProvider, isAuthenticated, isCloudEnabled])
+  }, [getProvider, isAuthenticated, isCloudEnabled, navigate, syncWithBackend])
 
-  useEffect(() => {
-    if (!window.ipcAPI?.onOAuthCallbackUrl) {
-      return
-    }
+  const handleOAuthCallbackUrl = useCallback(
+    async (url: string) => {
+      if (!isAuthenticatedRef.current) {
+        pendingOAuthCallbackUrlRef.current = url
+        return
+      }
 
-    const unsubscribe = window.ipcAPI.onOAuthCallbackUrl(async payload => {
       try {
         const provider = getProvider()
 
-        const urlObj = new URL(payload.url)
+        const urlObj = new URL(url)
         const errorFromSearch = urlObj.searchParams.get("error")
         const errorCodeFromSearch = urlObj.searchParams.get("error_code")
         if (errorFromSearch) {
@@ -494,11 +539,8 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         const codeFromSearch = urlObj.searchParams.get("code")
 
         try {
-          await provider.handleAuthCallbackUrl(payload.url)
+          await provider.handleAuthCallbackUrl(url)
         } catch (error) {
-          // Some Supabase flows may return a PKCE code in the query string.
-          // Prefer delegating to Supabase URL parsing, but fall back to direct
-          // code exchange when needed.
           if (codeFromSearch) {
             await provider.exchangeCodeForSession(codeFromSearch)
           } else {
@@ -517,18 +559,12 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // Some flows (notably magiclink and PKCE-based verify redirects)
-        // may not preserve `type` in the final finanze:// callback.
-        // If a session was established, route the user to the Cloud tab.
         const session = await provider.getSession()
         if (session) {
           navigate("/settings?tab=cloud")
           return
         }
 
-        // Even if the link is invalid/expired, Supabase sometimes redirects
-        // back without a session. Still route to Cloud so the user can see
-        // the current state/error.
         if (
           urlObj.protocol === "finanze:" &&
           urlObj.hostname === "auth" &&
@@ -547,12 +583,62 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           navigate("/settings?tab=cloud")
         }
       }
+    },
+    [getProvider, navigate, t],
+  )
+
+  useEffect(() => {
+    if (!window.ipcAPI?.onOAuthCallbackUrl) {
+      return
+    }
+
+    const unsubscribe = window.ipcAPI.onOAuthCallbackUrl(async payload => {
+      await handleOAuthCallbackUrl(payload.url)
     })
 
     return () => {
       unsubscribe?.()
     }
-  }, [getProvider, navigate])
+  }, [handleOAuthCallbackUrl])
+
+  useEffect(() => {
+    if (!isNativeMobile()) {
+      return
+    }
+
+    let cleanup: (() => void) | undefined
+    let mounted = true
+
+    import("@capacitor/app").then(({ App }) => {
+      if (!mounted) return
+
+      App.getLaunchUrl().then(result => {
+        if (
+          mounted &&
+          !launchUrlHandledRef.current &&
+          result?.url?.startsWith("finanze://auth/callback")
+        ) {
+          launchUrlHandledRef.current = true
+          void handleOAuthCallbackUrl(result.url)
+        }
+      })
+
+      const listener = App.addListener("appUrlOpen", ({ url }) => {
+        if (url.startsWith("finanze://auth/callback")) {
+          void handleOAuthCallbackUrl(url)
+        }
+      })
+
+      cleanup = () => {
+        listener.then(l => l.remove())
+      }
+    })
+
+    return () => {
+      mounted = false
+      cleanup?.()
+    }
+  }, [handleOAuthCallbackUrl])
 
   useEffect(() => {
     try {
@@ -772,13 +858,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       try {
         const provider = getProvider()
-        const isElectron = typeof window !== "undefined" && !!window.ipcAPI
-        const emailRedirectTo = isElectron
-          ? "finanze://auth/callback?type=signup"
-          : undefined
-        return await provider.signUpWithEmail(email, password, {
-          emailRedirectTo,
-        })
+        return await provider.signUpWithEmail(email, password)
       } finally {
         setIsLoading(false)
       }
@@ -791,13 +871,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       try {
         const provider = getProvider()
-        const isElectron = typeof window !== "undefined" && !!window.ipcAPI
-        const emailRedirectTo = isElectron
-          ? "finanze://auth/callback?type=recovery"
-          : undefined
-        await provider.requestPasswordReset(email, {
-          emailRedirectTo,
-        })
+        await provider.requestPasswordReset(email)
       } finally {
         setIsLoading(false)
       }

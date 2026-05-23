@@ -24,6 +24,10 @@ import {
 import { Sensitive } from "@/components/ui/Sensitive"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
+import {
+  DonutOrbitBubbles,
+  type OrbitBubbleItem,
+} from "@/components/DonutOrbitBubbles"
 
 interface ChartDataItem {
   name: string
@@ -85,6 +89,8 @@ interface InvestmentDistributionChartProps {
   centerContent?: DonutCenterConfig
   toggleConfig?: DonutToggleConfig
   badges?: DonutBadge[]
+  orbitBubbles?: OrbitBubbleItem[]
+  orbitBubblesCollapsedHidden?: boolean
 }
 
 const RADIAN = Math.PI / 180
@@ -191,9 +197,14 @@ export const InvestmentDistributionChart: React.FC<
   centerContent,
   toggleConfig,
   badges,
+  orbitBubbles,
+  orbitBubblesCollapsedHidden,
 }) => {
   const { t } = useI18n()
   const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
+  const [hoveredBubbleIndex, setHoveredBubbleIndex] = useState<number | null>(
+    null,
+  )
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const chartAreaRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0 })
@@ -408,19 +419,31 @@ export const InvestmentDistributionChart: React.FC<
                         cursor: onSliceClick ? "pointer" : "default",
                       }}
                       onClick={() => onSliceClick?.(entry)}
+                      onMouseEnter={
+                        orbitBubbles
+                          ? () => setHoveredBubbleIndex(index)
+                          : undefined
+                      }
+                      onMouseLeave={
+                        orbitBubbles
+                          ? () => setHoveredBubbleIndex(null)
+                          : undefined
+                      }
                     />
                   ))}
                 </Pie>
-                <Tooltip
-                  content={
-                    <CustomTooltip
-                      locale={locale}
-                      currency={currency}
-                      showOriginalCurrency={showOriginalCurrency}
-                    />
-                  }
-                  wrapperStyle={{ zIndex: 50 }}
-                />
+                {!orbitBubbles && (
+                  <Tooltip
+                    content={
+                      <CustomTooltip
+                        locale={locale}
+                        currency={currency}
+                        showOriginalCurrency={showOriginalCurrency}
+                      />
+                    }
+                    wrapperStyle={{ zIndex: 50 }}
+                  />
+                )}
               </PieChart>
             </ResponsiveContainer>
             {centerContent && (
@@ -483,26 +506,44 @@ export const InvestmentDistributionChart: React.FC<
                   )}
               </div>
             )}
-            {badges && badges.length > 0 && (
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 pointer-events-none z-10">
-                {badges.map((badge, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-muted/80 backdrop-blur-sm border border-border/50 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm"
-                  >
-                    {badge.icon}
-                    {badge.sensitive ? (
-                      <Sensitive className="text-muted-foreground">
-                        {badge.value}
-                      </Sensitive>
-                    ) : (
-                      badge.value
-                    )}
-                  </span>
-                ))}
-              </div>
+            {orbitBubbles && orbitBubbles.length > 0 && chartSize.width > 0 && (
+              <DonutOrbitBubbles
+                data={orbitBubbles}
+                outerRadius={outerRadius}
+                chartWidth={chartSize.width}
+                chartHeight={chartSize.height}
+                locale={locale}
+                currency={currency}
+                hoveredIndex={hoveredBubbleIndex}
+                onHoverIndex={setHoveredBubbleIndex}
+                collapsedHidden={orbitBubblesCollapsedHidden}
+                onBubbleClick={
+                  onSliceClick
+                    ? item => onSliceClick(item as ChartDataItem)
+                    : undefined
+                }
+              />
             )}
           </div>
+          {badges && badges.length > 0 && (
+            <div className="flex justify-center gap-2 pointer-events-none z-10 -mt-3 pb-1">
+              {badges.map((badge, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-muted/80 backdrop-blur-sm border border-border/50 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm"
+                >
+                  {badge.icon}
+                  {badge.sensitive ? (
+                    <Sensitive className="text-muted-foreground">
+                      {badge.value}
+                    </Sensitive>
+                  ) : (
+                    badge.value
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )

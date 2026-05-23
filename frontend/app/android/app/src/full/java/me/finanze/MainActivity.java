@@ -8,6 +8,8 @@ import ee.forgr.capacitor.social.login.GoogleProvider;
 import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
 
+import androidx.core.view.WindowCompat;
+
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
@@ -30,6 +32,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(LoginWebViewPlugin.class);
         registerPlugin(TlsHttpPlugin.class);
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
     }
 
     @Override

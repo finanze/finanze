@@ -26,6 +26,7 @@ import {
   CardFooter,
 } from "@/components/ui/Card"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
@@ -489,6 +490,21 @@ export default function CommoditiesInvestmentPage() {
     }))
   }, [commoditiesWithComputed, defaultCurrency, t.enums.commodityType])
 
+  const commodityInitials: Record<string, string> = {
+    [CommodityType.GOLD]: "Au",
+    [CommodityType.SILVER]: "Ag",
+    [CommodityType.PLATINUM]: "Pt",
+    [CommodityType.PALLADIUM]: "Pd",
+  }
+
+  const orbitBubbleData = useMemo<OrbitBubbleItem[]>(() => {
+    return chartData.map(entry => ({
+      ...entry,
+      iconUrl: null,
+      initials: commodityInitials[entry.type] ?? undefined,
+    }))
+  }, [chartData])
+
   const commodityDetailsLookup = useMemo(() => {
     const lookup: Record<string, CommodityComputed> = {}
     commoditiesWithComputed.forEach(c => {
@@ -671,6 +687,7 @@ export default function CommoditiesInvestmentPage() {
                 containerClassName="overflow-visible w-full"
                 variant="bare"
                 onSliceClick={handleSliceClick}
+                orbitBubbles={orbitBubbleData}
                 toggleConfig={{
                   activeView: "asset",
                   onViewChange: () => {},

@@ -18,8 +18,9 @@ const APP_PATH =
         'build',
         'outputs',
         'apk',
+        'full',
         'debug',
-        'app-debug.apk',
+        'app-full-debug.apk',
     )
 
 export const config: Options.Testrunner = {
@@ -45,6 +46,7 @@ export const config: Options.Testrunner = {
                 process.env.ANDROID_DEVICE_NAME || 'emulator-5554',
             'appium:udid': process.env.ANDROID_UDID || 'emulator-5554',
             'appium:app': APP_PATH,
+            'appium:allowTestPackages': true,
             'appium:fullReset': true,
             'appium:noReset': false,
             'appium:chromedriverAutodownload': true,
@@ -53,6 +55,7 @@ export const config: Options.Testrunner = {
             'appium:appWaitDuration': 60_000,
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
+            'appium:uiautomator2ServerLaunchTimeout': 90_000,
         } as WebdriverIO.Capabilities,
     ],
 } as Options.Testrunner

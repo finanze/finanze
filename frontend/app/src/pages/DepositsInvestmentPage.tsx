@@ -18,6 +18,7 @@ import {
   calculateInvestmentDistribution,
 } from "@/utils/financialDataUtils"
 import { ProductType, type Deposit } from "@/types/position"
+import { useEntityImages } from "@/hooks/useEntityImages"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
@@ -401,6 +402,22 @@ function DepositsViewContent({
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [displayPositions])
 
+  const entityIconMap = useEntityImages(entities)
+
+  const orbitBubbleData = useMemo(() => {
+    const nameToEntityId = new Map<string, string>()
+    displayPositions.forEach(p => {
+      if (p.entityId && !nameToEntityId.has(p.name)) {
+        nameToEntityId.set(p.name, p.entityId)
+      }
+    })
+    return chartData.map(entry => {
+      const entityId = nameToEntityId.get(entry.name)
+      const iconUrl = entityId ? entityIconMap[entityId] || null : null
+      return { ...entry, iconUrl }
+    })
+  }, [chartData, displayPositions, entityIconMap])
+
   const totalValue = useMemo(
     () =>
       displayPositions.reduce(
@@ -533,6 +550,8 @@ function DepositsViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  orbitBubbles={orbitBubbleData}
+                  orbitBubblesCollapsedHidden
                   toggleConfig={{
                     activeView: "asset",
                     onViewChange: () => {},

@@ -386,3 +386,96 @@ describe("manual sync", () => {
     },
   )
 })
+
+function backupTransferError() {
+  const err: any = new Error("Failed to download backup piece DATA")
+  err.code = "BACKUP_TRANSFER_FAILED"
+  return err
+}
+
+const TRANSFER_FAILED_MSG =
+  "Could not connect to the backup server. Please try again later."
+
+describe("transfer failed error handling", () => {
+  it("shows transfer failed message on upload failure (Use Local)", async () => {
+    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(info)
+    mockUploadBackup.mockRejectedValue(backupTransferError())
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(screen.getByText("Use local")).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      screen.getByText("Use local").click()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(TRANSFER_FAILED_MSG)).toBeInTheDocument()
+    })
+  })
+
+  it("shows transfer failed message on import failure (Use Remote)", async () => {
+    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(info)
+    mockImportBackup.mockRejectedValue(backupTransferError())
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(screen.getByText("Use remote")).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      screen.getByText("Use remote").click()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(TRANSFER_FAILED_MSG)).toBeInTheDocument()
+    })
+  })
+
+  it("shows transfer failed message on manual sync upload failure", async () => {
+    setBackupMode(BackupMode.MANUAL)
+    const info = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(info)
+    mockUploadBackup.mockRejectedValue(backupTransferError())
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(screen.getByText("Sync now")).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      screen.getByText("Sync now").click()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(TRANSFER_FAILED_MSG)).toBeInTheDocument()
+    })
+  })
+
+  it("shows transfer failed message on manual sync import failure", async () => {
+    setBackupMode(BackupMode.MANUAL)
+    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED)
+    mockGetBackupsInfo.mockResolvedValue(info)
+    mockImportBackup.mockRejectedValue(backupTransferError())
+
+    renderBackupUI()
+
+    await waitFor(() => {
+      expect(screen.getByText("Sync now")).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      screen.getByText("Sync now").click()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(TRANSFER_FAILED_MSG)).toBeInTheDocument()
+    })
+  })
+})

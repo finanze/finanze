@@ -12,6 +12,7 @@ import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -37,6 +38,7 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
+import { isMostlyWhiteLogo, isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import {
@@ -73,81 +75,6 @@ interface StocksViewContentProps {
   entities: Entity[]
   defaultCurrency: string
   exchangeRates: ExchangeRates | null
-}
-
-function isMostlyWhiteLogo(image: HTMLImageElement): boolean {
-  const sampleSize = 32
-  const canvas = document.createElement("canvas")
-  canvas.width = sampleSize
-  canvas.height = sampleSize
-
-  const context = canvas.getContext("2d", { willReadFrequently: true })
-  if (!context) return false
-
-  context.clearRect(0, 0, sampleSize, sampleSize)
-  context.drawImage(image, 0, 0, sampleSize, sampleSize)
-
-  const { data } = context.getImageData(0, 0, sampleSize, sampleSize)
-  let opaquePixels = 0
-  let whitePixels = 0
-
-  for (let index = 0; index < data.length; index += 4) {
-    const alpha = data[index + 3]
-    if (alpha < 32) continue
-
-    opaquePixels += 1
-
-    const red = data[index]
-    const green = data[index + 1]
-    const blue = data[index + 2]
-    const minChannel = Math.min(red, green, blue)
-    const maxChannel = Math.max(red, green, blue)
-
-    if (minChannel >= 235 && maxChannel - minChannel <= 15) {
-      whitePixels += 1
-    }
-  }
-
-  if (opaquePixels === 0) return false
-
-  return whitePixels / opaquePixels >= 0.9
-}
-
-function isMostlyBlackLogo(image: HTMLImageElement): boolean {
-  const sampleSize = 32
-  const canvas = document.createElement("canvas")
-  canvas.width = sampleSize
-  canvas.height = sampleSize
-
-  const context = canvas.getContext("2d", { willReadFrequently: true })
-  if (!context) return false
-
-  context.clearRect(0, 0, sampleSize, sampleSize)
-  context.drawImage(image, 0, 0, sampleSize, sampleSize)
-
-  const { data } = context.getImageData(0, 0, sampleSize, sampleSize)
-  let opaquePixels = 0
-  let blackPixels = 0
-
-  for (let index = 0; index < data.length; index += 4) {
-    const alpha = data[index + 3]
-    if (alpha < 32) continue
-
-    opaquePixels += 1
-
-    const red = data[index]
-    const green = data[index + 1]
-    const blue = data[index + 2]
-    const maxChannel = Math.max(red, green, blue)
-
-    if (maxChannel <= 20) {
-      blackPixels += 1
-    }
-  }
-
-  if (opaquePixels === 0) return false
-
-  return blackPixels / opaquePixels >= 0.9
 }
 
 function StockPositionLogo({
@@ -598,6 +525,38 @@ function StocksViewContent({
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [displayPositions])
 
+  const orbitBubbleData = useMemo<OrbitBubbleItem[]>(() => {
+    const iconMap = new Map<string, string | null>()
+    displayPositions.forEach(p => {
+      const key = p.name || p.symbol
+      if (iconMap.has(key)) return
+      const issuerIcon = getIssuerIconPath(p.issuer)
+      if (issuerIcon) {
+        iconMap.set(key, issuerIcon)
+        return
+      }
+      const tickerToken = p.symbol?.split(".")[0]?.trim()
+      const isinTrimmed = p.isin?.trim()
+      if (isinTrimmed) {
+        iconMap.set(
+          key,
+          `https://static.finanze.me/icons/ticker/${encodeURIComponent(isinTrimmed)}.png`,
+        )
+      } else if (tickerToken) {
+        iconMap.set(
+          key,
+          `https://static.finanze.me/icons/ticker/${encodeURIComponent(tickerToken)}.png`,
+        )
+      } else {
+        iconMap.set(key, null)
+      }
+    })
+    return chartData.map(entry => ({
+      ...entry,
+      iconUrl: iconMap.get(entry.name) ?? null,
+    }))
+  }, [chartData, displayPositions])
+
   const totalValue = useMemo(
     () =>
       displayPositions.reduce(
@@ -811,6 +770,7 @@ function StocksViewContent({
                         : []),
                     ],
                   }}
+                  orbitBubbles={orbitBubbleData}
                 />
               </CardContent>
             </Card>

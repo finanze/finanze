@@ -10,6 +10,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { EditDialog } from "@/components/ui/EditDialog"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import {
   formatCurrency,
   formatGainLoss,
@@ -1378,6 +1379,32 @@ function CryptoInvestmentContent({
     })
     return colorMap
   }, [chartData])
+
+  const orbitBubbleData = useMemo<OrbitBubbleItem[]>(() => {
+    const cryptoIconMap = new Map<string, string>()
+    const cardIconMap = new Map<string, string>()
+    allAssets.forEach(asset => {
+      const key = asset.groupingKey
+      const cryptoIcon = asset.asset.crypto_asset?.icon_urls?.[0]
+      if (cryptoIcon && !cryptoIconMap.has(key)) {
+        cryptoIconMap.set(key, cryptoIcon)
+      }
+      if (asset.iconUrl && !cardIconMap.has(key)) {
+        cardIconMap.set(key, asset.iconUrl)
+      }
+    })
+    return chartData.map(entry => {
+      const id = (entry as { id?: string }).id ?? entry.name
+      const cryptoIcon = cryptoIconMap.get(id)
+      const cardIcon = cardIconMap.get(id)
+      return {
+        ...entry,
+        iconUrl: cryptoIcon ?? cardIcon ?? null,
+        fallbackIconUrl:
+          cryptoIcon && cardIcon && cryptoIcon !== cardIcon ? cardIcon : null,
+      }
+    })
+  }, [chartData, allAssets])
 
   const handleCopyAddress = useCallback(
     (address: string) => {
@@ -2777,6 +2804,7 @@ function CryptoInvestmentContent({
                 hideLegend
                 containerClassName="overflow-visible w-full"
                 variant="bare"
+                orbitBubbles={orbitBubbleData}
                 onSliceClick={slice => {
                   const identifier = (slice as { id?: string }).id ?? slice.name
                   const ref = symbolRefs.current[identifier]

@@ -66,7 +66,7 @@ ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 def _parse_datetime(value: str) -> datetime:
     try:
         return datetime.fromisoformat(value)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return datetime.strptime(value, ISO_DATE_TIME_FORMAT)
 
 

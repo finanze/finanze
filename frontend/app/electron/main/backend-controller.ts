@@ -23,6 +23,11 @@ type StatusListener = (status: BackendStatus) => void
 
 export class BackendController extends EventEmitter {
   private process: ChildProcess | null = null
+  private outputBuffer: string[] = []
+  private captureOutput = false
+  private captureTimeout: ReturnType<typeof setTimeout> | null = null
+  private static readonly MAX_OUTPUT_LINES = 1000
+  private static readonly CAPTURE_AFTER_SPAWN_MS = 10_000
   private status: BackendStatus = {
     state: "stopped",
     pid: null,
@@ -30,6 +35,7 @@ export class BackendController extends EventEmitter {
     startedAt: null,
     exitedAt: null,
     error: null,
+    output: null,
   }
   private stoppingPromise: Promise<BackendStatus> | null = null
 
@@ -42,6 +48,7 @@ export class BackendController extends EventEmitter {
       ...this.status,
       args: this.status.args ? { ...this.status.args } : null,
       error: this.status.error ? { ...this.status.error } : null,
+      output: this.status.output,
     }
   }
 
@@ -61,12 +68,16 @@ export class BackendController extends EventEmitter {
       `Starting backend with args: port=${resolvedArgs.port}, logLevel=${resolvedArgs.logLevel}, dataDir=${resolvedArgs.dataDir ?? "default"}, logDir=${resolvedArgs.logDir ?? "default"}, logFileLevel=${resolvedArgs.logFileLevel ?? "default"}, thirdPartyLogLevel=${resolvedArgs.thirdPartyLogLevel ?? "default"}`,
     )
 
+    this.stopCapture()
+    this.outputBuffer = []
+    this.captureOutput = true
     this.updateStatus({
       state: "starting",
       args: resolvedArgs,
       startedAt: Date.now(),
       exitedAt: null,
       error: null,
+      output: null,
       pid: null,
     })
 
@@ -246,21 +257,42 @@ export class BackendController extends EventEmitter {
 
     child.stdout?.on("data", data => {
       const output = String(data).trimEnd()
-      if (output) rawLog(output)
+      if (output) {
+        if (
+          this.captureOutput &&
+          this.outputBuffer.length < BackendController.MAX_OUTPUT_LINES
+        ) {
+          this.outputBuffer.push(output)
+        }
+        rawLog(output)
+      }
     })
 
     child.stderr?.on("data", data => {
       const output = String(data).trimEnd()
-      if (output) rawLog(output)
+      if (output) {
+        if (
+          this.captureOutput &&
+          this.outputBuffer.length < BackendController.MAX_OUTPUT_LINES
+        ) {
+          this.outputBuffer.push(output)
+        }
+        rawLog(output)
+      }
     })
 
     child.once("spawn", () => {
       console.info("Backend process running")
+      this.captureTimeout = setTimeout(
+        () => this.stopCapture(),
+        BackendController.CAPTURE_AFTER_SPAWN_MS,
+      )
       this.updateStatus({ state: "running", pid: child.pid ?? null })
     })
 
     child.once("error", error => {
       this.process = null
+      this.stopCapture()
       const serializedError = this.serializeError(error)
       console.error(
         `Backend process error: ${serializedError.message}`,
@@ -269,6 +301,7 @@ export class BackendController extends EventEmitter {
       this.updateStatus({
         state: "error",
         error: serializedError,
+        output: this.outputBuffer.join("\n") || null,
         pid: null,
         exitedAt: Date.now(),
       })
@@ -276,6 +309,7 @@ export class BackendController extends EventEmitter {
 
     child.once("close", code => {
       this.process = null
+      this.stopCapture()
       const hadError = typeof code === "number" && code !== 0
       if (hadError) {
         console.warn(`Backend process exited with error code ${code}`)
@@ -287,6 +321,7 @@ export class BackendController extends EventEmitter {
           this.status.state === "stopping" || !hadError ? "stopped" : "error",
         pid: null,
         exitedAt: Date.now(),
+        output: hadError ? this.outputBuffer.join("\n") || null : null,
         error: hadError
           ? {
               message: `Backend exited with code ${code}`,
@@ -317,6 +352,14 @@ export class BackendController extends EventEmitter {
       })
     } else {
       await findAndKillProcesses()
+    }
+  }
+
+  private stopCapture() {
+    this.captureOutput = false
+    if (this.captureTimeout) {
+      clearTimeout(this.captureTimeout)
+      this.captureTimeout = null
     }
   }
 
