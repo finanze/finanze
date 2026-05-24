@@ -151,7 +151,8 @@ export type Feature =
 
 export interface AuthRequest {
   username: string
-  password: string
+  password?: string
+  guest?: boolean
 }
 
 export enum AuthResultCode {
@@ -260,7 +261,9 @@ export interface UploadBackupRequest {
 
 export interface ImportBackupRequest {
   types: BackupFileType[]
+  password?: string
   force?: boolean
+  initialize?: boolean
 }
 
 export interface BackupSettings {
@@ -270,6 +273,7 @@ export interface BackupSettings {
 export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
   lastLogged?: string | null
+  pendingRegister?: boolean
   user?: User | null
   server: {
     version: string

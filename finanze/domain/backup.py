@@ -119,6 +119,7 @@ class ImportBackupRequest:
     types: list[BackupFileType]
     password: Optional[str]
     force: bool = False
+    initialize: bool = False
 
 
 @dataclass

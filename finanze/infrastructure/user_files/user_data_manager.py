@@ -81,6 +81,7 @@ class UserDataManager(DataManager):
             username=profile_data["name"],
             last_login=last_login_dt,
             path=Path(os.path.join(self._profiles_dir, str(user_id))),
+            guest=profile_data.get("guest", False),
         )
 
     async def get_last_user(self) -> Optional[User]:
@@ -124,6 +125,8 @@ class UserDataManager(DataManager):
             )
 
         profile_data = {"id": str(user.id), "name": user.username}
+        if user.guest:
+            profile_data["guest"] = True
 
         if "profiles" not in self._profiles_data or not isinstance(
             self._profiles_data["profiles"], list
@@ -145,7 +148,12 @@ class UserDataManager(DataManager):
         for profile in self._profiles_data.get("profiles", []):
             if profile.get("id") == user_id_str:
                 profile["name"] = user.username
-                profile["last_logged"] = user.last_login.isoformat()
+                if user.last_login:
+                    profile["last_logged"] = user.last_login.isoformat()
+                if user.guest:
+                    profile["guest"] = True
+                else:
+                    profile.pop("guest", None)
                 profile_found = True
                 break
 

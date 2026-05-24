@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from datetime import datetime, timedelta
 
@@ -50,78 +51,95 @@ class ImportBackupImpl(ImportBackup):
 
         self._log = logging.getLogger(__name__)
 
-    async def execute(self, request: ImportBackupRequest) -> BackupSyncResult:
+    async def execute(
+        self,
+        request: ImportBackupRequest,
+    ) -> BackupSyncResult:
         user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_IMPORT.check(user_auth)
-
-        await self._check_cooldown(request.types)
-
-        bkg_pass = request.password or await self._data_initiator.get_hashed_password()
-        if bkg_pass is None:
-            raise InvalidBackupCredentials("NO_PASSWORD_PROVIDED")
 
         remote_backup_pieces = (
             await self._backup_repository.get_info(BackupInfoParams(auth=user_auth))
         ).pieces
-        local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         self._log.debug("Found %d backup pieces", len(remote_backup_pieces))
 
-        piece_types_to_import = set()
-        for piece in remote_backup_pieces.values():
-            if piece.type not in request.types:
-                continue
+        if request.initialize:
+            piece_types_to_import = {
+                piece.type
+                for piece in remote_backup_pieces.values()
+                if piece.type in request.types
+                and self._backupable_ports.get(piece.type) is not None
+            }
+            bkg_pass = hashlib.sha3_256(request.password.encode("utf-8")).hexdigest()
+        else:
+            await self._check_cooldown(request.types)
 
-            backupable = self._backupable_ports.get(piece.type)
-            if backupable is None:
-                self._log.warning(
-                    "No backupable port found for backup piece type %s, skipping import",
-                    piece.type,
-                )
-                continue
-
-            local_backup = local_backup_registry.get(piece.type)
-            local_last_update = await backupable.get_last_updated()
-            has_local_changes = (
-                local_backup is None or local_last_update > local_backup.date
+            bkg_pass = (
+                request.password or await self._data_initiator.get_hashed_password()
             )
+            if bkg_pass is None:
+                raise InvalidBackupCredentials("NO_PASSWORD_PROVIDED")
 
-            # Already synced with this exact backup
-            if local_backup is not None and piece.id == local_backup.id:
-                if has_local_changes:
+            local_backup_registry = (
+                await self._backup_local_registry.get_info()
+            ).pieces
+
+            piece_types_to_import = set()
+            for piece in remote_backup_pieces.values():
+                if piece.type not in request.types:
+                    continue
+
+                backupable = self._backupable_ports.get(piece.type)
+                if backupable is None:
+                    self._log.warning(
+                        "No backupable port found for backup piece type %s, skipping import",
+                        piece.type,
+                    )
+                    continue
+
+                local_backup = local_backup_registry.get(piece.type)
+                local_last_update = await backupable.get_last_updated()
+                has_local_changes = (
+                    local_backup is None or local_last_update > local_backup.date
+                )
+
+                # Already synced with this exact backup
+                if local_backup is not None and piece.id == local_backup.id:
+                    if has_local_changes:
+                        self._log.debug(
+                            "Skipping import of %s backup piece %s: already imported, but has pending local changes",
+                            piece.type,
+                            piece.id,
+                        )
+                    else:
+                        self._log.debug(
+                            "Skipping import of %s backup piece %s: already imported and in sync",
+                            piece.type,
+                            piece.id,
+                        )
+                    continue
+
+                # Remote is same age or older than our local backup - nothing new to import
+                if local_backup is not None and piece.date <= local_backup.date:
                     self._log.debug(
-                        "Skipping import of %s backup piece %s: already imported, but has pending local changes",
+                        "Skipping import of %s backup piece %s: our local backup is newer or equal",
                         piece.type,
                         piece.id,
                     )
-                else:
-                    self._log.debug(
-                        "Skipping import of %s backup piece %s: already imported and in sync",
+                    continue
+
+                # CONFLICT: Remote is newer, but we have local uncommitted changes
+                if has_local_changes and not request.force:
+                    self._log.warning(
+                        "Conflict detected for %s: remote backup is newer but local has uncommitted changes",
                         piece.type,
-                        piece.id,
                     )
-                continue
+                    raise BackupConflict(
+                        f"Conflict detected for {piece.type.value}: remote backup is newer but you have local changes. "
+                        "Upload your changes first or use force import to overwrite local data."
+                    )
 
-            # Remote is same age or older than our local backup - nothing new to import
-            if local_backup is not None and piece.date <= local_backup.date:
-                self._log.debug(
-                    "Skipping import of %s backup piece %s: our local backup is newer or equal",
-                    piece.type,
-                    piece.id,
-                )
-                continue
-
-            # CONFLICT: Remote is newer, but we have local uncommitted changes
-            if has_local_changes and not request.force:
-                self._log.warning(
-                    "Conflict detected for %s: remote backup is newer but local has uncommitted changes",
-                    piece.type,
-                )
-                raise BackupConflict(
-                    f"Conflict detected for {piece.type.value}: remote backup is newer but you have local changes. "
-                    "Upload your changes first or use force import to overwrite local data."
-                )
-
-            piece_types_to_import.add(piece.type)
+                piece_types_to_import.add(piece.type)
 
         pieces = await self._backup_repository.download(
             BackupDownloadParams(types=list(piece_types_to_import), auth=user_auth)
@@ -139,7 +157,13 @@ class ImportBackupImpl(ImportBackup):
                 payload=piece.payload,
             )
             downloaded_data = await self._backup_processor.decompile(process_request)
-            await backupable.import_data(downloaded_data.payload)
+            user = self._data_initiator.get_user()
+            await backupable.import_data(
+                downloaded_data.payload,
+                initialize=request.initialize,
+                user=user,
+                password=request.password,
+            )
 
             # Register the imported backup locally so we know we're in sync
             backup_info = BackupInfo(

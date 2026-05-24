@@ -8,10 +8,6 @@ class AlreadyUnlockedError(Exception):
     pass
 
 
-class AlreadyLockedError(Exception):
-    pass
-
-
 class DecryptionError(Exception):
     pass
 

@@ -15,6 +15,7 @@ from domain.backup import (
 from domain.cloud_auth import (
     CloudAuthData,
     CloudAuthToken,
+    CloudAuthTokenData,
     CloudUserRole,
 )
 from domain.exception.exceptions import NoUserLogged, PermissionDenied
@@ -332,3 +333,78 @@ class TestExecuteSkipsMissingPorts:
         result = await use_case.execute(BackupsInfoRequest())
 
         assert result.pieces == {}
+
+
+class TestExecuteWithCloudToken:
+    @pytest.mark.asyncio
+    async def test_uses_cloud_token_instead_of_registered_auth(self):
+        cloud_token = CloudAuthToken(
+            access_token="test_access_token",
+            refresh_token="",
+            token_type="Bearer",
+            expires_at=0,
+        )
+        token_data = CloudAuthTokenData(
+            role=CloudUserRole.PLUS,
+            email="test@test.com",
+            permissions=["backup.info"],
+        )
+        cloud_register = MagicMock()
+        cloud_register.get_auth = AsyncMock(return_value=None)
+        cloud_register.decode_token = AsyncMock(return_value=token_data)
+        local_registry = MagicMock()
+        local_registry.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        remote_backup = _make_backup_info(BackupFileType.DATA, date=NOW)
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        backup_repo = MagicMock()
+        backup_repo.get_info = AsyncMock(return_value=remote_info)
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=NOW)
+
+        use_case = GetBackupsImpl(
+            backupable_ports={BackupFileType.DATA: backupable},
+            backup_repository=backup_repo,
+            backup_local_registry=local_registry,
+            cloud_register=cloud_register,
+        )
+
+        result = await use_case.execute(
+            BackupsInfoRequest(only_local=False), cloud_token=cloud_token
+        )
+
+        cloud_register.get_auth.assert_not_called()
+        cloud_register.decode_token.assert_awaited_once_with("test_access_token")
+        local_registry.get_info.assert_not_called()
+        piece = result.pieces[BackupFileType.DATA]
+        assert piece.remote == remote_backup
+
+    @pytest.mark.asyncio
+    async def test_cloud_token_permission_check(self):
+        cloud_token = CloudAuthToken(
+            access_token="test_access_token",
+            refresh_token="",
+            token_type="Bearer",
+            expires_at=0,
+        )
+        token_data = CloudAuthTokenData(
+            role=CloudUserRole.PLUS,
+            email="test@test.com",
+            permissions=["other.permission"],
+        )
+        cloud_register = MagicMock()
+        cloud_register.get_auth = AsyncMock(return_value=None)
+        cloud_register.decode_token = AsyncMock(return_value=token_data)
+        local_registry = MagicMock()
+        local_registry.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+        backup_repo = MagicMock()
+        backup_repo.get_info = AsyncMock(return_value=BackupsInfo(pieces={}))
+
+        use_case = GetBackupsImpl(
+            backupable_ports={},
+            backup_repository=backup_repo,
+            backup_local_registry=local_registry,
+            cloud_register=cloud_register,
+        )
+
+        with pytest.raises(PermissionDenied):
+            await use_case.execute(BackupsInfoRequest(), cloud_token=cloud_token)

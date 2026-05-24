@@ -99,7 +99,7 @@ class ConfigLoader(ConfigPort, Backupable):
         with open(self._config_file, "rb") as file:
             return file.read()
 
-    async def import_data(self, data: bytes):
+    async def import_data(self, data: bytes, **kwargs):
         self._check_connected()
         with open(self._config_file, "wb") as file:
             file.write(data)

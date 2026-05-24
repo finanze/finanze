@@ -401,7 +401,28 @@
     "inAppConfirmationTitle": "Confirma el inicio de sesión en",
     "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión.",
     "challengeTitle": "Verificación de seguridad de",
-    "challengeMessage": "Por favor, completa la verificación de seguridad para continuar."
+    "challengeMessage": "Por favor, completa la verificación de seguridad para continuar.",
+    "cloudRestore": {
+      "trigger": "¿Tienes cuenta Cloud? Restaura tus datos",
+      "title": "Restaurar desde Cloud",
+      "description": "Inicia sesión en tu cuenta Cloud para restaurar tu copia de seguridad",
+      "checkingBackups": "Buscando copias de seguridad...",
+      "noBackupsFound": "No se encontraron copias de seguridad para esta cuenta. Puedes volver atrás y crear una cuenta nueva.",
+      "backupCheckFailed": "Error al buscar copias de seguridad. Inténtalo de nuevo.",
+      "backupFound": "¡Copia de seguridad encontrada!",
+      "enterCredentials": "Introduce el nombre de usuario y la clave de cifrado que usaste al crear la copia de seguridad.",
+      "encryptionKeyLabel": "Clave de cifrado",
+      "encryptionKeyPlaceholder": "Tu contraseña de la app",
+      "encryptionKeyHint": "Esta es la contraseña que usabas en la app, no la de tu cuenta Cloud.",
+      "restoreButton": "Restaurar datos",
+      "importing": "Restaurando datos...",
+      "dontCloseApp": "Por favor, no cierres la app durante este proceso",
+      "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
+      "restoreFailed": "Error al restaurar. Inténtalo de nuevo.",
+      "guestCreationFailed": "Error al preparar la cuenta. Inténtalo de nuevo.",
+      "loginAfterRestoreFailed": "Datos restaurados pero el inicio de sesión falló. Intenta iniciar sesión manualmente.",
+      "backToSignup": "Volver al registro"
+    }
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",

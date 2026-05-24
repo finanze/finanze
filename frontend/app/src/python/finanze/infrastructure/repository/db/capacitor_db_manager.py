@@ -8,7 +8,6 @@ from typing import Optional
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator
 from domain.data_init import (
-    AlreadyLockedError,
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
@@ -47,7 +46,7 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         async with self._lock:
             if not self._unlocked:
                 self._log.warning("Database is already locked.")
-                raise AlreadyLockedError()
+                return
 
             self._unlocked = False
             self._user = None
@@ -255,13 +254,32 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         await js.jsBridge.sqlite.exportDatabaseToStaging("EXPORTED_DATA")
         return b""
 
-    async def import_data(self, data: bytes) -> None:
+    async def import_data(
+        self,
+        data: bytes,
+        initialize: bool = False,
+        user: Optional[User] = None,
+        password: Optional[str] = None,
+    ) -> None:
         if js is None:
             raise RuntimeError("Pyodide JS bridge is not available")
 
         from infrastructure.cloud.backup.capacitor_backup_processor import (
             delete_staging_file,
         )
+
+        if initialize:
+            if user is None or password is None:
+                raise RuntimeError("user and password are required for initial import")
+            db_name = self._db_name_for_user(user)
+            await js.jsBridge.sqlite.importDatabaseFromStaging(
+                db_name, password, "DECOMPILED_DATA"
+            )
+            await delete_staging_file("DECOMPILED_DATA")
+            await self._initialize(
+                DatasourceInitParams.build(user=user, password=password)
+            )
+            return
 
         user = self._user
         passwd = self._pass
@@ -302,6 +320,9 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
 
     def get_user(self) -> Optional[User]:
         return self._user
+
+    def set_user(self, user: User):
+        self._user = user
 
     @staticmethod
     def _looks_like_decryption_error(message: str) -> bool:

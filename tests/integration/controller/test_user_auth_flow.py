@@ -361,3 +361,56 @@ class TestFullUserLifecycle:
         await _logout(client)
         body = await _status(client)
         assert body["status"] == "LOCKED"
+
+
+GUEST_USERNAME = "guestuser"
+
+
+async def _guest_signup(client, username=GUEST_USERNAME):
+    return await client.post(SIGNUP_URL, json={"username": username, "guest": True})
+
+
+class TestGuestSignup:
+    @pytest.mark.asyncio
+    async def test_guest_signup_returns_204(self, client):
+        response = await _guest_signup(client)
+        assert response.status_code == 204
+
+    @pytest.mark.asyncio
+    async def test_guest_signup_without_password(self, client):
+        response = await _guest_signup(client)
+        assert response.status_code == 204
+
+    @pytest.mark.asyncio
+    async def test_guest_status_shows_pending_register(self, client):
+        await _guest_signup(client)
+        await _logout(client)
+        body = await _status(client)
+        assert body["pendingRegister"] is True
+        assert body["lastLogged"] == GUEST_USERNAME
+
+    @pytest.mark.asyncio
+    async def test_normal_signup_no_pending_register(self, client):
+        await _signup(client)
+        await _logout(client)
+        body = await _status(client)
+        assert body["pendingRegister"] is False
+
+    @pytest.mark.asyncio
+    async def test_guest_re_register_with_password_completes(self, client):
+        await _guest_signup(client)
+        await _logout(client)
+        response = await _signup(client, username=GUEST_USERNAME, password=PASSWORD)
+        assert response.status_code == 204
+        await _logout(client)
+        body = await _status(client)
+        assert body["pendingRegister"] is False
+
+    @pytest.mark.asyncio
+    async def test_guest_re_register_allows_login(self, client):
+        await _guest_signup(client)
+        await _logout(client)
+        await _signup(client, username=GUEST_USERNAME, password=PASSWORD)
+        await _logout(client)
+        response = await _login(client, username=GUEST_USERNAME, password=PASSWORD)
+        assert response.status_code == 204

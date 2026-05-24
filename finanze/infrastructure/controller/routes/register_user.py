@@ -15,12 +15,18 @@ async def register_user(register_user_uc: RegisterUser):
     body = await request.get_json()
     username = body.get("username")
     password = body.get("password")
+    guest = body.get("guest", False)
+
     if not username:
         return jsonify({"message": "Username not provided"}), 400
-    if not password:
+    if not guest and not password:
         return jsonify({"message": "Password not provided"}), 400
 
-    login_request = LoginRequest(username=username, password=password)
+    login_request = LoginRequest(
+        username=username,
+        password=password,
+        guest=guest,
+    )
 
     try:
         await register_user_uc.execute(login_request)
