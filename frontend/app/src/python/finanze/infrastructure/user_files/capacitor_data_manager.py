@@ -45,6 +45,7 @@ class CapacitorSingleUserDataManager(DataManager):
             username=user.username,
             last_login=datetime.now().astimezone(),
             path=Path(f"/data/profiles/{user.id}"),
+            guest=user.guest,
         )
         await self._save_user(created)
         return created
@@ -72,6 +73,7 @@ class CapacitorSingleUserDataManager(DataManager):
                 username=parsed["username"],
                 last_login=last_login,
                 path=Path(parsed.get("path") or "/data"),
+                guest=parsed.get("guest", False),
             )
         except Exception:
             return None
@@ -82,5 +84,6 @@ class CapacitorSingleUserDataManager(DataManager):
             "username": user.username,
             "last_login": user.last_login.isoformat() if user.last_login else None,
             "path": str(user.path),
+            "guest": user.guest,
         }
         await jsBridge.preferences.set(self._USER_KEY, json.dumps(payload))

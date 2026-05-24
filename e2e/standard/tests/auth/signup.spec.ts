@@ -33,9 +33,11 @@ test.describe('Initial Setup - Signup', () => {
         await page.fill('#repeatPassword', 'Password2')
         await page.locator('button[type="submit"]').click()
 
-        await expect(page.getByText("Passwords don't match")).toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(page.getByText("Encryption keys don't match")).toBeVisible(
+            {
+                timeout: 5_000,
+            },
+        )
     })
 
     test('signup with valid credentials transitions to dashboard', async ({

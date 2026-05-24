@@ -82,7 +82,7 @@ describe('Basic Setup', () => {
         await summary.waitForDisplayed({ timeout: 10_000 })
     })
 
-    it('change password and re-login works', async () => {
+    it('change encryption key and re-login works', async () => {
         const moreBtn = await $('button[aria-label="More"]')
         await moreBtn.waitForDisplayed({ timeout: 5_000 })
         await moreBtn.click()
@@ -91,7 +91,7 @@ describe('Basic Setup', () => {
         await settingsBtn.waitForDisplayed({ timeout: 5_000 })
         await settingsBtn.click()
 
-        const changePasswordBtn = await $('button=Change Password')
+        const changePasswordBtn = await $('button=Change encryption key')
         await changePasswordBtn.waitForDisplayed({ timeout: 10_000 })
         await changePasswordBtn.click()
 
@@ -147,7 +147,7 @@ describe('Basic Setup', () => {
         await settingsBtnRestore.waitForDisplayed({ timeout: 5_000 })
         await settingsBtnRestore.click()
 
-        const changePasswordBtnRestore = await $('button=Change Password')
+        const changePasswordBtnRestore = await $('button=Change encryption key')
         await changePasswordBtnRestore.waitForDisplayed({ timeout: 10_000 })
         await changePasswordBtnRestore.click()
 

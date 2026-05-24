@@ -544,7 +544,7 @@ export default function LoginPage() {
                       type="text"
                       value={username}
                       onChange={e => setUsername(e.target.value)}
-                      placeholder={t.login.usernamePlaceholder}
+                      placeholder={t.login.namePlaceholder}
                       required={!isChangingPassword}
                       autoCapitalize="off"
                       disabled={pendingRegister}
@@ -597,17 +597,24 @@ export default function LoginPage() {
                   className={cn(inputClass, passwordValueClass)}
                 />
 
-                {(isSignupMode || isChangingPassword) && (
-                  <input
-                    id="repeatPassword"
-                    type="password"
-                    value={repeatPassword}
-                    onChange={e => setRepeatPassword(e.target.value)}
-                    placeholder={t.login.repeatPasswordPlaceholder}
-                    required
-                    className={cn(inputClass, passwordValueClass)}
-                  />
-                )}
+                {(isSignupMode || isChangingPassword) &&
+                  password.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <input
+                        id="repeatPassword"
+                        type="password"
+                        value={repeatPassword}
+                        onChange={e => setRepeatPassword(e.target.value)}
+                        placeholder={t.login.repeatPasswordPlaceholder}
+                        required
+                        className={cn(inputClass, passwordValueClass)}
+                      />
+                    </motion.div>
+                  )}
 
                 {biometricAvailability?.isAvailable &&
                   (!isLoginMode || !hasStoredCredentials) && (
@@ -773,7 +780,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setCloudRestoreMode(true)}
-                    className={`w-full flex items-center justify-center gap-2 text-sm mt-4 transition-opacity duration-200 ${isLight ? "text-black/40 active:text-black/60" : "text-white/40 active:text-white/60"}`}
+                    className={`w-full flex items-center justify-center gap-2 text-sm mt-4 transition-opacity duration-200 ${isLight ? "text-black active:text-black/70" : "text-white active:text-white/70"}`}
                   >
                     <Cloud className="h-4 w-4" />
                     {t.login.cloudRestore.trigger}

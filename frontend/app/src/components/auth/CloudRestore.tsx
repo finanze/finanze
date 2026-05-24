@@ -197,6 +197,9 @@ export function CloudRestore({
         const { signInWithGoogleMobile } =
           await import("@/lib/mobile/socialLogin")
         const result = await signInWithGoogleMobile()
+        if (!result.idToken) {
+          throw new Error("No ID token received from Google")
+        }
         await provider.signInWithIdToken("google", result.idToken)
       } else {
         const serverInfo = await getApiServerInfo()
@@ -260,6 +263,9 @@ export function CloudRestore({
         const { signInWithAppleMobile } =
           await import("@/lib/mobile/socialLogin")
         const result = await signInWithAppleMobile()
+        if (!result.idToken) {
+          throw new Error("No ID token received from Apple")
+        }
         await provider.signInWithIdToken(
           "apple",
           result.idToken,
@@ -435,9 +441,11 @@ export function CloudRestore({
         <p className="text-base font-medium">
           {t.login.cloudRestore.importing}
         </p>
-        <div className="flex items-center gap-2 text-amber-500">
+        <div className="flex flex-col items-center gap-1 text-amber-500">
           <ShieldAlert className="h-4 w-4" />
-          <p className="text-sm">{t.login.cloudRestore.dontCloseApp}</p>
+          <p className="text-sm text-center">
+            {t.login.cloudRestore.dontCloseApp}
+          </p>
         </div>
       </div>
     )
@@ -459,20 +467,17 @@ export function CloudRestore({
             <p className="text-base font-medium">
               {t.login.cloudRestore.backupFound}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {t.login.cloudRestore.enterCredentials}
-            </p>
           </div>
 
           <form onSubmit={handleRestore} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="restoreUsername">{t.login.usernameLabel}</Label>
+              <Label htmlFor="restoreUsername">{t.login.nameLabel}</Label>
               <Input
                 id="restoreUsername"
                 type="text"
                 value={restoreUsername}
                 onChange={e => setRestoreUsername(e.target.value)}
-                placeholder={t.login.usernamePlaceholder}
+                placeholder={t.login.namePlaceholder}
                 required
                 autoCapitalize="off"
                 disabled={!!loadingMethod || !!pendingUsername}

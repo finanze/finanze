@@ -2,14 +2,18 @@ import { expect } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { TEST_PASSWORD, TEST_NEW_PASSWORD } from '../../helpers/constants'
 
-test.describe('Change Password', () => {
-    test('change password flow works end-to-end', async ({
+test.describe('Change Encryption Key', () => {
+    test('change encryption key flow works end-to-end', async ({
         authenticatedPage: page,
     }) => {
-        // Use sidebar popover to click Change Password
+        // Use sidebar popover to click Change Encryption Key
         await page.locator('button[aria-label="Logout"]').click()
-        await page.getByRole('button', { name: 'Change Password' }).waitFor()
-        await page.getByRole('button', { name: 'Change Password' }).click()
+        await page
+            .getByRole('button', { name: 'Change encryption key' })
+            .waitFor()
+        await page
+            .getByRole('button', { name: 'Change encryption key' })
+            .click()
 
         // Login page should appear in change-password mode
         await page.locator('#oldPassword').waitFor({ timeout: 10_000 })
@@ -36,10 +40,14 @@ test.describe('Change Password', () => {
             page.getByRole('heading', { name: 'Summary' }),
         ).toBeVisible({ timeout: 10_000 })
 
-        // Restore original password so other tests are not affected
+        // Restore original encryption key so other tests are not affected
         await page.locator('button[aria-label="Logout"]').click()
-        await page.getByRole('button', { name: 'Change Password' }).waitFor()
-        await page.getByRole('button', { name: 'Change Password' }).click()
+        await page
+            .getByRole('button', { name: 'Change encryption key' })
+            .waitFor()
+        await page
+            .getByRole('button', { name: 'Change encryption key' })
+            .click()
 
         await page.locator('#oldPassword').waitFor({ timeout: 10_000 })
         await page.fill('#oldPassword', TEST_NEW_PASSWORD)
