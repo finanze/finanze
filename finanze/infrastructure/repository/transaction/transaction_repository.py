@@ -228,7 +228,9 @@ class TransactionSQLRepository(TransactionPort):
                             "market": tx.market,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
-                            "net_amount": str(tx.net_amount),
+                            "net_amount": str(tx.net_amount)
+                            if tx.net_amount is not None
+                            else None,
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": (
@@ -246,7 +248,9 @@ class TransactionSQLRepository(TransactionPort):
                             "ticker": tx.symbol,
                             "shares": str(tx.currency_amount),
                             "price": str(tx.price),
-                            "net_amount": str(tx.net_amount),
+                            "net_amount": str(tx.net_amount)
+                            if tx.net_amount is not None
+                            else None,
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": (
@@ -262,7 +266,9 @@ class TransactionSQLRepository(TransactionPort):
                             "market": tx.market,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
-                            "net_amount": str(tx.net_amount),
+                            "net_amount": str(tx.net_amount)
+                            if tx.net_amount is not None
+                            else None,
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": (
@@ -284,7 +290,9 @@ class TransactionSQLRepository(TransactionPort):
                 elif isinstance(tx, (FactoringTx, RealEstateCFTx, DepositTx)):
                     entry.update(
                         {
-                            "net_amount": str(tx.net_amount),
+                            "net_amount": str(tx.net_amount)
+                            if tx.net_amount is not None
+                            else None,
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions),
                         }

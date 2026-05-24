@@ -165,8 +165,11 @@ function Wrapper({ children }: { children: ReactNode }) {
   )
 }
 
+let lastRenderResult: ReturnType<typeof render> | null = null
+
 export function renderDropdown() {
   const result = render(<EntityRefreshDropdown />, { wrapper: Wrapper })
+  lastRenderResult = result
   return result
 }
 
@@ -174,7 +177,18 @@ export function renderContextOnly() {
   const result = render(<div data-testid="context-host" />, {
     wrapper: Wrapper,
   })
+  lastRenderResult = result
   return result
+}
+
+export function rerenderView() {
+  if (!lastRenderResult) throw new Error("Nothing rendered yet")
+  lastRenderResult.rerender(
+    <Wrapper>
+      <div data-testid="context-host" />
+      <ContextCapture />
+    </Wrapper>,
+  )
 }
 
 export function getContext() {
@@ -193,6 +207,7 @@ export function resetAllMocks() {
   }
   currentEntitiesLoaded = true
   capturedContext = null
+  lastRenderResult = null
 
   mockScrape.mockClear()
   mockShowToast.mockClear()

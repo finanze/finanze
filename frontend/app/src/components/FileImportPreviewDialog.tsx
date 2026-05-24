@@ -126,10 +126,6 @@ export function FileImportPreviewDialog({
 }: FileImportPreviewDialogProps) {
   useModalBackHandler(isOpen, onClose)
 
-  if (!isOpen) {
-    return null
-  }
-
   const [expandedProducts, setExpandedProducts] = useState<
     Record<string, Partial<Record<ProductType, boolean>>>
   >({})
@@ -381,6 +377,10 @@ export function FileImportPreviewDialog({
   const hasTransactions = transactionSummaries.length > 0
   const hasData = hasPositions || hasTransactions
   const hasWarnings = Boolean(infoWarnings && infoWarnings.length > 0)
+
+  if (!isOpen) {
+    return null
+  }
 
   return (
     <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">

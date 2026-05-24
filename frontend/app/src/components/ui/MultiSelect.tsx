@@ -23,6 +23,7 @@ interface MultiSelectProps {
   placeholder?: string
   className?: string
   disabled?: boolean
+  closeOnSelect?: boolean
 }
 
 export function MultiSelect({
@@ -32,6 +33,7 @@ export function MultiSelect({
   placeholder,
   className,
   disabled = false,
+  closeOnSelect = false,
 }: MultiSelectProps) {
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
@@ -68,6 +70,10 @@ export function MultiSelect({
       onChange(value.filter(v => v !== optionValue))
     } else {
       onChange([...value, optionValue])
+    }
+    if (closeOnSelect) {
+      setIsOpen(false)
+      setSearchTerm("")
     }
   }
 
