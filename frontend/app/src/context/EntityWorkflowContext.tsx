@@ -1543,11 +1543,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     number | null
   >(null)
   const autoRefreshCancelledRef = useRef(false)
+  const cancelledEntityIdsRef = useRef(new Set<string>())
   const pendingAutoRefreshRef = useRef<AutoRefreshCandidate[]>([])
   pendingAutoRefreshRef.current = pendingAutoRefreshCandidates
 
   const cancelAutoRefresh = useCallback((entityId?: string) => {
     if (entityId) {
+      cancelledEntityIdsRef.current.add(entityId)
       setPendingAutoRefreshCandidates(prev => {
         const next = prev.filter(c => c.entity.id !== entityId)
         if (next.length === 0) {
@@ -1569,6 +1571,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     if (autoRefreshCancelledRef.current) return
     setAutoRefreshCountdown(3)
   }, [])
+
+  const [backupSyncCompleted, setBackupSyncCompleted] = useState(false)
+
+  useEffect(() => {
+    if (backupMode !== BackupMode.AUTO) return
+    const handler = () => setBackupSyncCompleted(true)
+    window.addEventListener("backup-auto-sync-complete", handler, {
+      once: true,
+    })
+    return () =>
+      window.removeEventListener("backup-auto-sync-complete", handler)
+  }, [backupMode])
 
   useEffect(() => {
     if (autoRefreshCountdown === null || autoRefreshCountdown < 0) return
@@ -1609,29 +1623,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       entities,
       autoRefreshSettings.max_outdated,
       autoRefreshSettings.entities,
-    )
+    ).filter(c => !cancelledEntityIdsRef.current.has(c.entity.id))
 
-    if (candidates.length === 0) return
+    if (candidates.length === 0) {
+      setPendingAutoRefreshCandidates([])
+      setAutoRefreshCountdown(null)
+      return
+    }
 
     setPendingAutoRefreshCandidates(candidates)
     autoRefreshCancelledRef.current = false
 
-    if (backupMode === BackupMode.AUTO) {
-      const handleSyncComplete = () => {
-        if (autoRefreshCancelledRef.current) return
-        startAutoRefreshCountdown()
-      }
-
-      window.addEventListener("backup-auto-sync-complete", handleSyncComplete, {
-        once: true,
-      })
-
-      return () => {
-        window.removeEventListener(
-          "backup-auto-sync-complete",
-          handleSyncComplete,
-        )
-      }
+    if (backupMode === BackupMode.AUTO && !backupSyncCompleted) {
+      return
     }
 
     startAutoRefreshCountdown()
@@ -1640,6 +1644,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     entities,
     settings,
     backupMode,
+    backupSyncCompleted,
     startAutoRefreshCountdown,
   ])
 

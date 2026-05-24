@@ -451,6 +451,7 @@ export default function ExportPage() {
   const [fileImportSelectedEntity, setFileImportSelectedEntity] = useState("")
   const [fileImportCustomEntity, setFileImportCustomEntity] = useState("")
   const fileImportInputRef = useRef<HTMLInputElement | null>(null)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [importPreviewData, setImportPreviewData] =
     useState<ImportedData | null>(null)
   const [showImportPreviewDialog, setShowImportPreviewDialog] = useState(false)
@@ -4258,6 +4259,7 @@ export default function ExportPage() {
                         }}
                         placeholder={t.export.file.templatePlaceholder}
                         disabled={!fileExportFeature}
+                        closeOnSelect
                       />
                       {!fileExportFeature ? (
                         <p className="text-xs text-muted-foreground">
@@ -4497,6 +4499,7 @@ export default function ExportPage() {
                             clearFileImportError("product")
                           }}
                           placeholder={t.export.fileImport.productsPlaceholder}
+                          closeOnSelect
                           className={cn(
                             fileImportErrors.product
                               ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
@@ -4561,6 +4564,7 @@ export default function ExportPage() {
                         }}
                         placeholder={t.export.fileImport.templatePlaceholder}
                         disabled={!fileImportFeature}
+                        closeOnSelect
                         className={cn(
                           fileImportErrors.template
                             ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
@@ -4751,10 +4755,38 @@ export default function ExportPage() {
                       <div
                         className={cn(
                           "flex flex-col gap-3 rounded-md border border-dashed border-border/70 bg-muted/30 px-4 py-3 text-sm transition-colors sm:flex-row sm:items-center sm:justify-between",
-                          fileImportErrors.file
-                            ? "border-red-500 bg-destructive/5"
-                            : "hover:border-border",
+                          isDraggingFile
+                            ? "border-primary bg-primary/5"
+                            : fileImportErrors.file
+                              ? "border-red-500 bg-destructive/5"
+                              : "hover:border-border",
                         )}
+                        onDragOver={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setIsDraggingFile(true)
+                        }}
+                        onDragEnter={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setIsDraggingFile(true)
+                        }}
+                        onDragLeave={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setIsDraggingFile(false)
+                        }}
+                        onDrop={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setIsDraggingFile(false)
+                          const droppedFile =
+                            event.dataTransfer.files?.[0] ?? null
+                          if (droppedFile) {
+                            setFileImportFile(droppedFile)
+                            clearFileImportError("file")
+                          }
+                        }}
                       >
                         <Button
                           type="button"

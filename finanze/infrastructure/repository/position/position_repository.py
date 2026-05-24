@@ -112,7 +112,7 @@ async def _save_cards(cursor, position: GlobalPosition, cards: Cards):
                 card.type.value,
                 card.name,
                 card.currency,
-                str(card.ending),
+                str(card.ending) if card.ending is not None else None,
                 str(card.limit) if card.limit else None,
                 str(card.used),
                 card.active,
@@ -148,8 +148,10 @@ async def _save_crowdlending(
         (
             str(crowdlending.id),
             str(position.id),
-            str(crowdlending.total),
-            str(crowdlending.weighted_interest_rate),
+            str(crowdlending.total) if crowdlending.total is not None else None,
+            str(crowdlending.weighted_interest_rate)
+            if crowdlending.weighted_interest_rate is not None
+            else None,
             crowdlending.currency,
             (
                 json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder)
@@ -171,7 +173,9 @@ async def _save_commodities(cursor, position: GlobalPosition, commodities: Commo
                 commodity.type.value,
                 str(commodity.amount),
                 commodity.unit.value,
-                str(commodity.market_value),
+                str(commodity.market_value)
+                if commodity.market_value is not None
+                else None,
                 commodity.currency,
                 (
                     str(commodity.initial_investment)
