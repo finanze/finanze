@@ -330,6 +330,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             subtype = instrument_type
 
         equity_type = EquityType.STOCK if type_id == "STOCK" else EquityType.ETF
+        issuer = None
         if equity_type == EquityType.ETF:
             raw_issuer = details.fund_details.get("issuer")
             issuer = resolve_issuer(raw_issuer, name)
