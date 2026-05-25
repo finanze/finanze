@@ -391,6 +391,7 @@ async def app(tmp_path):
         entity_fetchers,
         external_entity_fetchers,
         entity_account_port,
+        crypto_entity_fetchers,
     )
     create_real_estate_uc = CreateRealEstateImpl(
         real_estate_repo,

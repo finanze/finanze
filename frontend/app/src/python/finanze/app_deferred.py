@@ -196,6 +196,11 @@ class DeferredComponents:
                     domain.native_entities.UNICAJA,
                     domain.native_entities.IBKR,
                     domain.native_entities.BINANCE,
+                ]
+            }
+            crypto_entity_fetcher_stubs = {
+                entity: True
+                for entity in [
                     domain.native_entities.BITCOIN,
                     domain.native_entities.ETHEREUM,
                     domain.native_entities.LITECOIN,
@@ -205,6 +210,7 @@ class DeferredComponents:
             }
         else:
             financial_entity_fetcher_stubs = {}
+            crypto_entity_fetcher_stubs = {}
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
@@ -253,6 +259,7 @@ class DeferredComponents:
             financial_entity_fetcher_stubs,
             {},
             self.entity_account_repo,
+            crypto_entity_fetcher_stubs,
         )
 
         self.get_pos = GetPositionImpl(self.position_repo, self.entity_repo)
