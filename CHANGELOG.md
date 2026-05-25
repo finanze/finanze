@@ -1,3 +1,19 @@
+## [0.8.4] - 2026-05-25
+
+### 🚀 Features
+
+- Cloud backup import at signup (#115)
+
+### 🐛 Bug Fixes
+
+- Import giving blank screen and storing null values
+- TR issuer not defined on fetch
+- TR avoid fetching ETF issuer
+- Crypto wallet not available in desktop
+
+### ⚙️ Miscellaneous Tasks
+
+- Add issue templates
 ## [0.8.3] - 2026-05-23
 
 ### 🚀 Features
