@@ -234,6 +234,8 @@ test.describe('Cloud Restore - Credentials and Import', () => {
             timeout: 5_000,
         })
 
+        await clearCloudMocks(page)
+
         const signupUsername = page.locator('#username')
         if (await signupUsername.isEnabled()) {
             await page.fill('#username', 'newuser')
@@ -245,7 +247,5 @@ test.describe('Cloud Restore - Credentials and Import', () => {
         await expect(
             page.getByRole('heading', { name: 'Summary' }),
         ).toBeVisible({ timeout: 10_000 })
-
-        await clearCloudMocks(page)
     })
 })
