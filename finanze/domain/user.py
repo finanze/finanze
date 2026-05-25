@@ -13,6 +13,7 @@ class User:
     username: str
     path: Path
     last_login: Optional[datetime]
+    guest: bool = False
 
     def hashed_id(self) -> str:
         hash_bytes = hashlib.sha1(self.id.bytes).digest()[:10]
@@ -29,3 +30,4 @@ class User:
 class UserRegistration:
     id: UUID
     username: str
+    guest: bool = False

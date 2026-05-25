@@ -54,3 +54,4 @@ class GlobalStatus:
     features: FeatureFlags
     user: Optional[User] = None
     last_logged: Optional[str] = None
+    pending_register: bool = False

@@ -57,6 +57,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         entity_fetchers: dict[Entity, FinancialEntityFetcher],
         external_entity_fetchers: dict,
         entity_account_port: EntityAccountPort,
+        crypto_entity_fetchers: dict | None = None,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
@@ -67,6 +68,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._entity_fetchers = entity_fetchers
         self._external_entity_fetchers = external_entity_fetchers
         self._entity_account_port = entity_account_port
+        self._crypto_entity_fetchers = crypto_entity_fetchers or {}
 
     async def execute(self) -> AvailableSources:
         logged_entities = await self._credentials_port.get_available_entities()
@@ -178,7 +180,9 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 )
                 products = self.CRYPTO_WALLET_PRODUCTS
                 if native_entity:
-                    fetchable = self._entity_fetchers.get(native_entity) is not None
+                    fetchable = (
+                        self._crypto_entity_fetchers.get(native_entity) is not None
+                    )
                 else:
                     fetchable = True
                 dict_entity["fetchable"] = fetchable

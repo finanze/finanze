@@ -288,7 +288,7 @@ async def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None
         RealEstateQueries.INSERT_FLOW,
         (
             str(real_estate_id),
-            str(flow.periodic_flow_id),
+            str(flow.periodic_flow_id) if flow.periodic_flow_id is not None else None,
             flow.flow_subtype.value,
             flow.description,
             json.dumps(

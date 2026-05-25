@@ -14,7 +14,6 @@ from sqlcipher3._sqlite3 import DatabaseError
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator
 from domain.data_init import (
-    AlreadyLockedError,
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
@@ -46,7 +45,7 @@ class DBManager(DatasourceInitiator, Backupable):
         async with self._lock:
             if not self._unlocked:
                 self._log.warning("Database is already locked.")
-                raise AlreadyLockedError()
+                return
 
             self._unlocked = False
             self._user = None
@@ -206,7 +205,41 @@ class DBManager(DatasourceInitiator, Backupable):
             except (OSError, NameError):
                 pass
 
-    async def import_data(self, data: bytes):
+    async def import_data(
+        self,
+        data: bytes,
+        initialize: bool = False,
+        user: Optional[User] = None,
+        password: Optional[str] = None,
+    ):
+        if initialize:
+            if user is None or password is None:
+                raise RuntimeError("user and password are required for initial import")
+            db_path = user.path / DB_NAME
+
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+                tmp_bkg_db_path = Path(tmpdir) / "tmp_backup.db"
+                tmp_bkg_db_path.write_bytes(data)
+
+                connection = self._base_connect(tmp_bkg_db_path)
+                temp_client = DBClient(connection)
+
+                db_path_str = str(db_path.absolute())
+                sanitized_passwd = self._sanitize_password(password)
+
+                async with temp_client.tx(skip_last_update=True) as cursor:
+                    await cursor.execute_script(f"""
+                    ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
+                    SELECT sqlcipher_export('new_db');
+                    DETACH DATABASE new_db;
+                    """)
+                connection.close()
+
+            await self._initialize(
+                DatasourceInitParams.build(user=user, password=password)
+            )
+            return
+
         await self._client.wal_checkpoint()
 
         user = self._user
@@ -262,3 +295,6 @@ class DBManager(DatasourceInitiator, Backupable):
 
     def get_user(self) -> Optional[User]:
         return self._user
+
+    def set_user(self, user: User):
+        self._user = user

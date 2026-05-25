@@ -448,3 +448,69 @@ class TestImportSuccess:
 
         assert result.pieces == {}
         assert local_registry.insert.call_count == 0
+
+
+class TestImportInitialize:
+    @pytest.mark.asyncio
+    async def test_initialize_flag_passed_to_backupable(self):
+        piece_id = uuid4()
+        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        download_result = BackupPieces(pieces=[transfer_piece])
+
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.export = AsyncMock(return_value=b"data")
+
+        use_case, *_ = _build_use_case(
+            remote_info=remote_info,
+            download_result=download_result,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        await use_case.execute(
+            ImportBackupRequest(
+                types=[BackupFileType.DATA],
+                password="mypass",
+                force=True,
+                initialize=True,
+            ),
+        )
+
+        backupable.import_data.assert_called_once()
+        call_kwargs = backupable.import_data.call_args
+        assert call_kwargs[1]["initialize"] is True
+        assert call_kwargs[1]["password"] == "mypass"
+
+    @pytest.mark.asyncio
+    async def test_initialize_defaults_to_false(self):
+        piece_id = uuid4()
+        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        remote_info = BackupsInfo(pieces={BackupFileType.DATA: remote_backup})
+        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        download_result = BackupPieces(pieces=[transfer_piece])
+
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+        backupable.import_data = AsyncMock()
+        backupable.export = AsyncMock(return_value=b"data")
+
+        use_case, *_ = _build_use_case(
+            remote_info=remote_info,
+            download_result=download_result,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        await use_case.execute(
+            ImportBackupRequest(
+                types=[BackupFileType.DATA],
+                password="mypass",
+                force=True,
+            ),
+        )
+
+        backupable.import_data.assert_called_once()
+        call_kwargs = backupable.import_data.call_args
+        assert call_kwargs[1]["initialize"] is False

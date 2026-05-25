@@ -22,10 +22,13 @@ async def import_backup(import_backup_uc: ImportBackup):
     password = body.get("password")
     types = body.get("types")
     force = body.get("force", False)
+    initialize = body.get("initialize", False)
     if not types:
         return {"message": "Field 'types' is required"}, 400
 
-    import_req = ImportBackupRequest(password=password, types=types, force=force)
+    import_req = ImportBackupRequest(
+        password=password, types=types, force=force, initialize=initialize
+    )
 
     try:
         result = await import_backup_uc.execute(import_req)

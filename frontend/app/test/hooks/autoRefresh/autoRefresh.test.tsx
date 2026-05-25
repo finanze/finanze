@@ -10,6 +10,7 @@ import {
   setAutoRefreshSettings,
   renderDropdown,
   renderContextOnly,
+  rerenderView,
   getContext,
   resetAllMocks,
 } from "./setup"
@@ -480,5 +481,278 @@ describe("EntityRefreshDropdown UI", () => {
     expect(
       screen.queryByText(/Auto-update in|About to update/),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe("re-evaluation after backup import", () => {
+  it("clears candidates when backup makes all entities fresh", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    mockGetAutoRefreshCandidates.mockReturnValue([])
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: true },
+        }),
+      )
+      rerenderView()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(0)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("keeps only stale candidates after partial backup refresh", async () => {
+    const e1 = buildEntity({ id: "e1", name: "Bank A" })
+    const e2 = buildEntity({ id: "e2", name: "Bank B" })
+    const allCandidates = [
+      buildCandidate({ id: "e1", name: "Bank A" }),
+      buildCandidate({ id: "e2", name: "Bank B" }),
+    ]
+    setEntities([e1, e2])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(allCandidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+
+    const remainingCandidate = buildCandidate({ id: "e2", name: "Bank B" })
+    mockGetAutoRefreshCandidates.mockReturnValue([remainingCandidate])
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: true },
+        }),
+      )
+      rerenderView()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().pendingAutoRefreshCandidates[0].entity.id).toBe("e2")
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
+  it("starts countdown with original candidates when backup has nothing to import", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false },
+        }),
+      )
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
+  it("does not scrape fresh entities after backup import", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    mockGetAutoRefreshCandidates.mockReturnValue([])
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: true },
+        }),
+      )
+      rerenderView()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("does not scrape individually cancelled entities even if still stale after backup", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1", name: "Bank A" }),
+      buildCandidate({ id: "e2", name: "Bank B" }),
+      buildCandidate({ id: "e3", name: "Bank C" }),
+    ]
+    setEntities([
+      buildEntity({ id: "e1", name: "Bank A" }),
+      buildEntity({ id: "e2", name: "Bank B" }),
+      buildEntity({ id: "e3", name: "Bank C" }),
+    ])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(3)
+
+    await act(async () => {
+      getContext().cancelAutoRefresh("e1")
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+
+    const stillStaleCandidates = [
+      buildCandidate({ id: "e1", name: "Bank A" }),
+      buildCandidate({ id: "e2", name: "Bank B" }),
+      buildCandidate({ id: "e3", name: "Bank C" }),
+    ]
+    mockGetAutoRefreshCandidates.mockReturnValue(stillStaleCandidates)
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: true },
+        }),
+      )
+      rerenderView()
+    })
+
+    const pending = getContext().pendingAutoRefreshCandidates
+    expect(pending).toHaveLength(2)
+    expect(pending.map(c => c.entity.id)).toEqual(["e2", "e3"])
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
+  it("does not scrape anything when cancel-all was used before backup completes", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+
+    await act(async () => {
+      getContext().cancelAutoRefresh()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(0)
+
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false },
+        }),
+      )
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(0)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("scrapes only non-cancelled entities after backup where cancelled entity became fresh", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1", name: "Bank A" }),
+      buildCandidate({ id: "e2", name: "Bank B" }),
+    ]
+    setEntities([
+      buildEntity({ id: "e1", name: "Bank A" }),
+      buildEntity({ id: "e2", name: "Bank B" }),
+    ])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    await act(async () => {
+      getContext().cancelAutoRefresh("e1")
+    })
+
+    mockGetAutoRefreshCandidates.mockReturnValue([
+      buildCandidate({ id: "e2", name: "Bank B" }),
+    ])
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: true },
+        }),
+      )
+      rerenderView()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().pendingAutoRefreshCandidates[0].entity.id).toBe("e2")
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(1)
+    const callArgs = mockFetchFinancialEntity.mock.calls[0][0] as any
+    expect(callArgs.entity).toBe("e2")
   })
 })

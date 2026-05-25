@@ -40,4 +40,5 @@ class GetStatusImpl(GetStatus):
             server=server_details,
             features=features,
             user=current_user,
+            pending_register=last_logged.guest if last_logged else False,
         )

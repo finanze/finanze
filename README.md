@@ -322,11 +322,7 @@ important ones are::
 - Powered by [CryptoCompare](https://www.cryptocompare.com/).
 - [Pyodide](https://github.com/pyodide/pyodide) is used for mobile backend compatibility.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
-  heavily
-  modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this
-  library has been vital for this
-  project.
-- SQLCipher pre-built dependency [laggykiller/sqlcipher3](https://github.com/laggykiller/sqlcipher3)
+  heavily modified, this library has been vital for the entity integration.
 - Selenium reCAPTCHA resolution is based
   on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation

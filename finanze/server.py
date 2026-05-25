@@ -415,6 +415,7 @@ class FinanzeServer:
             financial_entity_fetchers,
             external_entity_fetchers,
             entity_account_repository,
+            crypto_entity_fetchers,
         )
         loan_calculator = LoanCalculator()
         fetch_financial_data = FetchFinancialDataImpl(
