@@ -19,22 +19,25 @@ def _make_user(username: str = "testuser") -> User:
     )
 
 
-def _create_mocks(unlocked=False, users=None):
+def _create_mocks(unlocked=False, users=None, existing_user=None):
     source_initiator = MagicMock()
     type(source_initiator).unlocked = PropertyMock(return_value=unlocked)
     source_initiator.initialize = AsyncMock()
 
     data_manager = MagicMock()
     data_manager.get_users = AsyncMock(return_value=users if users is not None else [])
+    data_manager.get_user = AsyncMock(return_value=existing_user)
     data_manager.create_user = AsyncMock(
         side_effect=lambda user_reg: User(
             id=user_reg.id,
             username=user_reg.username,
             path=Path(f"/data/{user_reg.username}"),
             last_login=datetime.now(),
+            guest=user_reg.guest,
         )
     )
     data_manager.set_last_user = AsyncMock()
+    data_manager.update_user = AsyncMock()
 
     config_port = MagicMock()
     config_port.connect = AsyncMock()
@@ -222,3 +225,137 @@ class TestRegisterUserCallOrder:
             "cloud_register_connect",
             "source_initiator_initialize",
         ]
+
+
+class TestGuestRegistration:
+    @pytest.mark.asyncio
+    async def test_guest_registers_without_password(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(unlocked=False, users=[])
+
+        use_case = RegisterUserImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", guest=True))
+
+        data_manager.create_user.assert_called_once()
+        reg = data_manager.create_user.call_args[0][0]
+        assert reg.username == "alice"
+        assert reg.guest is True
+
+    @pytest.mark.asyncio
+    async def test_guest_skips_source_initialization(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(unlocked=False, users=[])
+
+        use_case = RegisterUserImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", guest=True))
+
+        source_initiator.initialize.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_guest_connects_config_sheets_cloud(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(unlocked=False, users=[])
+
+        use_case = RegisterUserImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", guest=True))
+
+        config_port.connect.assert_called_once()
+        sheets_initiator.connect.assert_called_once()
+        cloud_register.connect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_re_register_existing_guest_reuses_user(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        existing_guest = _make_user("alice")
+        existing_guest.guest = True
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(
+            unlocked=False, users=[existing_guest], existing_user=existing_guest
+        )
+
+        use_case = RegisterUserImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", guest=True))
+
+        data_manager.create_user.assert_not_called()
+        data_manager.set_last_user.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_completing_guest_registration_clears_guest_flag(self, monkeypatch):
+        monkeypatch.delenv("MULTI_USER", raising=False)
+        existing_guest = _make_user("alice")
+        existing_guest.guest = True
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(
+            unlocked=False, users=[existing_guest], existing_user=existing_guest
+        )
+
+        use_case = RegisterUserImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", password="secret12"))
+
+        data_manager.update_user.assert_called_once()
+        updated_user = data_manager.update_user.call_args[0][0]
+        assert updated_user.guest is False
+        source_initiator.initialize.assert_called_once()

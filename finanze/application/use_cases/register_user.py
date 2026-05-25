@@ -38,25 +38,49 @@ class RegisterUserImpl(RegisterUser):
         if not USERNAME_PATTERN.match(login_request.username):
             raise InvalidUsername()
 
-        if not PASSWORD_PATTERN.match(login_request.password):
-            raise InvalidPassword()
+        existing_user = await self._data_manager.get_user(login_request.username)
+        is_guest_flow = login_request.guest or (
+            existing_user is not None and existing_user.guest
+        )
+
+        if not is_guest_flow:
+            if not login_request.password or not PASSWORD_PATTERN.match(
+                login_request.password
+            ):
+                raise InvalidPassword()
 
         if self._source_initiator.unlocked:
             raise ValueError("Cannot register users while logged in")
 
-        if (
-            len(await self._data_manager.get_users()) > 0
-            and os.environ.get("MULTI_USER") != "1"
-        ):
-            raise ValueError("Currently, only one user is supported.")
+        existing_users = await self._data_manager.get_users()
 
-        user_reg = UserRegistration(id=uuid4(), username=login_request.username)
-        user = await self._data_manager.create_user(user_reg)
+        if existing_user and existing_user.guest:
+            user = existing_user
+        else:
+            if len(existing_users) > 0 and os.environ.get("MULTI_USER") != "1":
+                raise ValueError("Currently, only one user is supported.")
+
+            user_reg = UserRegistration(
+                id=uuid4(),
+                username=login_request.username,
+                guest=login_request.guest,
+            )
+            user = await self._data_manager.create_user(user_reg)
+
         await self._data_manager.set_last_user(user)
 
         await self._config_port.connect(user)
         self._sheets_initiator.connect(user)
         await self._cloud_register.connect(user)
+
+        if login_request.guest:
+            self._source_initiator.set_user(user)
+            return
+
+        if existing_user and existing_user.guest:
+            user.guest = False
+            await self._data_manager.update_user(user)
+
         params = DatasourceInitParams(
             user=user,
             password=login_request.password,

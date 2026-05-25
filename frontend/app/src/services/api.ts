@@ -761,6 +761,14 @@ export async function getBackupsInfo(
   return (await getApiClient()).get(`/cloud/backup?${params.toString()}`)
 }
 
+export async function getBackupsInfoWithCloudAuth(
+  cloudAccessToken: string,
+): Promise<FullBackupsInfo> {
+  return (await getApiClient()).get("/cloud/backup", {
+    headers: { "Cloud-Authorization": `Bearer ${cloudAccessToken}` },
+  })
+}
+
 export async function uploadBackup(
   request: UploadBackupRequest,
 ): Promise<BackupSyncResult> {

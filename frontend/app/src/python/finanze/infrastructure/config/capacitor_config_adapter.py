@@ -141,7 +141,7 @@ class CapacitorConfigAdapter(ConfigPort, Backupable):
         await write_staging_file("EXPORTED_CONFIG", yaml_bytes)
         return b""
 
-    async def import_data(self, data: bytes) -> None:
+    async def import_data(self, data: bytes, **kwargs) -> None:
         import strictyaml
 
         from infrastructure.cloud.backup.capacitor_backup_processor import (

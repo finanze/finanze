@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Optional
 
 from application.ports.backup_local_registry import BackupLocalRegistry
 from application.ports.backup_repository import BackupRepository
@@ -15,7 +16,7 @@ from domain.backup import (
     BackupsInfo,
     BackupInfoParams,
 )
-from domain.cloud_auth import CloudPermission
+from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudPermission
 from domain.use_cases.get_backups import GetBackups
 
 
@@ -34,11 +35,29 @@ class GetBackupsImpl(GetBackups):
 
         self._log = logging.getLogger(__name__)
 
-    async def execute(self, request: BackupsInfoRequest) -> FullBackupsInfo:
-        user_auth = await self._cloud_register.get_auth()
+    async def execute(
+        self,
+        request: BackupsInfoRequest,
+        cloud_token: Optional[CloudAuthToken] = None,
+    ) -> FullBackupsInfo:
+        if cloud_token:
+            token_data = await self._cloud_register.decode_token(
+                cloud_token.access_token
+            )
+            user_auth = CloudAuthData(
+                role=token_data.role,
+                permissions=token_data.permissions,
+                token=cloud_token,
+                email=token_data.email,
+            )
+        else:
+            user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_INFO.check(user_auth)
 
-        local_bkg_info = await self._backup_local_registry.get_info()
+        if cloud_token:
+            local_bkg_info = BackupsInfo(pieces={})
+        else:
+            local_bkg_info = await self._backup_local_registry.get_info()
         remote_bkg_info = BackupsInfo(pieces={})
         if not request.only_local:
             remote_bkg_info = await self._backup_repository.get_info(
@@ -50,6 +69,19 @@ class GetBackupsImpl(GetBackups):
         for backup_type in BackupFileType:
             backupable = self._backupable_ports.get(backup_type)
             if backupable is None:
+                continue
+
+            if cloud_token:
+                remote_backup = remote_bkg_info.pieces.get(backup_type)
+                if remote_backup is None:
+                    continue
+                full_backup_pieces[backup_type] = FullBackupInfo(
+                    local=None,
+                    remote=remote_backup,
+                    last_update=remote_backup.date,
+                    has_local_changes=False,
+                    status=None,
+                )
                 continue
 
             last_update = await backupable.get_last_updated()

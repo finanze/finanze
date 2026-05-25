@@ -24,12 +24,14 @@ interface AuthContextType {
   isInitializing: boolean
   isChangingPassword: boolean
   lastLoggedUser: string | null
+  pendingRegister: boolean
   pendingPasswordChangeUser: string | null
   login: (
     username: string,
     password: string,
   ) => Promise<{ code: AuthResultCode; message?: string }>
   signup: (username: string, password: string) => Promise<boolean>
+  guestSignup: (username: string) => Promise<boolean>
   logout: () => Promise<void>
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
   setIsChangingPassword: (isChanging: boolean) => void
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingPasswordChangeUser, setPendingPasswordChangeUser] = useState<
     string | null
   >(null)
+  const [pendingRegister, setPendingRegister] = useState(false)
 
   const syncStatus = async (): Promise<void> => {
     const {
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastLogged: last_logged,
       features,
       user: statusUser,
+      pendingRegister: pending,
     } = await checkStatus()
 
     setFeatureFlags(features)
@@ -63,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(isUnlocked)
     setUser(isUnlocked ? (statusUser ?? null) : null)
     setLastLoggedUser(last_logged || null)
+    setPendingRegister(pending ?? false)
   }
 
   useEffect(() => {
@@ -135,6 +140,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return success
     } catch (error) {
       console.error("Signup error:", error)
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const guestSignup = async (username: string): Promise<boolean> => {
+    setIsLoading(true)
+    try {
+      const { success } = await apiSignup({ username, guest: true })
+      if (success) {
+        try {
+          await syncStatus()
+        } catch {
+          setLastLoggedUser(username)
+        }
+      }
+      return success
+    } catch (error) {
+      console.error("Guest signup error:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -217,9 +242,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isInitializing,
         isChangingPassword,
         lastLoggedUser,
+        pendingRegister,
         pendingPasswordChangeUser,
         login,
         signup,
+        guestSignup,
         logout,
         changePassword,
         setIsChangingPassword,

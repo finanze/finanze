@@ -30,3 +30,7 @@ class DatasourceInitiator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_user(self) -> Optional[User]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def set_user(self, user: User):
+        raise NotImplementedError

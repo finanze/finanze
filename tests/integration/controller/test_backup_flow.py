@@ -524,9 +524,10 @@ class TestImportBackup:
         )
 
         await client.post(IMPORT_URL, json={"types": ["DATA"]})
-        backupable_ports[BackupFileType.DATA].import_data.assert_awaited_once_with(
-            b"raw-data"
-        )
+        backupable_ports[BackupFileType.DATA].import_data.assert_awaited_once()
+        call_args = backupable_ports[BackupFileType.DATA].import_data.call_args
+        assert call_args[0][0] == b"raw-data"
+        assert call_args[1]["initialize"] is False
 
     @pytest.mark.asyncio
     async def test_local_registry_updated_after_import(
