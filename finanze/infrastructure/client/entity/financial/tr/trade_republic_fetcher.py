@@ -231,6 +231,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
             return None
 
+        issuer = None
         average_buy = round(Dezimal(instrument["averageBuyIn"]), 4)
         shares = Dezimal(instrument["netSize"])
         net_value = instrument.get("netValue")
@@ -330,10 +331,6 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             subtype = instrument_type
 
         equity_type = EquityType.STOCK if type_id == "STOCK" else EquityType.ETF
-        issuer = None
-        if equity_type == EquityType.ETF:
-            raw_issuer = details.fund_details.get("issuer")
-            issuer = resolve_issuer(raw_issuer, name)
 
         return StockDetail(
             id=uuid4(),

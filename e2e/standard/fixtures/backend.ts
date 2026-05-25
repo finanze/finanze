@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7692)
+const DEFAULT_BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 7692)
 const PROJECT_ROOT = join(import.meta.dirname, '..', '..', '..')
 
 export interface BackendFixture {
@@ -26,11 +26,15 @@ async function waitForBackend(url: string, timeoutMs = 30_000): Promise<void> {
     throw new Error(`Backend did not start within ${timeoutMs}ms`)
 }
 
-export const test = base.extend<{}, { backend: BackendFixture }>({
+export const test = base.extend<
+    {},
+    { backendPort: number; backend: BackendFixture }
+>({
+    backendPort: [DEFAULT_BACKEND_PORT, { scope: 'worker', option: true }],
     backend: [
-        async ({}, use) => {
+        async ({ backendPort }, use) => {
             const dataDir = mkdtempSync(join(tmpdir(), 'finanze-e2e-'))
-            const backendUrl = `http://localhost:${BACKEND_PORT}`
+            const backendUrl = `http://localhost:${backendPort}`
 
             const proc: ChildProcess = spawn(
                 'python',
@@ -38,7 +42,7 @@ export const test = base.extend<{}, { backend: BackendFixture }>({
                     '-m',
                     'finanze',
                     '--port',
-                    String(BACKEND_PORT),
+                    String(backendPort),
                     '--data-dir',
                     dataDir,
                     '--log-level',

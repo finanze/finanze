@@ -24,9 +24,17 @@ export default defineConfig({
         },
         {
             name: 'main',
-            testIgnore: /signup\.spec\.ts/,
+            testIgnore: /signup\.spec\.ts|cloud-restore\.spec\.ts/,
             dependencies: ['setup'],
             use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'cloud-restore',
+            testMatch: /cloud-restore\.spec\.ts/,
+            use: {
+                ...devices['Desktop Chrome'],
+                backendPort: 7693,
+            },
         },
     ],
 
