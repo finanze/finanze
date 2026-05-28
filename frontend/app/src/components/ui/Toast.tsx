@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { motion } from "framer-motion"
 
 interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "success" | "warning" | "error"
+  variant?: "success" | "warning" | "error" | "info"
   onClose?: () => void
   isAnimating?: boolean
   bottomOffsetClassName?: string
@@ -37,6 +37,8 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
               variant === "error",
             "warning group border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-900 dark:border-amber-800 dark:text-amber-100":
               variant === "warning",
+            "info group border-border bg-card text-card-foreground":
+              variant === "info",
           },
           className,
         )}

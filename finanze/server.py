@@ -747,6 +747,7 @@ class FinanzeServer:
 
         save_backup_settings = SaveBackupSettingsImpl(
             backup_settings_port=cloud_register,
+            cloud_register=cloud_register,
         )
 
         self._log.info("Initial component setup completed.")

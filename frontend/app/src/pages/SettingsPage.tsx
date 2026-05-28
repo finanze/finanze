@@ -177,7 +177,11 @@ export default function SettingsPage() {
                 <Cloud
                   className={cn(
                     "h-4 w-4",
-                    role === CloudRole.PLUS ? "text-amber-400" : undefined,
+                    role === CloudRole.PLUS
+                      ? "text-amber-400"
+                      : role === CloudRole.BASIC
+                        ? "text-foreground"
+                        : undefined,
                   )}
                 />
                 {t.settings.cloud.tabTitle}

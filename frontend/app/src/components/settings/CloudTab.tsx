@@ -338,11 +338,13 @@ export function CloudTab() {
               <User className="h-5 w-5 text-primary" />
               <CardTitle>{t.settings.cloud.accountTitle}</CardTitle>
             </div>
-            {role === CloudRole.PLUS && (
+            {role === CloudRole.PLUS ? (
               <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
                 {t.settings.cloud.roles[role]}
               </Badge>
-            )}
+            ) : role === CloudRole.BASIC ? (
+              <Badge variant="outline">{t.settings.cloud.roles[role]}</Badge>
+            ) : null}
           </div>
           <CardDescription>{t.settings.cloud.description}</CardDescription>
         </CardHeader>
@@ -729,7 +731,6 @@ export function CloudTab() {
               isUploading={backupStatus.isUploading}
               isImporting={backupStatus.isImporting}
               isSyncing={backupStatus.isSyncing}
-              isCooldownActive={backupStatus.isCooldownActive}
               isSyncCooldownActive={backupStatus.isSyncCooldownActive}
               isConflict={backupStatus.isConflict}
               conflictImportTypes={backupStatus.conflictImportTypes}
@@ -741,6 +742,7 @@ export function CloudTab() {
               feedbackMessage={backupStatus.feedbackMessage}
               canCreateBackup={backupStatus.canCreateBackup}
               canImportBackup={backupStatus.canImportBackup}
+              canAutoSync={backupStatus.canAutoSync}
               handleUpload={backupStatus.handleUpload}
               handleImport={backupStatus.handleImport}
               runManualSync={backupStatus.runManualSync}

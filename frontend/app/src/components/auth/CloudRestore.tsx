@@ -200,7 +200,11 @@ export function CloudRestore({
         if (!result.idToken) {
           throw new Error("No ID token received from Google")
         }
-        await provider.signInWithIdToken("google", result.idToken)
+        await provider.signInWithIdToken(
+          "google",
+          result.idToken,
+          result.rawNonce,
+        )
       } else {
         const serverInfo = await getApiServerInfo()
         const callbackUrl = `${serverInfo.baseUrl}/oauth/callback`

@@ -331,7 +331,8 @@
   "toast": {
     "success": "Success",
     "warning": "Warning",
-    "error": "Error"
+    "error": "Error",
+    "info": "Info"
   },
   "login": {
     "enterCredentials": "Enter credentials for",
@@ -649,7 +650,7 @@
       "signedInAs": "Signed in as",
       "role": "Role",
       "roles": {
-        "NONE": "None",
+        "BASIC": "Basic",
         "PLUS": "＋ Plus"
       },
       "logout": "Sign out",
@@ -734,6 +735,8 @@
       "noBackupYet": "No backup yet",
       "pendingBackup": "Pending",
       "tooManyRequests": "Too many requests. Please wait a bit before retrying.",
+      "plusRequiredForMoreBackups": "Upgrade to {plus} for more frequent backups",
+      "plusRequiredForAutoSync": "Auto sync is a {plus} feature",
       "cooldownActive": "Please wait a moment before trying again.",
       "conflictRetry": "Sync conflict detected. Choose local or remote.",
       "transferFailed": "Could not connect to the backup server. Please try again later.",

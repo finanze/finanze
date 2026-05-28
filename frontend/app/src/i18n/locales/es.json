@@ -329,7 +329,8 @@
   "toast": {
     "success": "Operación exitosa",
     "warning": "Advertencia",
-    "error": "Error"
+    "error": "Error",
+    "info": "Info"
   },
   "login": {
     "enterCredentials": "Ingresa las credenciales de",
@@ -648,7 +649,7 @@
       "signedInAs": "Sesión iniciada como",
       "role": "Rol",
       "roles": {
-        "NONE": "Ninguno",
+        "BASIC": "Básico",
         "PLUS": "＋ Plus"
       },
       "logout": "Cerrar sesión",
@@ -733,6 +734,8 @@
       "noBackupYet": "Sin copia aún",
       "pendingBackup": "Pendiente",
       "tooManyRequests": "Demasiadas solicitudes. Espera un momento antes de reintentar.",
+      "plusRequiredForMoreBackups": "Mejora a {plus} para copias de seguridad más frecuentes",
+      "plusRequiredForAutoSync": "La sincronización automática es una función {plus}",
       "cooldownActive": "Espera un momento antes de intentar de nuevo.",
       "conflictRetry": "Conflicto detectado. Elige local o remoto.",
       "transferFailed": "No se pudo conectar con el servidor de copias. Inténtalo de nuevo más tarde.",

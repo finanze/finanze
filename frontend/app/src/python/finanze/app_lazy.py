@@ -440,4 +440,6 @@ class LazyComponents:
         self.del_tmpl = DeleteTemplateImpl(temp_repo)
         self.get_tmpl_fields = GetTemplateFieldsImpl()
 
-        self.save_bkp_settings = SaveBackupSettingsImpl(d.cloud_register)
+        self.save_bkp_settings = SaveBackupSettingsImpl(
+            d.cloud_register, d.cloud_register
+        )

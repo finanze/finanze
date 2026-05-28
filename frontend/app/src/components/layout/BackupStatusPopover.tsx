@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/Popover"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
+import { formatPlusMessage } from "@/components/ui/PlusMessage"
 import { BackupMode, SyncStatus } from "@/types"
 import { cn } from "@/lib/utils"
 import {
@@ -35,6 +37,7 @@ interface BackupStatusPopoverProps {
 
 export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
   const { t } = useI18n()
+  const { showToast } = useAppContext()
   const [isOpen, setIsOpen] = useState(false)
 
   const {
@@ -45,7 +48,6 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
     isManualMode,
     isLoading,
     isSyncing,
-    isCooldownActive,
     isSyncCooldownActive,
     isConflict,
     conflictImportTypes,
@@ -58,6 +60,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
     feedbackMessage,
     canCreateBackup,
     canImportBackup,
+    canAutoSync,
     handleUpload,
     handleImport,
     runManualSync,
@@ -184,13 +187,26 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                 type="button"
                 role="tab"
                 aria-selected={backupMode === BackupMode.AUTO}
-                onClick={() => setMode(BackupMode.AUTO)}
+                onClick={() => {
+                  if (!canAutoSync) {
+                    showToast(
+                      formatPlusMessage(
+                        t.settings.backup.plusRequiredForAutoSync,
+                      ),
+                      "info",
+                    )
+                    return
+                  }
+                  setMode(BackupMode.AUTO)
+                }}
                 disabled={isLoading || actionInFlight}
                 className={cn(
                   "h-7 rounded-full px-2 text-xs font-medium transition-colors",
-                  backupMode === BackupMode.AUTO
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground",
+                  !canAutoSync
+                    ? "text-amber-500"
+                    : backupMode === BackupMode.AUTO
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {t.settings.backup.modes[BackupMode.AUTO]}
@@ -293,10 +309,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                       className="flex-1 gap-1.5"
                       onClick={runManualSync}
                       disabled={
-                        !backupEnabled ||
-                        actionInFlight ||
-                        isCooldownActive ||
-                        isSyncCooldownActive
+                        !backupEnabled || actionInFlight || isSyncCooldownActive
                       }
                     >
                       <RefreshCw size={14} />
