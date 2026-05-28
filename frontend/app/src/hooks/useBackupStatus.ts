@@ -41,6 +41,7 @@ const BACKUP_CACHE_DURATION = 3 * 60_000
 const SKIP_FAST_CHECK_AFTER_REFRESH_MS = 10_000
 const AUTO_SYNC_INTERVAL_MS = 10 * 60_000
 const MANUAL_FAST_CHECK_INTERVAL_MS = 2.5 * 60_000
+const POST_SCRAPE_UPLOAD_DELAY_MS = 5_000
 const BACKUP_ERROR_BACKOFF_BASE_MS = 5_000
 const BACKUP_ERROR_BACKOFF_MAX_MS = 60_000
 
@@ -1011,6 +1012,66 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     canAutoSync,
     runAutoSync,
     fetchBackups,
+  ])
+
+  useEffect(() => {
+    if (!isInitialized || !hasBackupInfo || !backupEnabled) return
+    if (backupMode !== BackupMode.AUTO || !canAutoSync || !canCreateBackup)
+      return
+
+    const handleScrapesDone = () => {
+      const timeout = window.setTimeout(async () => {
+        if (globalAutoSyncInFlight || globalManualSyncInFlight) return
+        if (isConflictRef.current) return
+
+        try {
+          const info = normalizeBackupsInfo(await getBackupsInfo())
+          setBackups(info)
+          setPersistedBackupData(info)
+          const now = Date.now()
+          setLastBackupsFetchAt(now)
+          setPersistedLastFetchAt(now)
+          globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+
+          const toUpload = (
+            Object.entries(info.pieces) as Array<
+              [BackupFileType, FullBackupsInfo["pieces"][BackupFileType]]
+            >
+          )
+            .filter(
+              ([, p]) =>
+                p.status === SyncStatus.PENDING ||
+                p.status === SyncStatus.MISSING,
+            )
+            .map(([t]) => t as BackupFileType)
+
+          if (toUpload.length > 0) {
+            const result = await uploadBackup({ types: toUpload })
+            applySyncResult(result)
+          }
+        } catch {
+          // silently ignore — next auto-sync cycle will handle it
+        }
+      }, POST_SCRAPE_UPLOAD_DELAY_MS)
+
+      return () => window.clearTimeout(timeout)
+    }
+
+    window.addEventListener("auto-refresh-scrapes-complete", handleScrapesDone)
+    return () => {
+      window.removeEventListener(
+        "auto-refresh-scrapes-complete",
+        handleScrapesDone,
+      )
+    }
+  }, [
+    isInitialized,
+    hasBackupInfo,
+    backupEnabled,
+    backupMode,
+    canAutoSync,
+    canCreateBackup,
+    applySyncResult,
   ])
 
   const overallStatus = getOverallStatus(backups)

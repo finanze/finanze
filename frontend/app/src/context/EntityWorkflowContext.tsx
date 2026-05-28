@@ -1592,8 +1592,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       autoRefreshExecutedRef.current = true
       setPendingAutoRefreshCandidates([])
       setAutoRefreshCountdown(null)
-      remaining.forEach(({ entity, features }) => {
-        scrape(entity, features, { silent: true, avoidNewLogin: true })
+      const scrapePromises = remaining.map(({ entity, features }) =>
+        scrape(entity, features, { silent: true, avoidNewLogin: true }),
+      )
+      Promise.all(scrapePromises).then(() => {
+        window.dispatchEvent(new CustomEvent("auto-refresh-scrapes-complete"))
       })
       return
     }

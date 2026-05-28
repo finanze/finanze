@@ -27,6 +27,10 @@ export const config: Options.Testrunner = {
     ...sharedConfig,
     specFileRetries: 2,
     connectionRetryTimeout: 600_000,
+    mochaOpts: {
+        ui: 'bdd',
+        timeout: 300_000,
+    },
     services: [
         [
             'appium',
@@ -52,7 +56,7 @@ export const config: Options.Testrunner = {
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
             'appium:disableWindowAnimation': true,
-            'appium:appWaitDuration': 60_000,
+            'appium:appWaitDuration': 120_000,
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
             'appium:uiautomator2ServerLaunchTimeout': 90_000,
