@@ -8,7 +8,7 @@ import {
   useBackupStatus,
   resetBackupStatusCache,
 } from "@/hooks/useBackupStatus"
-import { BackupMode } from "@/types"
+import { BackupMode, CloudRole } from "@/types"
 
 const mockSetBackupMode = vi.fn()
 const mockRefreshData = vi.fn().mockResolvedValue(undefined)
@@ -17,15 +17,19 @@ const mockRefreshFlows = vi.fn().mockResolvedValue(undefined)
 const mockFetchEntities = vi.fn().mockResolvedValue(undefined)
 const mockFetchSettings = vi.fn().mockResolvedValue(undefined)
 const mockUpdateAlertStatus = vi.fn()
+export const mockShowToast = vi.fn()
 
 let currentBackupMode = BackupMode.MANUAL
+let currentPermissions = ["backup.info", "backup.create", "backup.import"]
+let currentRole: CloudRole = CloudRole.PLUS
 
 vi.mock("@/context/CloudContext", () => ({
   useCloud: () => ({
-    permissions: ["backup.info", "backup.create", "backup.import"],
+    permissions: currentPermissions,
     backupMode: currentBackupMode,
     setBackupMode: mockSetBackupMode,
     isInitialized: true,
+    role: currentRole,
   }),
 }))
 
@@ -57,6 +61,7 @@ vi.mock("@/context/AppContext", () => ({
   useAppContext: () => ({
     fetchEntities: mockFetchEntities,
     fetchSettings: mockFetchSettings,
+    showToast: mockShowToast,
     featureFlags: {},
     entities: [],
     settings: null,
@@ -86,6 +91,14 @@ vi.mock("@/services/api", async importOriginal => {
 
 export function setBackupMode(mode: BackupMode) {
   currentBackupMode = mode
+}
+
+export function setPermissions(perms: string[]) {
+  currentPermissions = perms
+}
+
+export function setRole(role: CloudRole) {
+  currentRole = role
 }
 
 function SingleInstanceUI() {
@@ -146,5 +159,8 @@ export function resetAllMocks() {
   mockFetchEntities.mockReset().mockResolvedValue(undefined)
   mockFetchSettings.mockReset().mockResolvedValue(undefined)
   mockUpdateAlertStatus.mockReset()
+  mockShowToast.mockReset()
   currentBackupMode = BackupMode.MANUAL
+  currentPermissions = ["backup.info", "backup.create", "backup.import"]
+  currentRole = CloudRole.PLUS
 }

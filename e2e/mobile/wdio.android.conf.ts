@@ -51,8 +51,6 @@ export const config: Options.Testrunner = {
             'appium:noReset': false,
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
-            'appium:ensureWebviewsHavePages': true,
-            'appium:webviewConnectTimeout': 30_000,
             'appium:disableWindowAnimation': true,
             'appium:appWaitDuration': 60_000,
             'appium:suppressKillServer': true,
