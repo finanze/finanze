@@ -25,10 +25,6 @@ const APP_PATH =
 
 export const config: Options.Testrunner = {
     ...sharedConfig,
-    mochaOpts: {
-        ...(sharedConfig.mochaOpts ?? {}),
-        timeout: 300_000,
-    },
     specFileRetries: 2,
     connectionRetryTimeout: 600_000,
     services: [
@@ -56,7 +52,9 @@ export const config: Options.Testrunner = {
             'appium:noReset': false,
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
-            'appium:ensureWebviewsHavePages': true,
+            'appium:ensureWebviewsHavePages': false,
+            'appium:enableWebviewDetailsCollection': false,
+            'appium:showChromedriverLog': true,
             'appium:disableWindowAnimation': true,
             'appium:appWaitDuration': 60_000,
             'appium:suppressKillServer': true,

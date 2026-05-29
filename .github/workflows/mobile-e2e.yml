@@ -361,10 +361,13 @@ jobs:
       - name: Show WDIO logs
         if: ${{ !cancelled() }}
         run: |
+          echo '=== WDIO Appium Log ==='
+          cat e2e/mobile/wdio-logs/wdio-appium.log 2>/dev/null | tail -300 || true
+          echo ''
           echo '=== WDIO Worker Logs ==='
-          for f in e2e/mobile/wdio-logs/wdio-*; do
+          for f in e2e/mobile/wdio-logs/wdio-0-0-*; do
             echo "--- $f ---"
-            tail -80 "$f" 2>/dev/null || true
+            cat "$f" 2>/dev/null | tail -100 || true
           done
 
       - name: Upload test results
