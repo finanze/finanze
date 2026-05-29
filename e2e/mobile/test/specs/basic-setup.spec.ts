@@ -10,7 +10,7 @@ const HEADING_XPATH = (text: string) =>
 
 describe('Basic Setup', () => {
     before(async () => {
-        await switchToWebView(90_000)
+        await switchToWebView()
         await driver.pause(500)
 
         const username = await $('#username')
