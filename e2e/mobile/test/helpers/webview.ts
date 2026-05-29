@@ -17,16 +17,6 @@ export async function switchToWebView(timeout = 120_000): Promise<void> {
     }
     if (!webviewName) throw new Error(`No WEBVIEW context found within ${timeout}ms`)
 
-    console.log(`[switchToWebView +${elapsed()}s] Waiting for app content in native context...`)
-    const remaining = Math.max(timeout - (Date.now() - start) - 10_000, 10_000)
-    try {
-        await $('//android.widget.EditText | //XCUIElementTypeTextField')
-            .waitForDisplayed({ timeout: remaining })
-        console.log(`[switchToWebView +${elapsed()}s] Native input found, app loaded`)
-    } catch {
-        console.log(`[switchToWebView +${elapsed()}s] No native input found, trying switch anyway`)
-    }
-
     console.log(`[switchToWebView +${elapsed()}s] Switching to ${webviewName}`)
     await driver.switchAppiumContext(webviewName)
     console.log(`[switchToWebView +${elapsed()}s] Context switch done`)

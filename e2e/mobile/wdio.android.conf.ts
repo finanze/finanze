@@ -25,6 +25,10 @@ const APP_PATH =
 
 export const config: Options.Testrunner = {
     ...sharedConfig,
+    mochaOpts: {
+        ...(sharedConfig.mochaOpts ?? {}),
+        timeout: 300_000,
+    },
     specFileRetries: 2,
     connectionRetryTimeout: 600_000,
     services: [

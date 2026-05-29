@@ -12,8 +12,7 @@ const log = (msg: string, start: number) =>
     console.log(`[${((Date.now() - start) / 1000).toFixed(1)}s] ${msg}`)
 
 describe('Basic Setup', () => {
-    before(async function () {
-        this.timeout(300_000)
+    before(async () => {
         const t0 = Date.now()
 
         await switchToWebView()
