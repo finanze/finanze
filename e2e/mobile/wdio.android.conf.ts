@@ -58,6 +58,6 @@ export const config: Options.Testrunner = {
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
             'appium:uiautomator2ServerLaunchTimeout': 90_000,
-        } as WebdriverIO.Capabilities,
+        },
     ],
-} as Options.Testrunner
+} satisfies Options.Testrunner
