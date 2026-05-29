@@ -267,7 +267,7 @@ jobs:
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
         run: |
           WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
-          WDA_DERIVED=$(dirname "$(dirname "$WDA_PROJECT")")
+          WDA_DERIVED=$(cd "$(dirname "$(dirname "$WDA_PROJECT")")" && pwd)
           echo "Building WDA from: $WDA_PROJECT"
           echo "Derived data path: $WDA_DERIVED"
           xcodebuild build-for-testing \
@@ -278,6 +278,8 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=0 \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | tail -30
+          echo "--- Build products ---"
+          find "$WDA_DERIVED/Build/Products" -name "*.app" -o -name "*.xctestrun" | head -10
 
       - name: Run iOS tests
         working-directory: e2e/mobile
@@ -286,6 +288,15 @@ jobs:
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
         run: pnpm test:ios
+
+      - name: Show WDIO logs
+        if: ${{ !cancelled() }}
+        run: |
+          echo '=== WDIO Worker Logs ==='
+          for f in e2e/mobile/wdio-logs/wdio-*; do
+            echo "--- $f ---"
+            tail -80 "$f" 2>/dev/null || true
+          done
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -346,6 +357,15 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+
+      - name: Show WDIO logs
+        if: ${{ !cancelled() }}
+        run: |
+          echo '=== WDIO Worker Logs ==='
+          for f in e2e/mobile/wdio-logs/wdio-*; do
+            echo "--- $f ---"
+            tail -80 "$f" 2>/dev/null || true
+          done
 
       - name: Upload test results
         if: ${{ !cancelled() }}

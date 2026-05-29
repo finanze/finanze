@@ -23,7 +23,7 @@ function findWDADerivedDataPath(): string | undefined {
             { encoding: 'utf-8', cwd: __dirname },
         ).trim()
         if (wdaProject) {
-            return dirname(dirname(wdaProject))
+            return join(__dirname, dirname(dirname(wdaProject)))
         }
     } catch {}
     return undefined
