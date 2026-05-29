@@ -51,7 +51,10 @@ export const config: Options.Testrunner = {
             'appium:fullReset': true,
             'appium:noReset': false,
             ...(process.env.CHROMEDRIVER_EXECUTABLE
-                ? { 'appium:chromedriverExecutable': process.env.CHROMEDRIVER_EXECUTABLE }
+                ? {
+                      'appium:chromedriverExecutable':
+                          process.env.CHROMEDRIVER_EXECUTABLE,
+                  }
                 : {}),
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
