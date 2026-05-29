@@ -41,6 +41,7 @@ export const config: Options.Testrunner = {
     capabilities: [
         {
             platformName: 'Android',
+            pageLoadStrategy: 'none',
             'appium:automationName': 'UiAutomator2',
             'appium:deviceName':
                 process.env.ANDROID_DEVICE_NAME || 'emulator-5554',
