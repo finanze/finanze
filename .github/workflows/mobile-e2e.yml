@@ -349,6 +349,18 @@ jobs:
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
 
+      - name: Pre-download Chromedriver
+        run: |
+          # API 35 google_apis ships with WebView 124 — update this if api-level changes
+          CHROMEDRIVER_VERSION=$(curl -sL "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_124")
+          echo "Downloading Chromedriver $CHROMEDRIVER_VERSION for WebView 124"
+          mkdir -p /tmp/chromedriver
+          curl -sL "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -o /tmp/chromedriver.zip
+          unzip -o /tmp/chromedriver.zip -d /tmp/chromedriver
+          chmod +x /tmp/chromedriver/chromedriver-linux64/chromedriver
+          /tmp/chromedriver/chromedriver-linux64/chromedriver --version
+          echo "CHROMEDRIVER_EXECUTABLE=/tmp/chromedriver/chromedriver-linux64/chromedriver" >> $GITHUB_ENV
+
       - name: Run Android tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -358,7 +370,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           disable-animations: true
           script: |
-            adb wait-for-device shell getprop sys.boot_completed | grep -q 1 && echo "Emulator is online"
+            adb wait-for-device shell getprop sys.boot_completed
             adb devices -l
             sleep 5
             cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android

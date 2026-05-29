@@ -50,6 +50,9 @@ export const config: Options.Testrunner = {
             'appium:allowTestPackages': true,
             'appium:fullReset': true,
             'appium:noReset': false,
+            ...(process.env.CHROMEDRIVER_EXECUTABLE
+                ? { 'appium:chromedriverExecutable': process.env.CHROMEDRIVER_EXECUTABLE }
+                : {}),
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
             'appium:ensureWebviewsHavePages': false,
