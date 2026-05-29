@@ -358,15 +358,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           disable-animations: true
           script: |
-            echo "Verifying emulator stability..."
-            for i in 1 2 3 4 5; do
-              if adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; then
-                echo "Emulator is online (check $i/5)"
-                break
-              fi
-              echo "Waiting for emulator to stabilize (check $i/5)..."
-              sleep 3
-            done
+            adb wait-for-device shell getprop sys.boot_completed | grep -q 1 && echo "Emulator is online"
             adb devices -l
             sleep 5
             cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
