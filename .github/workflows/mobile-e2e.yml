@@ -355,12 +355,21 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
-          ram-size: 4096M
-          heap-size: 512M
-          disk-size: 8G
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           disable-animations: true
-          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+          script: |
+            echo "Verifying emulator stability..."
+            for i in 1 2 3 4 5; do
+              if adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; then
+                echo "Emulator is online (check $i/5)"
+                break
+              fi
+              echo "Waiting for emulator to stabilize (check $i/5)..."
+              sleep 3
+            done
+            adb devices -l
+            sleep 5
+            cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
 
       - name: Show WDIO logs
         if: ${{ !cancelled() }}

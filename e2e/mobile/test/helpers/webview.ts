@@ -30,8 +30,20 @@ export async function switchToWebView(timeout = 120_000): Promise<void> {
     }
 
     console.log(`[switchToWebView +${elapsed()}s] Switching to ${webviewName}`)
-    await driver.switchAppiumContext(webviewName)
-    console.log(`[switchToWebView +${elapsed()}s] Context switch done`)
+    const maxAttempts = driver.isAndroid ? 3 : 1
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            console.log(`[switchToWebView +${elapsed()}s] Context switch attempt ${attempt}/${maxAttempts}`)
+            await driver.switchAppiumContext(webviewName!)
+            console.log(`[switchToWebView +${elapsed()}s] Context switch done`)
+            return
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            console.log(`[switchToWebView +${elapsed()}s] Attempt ${attempt} failed: ${msg}`)
+            if (attempt === maxAttempts) throw e
+            await driver.pause(3_000)
+        }
+    }
 }
 
 export async function switchToNative(): Promise<void> {
