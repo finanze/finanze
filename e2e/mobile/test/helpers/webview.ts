@@ -1,24 +1,35 @@
-export async function switchToWebView(timeout = 60_000): Promise<void> {
+export async function switchToWebView(timeout = 120_000): Promise<void> {
     const currentContext = await driver.getAppiumContext()
     if (typeof currentContext === 'string' && currentContext.startsWith('WEBVIEW')) {
         return
     }
 
+    const elapsed = () => ((Date.now() - start) / 1000).toFixed(1)
     const start = Date.now()
+
+    let webviewName: string | undefined
     while (Date.now() - start < timeout) {
         const contexts = await driver.getAppiumContexts()
-        console.log(`[switchToWebView +${((Date.now() - start) / 1000).toFixed(1)}s] contexts: ${JSON.stringify(contexts)}`)
-        const webview = (contexts as string[]).find((c) =>
-            c.startsWith('WEBVIEW'),
-        )
-        if (webview) {
-            console.log(`[switchToWebView] switching to ${webview}`)
-            await driver.switchAppiumContext(webview)
-            return
-        }
+        console.log(`[switchToWebView +${elapsed()}s] contexts: ${JSON.stringify(contexts)}`)
+        webviewName = (contexts as string[]).find((c) => c.startsWith('WEBVIEW'))
+        if (webviewName) break
         await driver.pause(2_000)
     }
-    throw new Error(`No WEBVIEW context found within ${timeout}ms`)
+    if (!webviewName) throw new Error(`No WEBVIEW context found within ${timeout}ms`)
+
+    console.log(`[switchToWebView +${elapsed()}s] Waiting for app content in native context...`)
+    const remaining = Math.max(timeout - (Date.now() - start) - 10_000, 10_000)
+    try {
+        await $('//android.widget.EditText | //XCUIElementTypeTextField')
+            .waitForDisplayed({ timeout: remaining })
+        console.log(`[switchToWebView +${elapsed()}s] Native input found, app loaded`)
+    } catch {
+        console.log(`[switchToWebView +${elapsed()}s] No native input found, trying switch anyway`)
+    }
+
+    console.log(`[switchToWebView +${elapsed()}s] Switching to ${webviewName}`)
+    await driver.switchAppiumContext(webviewName)
+    console.log(`[switchToWebView +${elapsed()}s] Context switch done`)
 }
 
 export async function switchToNative(): Promise<void> {
