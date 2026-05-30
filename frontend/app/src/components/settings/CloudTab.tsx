@@ -818,6 +818,7 @@ export function CloudTab() {
               canCreateBackup={backupStatus.canCreateBackup}
               canImportBackup={backupStatus.canImportBackup}
               canAutoSync={backupStatus.canAutoSync}
+              showAutoMode={backupStatus.showAutoMode}
               handleUpload={backupStatus.handleUpload}
               handleImport={backupStatus.handleImport}
               runManualSync={backupStatus.runManualSync}

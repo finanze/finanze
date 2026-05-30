@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
-import { formatPlusMessage } from "@/components/ui/PlusMessage"
+import { formatPlusToast } from "@/components/ui/PlusMessage"
 import {
   BackupFileType,
   BackupMode,
@@ -102,6 +102,7 @@ interface BackupStatusContentProps {
   canCreateBackup: boolean
   canImportBackup: boolean
   canAutoSync: boolean
+  showAutoMode: boolean
   handleUpload: (types: BackupFileType[]) => Promise<void>
   handleImport: (types: BackupFileType[]) => Promise<void>
   runManualSync: () => Promise<void>
@@ -131,6 +132,7 @@ export function BackupStatusContent({
   canCreateBackup,
   canImportBackup,
   canAutoSync,
+  showAutoMode,
   handleUpload,
   handleImport,
   runManualSync,
@@ -138,9 +140,9 @@ export function BackupStatusContent({
   className,
 }: BackupStatusContentProps) {
   const { t } = useI18n()
-  const { showToast } = useAppContext()
+  const { showToast, featureFlags } = useAppContext()
 
-  const backupModeOptions: BackupModeOption[] = [
+  const allBackupModeOptions: BackupModeOption[] = [
     {
       value: BackupMode.OFF,
       label: t.settings.backup.modes.OFF,
@@ -158,6 +160,10 @@ export function BackupStatusContent({
     },
   ]
 
+  const backupModeOptions = showAutoMode
+    ? allBackupModeOptions
+    : allBackupModeOptions.filter(o => o.value !== BackupMode.AUTO)
+
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {showModeSelector && (
@@ -171,12 +177,14 @@ export function BackupStatusContent({
                     key={value}
                     onClick={() => {
                       if (isAutoLocked) {
-                        showToast(
-                          formatPlusMessage(
-                            t.settings.backup.plusRequiredForAutoSync,
-                          ),
-                          "info",
+                        const msg = formatPlusToast(
+                          t.settings.backup.plusRequiredForAutoSync,
+                          featureFlags.PLUS,
+                          t.settings.backup.plusJoinMessage,
+                          t.settings.backup.plusJoinEmailSubject,
+                          t.settings.backup.plusJoinEmailBody,
                         )
+                        if (msg) showToast(msg, "info")
                         return
                       }
                       setBackupMode(value)

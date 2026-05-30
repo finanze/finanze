@@ -15,7 +15,7 @@ import {
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { useI18n } from "@/i18n"
-import { formatPlusMessage } from "@/components/ui/PlusMessage"
+import { formatPlusToast } from "@/components/ui/PlusMessage"
 
 function getErrorCode(error: unknown): string | null {
   if (error instanceof ApiErrorException) {
@@ -194,7 +194,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const { permissions, backupMode, setBackupMode, isInitialized, role } =
     useCloud()
   const { refreshData, refreshRealEstate, refreshFlows } = useFinancialData()
-  const { fetchEntities, fetchSettings, showToast } = useAppContext()
+  const { fetchEntities, fetchSettings, showToast, featureFlags } =
+    useAppContext()
   const { updateAlertStatus } = useBackupAlertUpdater()
 
   const backupEnabled = backupMode !== BackupMode.OFF
@@ -343,6 +344,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const canCreateBackup = permissions.includes("backup.create")
   const canImportBackup = permissions.includes("backup.import")
   const canAutoSync = permissions.includes("backup.auto")
+  const showAutoMode = featureFlags.PLUS !== "OFF" || canAutoSync
 
   const applySyncResult = useCallback((result: BackupSyncResult) => {
     setBackups(prev => {
@@ -611,10 +613,14 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       if (errorCode === "TOO_MANY_REQUESTS") {
         setStatusMessage(t.settings.backup.tooManyRequests)
         if (role !== CloudRole.PLUS) {
-          showToast(
-            formatPlusMessage(t.settings.backup.plusRequiredForMoreBackups),
-            "info",
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
           )
+          if (msg) showToast(msg, "info")
         }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
@@ -682,10 +688,14 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       if (errorCode === "TOO_MANY_REQUESTS") {
         setStatusMessage(t.settings.backup.tooManyRequests)
         if (role !== CloudRole.PLUS) {
-          showToast(
-            formatPlusMessage(t.settings.backup.plusRequiredForMoreBackups),
-            "info",
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
           )
+          if (msg) showToast(msg, "info")
         }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
@@ -764,10 +774,14 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       if (errorCode === "TOO_MANY_REQUESTS") {
         setStatusMessage(t.settings.backup.tooManyRequests)
         if (role !== CloudRole.PLUS) {
-          showToast(
-            formatPlusMessage(t.settings.backup.plusRequiredForMoreBackups),
-            "info",
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
           )
+          if (msg) showToast(msg, "info")
         }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
@@ -1107,6 +1121,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     canCreateBackup,
     canImportBackup,
     canAutoSync,
+    showAutoMode,
     handleUpload,
     handleImport,
     runManualSync,
