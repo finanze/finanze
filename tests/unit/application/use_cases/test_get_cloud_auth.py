@@ -46,7 +46,7 @@ class TestGetCloudAuthReturnsData:
         assert result.token.access_token == "access123"
 
     @pytest.mark.asyncio
-    async def test_returns_auth_data_with_none_role(self):
+    async def test_returns_auth_data_with_basic_role(self):
         token = CloudAuthToken(
             access_token="tok",
             refresh_token="ref",
@@ -54,7 +54,7 @@ class TestGetCloudAuthReturnsData:
             expires_at=0,
         )
         auth_data = CloudAuthData(
-            role=CloudUserRole.NONE,
+            role=CloudUserRole.BASIC,
             permissions=[],
             token=token,
             email="nobody@example.com",
@@ -66,5 +66,5 @@ class TestGetCloudAuthReturnsData:
         result = await use_case.execute()
 
         assert result is auth_data
-        assert result.role == CloudUserRole.NONE
+        assert result.role == CloudUserRole.BASIC
         assert result.permissions == []

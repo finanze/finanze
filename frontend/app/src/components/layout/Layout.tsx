@@ -157,7 +157,9 @@ function LayoutContent({ children }: LayoutProps) {
                 ? "error"
                 : toast.type === "warning"
                   ? "warning"
-                  : "success"
+                  : toast.type === "info"
+                    ? "info"
+                    : "success"
             }
             bottomOffsetClassName={
               isNarrowView
@@ -171,7 +173,9 @@ function LayoutContent({ children }: LayoutProps) {
                 ? t.toast.success
                 : toast.type === "warning"
                   ? t.toast.warning
-                  : t.toast.error}
+                  : toast.type === "info"
+                    ? t.toast.info
+                    : t.toast.error}
             </div>
             <div className="text-sm mt-1">{toast.message}</div>
           </Toast>

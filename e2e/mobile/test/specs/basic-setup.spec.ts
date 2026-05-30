@@ -8,13 +8,19 @@ import {
 const HEADING_XPATH = (text: string) =>
     `//*[self::h1 or self::h2 or self::h3 or self::h4][contains(text(),"${text}")]`
 
+const log = (msg: string, start: number) =>
+    console.log(`[${((Date.now() - start) / 1000).toFixed(1)}s] ${msg}`)
+
 describe('Basic Setup', () => {
     before(async () => {
+        const t0 = Date.now()
+
         await switchToWebView()
-        await driver.pause(500)
+        log('switchToWebView done', t0)
 
         const username = await $('#username')
         await username.waitForDisplayed({ timeout: 30_000 })
+        log('#username visible', t0)
 
         await $('#username').setValue(TEST_USER)
         const password = await $('#password')
@@ -26,6 +32,7 @@ describe('Basic Setup', () => {
         const submitBtn = await $('button[type="submit"]')
         await submitBtn.waitForClickable({ timeout: 5_000 })
         await submitBtn.click()
+        log('signup submitted', t0)
 
         await browser.waitUntil(
             async () => {
@@ -37,9 +44,11 @@ describe('Basic Setup', () => {
                 timeoutMsg: 'URL still contains /login after signup',
             },
         )
+        log('navigated away from /login', t0)
 
         const summary = await $(HEADING_XPATH('Summary'))
         await summary.waitForDisplayed({ timeout: 10_000 })
+        log('Summary heading visible', t0)
 
         const moreBtn = await $('button[aria-label="More"]')
         await moreBtn.waitForDisplayed({ timeout: 5_000 })
@@ -55,6 +64,7 @@ describe('Basic Setup', () => {
 
         const passwordField = await $('#password')
         await passwordField.waitForDisplayed({ timeout: 10_000 })
+        log('before hook complete', t0)
     })
 
     it('login after logout shows dashboard', async () => {

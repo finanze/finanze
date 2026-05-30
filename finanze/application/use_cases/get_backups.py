@@ -1,6 +1,8 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
+
+from dateutil.tz import tzlocal
 
 from application.ports.backup_local_registry import BackupLocalRegistry
 from application.ports.backup_repository import BackupRepository
@@ -16,11 +18,22 @@ from domain.backup import (
     BackupsInfo,
     BackupInfoParams,
 )
-from domain.cloud_auth import CloudAuthData, CloudAuthToken, CloudPermission
+from domain.cloud_auth import (
+    CloudAuthData,
+    CloudAuthToken,
+    CloudPermission,
+    CloudUserRole,
+)
+from domain.exception.exceptions import TooManyRequests
 from domain.use_cases.get_backups import GetBackups
 
 
 class GetBackupsImpl(GetBackups):
+    GET_INFO_COOLDOWN_MINUTES = {
+        CloudUserRole.PLUS: 0,
+        CloudUserRole.BASIC: 60,
+    }
+
     def __init__(
         self,
         backupable_ports: dict[BackupFileType, Backupable],
@@ -32,6 +45,7 @@ class GetBackupsImpl(GetBackups):
         self._backup_repository = backup_repository
         self._backup_local_registry = backup_local_registry
         self._cloud_register = cloud_register
+        self._last_remote_fetch: datetime | None = None
 
         self._log = logging.getLogger(__name__)
 
@@ -60,9 +74,13 @@ class GetBackupsImpl(GetBackups):
             local_bkg_info = await self._backup_local_registry.get_info()
         remote_bkg_info = BackupsInfo(pieces={})
         if not request.only_local:
+            if not cloud_token:
+                self._check_info_cooldown(user_auth.role)
             remote_bkg_info = await self._backup_repository.get_info(
                 BackupInfoParams(auth=user_auth)
             )
+            if not cloud_token:
+                self._last_remote_fetch = datetime.now(tzlocal())
 
         full_backup_pieces = {}
 
@@ -102,6 +120,24 @@ class GetBackupsImpl(GetBackups):
             )
 
         return FullBackupsInfo(pieces=full_backup_pieces)
+
+    def _check_info_cooldown(self, role: CloudUserRole):
+        cooldown_minutes = self.GET_INFO_COOLDOWN_MINUTES.get(role, 0)
+        if cooldown_minutes <= 0 or self._last_remote_fetch is None:
+            return
+        now = datetime.now(tzlocal())
+        cooldown_delta = timedelta(minutes=cooldown_minutes)
+        elapsed = now - self._last_remote_fetch
+        if elapsed < cooldown_delta:
+            remaining_seconds = int((cooldown_delta - elapsed).total_seconds())
+            self._log.debug(
+                "Get info blocked: last remote fetch was %s seconds ago, cooldown is %s minutes",
+                int(elapsed.total_seconds()),
+                cooldown_minutes,
+            )
+            raise TooManyRequests(
+                f"Please wait {remaining_seconds} seconds before checking backup status"
+            )
 
     @staticmethod
     def _status_for_both_exist(

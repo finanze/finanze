@@ -266,7 +266,7 @@ class TestDecodeToken:
         assert result.permissions == ["backup.info", "backup.create"]
 
     @pytest.mark.asyncio
-    async def test_decode_token_defaults_role_to_none(self, register, tmp_path):
+    async def test_decode_token_defaults_role_to_basic(self, register, tmp_path):
         user = _make_user(tmp_path)
         await register.connect(user)
 
@@ -274,10 +274,12 @@ class TestDecodeToken:
         jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
         result = await register.decode_token(jwt_token)
 
-        assert result.role == CloudUserRole.NONE
+        assert result.role == CloudUserRole.BASIC
 
     @pytest.mark.asyncio
-    async def test_decode_token_invalid_role_defaults_to_none(self, register, tmp_path):
+    async def test_decode_token_invalid_role_defaults_to_basic(
+        self, register, tmp_path
+    ):
         user = _make_user(tmp_path)
         await register.connect(user)
 
@@ -285,7 +287,7 @@ class TestDecodeToken:
         jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
         result = await register.decode_token(jwt_token)
 
-        assert result.role == CloudUserRole.NONE
+        assert result.role == CloudUserRole.BASIC
 
     @pytest.mark.asyncio
     async def test_decode_token_missing_email_raises(self, register, tmp_path):

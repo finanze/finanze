@@ -71,8 +71,8 @@ interface AppContextType {
   isLoadingEntities: boolean
   featureFlags: FeatureFlags
   toast: {
-    message: string
-    type: "success" | "error" | "warning" | null
+    message: React.ReactNode
+    type: "success" | "error" | "warning" | "info" | null
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
@@ -90,7 +90,10 @@ interface AppContextType {
   updateEntityLastFetch: (entityId: string, features: string[]) => void
   updateEntityVirtualFeatures: (entityId: string, features: string[]) => void
   updateEntityAccount: (entityId: string, accountId: string) => void
-  showToast: (message: string, type: "success" | "error" | "warning") => void
+  showToast: (
+    message: React.ReactNode,
+    type: "success" | "error" | "warning" | "info",
+  ) => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
   saveSettings: (
@@ -211,8 +214,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getFeatureFlags(),
   )
   const [toast, setToast] = useState<{
-    message: string
-    type: "success" | "error" | "warning" | null
+    message: React.ReactNode
+    type: "success" | "error" | "warning" | "info" | null
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
@@ -249,7 +252,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   const showToast = useCallback(
-    (message: string, type: "success" | "error" | "warning") => {
+    (
+      message: React.ReactNode,
+      type: "success" | "error" | "warning" | "info",
+    ) => {
       setToast({ message, type })
       setTimeout(
         () => {
