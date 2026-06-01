@@ -142,6 +142,7 @@ from application.use_cases.get_crypto_wallet_addresses import (
     GetCryptoWalletAddressesImpl,
 )
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
+from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
@@ -344,16 +345,21 @@ async def app(tmp_path):
         transaction_handler_port,
         public_key_derivation,
     )
-    update_position_uc = UpdatePositionImpl(
-        entity_port=entity_port,
+    manual_position_snapshot_writer = ManualPositionSnapshotWriter(
         position_port=position_port,
         manual_position_data_port=manual_position_data_port,
         virtual_import_registry=virtual_import_registry,
+        real_estate_port=real_estate_repo,
+        loan_calculator=loan_calculator,
+    )
+    update_position_uc = UpdatePositionImpl(
+        entity_port=entity_port,
+        position_port=position_port,
         crypto_asset_registry_port=crypto_asset_registry_port,
         crypto_asset_info_provider=crypto_asset_info_provider,
         transaction_handler_port=transaction_handler_port,
-        real_estate_port=real_estate_repo,
-        loan_calculator=loan_calculator,
+        virtual_import_registry=virtual_import_registry,
+        snapshot_writer=manual_position_snapshot_writer,
     )
     add_manual_transaction_uc = AddManualTransactionImpl(
         entity_port,

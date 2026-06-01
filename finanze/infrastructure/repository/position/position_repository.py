@@ -1483,18 +1483,6 @@ class PositionSQLRepository(PositionPort):
                 source=DataSource(row["source"]),
             )
 
-    async def update_market_value(
-        self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
-    ):
-        if product_type == ProductType.STOCK_ETF:
-            sql = PositionQueries.UPDATE_STOCK_MARKET_VALUE
-        elif product_type == ProductType.FUND:
-            sql = PositionQueries.UPDATE_FUND_MARKET_VALUE
-        else:
-            return
-        async with self._db_client.tx() as cursor:
-            await cursor.execute(sql, (str(market_value), str(entry_id)))
-
     def _row_to_loan(self, row) -> Loan:
         return Loan(
             id=UUID(row["id"]),

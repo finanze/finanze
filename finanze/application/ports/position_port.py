@@ -11,7 +11,6 @@ from domain.global_position import (
     GlobalPosition,
     Loan,
     PositionQueryRequest,
-    ProductType,
     StockDetail,
 )
 
@@ -53,12 +52,6 @@ class PositionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def update_market_value(
-        self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
-    ):
         raise NotImplementedError
 
     @abc.abstractmethod

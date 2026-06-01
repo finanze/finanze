@@ -353,11 +353,6 @@ class PositionQueries(str, Enum):
         WHERE f.id = ?
     """
 
-    UPDATE_STOCK_MARKET_VALUE = (
-        "UPDATE stock_positions SET market_value = ? WHERE id = ?"
-    )
-    UPDATE_FUND_MARKET_VALUE = "UPDATE fund_positions SET market_value = ? WHERE id = ?"
-
     # --- Stale reference migration ---
 
     GET_LATEST_REAL_POSITION_ID_FOR_ENTITY_ACCOUNT = """
