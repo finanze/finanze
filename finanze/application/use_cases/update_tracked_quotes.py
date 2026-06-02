@@ -8,16 +8,21 @@ from uuid import UUID, uuid4
 from dateutil.tz import tzlocal
 
 from application.ports.exchange_rate_provider import ExchangeRateProvider
+from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.instrument_info_provider import InstrumentInfoProvider
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
 from domain.dezimal import Dezimal
+from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict
+from domain.exchange_rate import ExchangeRates
 from domain.global_position import (
+    CryptoCurrencyPosition,
     DataSource,
     EquityType,
     FundType,
@@ -27,6 +32,7 @@ from domain.global_position import (
 )
 from domain.instrument import InstrumentDataRequest, InstrumentInfo, InstrumentType
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
+from domain.virtual_data import VirtualDataSource
 
 _TRACKABLE_PRODUCTS = (ProductType.STOCK_ETF, ProductType.FUND)
 
@@ -38,6 +44,8 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         manual_position_data_port: ManualPositionDataPort,
         instrument_info_provider: InstrumentInfoProvider,
         exchange_rate_provider: ExchangeRateProvider,
+        exchange_rate_storage: ExchangeRateStorage,
+        virtual_import_registry: VirtualImportRegistry,
         snapshot_writer: ManualPositionSnapshotWriter,
         transaction_handler_port: TransactionHandlerPort,
     ):
@@ -45,6 +53,8 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         self._manual_position_data_port = manual_position_data_port
         self._instrument_info_provider = instrument_info_provider
         self._exchange_rate_provider = exchange_rate_provider
+        self._exchange_rate_storage = exchange_rate_storage
+        self._virtual_import_registry = virtual_import_registry
         self._snapshot_writer = snapshot_writer
         self._transaction_handler_port = transaction_handler_port
 
@@ -57,23 +67,38 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
 
         async with self._lock:
             trackable_entries = await self._manual_position_data_port.get_trackable()
-            if not trackable_entries:
-                return
-
-            self._log.info(
-                "Updating tracked quotes for %d entries", len(trackable_entries)
-            )
-
-            fiat_matrix = await self._exchange_rate_provider.get_matrix()
-
             grouped: dict[UUID, list[ManualPositionData]] = defaultdict(list)
             for mpd in trackable_entries:
                 grouped[mpd.global_position_id].append(mpd)
 
-            for global_position_id, entries in grouped.items():
+            crypto_position_ids = await self._get_manual_crypto_position_ids()
+
+            if not grouped and not crypto_position_ids:
+                return
+
+            self._log.info(
+                "Updating tracked quotes for %d instrument positions and %d crypto positions",
+                len(grouped),
+                len(crypto_position_ids),
+            )
+
+            fiat_matrix = (
+                await self._exchange_rate_provider.get_matrix() if grouped else None
+            )
+            crypto_matrix = (
+                await self._exchange_rate_storage.get() if crypto_position_ids else None
+            )
+
+            refresh_ids = set(grouped.keys()) | crypto_position_ids
+            for global_position_id in refresh_ids:
                 try:
                     await self._refresh_position(
-                        global_position_id, entries, fiat_matrix
+                        global_position_id,
+                        grouped.get(global_position_id, []),
+                        fiat_matrix,
+                        crypto_matrix
+                        if global_position_id in crypto_position_ids
+                        else None,
                     )
                 except Exception:
                     self._log.exception(
@@ -82,17 +107,38 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                     )
                     continue
 
+    async def _get_manual_crypto_position_ids(self) -> set[UUID]:
+        records = await self._virtual_import_registry.get_last_import_records(
+            VirtualDataSource.MANUAL
+        )
+        candidate_ids = {
+            record.global_position_id
+            for record in records
+            if record.feature == Feature.POSITION and record.global_position_id
+        }
+        if not candidate_ids:
+            return set()
+        return await self._position_port.get_manual_crypto_position_ids(
+            list(candidate_ids)
+        )
+
     async def _refresh_position(
         self,
         global_position_id: UUID,
         entries: list[ManualPositionData],
         fiat_matrix,
+        crypto_matrix: Optional[ExchangeRates],
     ):
         position = await self._position_port.get_by_id(global_position_id)
         if not position:
             return
 
-        changed = await self._apply_quote_updates(position, entries, fiat_matrix)
+        changed = False
+        if entries:
+            changed = await self._apply_quote_updates(position, entries, fiat_matrix)
+        if crypto_matrix is not None:
+            crypto_changed = self._apply_crypto_updates(position, crypto_matrix)
+            changed = changed or crypto_changed
         if not changed:
             return
 
@@ -102,6 +148,47 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
 
         async with self._transaction_handler_port.start():
             await self._snapshot_writer.write(position.entity, position)
+
+    def _apply_crypto_updates(
+        self,
+        position: GlobalPosition,
+        crypto_matrix: ExchangeRates,
+    ) -> bool:
+        container = position.products.get(ProductType.CRYPTO)
+        if not (container and getattr(container, "entries", None)):
+            return False
+
+        changed = False
+        for wallet in container.entries:
+            if wallet.id is not None:
+                continue
+            for asset in wallet.assets:
+                if asset.source != DataSource.MANUAL:
+                    continue
+                new_value = self._compute_crypto_market_value(asset, crypto_matrix)
+                if new_value is None:
+                    continue
+                if new_value != asset.market_value:
+                    asset.market_value = new_value
+                    changed = True
+
+        return changed
+
+    @staticmethod
+    def _compute_crypto_market_value(
+        asset: CryptoCurrencyPosition,
+        crypto_matrix: ExchangeRates,
+    ) -> Optional[Dezimal]:
+        if not asset.currency or asset.amount is None:
+            return None
+        rates = crypto_matrix.get(asset.currency)
+        if not rates:
+            return None
+        rate = rates.get(asset.symbol.upper())
+        if rate is None or rate == 0:
+            return None
+        price = Dezimal(1) / rate
+        return round(asset.amount * price, 2)
 
     async def _apply_quote_updates(
         self,

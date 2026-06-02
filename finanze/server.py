@@ -696,6 +696,8 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
+            exchange_rate_storage=exchange_rate_storage,
+            virtual_import_registry=virtual_import_registry,
             snapshot_writer=manual_position_snapshot_writer,
             transaction_handler_port=transaction_handler,
         )

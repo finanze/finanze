@@ -306,6 +306,8 @@ class DeferredComponents:
             self.manual_repo,
             self.inst_provider,
             self.ex_client,
+            ex_storage,
+            self.virtual_repo,
             manual_position_snapshot_writer,
             self.tx_handler,
         )

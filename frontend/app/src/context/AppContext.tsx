@@ -478,13 +478,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       now - lastCallTime >= QUOTES_UPDATE_INTERVAL_MS
     ) {
       try {
+        await fetchExchangeRatesSilently()
         await updateQuotesManualPositions()
         localStorage.setItem(LAST_UPDATE_QUOTES_KEY, now.toString())
       } catch (error) {
         console.error("Error updating manual positions quotes:", error)
       }
     }
-  }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
+  }, [
+    LAST_UPDATE_QUOTES_KEY,
+    QUOTES_UPDATE_INTERVAL_MS,
+    fetchExchangeRatesSilently,
+  ])
 
   const updateLoansIfNeeded = useCallback(async () => {
     const now = Date.now()

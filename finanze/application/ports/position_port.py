@@ -43,6 +43,12 @@ class PositionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_manual_crypto_position_ids(
+        self, position_ids: list[UUID]
+    ) -> set[UUID]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def delete_by_id(self, position_id: UUID):
         raise NotImplementedError
 

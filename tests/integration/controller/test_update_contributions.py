@@ -3,6 +3,7 @@ from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from dateutil.relativedelta import relativedelta
 
 from domain.auto_contributions import (
     AutoContributions,
@@ -620,7 +621,17 @@ class TestContributionEventsIntegration:
         entity_port.get_by_id = AsyncMock(return_value=entity)
         virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
 
-        entry = _contribution_entry(since="2026-01-01", frequency="MONTHLY")
+        # Monthly contribution starting on the 1st, well in the past, so its
+        # occurrences fall on the 1st of every month. The first occurrence is
+        # always the 1st of next month (strictly after today).
+        today = date.today()
+        since = date(today.year - 2, 1, 1)
+        first_occurrence = today.replace(day=1) + relativedelta(months=1)
+        # Window covering exactly 12 monthly occurrences.
+        from_date = first_occurrence
+        to_date = first_occurrence + relativedelta(months=11)
+
+        entry = _contribution_entry(since=since.isoformat(), frequency="MONTHLY")
         response = await client.post(CONTRIBUTIONS_URL, json={"entries": [entry]})
         assert response.status_code == 204
 
@@ -630,11 +641,11 @@ class TestContributionEventsIntegration:
         )
 
         response = await client.get(
-            f"{EVENTS_URL}?from_date=2026-05-01&to_date=2026-12-31"
+            f"{EVENTS_URL}?from_date={from_date.isoformat()}&to_date={to_date.isoformat()}"
         )
         body = await response.get_json()
         contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
-        assert len(contrib_events) >= 7
+        assert len(contrib_events) == 12
         dates = [e["date"] for e in contrib_events]
         assert len(set(dates)) == len(dates)
 
@@ -766,16 +777,28 @@ class TestContributionEventsIntegration:
         entity_port.get_by_id = AsyncMock(return_value=entity)
         virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
 
+        # Both monthly contributions start on the 1st, well in the past, so
+        # their occurrences fall on the 1st of every month.
+        today = date.today()
+        since = date(today.year - 2, 1, 1)
+        first_occurrence = today.replace(day=1) + relativedelta(months=1)
+        # Window covering exactly 3 monthly occurrences each.
+        from_date = first_occurrence
+        to_date = first_occurrence + relativedelta(months=2)
+
         entries = [
             _contribution_entry(
-                name="DCA ACME", target="ACME", since="2026-01-01", frequency="MONTHLY"
+                name="DCA ACME",
+                target="ACME",
+                since=since.isoformat(),
+                frequency="MONTHLY",
             ),
             _contribution_entry(
                 name="DCA BETA",
                 target="BETA",
                 target_name="Beta Corp",
                 amount="300.00",
-                since="2026-01-01",
+                since=since.isoformat(),
                 frequency="MONTHLY",
             ),
         ]
@@ -788,7 +811,7 @@ class TestContributionEventsIntegration:
         )
 
         response = await client.get(
-            f"{EVENTS_URL}?from_date=2026-05-01&to_date=2026-07-31"
+            f"{EVENTS_URL}?from_date={from_date.isoformat()}&to_date={to_date.isoformat()}"
         )
         body = await response.get_json()
         contrib_events = [e for e in body["events"] if e["type"] == "CONTRIBUTION"]
@@ -797,5 +820,5 @@ class TestContributionEventsIntegration:
         assert "DCA BETA" in names
         acme_events = [e for e in contrib_events if e["name"] == "DCA ACME"]
         beta_events = [e for e in contrib_events if e["name"] == "DCA BETA"]
-        assert len(acme_events) >= 2
-        assert len(beta_events) >= 2
+        assert len(acme_events) == 3
+        assert len(beta_events) == 3

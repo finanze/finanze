@@ -1422,6 +1422,20 @@ class PositionSQLRepository(PositionPort):
             await self._batch_load_all_products([position])
             return position
 
+    async def get_manual_crypto_position_ids(
+        self, position_ids: list[UUID]
+    ) -> set[UUID]:
+        if not position_ids:
+            return set()
+        ids = [str(pid) for pid in position_ids]
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_MANUAL_CRYPTO_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in ids)
+            )
+            await cursor.execute(sql, tuple(ids))
+            rows = await cursor.fetchall()
+            return {UUID(row["global_position_id"]) for row in rows}
+
     async def delete_by_id(self, position_id: UUID):
         async with self._db_client.tx() as cursor:
             await cursor.execute(

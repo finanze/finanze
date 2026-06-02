@@ -302,6 +302,12 @@ class PositionQueries(str, Enum):
         WHERE p.global_position_id IN ({placeholders})
     """
 
+    GET_MANUAL_CRYPTO_GLOBAL_POSITION_IDS = """
+        SELECT DISTINCT global_position_id
+        FROM crypto_currency_positions
+        WHERE wallet_id IS NULL AND global_position_id IN ({placeholders})
+    """
+
     GET_COMMODITIES_BY_GLOBAL_POSITION_IDS = (
         "SELECT * FROM commodity_positions WHERE global_position_id IN ({placeholders})"
     )
