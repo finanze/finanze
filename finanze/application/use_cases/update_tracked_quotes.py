@@ -31,6 +31,7 @@ from domain.global_position import (
     ProductType,
 )
 from domain.instrument import InstrumentDataRequest, InstrumentInfo, InstrumentType
+from domain.tracking import UpdateTrackedResult
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.virtual_data import VirtualDataSource
 
@@ -74,12 +75,28 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             crypto_position_ids = await self._get_manual_crypto_position_ids()
 
             if not grouped and not crypto_position_ids:
-                return
+                return UpdateTrackedResult(had_tracked=False)
+
+            fund_entries = sum(
+                1 for mpd in trackable_entries if mpd.product_type == ProductType.FUND
+            )
+            stock_etf_entries = sum(
+                1
+                for mpd in trackable_entries
+                if mpd.product_type == ProductType.STOCK_ETF
+            )
+            crypto_entries = await self._count_manual_crypto_entries(
+                crypto_position_ids
+            )
 
             self._log.info(
-                "Updating tracked quotes for %d instrument positions and %d crypto positions",
+                "Updating tracked quotes for %d instrument positions "
+                "(%d funds, %d stocks/etfs) and %d crypto positions (%d entries)",
                 len(grouped),
+                fund_entries,
+                stock_etf_entries,
                 len(crypto_position_ids),
+                crypto_entries,
             )
 
             fiat_matrix = (
@@ -89,23 +106,50 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                 await self._exchange_rate_storage.get() if crypto_position_ids else None
             )
 
+            changed_entities: set[UUID] = set()
+            changed_entries = 0
             refresh_ids = set(grouped.keys()) | crypto_position_ids
             for global_position_id in refresh_ids:
+                position_entries = grouped.get(global_position_id, [])
+                is_crypto = global_position_id in crypto_position_ids
                 try:
-                    await self._refresh_position(
+                    result = await self._refresh_position(
                         global_position_id,
-                        grouped.get(global_position_id, []),
+                        position_entries,
                         fiat_matrix,
-                        crypto_matrix
-                        if global_position_id in crypto_position_ids
-                        else None,
+                        crypto_matrix if is_crypto else None,
                     )
+                    if result is not None:
+                        entity_id, entry_count = result
+                        changed_entities.add(entity_id)
+                        changed_entries += entry_count
                 except Exception:
+                    tracker_keys = [
+                        mpd.data.tracker_key
+                        for mpd in position_entries
+                        if mpd.data and mpd.data.tracker_key
+                    ]
                     self._log.exception(
-                        "Failed updating tracked quotes for position %s",
+                        "Failed updating tracked quotes for position %s "
+                        "(crypto=%s, %d tracked entries, trackers=%s)",
                         global_position_id,
+                        is_crypto,
+                        len(position_entries),
+                        tracker_keys,
                     )
                     continue
+
+            self._log.info(
+                "Finished updating tracked quotes: had_tracked=%s, "
+                "%d changed entities, %d changed entries",
+                True,
+                len(changed_entities),
+                changed_entries,
+            )
+
+            return UpdateTrackedResult(
+                had_tracked=True, changed_entities=list(changed_entities)
+            )
 
     async def _get_manual_crypto_position_ids(self) -> set[UUID]:
         records = await self._virtual_import_registry.get_last_import_records(
@@ -122,25 +166,43 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             list(candidate_ids)
         )
 
+    async def _count_manual_crypto_entries(self, crypto_position_ids: set[UUID]) -> int:
+        count = 0
+        for global_position_id in crypto_position_ids:
+            position = await self._position_port.get_by_id(global_position_id)
+            if not position:
+                continue
+            container = position.products.get(ProductType.CRYPTO)
+            if not (container and getattr(container, "entries", None)):
+                continue
+            for wallet in container.entries:
+                if wallet.id is not None:
+                    continue
+                count += sum(
+                    1 for asset in wallet.assets if asset.source == DataSource.MANUAL
+                )
+        return count
+
     async def _refresh_position(
         self,
         global_position_id: UUID,
         entries: list[ManualPositionData],
         fiat_matrix,
         crypto_matrix: Optional[ExchangeRates],
-    ):
+    ) -> Optional[tuple[UUID, int]]:
         position = await self._position_port.get_by_id(global_position_id)
         if not position:
-            return
+            return None
 
-        changed = False
+        changed_entries = 0
         if entries:
-            changed = await self._apply_quote_updates(position, entries, fiat_matrix)
+            changed_entries += await self._apply_quote_updates(
+                position, entries, fiat_matrix
+            )
         if crypto_matrix is not None:
-            crypto_changed = self._apply_crypto_updates(position, crypto_matrix)
-            changed = changed or crypto_changed
-        if not changed:
-            return
+            changed_entries += self._apply_crypto_updates(position, crypto_matrix)
+        if not changed_entries:
+            return None
 
         position.id = uuid4()
         position.date = datetime.now(tzlocal())
@@ -149,16 +211,18 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         async with self._transaction_handler_port.start():
             await self._snapshot_writer.write(position.entity, position)
 
+        return position.entity.id, changed_entries
+
     def _apply_crypto_updates(
         self,
         position: GlobalPosition,
         crypto_matrix: ExchangeRates,
-    ) -> bool:
+    ) -> int:
         container = position.products.get(ProductType.CRYPTO)
         if not (container and getattr(container, "entries", None)):
-            return False
+            return 0
 
-        changed = False
+        changed = 0
         for wallet in container.entries:
             if wallet.id is not None:
                 continue
@@ -170,7 +234,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                     continue
                 if new_value != asset.market_value:
                     asset.market_value = new_value
-                    changed = True
+                    changed += 1
 
         return changed
 
@@ -195,13 +259,13 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         position: GlobalPosition,
         entries: list[ManualPositionData],
         fiat_matrix,
-    ) -> bool:
+    ) -> int:
         tracker_by_entry: dict[UUID, Optional[str]] = {
             mpd.entry_id: (mpd.data.tracker_key if mpd.data else None)
             for mpd in entries
         }
 
-        changed = False
+        changed = 0
         for product_type in _TRACKABLE_PRODUCTS:
             container = position.products.get(product_type)
             if not (container and getattr(container, "entries", None)):
@@ -216,7 +280,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                     continue
                 if new_value != entry.market_value:
                     entry.market_value = new_value
-                    changed = True
+                    changed += 1
 
         return changed
 

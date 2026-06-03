@@ -81,6 +81,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     updateEntityLastFetch,
     exchangeRates,
     exchangeRatesLoading,
+    setOnTrackedUpdateCompleted,
   } = useAppContext()
   const { setOnScrapeCompleted, setOnEntityDisconnected } = useEntityWorkflow()
 
@@ -336,6 +337,58 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     [entities, invalidateTransactionsCache, updateEntityLastFetch],
   )
 
+  const refreshEntitiesPositions = useCallback(
+    async (entityIds: string[]) => {
+      setError(null)
+
+      try {
+        const resolvedIds = new Set<string>()
+        for (const entityId of entityIds) {
+          if (entityId === "crypto") {
+            const cryptoEntities =
+              entities?.filter(
+                entity => entity.type === EntityType.CRYPTO_WALLET,
+              ) || []
+            cryptoEntities.forEach(entity => resolvedIds.add(entity.id))
+          } else {
+            resolvedIds.add(entityId)
+          }
+        }
+
+        if (resolvedIds.size === 0) {
+          return
+        }
+
+        const queryParams = { entities: Array.from(resolvedIds) }
+
+        const positionsResponse = await getPositions(
+          queryParams as PositionQueryRequest,
+        )
+
+        setPositionsData(prevPositions => {
+          if (!prevPositions) return positionsResponse
+
+          const updatedPositions = { ...prevPositions.positions }
+          for (const eid of queryParams.entities) {
+            if (!(eid in positionsResponse.positions)) {
+              delete updatedPositions[eid]
+            }
+          }
+          Object.assign(updatedPositions, positionsResponse.positions)
+
+          return {
+            ...prevPositions,
+            positions: updatedPositions,
+          }
+        })
+      } catch (err) {
+        console.error("Error refreshing tracked entities positions:", err)
+        setError(`Failed to refresh entity. Please try again.`)
+      }
+    },
+    [entities],
+  )
+
   useEffect(() => {
     // Only fetch financial data if entities are loaded, exchange rates are not loading and are available
     // and we haven't done the initial fetch yet
@@ -372,6 +425,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setOnEntityDisconnected(null)
     }
   }, [fetchAllFinancialData, setOnEntityDisconnected])
+
+  // Refresh only the affected entities after a tracked quotes/loans update
+  useEffect(() => {
+    setOnTrackedUpdateCompleted(refreshEntitiesPositions)
+    return () => {
+      setOnTrackedUpdateCompleted(null)
+    }
+  }, [refreshEntitiesPositions, setOnTrackedUpdateCompleted])
 
   return (
     <FinancialDataContext.Provider

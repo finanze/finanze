@@ -85,7 +85,9 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["hadTracked"] is True
 
         manual_position_data_port.update_tracking_ref.assert_awaited_once()
         ref_args = manual_position_data_port.update_tracking_ref.await_args
@@ -115,7 +117,9 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["changed"] is True
 
         position_port.update_loan_position.assert_awaited_once()
         call_kwargs = position_port.update_loan_position.await_args.kwargs
@@ -141,7 +145,7 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         position_port.update_loan_position.assert_awaited_once()
         call_kwargs = position_port.update_loan_position.await_args.kwargs
@@ -168,7 +172,7 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         position_port.update_loan_position.assert_awaited_once()
         call_kwargs = position_port.update_loan_position.await_args.kwargs
@@ -192,7 +196,9 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["changed"] is False
 
         position_port.update_loan_position.assert_not_awaited()
 
@@ -224,7 +230,7 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.side_effect = get_loan
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         assert position_port.update_loan_position.await_count == 1
         call_kwargs = position_port.update_loan_position.await_args.kwargs
@@ -258,7 +264,7 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan_monthly
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         position_port.update_loan_position.assert_awaited_once()
         kwargs_m = position_port.update_loan_position.await_args.kwargs
@@ -275,7 +281,7 @@ class TestUpdateTrackedLoans:
         position_port.get_loan_by_entry_id.return_value = loan_quarterly
 
         response = await client.post(URL)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
         position_port.update_loan_position.assert_awaited_once()
         kwargs_q = position_port.update_loan_position.await_args.kwargs

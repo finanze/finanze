@@ -425,6 +425,72 @@ async function loadLazyModules(): Promise<void> {
   await loadModulesFromManifest("/python/manifest_lazy.json")
 }
 
+async function installBackgroundRequirements(): Promise<void> {
+  if (!pyodide) throw new Error("Pyodide not initialized")
+
+  // The background worker skips the core install path that normally writes the
+  // requirement helper modules, so make sure they are present first.
+  const wheelsManifestResponse = await fetch("/python/wheels_manifest.py", {
+    cache: "no-store",
+  })
+  if (!wheelsManifestResponse.ok) {
+    const body = await wheelsManifestResponse.text().catch(() => "")
+    throw new Error(
+      `Failed to load /python/wheels_manifest.py: ${wheelsManifestResponse.status} ${wheelsManifestResponse.statusText}${body ? `\n${body}` : ""}. ` +
+        "Run: pnpm -C frontend/app build:python",
+    )
+  }
+  const wheelsManifestSource = await wheelsManifestResponse.text()
+
+  const response = await fetch("/python/mobile_requirements.py", {
+    cache: "no-store",
+  })
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    throw new Error(
+      `Failed to load /python/mobile_requirements.py: ${response.status} ${response.statusText}${body ? `\n${body}` : ""}`,
+    )
+  }
+  const source = await response.text()
+
+  pyodide.FS.mkdirTree("/python")
+  pyodide.FS.writeFile("/python/wheels_manifest.py", wheelsManifestSource)
+  pyodide.FS.writeFile("/python/mobile_requirements.py", source)
+
+  await pyodide.runPythonAsync(
+    [
+      "import sys",
+      'if "/python" not in sys.path: sys.path.append("/python")',
+      "import wheels_manifest",
+    ].join("\n"),
+  )
+
+  await pyodide.loadPackage("micropip")
+
+  await pyodide.runPythonAsync(
+    [
+      "from mobile_requirements import install_background",
+      "await install_background()",
+    ].join("\n"),
+  )
+}
+
+async function loadBackgroundModules(): Promise<void> {
+  if (!pyodide) throw new Error("Pyodide not initialized")
+
+  await loadModulesFromManifest("/python/manifest_background.json")
+
+  await pyodide.runPythonAsync(
+    [
+      "import sys",
+      'if "/python" not in sys.path: sys.path.insert(0, "/python")',
+      'if "/python/finanze" not in sys.path: sys.path.insert(0, "/python/finanze")',
+    ].join("\n"),
+  )
+
+  await pyodide.runPythonAsync("import init_background")
+}
+
 function registerWorkerBridge(): void {
   ;(self as any).window = self
 
@@ -596,6 +662,18 @@ result
 
     if (action === "loadLazyModules") {
       await loadLazyModules()
+      postResponse(id, true, { ok: true })
+      return
+    }
+
+    if (action === "installBackgroundRequirements") {
+      await installBackgroundRequirements()
+      postResponse(id, true, { ok: true })
+      return
+    }
+
+    if (action === "loadBackgroundModules") {
+      await loadBackgroundModules()
       postResponse(id, true, { ok: true })
       return
     }

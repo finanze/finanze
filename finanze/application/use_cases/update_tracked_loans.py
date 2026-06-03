@@ -1,6 +1,8 @@
 import logging
 from asyncio import Lock
 from datetime import date
+from typing import Optional
+from uuid import UUID
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
@@ -9,6 +11,7 @@ from application.ports.real_estate_port import RealEstatePort
 from domain.exception.exceptions import ExecutionConflict
 from domain.global_position import InterestType, ManualPositionData
 from domain.loan_calculator import LoanCalculationParams
+from domain.tracking import UpdateTrackedResult
 from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
 
 
@@ -35,28 +38,35 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
         async with self._lock:
             loan_entries = await self._manual_position_data_port.get_trackable_loans()
             if not loan_entries:
-                return
+                return UpdateTrackedResult(had_tracked=False)
 
             self._log.info("Updating tracked loans for %d entries", len(loan_entries))
 
+            changed_entities: set[UUID] = set()
             for mpd in loan_entries:
                 try:
-                    await self._update_loan(mpd)
+                    entity_id = await self._update_loan(mpd)
+                    if entity_id is not None:
+                        changed_entities.add(entity_id)
                 except Exception:
                     self._log.exception(
                         "Failed updating tracked loan for entry %s", mpd.entry_id
                     )
                     continue
 
-    async def _update_loan(self, mpd: ManualPositionData):
+            return UpdateTrackedResult(
+                had_tracked=True, changed_entities=list(changed_entities)
+            )
+
+    async def _update_loan(self, mpd: ManualPositionData) -> Optional[UUID]:
         entry_id = mpd.entry_id
         loan = await self._position_port.get_loan_by_entry_id(entry_id)
         if not loan:
-            return
+            return None
 
         today = date.today()
         if loan.maturity <= today:
-            return
+            return None
 
         ref_outstanding = mpd.data.tracking_ref_outstanding if mpd.data else None
         ref_date = mpd.data.tracking_ref_date if mpd.data else None
@@ -97,7 +107,7 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
             and (new_interests is None or new_interests == loan.installment_interests)
             and (new_next_date is None or new_next_date == loan.next_payment_date)
         ):
-            return
+            return None
 
         await self._position_port.update_loan_position(
             entry_id=entry_id,
@@ -109,3 +119,6 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
 
         loan.current_installment = new_installment
         await self._real_estate_port.sync_linked_loan_flows(loan)
+
+        position = await self._position_port.get_by_id(mpd.global_position_id)
+        return position.entity.id if position else None

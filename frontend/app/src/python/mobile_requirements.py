@@ -70,3 +70,24 @@ async def install_lazy() -> None:
     except Exception:
         traceback.print_exc()
         raise
+
+
+async def install_background() -> None:
+    print("Installing background mobile requirements...")
+    print(
+        "Installing BACKGROUND packages from local Pyodide + local wheels (offline)..."
+    )
+
+    try:
+        from wheels_manifest import (
+            LOCAL_WHEELS_BACKGROUND,
+            PYODIDE_PACKAGES_BACKGROUND,
+        )
+
+        micropip = await _ensure_micropip()
+        await micropip.install(PYODIDE_PACKAGES_BACKGROUND, keep_going=False)
+        await micropip.install(LOCAL_WHEELS_BACKGROUND, deps=False, keep_going=False)
+        print("Background packages installed.")
+    except Exception:
+        traceback.print_exc()
+        raise

@@ -1,5 +1,7 @@
 import pytest_asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 from infrastructure.controller.config import quart
 from infrastructure.controller.routes.register_user import register_user
@@ -212,6 +214,9 @@ async def app(tmp_path):
     position_port.get_account_iban_index = AsyncMock(return_value={})
     position_port.get_portfolio_name_index = AsyncMock(return_value={})
     position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+    position_port.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(entity=SimpleNamespace(id=uuid4()))
+    )
     auto_contr_port = AsyncMock(spec=AutoContributionsPort)
     auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
     transaction_port = AsyncMock(spec=TransactionPort)

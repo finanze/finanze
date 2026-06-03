@@ -41,6 +41,12 @@ export function init() {
   import("@/lib/pyodide/init").then(({ ensureCoreInitialized }) => {
     ensureCoreInitialized()
   })
+
+  // Warm-start the background worker (worker 2) at launch so it is ready to
+  // attach to the shared DB right after login.
+  import("@/lib/pyodide/init").then(({ warmStartBackgroundWorker }) => {
+    warmStartBackgroundWorker()
+  })
 }
 
 export function triggerDeferredInit() {
@@ -68,6 +74,38 @@ export function waitForLazyInit(): Promise<void> {
   return import("@/lib/pyodide/init").then(({ waitForLazyInit }) =>
     waitForLazyInit(),
   )
+}
+
+export function connectBackgroundWorker(username: string): void {
+  if (!__MOBILE__) return
+  if (!isNativeMobile()) return
+
+  // Fire-and-forget: must not block backend or frontend.
+  import("@/lib/pyodide/init").then(({ connectBackgroundWorker }) => {
+    connectBackgroundWorker(username).catch(() => undefined)
+  })
+}
+
+export async function disconnectBackgroundWorker(): Promise<void> {
+  if (!__MOBILE__) return
+  if (!isNativeMobile()) return
+
+  const { disconnectBackgroundWorker } = await import("@/lib/pyodide/init")
+  await disconnectBackgroundWorker()
+}
+
+export function isBackgroundUpdateAvailable(): boolean {
+  return !!__MOBILE__ && isNativeMobile()
+}
+
+export async function backgroundUpdateQuotes<T = unknown>(): Promise<T> {
+  const { backgroundUpdateQuotes } = await import("@/lib/pyodide/init")
+  return backgroundUpdateQuotes() as Promise<T>
+}
+
+export async function backgroundUpdateLoans<T = unknown>(): Promise<T> {
+  const { backgroundUpdateLoans } = await import("@/lib/pyodide/init")
+  return backgroundUpdateLoans() as Promise<T>
 }
 
 export function hideSplashScreen() {

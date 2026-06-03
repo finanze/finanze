@@ -1021,3 +1021,100 @@ class TestManualCryptoUpdate:
         assert stock_detail.market_value == Dezimal(500)
         assert crypto_asset.market_value == round(Dezimal(2) * (Dezimal(1) / rate), 2)
         snapshot_writer.write.assert_awaited_once()
+
+
+class TestResult:
+    @pytest.mark.asyncio
+    async def test_no_trackable_returns_not_tracked(self):
+        use_case = _build_use_case()
+
+        result = await use_case.execute()
+
+        assert result.had_tracked is False
+        assert result.changed is False
+        assert result.changed_entities == []
+
+    @pytest.mark.asyncio
+    async def test_changed_position_returns_entity_id(self):
+        global_position_id = uuid4()
+        entry = _make_trackable_entry(
+            global_position_id=global_position_id,
+            product_type=ProductType.STOCK_ETF,
+            tracker_key="TST",
+        )
+        stock_detail = _make_stock_detail(
+            entry_id=entry.entry_id,
+            shares=Dezimal(10),
+            currency="EUR",
+            equity_type=EquityType.STOCK,
+        )
+        position = _make_position(global_position_id, stocks=[stock_detail])
+        instrument_info = _make_instrument_info(
+            price=Dezimal(50),
+            currency="EUR",
+            instrument_type=InstrumentType.STOCK,
+        )
+
+        position_port = MagicMock()
+        position_port.get_by_id = AsyncMock(return_value=position)
+
+        manual_position_data_port = MagicMock()
+        manual_position_data_port.get_trackable = AsyncMock(return_value=[entry])
+
+        instrument_info_provider = MagicMock()
+        instrument_info_provider.get_info = AsyncMock(return_value=instrument_info)
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            manual_position_data_port=manual_position_data_port,
+            instrument_info_provider=instrument_info_provider,
+        )
+
+        result = await use_case.execute()
+
+        assert result.had_tracked is True
+        assert result.changed is True
+        assert result.changed_entities == [position.entity.id]
+
+    @pytest.mark.asyncio
+    async def test_unchanged_position_returns_no_changed_entities(self):
+        global_position_id = uuid4()
+        entry = _make_trackable_entry(
+            global_position_id=global_position_id,
+            product_type=ProductType.STOCK_ETF,
+            tracker_key="TST",
+        )
+        stock_detail = _make_stock_detail(
+            entry_id=entry.entry_id,
+            shares=Dezimal(10),
+            currency="EUR",
+            equity_type=EquityType.STOCK,
+            market_value=Dezimal(500),
+        )
+        position = _make_position(global_position_id, stocks=[stock_detail])
+        instrument_info = _make_instrument_info(
+            price=Dezimal(50),
+            currency="EUR",
+            instrument_type=InstrumentType.STOCK,
+        )
+
+        position_port = MagicMock()
+        position_port.get_by_id = AsyncMock(return_value=position)
+
+        manual_position_data_port = MagicMock()
+        manual_position_data_port.get_trackable = AsyncMock(return_value=[entry])
+
+        instrument_info_provider = MagicMock()
+        instrument_info_provider.get_info = AsyncMock(return_value=instrument_info)
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            manual_position_data_port=manual_position_data_port,
+            instrument_info_provider=instrument_info_provider,
+        )
+
+        result = await use_case.execute()
+
+        assert result.had_tracked is True
+        assert result.changed is False
+        assert result.changed_entities == []

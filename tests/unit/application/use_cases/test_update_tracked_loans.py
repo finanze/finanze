@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -24,6 +25,9 @@ from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
 
 def _build_use_case():
     position_port = AsyncMock(spec=PositionPort)
+    position_port.get_by_id.return_value = SimpleNamespace(
+        entity=SimpleNamespace(id=uuid4())
+    )
     manual_data_port = AsyncMock(spec=ManualPositionDataPort)
     calculator = AsyncMock(spec=LoanCalculatorPort)
     real_estate_port = AsyncMock()
@@ -508,6 +512,68 @@ class TestTrackingRefInitialization:
         await uc.execute()
 
         manual_data_port.update_tracking_ref.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# TestResult
+# ---------------------------------------------------------------------------
+
+
+class TestResult:
+    @pytest.mark.asyncio
+    async def test_no_trackable_loans_returns_not_tracked(self):
+        uc, _, manual_data_port, _, _ = _build_use_case()
+        manual_data_port.get_trackable_loans.return_value = []
+
+        result = await uc.execute()
+
+        assert result.had_tracked is False
+        assert result.changed is False
+        assert result.changed_entities == []
+
+    @pytest.mark.asyncio
+    async def test_changed_loan_returns_entity_id(self):
+        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        entry_id = uuid4()
+        entity_id = uuid4()
+        mpd = _make_mpd(entry_id=entry_id)
+        loan = _make_loan(id=entry_id)
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_loan_by_entry_id.return_value = loan
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
+        position_port.get_by_id.return_value = SimpleNamespace(
+            entity=SimpleNamespace(id=entity_id)
+        )
+
+        result = await uc.execute()
+
+        assert result.had_tracked is True
+        assert result.changed is True
+        assert result.changed_entities == [entity_id]
+
+    @pytest.mark.asyncio
+    async def test_unchanged_loan_returns_no_changed_entities(self):
+        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        entry_id = uuid4()
+        mpd = _make_mpd(entry_id=entry_id)
+        loan = _make_loan(id=entry_id, installment_interests=Dezimal(200))
+        result = _make_result(
+            payment=loan.current_installment,
+            outstanding=loan.principal_outstanding,
+        )
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_loan_by_entry_id.return_value = loan
+        calculator.calculate.return_value = result
+
+        outcome = await uc.execute()
+
+        assert outcome.had_tracked is True
+        assert outcome.changed is False
+        assert outcome.changed_entities == []
 
 
 # ---------------------------------------------------------------------------

@@ -341,6 +341,12 @@ export interface FetchResponse {
   data?: any
 }
 
+export interface UpdateTrackedResult {
+  hadTracked: boolean
+  changed: boolean
+  changedEntities: string[]
+}
+
 export enum ImportErrorType {
   SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
   MISSING_FIELD = "MISSING_FIELD",

@@ -1,5 +1,6 @@
 import { appConsole } from "@/lib/capacitor/appConsole"
 import type { PyodideRuntimeOptions } from "../runtime"
+import { getSqliteBridge, releaseWorkerSpan } from "../bridges/sqliteBridge"
 
 type RequestMessage = {
   kind: "req"
@@ -46,12 +47,14 @@ function isRes(msg: any): msg is ResponseMessage {
 export class PyodideWorkerClient {
   private worker: Worker
   private nextId = 1
+  private workerId: string
   private pending = new Map<
     number,
     { resolve: (value: any) => void; reject: (error: any) => void }
   >()
 
-  constructor() {
+  constructor(workerId: string = "main") {
+    this.workerId = workerId
     this.worker = new Worker(new URL("./pyodideWorker.ts", import.meta.url), {
       type: "module",
     })
@@ -96,6 +99,9 @@ export class PyodideWorkerClient {
   terminate(): void {
     this.worker.terminate()
     this.pending.clear()
+    // Crash-safety: release any transaction span / connection ownership this
+    // worker held so the other worker is not blocked forever.
+    releaseWorkerSpan(this.workerId)
   }
 
   private postRequest(action: string, payload?: any): Promise<any> {
@@ -135,6 +141,14 @@ export class PyodideWorkerClient {
 
   async installLazyRequirements(): Promise<void> {
     await this.postRequest("installLazyRequirements")
+  }
+
+  async loadBackgroundModules(): Promise<void> {
+    await this.postRequest("loadBackgroundModules")
+  }
+
+  async installBackgroundRequirements(): Promise<void> {
+    await this.postRequest("installBackgroundRequirements")
   }
 
   async callPythonFunction(
@@ -222,6 +236,22 @@ export class PyodideWorkerClient {
   }
 
   private resolveCallable(methodPath: string): (...args: any[]) => any {
+    // Route SQLite calls to this worker's own facade so the main-thread bridge
+    // can serialize transaction spans and enforce connection ownership across
+    // the main and background workers (they share one native connection).
+    if (methodPath.startsWith("jsBridge.sqlite.")) {
+      const method = methodPath.slice("jsBridge.sqlite.".length)
+      const facade = getSqliteBridge(this.workerId) as Record<
+        string,
+        (...args: any[]) => any
+      >
+      const fn = facade[method]
+      if (typeof fn !== "function") {
+        throw new Error(`Resolved value is not callable for ${methodPath}`)
+      }
+      return fn.bind(facade)
+    }
+
     const parts = methodPath.split(".")
     if (parts.length < 2) throw new Error(`Invalid methodPath: ${methodPath}`)
 
