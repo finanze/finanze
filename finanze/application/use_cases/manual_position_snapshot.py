@@ -174,7 +174,7 @@ class ManualPositionSnapshotWriter:
         )
 
     def _create_manual_position_data_entries(
-        self, position: GlobalPosition
+        self, position: GlobalPosition, compute_loan_refs: bool = True
     ) -> list[ManualPositionData]:
         entries = []
         for product_type, container in position.products.items():
@@ -192,7 +192,8 @@ class ManualPositionSnapshotWriter:
                 )
                 if manual_pos_data:
                     if (
-                        product_type == ProductType.LOAN
+                        compute_loan_refs
+                        and product_type == ProductType.LOAN
                         and manual_pos_data.data
                         and manual_pos_data.data.track
                         and hasattr(entry, "principal_outstanding")
@@ -219,7 +220,12 @@ class ManualPositionSnapshotWriter:
         for loan in loan_container.entries:
             await self._real_estate_port.sync_linked_loan_flows(loan)
 
-    async def write(self, entity: Entity, base_position: GlobalPosition):
+    async def write(
+        self,
+        entity: Entity,
+        base_position: GlobalPosition,
+        compute_loan_refs: bool = True,
+    ):
         """Persist ``base_position`` as the latest manual snapshot for ``entity``.
 
         Keeps at most one manual snapshot per entity per local day: a same-day
@@ -227,6 +233,10 @@ class ManualPositionSnapshotWriter:
         prior snapshot and starts a fresh manual import batch (cloning the other
         entities' last records forward). ``base_position`` must already carry the
         fully built product set, a fresh ``id`` and its ``date`` set to now.
+
+        When ``compute_loan_refs`` is False, tracked loans' tracking-ref fields
+        are persisted as-is from each loan's ``manual_data`` instead of being
+        re-anchored to the current outstanding/next installment date.
         """
         now = base_position.date
         req_entity_id = entity.id
@@ -252,7 +262,9 @@ class ManualPositionSnapshotWriter:
         self._adjust_investment_costs(base_position)
         self._ensure_all_unique(base_position)
         self._regenerate_snapshot_ids(base_position)
-        manual_data_entries = self._create_manual_position_data_entries(base_position)
+        manual_data_entries = self._create_manual_position_data_entries(
+            base_position, compute_loan_refs=compute_loan_refs
+        )
 
         today = now.date()
         is_same_day = (

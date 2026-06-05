@@ -124,7 +124,7 @@ class MobileBackgroundApp:
             tx_handler,
         )
         self.up_tracked_loans = UpdateTrackedLoansImpl(
-            position_repo, manual_repo, loan_calculator, re_repo
+            position_repo, manual_repo, loan_calculator, snapshot_writer, tx_handler
         )
 
         await self.ex_storage.initialize()

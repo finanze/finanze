@@ -705,7 +705,8 @@ class FinanzeServer:
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
-            real_estate_port=real_estate_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)

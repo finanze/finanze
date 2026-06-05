@@ -444,7 +444,8 @@ async def app(tmp_path):
         position_port=position_port,
         manual_position_data_port=manual_position_data_port,
         loan_calculator=loan_calc,
-        real_estate_port=real_estate_repo,
+        snapshot_writer=manual_position_snapshot_writer,
+        transaction_handler_port=transaction_handler,
     )
 
     static_dir = tmp_path / "static"

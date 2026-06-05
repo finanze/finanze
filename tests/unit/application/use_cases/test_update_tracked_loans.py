@@ -1,6 +1,5 @@
 from datetime import date
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -8,13 +7,20 @@ import pytest
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.use_cases.manual_position_snapshot import (
+    ManualPositionSnapshotWriter,
+)
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from domain.dezimal import Dezimal
+from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import ExecutionConflict
 from domain.global_position import (
+    DataSource,
+    GlobalPosition,
     InstallmentFrequency,
     InterestType,
     Loan,
+    Loans,
     LoanType,
     ManualEntryData,
     ManualPositionData,
@@ -23,30 +29,63 @@ from domain.global_position import (
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
 
 
+class _NoopTransaction:
+    async def __aenter__(self):
+        return None
+
+    async def __aexit__(self, *args):
+        return False
+
+
+def _make_transaction_handler():
+    handler = MagicMock()
+    handler.start = MagicMock(return_value=_NoopTransaction())
+    return handler
+
+
+def _make_entity() -> Entity:
+    return Entity(
+        id=uuid4(),
+        name="Manual",
+        natural_id=None,
+        type=EntityType.FINANCIAL_INSTITUTION,
+        origin=EntityOrigin.MANUAL,
+        icon_url=None,
+    )
+
+
 def _build_use_case():
     position_port = AsyncMock(spec=PositionPort)
-    position_port.get_by_id.return_value = SimpleNamespace(
-        entity=SimpleNamespace(id=uuid4())
-    )
+    position_port.get_by_id.return_value = None
     manual_data_port = AsyncMock(spec=ManualPositionDataPort)
     calculator = AsyncMock(spec=LoanCalculatorPort)
-    real_estate_port = AsyncMock()
+    snapshot_writer = AsyncMock(spec=ManualPositionSnapshotWriter)
+    transaction_handler = _make_transaction_handler()
 
     uc = UpdateTrackedLoansImpl(
         position_port=position_port,
         manual_position_data_port=manual_data_port,
         loan_calculator=calculator,
-        real_estate_port=real_estate_port,
+        snapshot_writer=snapshot_writer,
+        transaction_handler_port=transaction_handler,
     )
-    return uc, position_port, manual_data_port, calculator, real_estate_port
+    return uc, position_port, manual_data_port, calculator, snapshot_writer
 
 
-def _make_mpd(entry_id=None):
+def _make_mpd(entry_id=None, global_position_id=None, data=None):
     return ManualPositionData(
         entry_id=entry_id or uuid4(),
-        global_position_id=uuid4(),
+        global_position_id=global_position_id or uuid4(),
         product_type=ProductType.LOAN,
-        data=ManualEntryData(track=True),
+        data=data or ManualEntryData(track=True),
+    )
+
+
+def _make_position(global_position_id=None, loans=None, entity=None) -> GlobalPosition:
+    return GlobalPosition(
+        id=global_position_id or uuid4(),
+        entity=entity or _make_entity(),
+        products={ProductType.LOAN: Loans(entries=loans or [])},
     )
 
 
@@ -105,13 +144,15 @@ def _make_result(
 class TestNoEntries:
     @pytest.mark.asyncio
     async def test_no_trackable_loans_early_return(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         manual_data_port.get_trackable_loans.return_value = []
 
         await uc.execute()
 
         calculator.calculate.assert_not_awaited()
-        position_port.update_loan_position.assert_not_awaited()
+        snapshot_writer.write.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -122,109 +163,154 @@ class TestNoEntries:
 class TestSingleLoan:
     @pytest.mark.asyncio
     async def test_updated_when_values_change(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(payment=Dezimal(510), outstanding=Dezimal(79500))
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         await uc.execute()
 
-        position_port.update_loan_position.assert_awaited_once_with(
-            entry_id=entry_id,
-            current_installment=Dezimal(510),
-            installment_interests=result.current_installment_interests,
-            principal_outstanding=Dezimal(79500),
-            next_payment_date=result.installment_date,
-        )
+        snapshot_writer.write.assert_awaited_once()
+        written_entity, written_position = snapshot_writer.write.await_args[0]
+        assert written_entity is position.entity
+        assert written_position is position
+        assert written_position.source == DataSource.MANUAL
+        assert loan.current_installment == Dezimal(510)
+        assert loan.principal_outstanding == Dezimal(79500)
+        assert loan.installment_interests == result.current_installment_interests
+        assert loan.next_payment_date == result.installment_date
 
     @pytest.mark.asyncio
     async def test_matured_loan_skipped(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id, maturity=date.today())
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
 
         await uc.execute()
 
         calculator.calculate.assert_not_awaited()
-        position_port.update_loan_position.assert_not_awaited()
+        snapshot_writer.write.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_loan_not_found_skipped(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+    async def test_position_not_found_skipped(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         mpd = _make_mpd()
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = None
+        position_port.get_by_id.return_value = None
 
         await uc.execute()
 
         calculator.calculate.assert_not_awaited()
+        snapshot_writer.write.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_no_change_no_update(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+    async def test_loan_entry_not_in_position_skipped(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
+        gpid = uuid4()
+        position = _make_position(
+            global_position_id=gpid, loans=[_make_loan(id=uuid4())]
+        )
+        mpd = _make_mpd(entry_id=uuid4(), global_position_id=gpid)
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result()
+
+        await uc.execute()
+
+        calculator.calculate.assert_not_awaited()
+        snapshot_writer.write.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_no_change_no_snapshot(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id, installment_interests=Dezimal(200))
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(
             payment=loan.current_installment,
             outstanding=loan.principal_outstanding,
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         await uc.execute()
 
-        position_port.update_loan_position.assert_not_awaited()
+        snapshot_writer.write.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_new_installment_only_triggers_update(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+    async def test_new_installment_only_triggers_snapshot(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(
             payment=Dezimal(510),
             outstanding=loan.principal_outstanding,
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         await uc.execute()
 
-        position_port.update_loan_position.assert_awaited_once()
+        snapshot_writer.write.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_new_outstanding_only_triggers_update(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+    async def test_new_outstanding_only_triggers_snapshot(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(
             payment=loan.current_installment,
             outstanding=Dezimal(79000),
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         await uc.execute()
 
-        position_port.update_loan_position.assert_awaited_once()
+        snapshot_writer.write.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -235,46 +321,86 @@ class TestSingleLoan:
 class TestMultipleLoans:
     @pytest.mark.asyncio
     async def test_mixed_results(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         id1, id2, id3 = uuid4(), uuid4(), uuid4()
+        g1, g2, g3 = uuid4(), uuid4(), uuid4()
         mpds = [
-            _make_mpd(entry_id=id1),
-            _make_mpd(entry_id=id2),
-            _make_mpd(entry_id=id3),
+            _make_mpd(entry_id=id1, global_position_id=g1),
+            _make_mpd(entry_id=id2, global_position_id=g2),
+            _make_mpd(entry_id=id3, global_position_id=g3),
         ]
-        loan1 = _make_loan(id=id1)
-        loan3 = _make_loan(id=id3)
+        pos1 = _make_position(global_position_id=g1, loans=[_make_loan(id=id1)])
+        pos3 = _make_position(global_position_id=g3, loans=[_make_loan(id=id3)])
 
         manual_data_port.get_trackable_loans.return_value = mpds
 
-        async def get_loan(entry_id):
-            if entry_id == id1:
-                return loan1
-            if entry_id == id2:
+        async def get_by_id(global_position_id):
+            if global_position_id == g1:
+                return pos1
+            if global_position_id == g2:
                 return None
-            return loan3
+            return pos3
 
-        position_port.get_loan_by_entry_id.side_effect = get_loan
+        position_port.get_by_id.side_effect = get_by_id
         calculator.calculate.return_value = _make_result()
 
         await uc.execute()
 
-        assert position_port.update_loan_position.await_count == 2
+        assert snapshot_writer.write.await_count == 2
 
     @pytest.mark.asyncio
     async def test_exception_continues_to_next(self):
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
         id1, id2 = uuid4(), uuid4()
-        mpds = [_make_mpd(entry_id=id1), _make_mpd(entry_id=id2)]
-        loan2 = _make_loan(id=id2)
+        g1, g2 = uuid4(), uuid4()
+        mpds = [
+            _make_mpd(entry_id=id1, global_position_id=g1),
+            _make_mpd(entry_id=id2, global_position_id=g2),
+        ]
+        pos2 = _make_position(global_position_id=g2, loans=[_make_loan(id=id2)])
 
         manual_data_port.get_trackable_loans.return_value = mpds
-        position_port.get_loan_by_entry_id.side_effect = [RuntimeError("fail"), loan2]
+
+        async def get_by_id(global_position_id):
+            if global_position_id == g1:
+                raise RuntimeError("fail")
+            return pos2
+
+        position_port.get_by_id.side_effect = get_by_id
         calculator.calculate.return_value = _make_result()
 
         await uc.execute()
 
-        assert position_port.update_loan_position.await_count == 1
+        assert snapshot_writer.write.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_multiple_loans_same_position_one_snapshot(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
+        id1, id2 = uuid4(), uuid4()
+        gpid = uuid4()
+        loan1 = _make_loan(id=id1)
+        loan2 = _make_loan(id=id2)
+        position = _make_position(global_position_id=gpid, loans=[loan1, loan2])
+        mpds = [
+            _make_mpd(entry_id=id1, global_position_id=gpid),
+            _make_mpd(entry_id=id2, global_position_id=gpid),
+        ]
+
+        manual_data_port.get_trackable_loans.return_value = mpds
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
+
+        await uc.execute()
+
+        snapshot_writer.write.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -306,11 +432,13 @@ class TestParamsPassed:
         """FIXED loan with no tracking ref: passes loan_amount, no ref fields."""
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = _make_result()
 
         await uc.execute()
@@ -323,7 +451,7 @@ class TestParamsPassed:
             fixed_years=loan.fixed_years,
             start=loan.creation,
             end=loan.maturity,
-            principal_outstanding=loan.principal_outstanding,
+            principal_outstanding=Dezimal(80000),
             fixed_interest_rate=loan.fixed_interest_rate,
             installment_frequency=loan.installment_frequency,
             tracking_ref_outstanding=None,
@@ -336,12 +464,12 @@ class TestParamsPassed:
         """FIXED loan with tracking ref: passes ref fields to calculator."""
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
+        gpid = uuid4()
         ref_outstanding = Dezimal(85000)
         ref_date = date(2025, 6, 15)
-        mpd = ManualPositionData(
+        mpd = _make_mpd(
             entry_id=entry_id,
-            global_position_id=uuid4(),
-            product_type=ProductType.LOAN,
+            global_position_id=gpid,
             data=ManualEntryData(
                 track=True,
                 tracking_ref_outstanding=ref_outstanding,
@@ -349,9 +477,10 @@ class TestParamsPassed:
             ),
         )
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan])
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = _make_result()
 
         await uc.execute()
@@ -364,7 +493,7 @@ class TestParamsPassed:
             fixed_years=loan.fixed_years,
             start=loan.creation,
             end=loan.maturity,
-            principal_outstanding=loan.principal_outstanding,
+            principal_outstanding=Dezimal(80000),
             fixed_interest_rate=loan.fixed_interest_rate,
             installment_frequency=loan.installment_frequency,
             tracking_ref_outstanding=ref_outstanding,
@@ -377,10 +506,10 @@ class TestParamsPassed:
         """VARIABLE loan: loan_amount=None, no ref fields even if present on mpd."""
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
-        mpd = ManualPositionData(
+        gpid = uuid4()
+        mpd = _make_mpd(
             entry_id=entry_id,
-            global_position_id=uuid4(),
-            product_type=ProductType.LOAN,
+            global_position_id=gpid,
             data=ManualEntryData(
                 track=True,
                 tracking_ref_outstanding=Dezimal(85000),
@@ -392,9 +521,10 @@ class TestParamsPassed:
             interest_type=InterestType.VARIABLE,
             euribor_rate=Dezimal("0.035"),
         )
+        position = _make_position(global_position_id=gpid, loans=[loan])
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = _make_result()
 
         await uc.execute()
@@ -407,7 +537,7 @@ class TestParamsPassed:
             fixed_years=loan.fixed_years,
             start=loan.creation,
             end=loan.maturity,
-            principal_outstanding=loan.principal_outstanding,
+            principal_outstanding=Dezimal(80000),
             fixed_interest_rate=loan.fixed_interest_rate,
             installment_frequency=loan.installment_frequency,
             tracking_ref_outstanding=None,
@@ -419,99 +549,23 @@ class TestParamsPassed:
     async def test_none_payment_fallback_to_loan_installment(self):
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id, current_installment=Dezimal(500))
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(
             payment=None,
             outstanding=Dezimal(79000),
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         await uc.execute()
 
-        call_args = position_port.update_loan_position.call_args
-        assert call_args.kwargs["current_installment"] == Dezimal(500)
-
-
-# ---------------------------------------------------------------------------
-# TestTrackingRefInitialization
-# ---------------------------------------------------------------------------
-
-
-class TestTrackingRefInitialization:
-    @pytest.mark.asyncio
-    async def test_fixed_loan_initializes_ref_on_first_run(self):
-        """FIXED loan with no ref: lazy-initializes tracking ref."""
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
-        entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(id=entry_id, principal_outstanding=Dezimal(80000))
-        inst_date = date(2026, 5, 15)
-        result = _make_result(
-            payment=loan.current_installment,
-            outstanding=loan.principal_outstanding,
-            inst_date=inst_date,
-        )
-
-        manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-        calculator.calculate.return_value = result
-
-        await uc.execute()
-
-        manual_data_port.update_tracking_ref.assert_awaited_once_with(
-            entry_id, Dezimal(80000), inst_date
-        )
-
-    @pytest.mark.asyncio
-    async def test_fixed_loan_does_not_reinitialize_ref(self):
-        """FIXED loan with existing ref: does NOT call update_tracking_ref."""
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
-        entry_id = uuid4()
-        mpd = ManualPositionData(
-            entry_id=entry_id,
-            global_position_id=uuid4(),
-            product_type=ProductType.LOAN,
-            data=ManualEntryData(
-                track=True,
-                tracking_ref_outstanding=Dezimal(85000),
-                tracking_ref_date=date(2025, 6, 15),
-            ),
-        )
-        loan = _make_loan(id=entry_id)
-        result = _make_result()
-
-        manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-        calculator.calculate.return_value = result
-
-        await uc.execute()
-
-        manual_data_port.update_tracking_ref.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_variable_loan_never_initializes_ref(self):
-        """VARIABLE loan: never calls update_tracking_ref."""
-        uc, position_port, manual_data_port, calculator, _ = _build_use_case()
-        entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(
-            id=entry_id,
-            interest_type=InterestType.VARIABLE,
-            euribor_rate=Dezimal("0.035"),
-        )
-        result = _make_result()
-
-        manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-        calculator.calculate.return_value = result
-
-        await uc.execute()
-
-        manual_data_port.update_tracking_ref.assert_not_awaited()
+        assert loan.current_installment == Dezimal(500)
+        assert loan.principal_outstanding == Dezimal(79000)
 
 
 # ---------------------------------------------------------------------------
@@ -535,38 +589,39 @@ class TestResult:
     async def test_changed_loan_returns_entity_id(self):
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
-        entity_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
+        entity = _make_entity()
         loan = _make_loan(id=entry_id)
+        position = _make_position(global_position_id=gpid, loans=[loan], entity=entity)
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = _make_result(
             payment=Dezimal(510), outstanding=Dezimal(79500)
-        )
-        position_port.get_by_id.return_value = SimpleNamespace(
-            entity=SimpleNamespace(id=entity_id)
         )
 
         result = await uc.execute()
 
         assert result.had_tracked is True
         assert result.changed is True
-        assert result.changed_entities == [entity_id]
+        assert result.changed_entities == [entity.id]
 
     @pytest.mark.asyncio
     async def test_unchanged_loan_returns_no_changed_entities(self):
         uc, position_port, manual_data_port, calculator, _ = _build_use_case()
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
+        gpid = uuid4()
         loan = _make_loan(id=entry_id, installment_interests=Dezimal(200))
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
         result = _make_result(
             payment=loan.current_installment,
             outstanding=loan.principal_outstanding,
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
+        position_port.get_by_id.return_value = position
         calculator.calculate.return_value = result
 
         outcome = await uc.execute()
@@ -577,114 +632,172 @@ class TestResult:
 
 
 # ---------------------------------------------------------------------------
-# TestSyncLinkedLoanFlowsAfterTrackedUpdate
+# TestTrackingRefPreservation
 # ---------------------------------------------------------------------------
 
 
-class TestSyncLinkedLoanFlowsAfterTrackedUpdate:
+class TestTrackingRefPreservation:
     @pytest.mark.asyncio
-    async def test_sync_called_with_updated_installment(self):
-        uc, position_port, manual_data_port, calculator, real_estate_port = (
+    async def test_writer_called_with_compute_loan_refs_false(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
             _build_use_case()
         )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(id=entry_id, current_installment=Dezimal(500))
-        result = _make_result(payment=Dezimal(510), outstanding=Dezimal(79500))
+        gpid = uuid4()
+        loan = _make_loan(id=entry_id)
+        loan.manual_data = ManualEntryData(track=True)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-        calculator.calculate.return_value = result
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
 
         await uc.execute()
 
-        real_estate_port.sync_linked_loan_flows.assert_awaited_once()
-        synced_loan = real_estate_port.sync_linked_loan_flows.await_args[0][0]
-        assert synced_loan.current_installment == Dezimal(510)
+        snapshot_writer.write.assert_awaited_once()
+        assert snapshot_writer.write.await_args.kwargs["compute_loan_refs"] is False
 
     @pytest.mark.asyncio
-    async def test_sync_not_called_when_no_change(self):
-        uc, position_port, manual_data_port, calculator, real_estate_port = (
+    async def test_fixed_existing_ref_preserved_not_reanchored(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
             _build_use_case()
         )
         entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(id=entry_id, installment_interests=Dezimal(200))
-        result = _make_result(
-            payment=loan.current_installment,
-            outstanding=loan.principal_outstanding,
+        gpid = uuid4()
+        ref_outstanding = Dezimal(85000)
+        ref_date = date(2025, 6, 15)
+        loan = _make_loan(id=entry_id)
+        loan.manual_data = ManualEntryData(
+            track=True,
+            tracking_ref_outstanding=ref_outstanding,
+            tracking_ref_date=ref_date,
+        )
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(
+            entry_id=entry_id,
+            global_position_id=gpid,
+            data=ManualEntryData(
+                track=True,
+                tracking_ref_outstanding=ref_outstanding,
+                tracking_ref_date=ref_date,
+            ),
         )
 
         manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-        calculator.calculate.return_value = result
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
 
         await uc.execute()
 
-        position_port.update_loan_position.assert_not_awaited()
-        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
+        assert loan.manual_data.tracking_ref_outstanding == ref_outstanding
+        assert loan.manual_data.tracking_ref_date == ref_date
+        calculator.next_installment_date.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_sync_not_called_when_no_trackable_loans(self):
-        uc, _, manual_data_port, _, real_estate_port = _build_use_case()
-        manual_data_port.get_trackable_loans.return_value = []
-
-        await uc.execute()
-
-        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_sync_not_called_when_loan_not_found(self):
-        uc, position_port, manual_data_port, _, real_estate_port = _build_use_case()
-        mpd = _make_mpd()
-
-        manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = None
-
-        await uc.execute()
-
-        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_sync_not_called_when_loan_matured(self):
-        uc, position_port, manual_data_port, _, real_estate_port = _build_use_case()
-        entry_id = uuid4()
-        mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(id=entry_id, maturity=date.today())
-
-        manual_data_port.get_trackable_loans.return_value = [mpd]
-        position_port.get_loan_by_entry_id.return_value = loan
-
-        await uc.execute()
-
-        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_sync_called_for_each_updated_loan_in_batch(self):
-        uc, position_port, manual_data_port, calculator, real_estate_port = (
+    async def test_fixed_missing_ref_lazy_initialized(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
             _build_use_case()
         )
-        id1, id2, id3 = uuid4(), uuid4(), uuid4()
-        mpds = [
-            _make_mpd(entry_id=id1),
-            _make_mpd(entry_id=id2),
-            _make_mpd(entry_id=id3),
-        ]
-        loan1 = _make_loan(id=id1)
-        loan3 = _make_loan(id=id3)
+        entry_id = uuid4()
+        gpid = uuid4()
+        lazy_date = date(2026, 7, 15)
+        loan = _make_loan(id=entry_id, principal_outstanding=Dezimal(80000))
+        loan.manual_data = ManualEntryData(track=True)
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(entry_id=entry_id, global_position_id=gpid)
 
-        manual_data_port.get_trackable_loans.return_value = mpds
-
-        async def get_loan(entry_id):
-            if entry_id == id1:
-                return loan1
-            if entry_id == id2:
-                return None
-            return loan3
-
-        position_port.get_loan_by_entry_id.side_effect = get_loan
-        calculator.calculate.return_value = _make_result()
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_by_id.return_value = position
+        calculator.next_installment_date.return_value = lazy_date
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
 
         await uc.execute()
 
-        assert real_estate_port.sync_linked_loan_flows.await_count == 2
+        assert loan.manual_data.tracking_ref_outstanding == Dezimal(80000)
+        assert loan.manual_data.tracking_ref_date == lazy_date
+
+    @pytest.mark.asyncio
+    async def test_variable_ref_cleared_even_if_present(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
+        entry_id = uuid4()
+        gpid = uuid4()
+        loan = _make_loan(
+            id=entry_id,
+            interest_type=InterestType.VARIABLE,
+            euribor_rate=Dezimal("0.035"),
+        )
+        loan.manual_data = ManualEntryData(
+            track=True,
+            tracking_ref_outstanding=Dezimal(85000),
+            tracking_ref_date=date(2025, 6, 15),
+        )
+        position = _make_position(global_position_id=gpid, loans=[loan])
+        mpd = _make_mpd(
+            entry_id=entry_id,
+            global_position_id=gpid,
+            data=ManualEntryData(
+                track=True,
+                tracking_ref_outstanding=Dezimal(85000),
+                tracking_ref_date=date(2025, 6, 15),
+            ),
+        )
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
+
+        await uc.execute()
+
+        assert loan.manual_data.tracking_ref_outstanding is None
+        assert loan.manual_data.tracking_ref_date is None
+        calculator.next_installment_date.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_tracked_loan_preserved_in_mixed_position(self):
+        uc, position_port, manual_data_port, calculator, snapshot_writer = (
+            _build_use_case()
+        )
+        tracked_id = uuid4()
+        untracked_id = uuid4()
+        gpid = uuid4()
+        tracked = _make_loan(id=tracked_id)
+        tracked.manual_data = ManualEntryData(track=True)
+        untracked = _make_loan(
+            id=untracked_id,
+            current_installment=Dezimal(400),
+            principal_outstanding=Dezimal(60000),
+            installment_interests=Dezimal(150),
+        )
+        untracked.manual_data = ManualEntryData(
+            track=False,
+            tracking_ref_outstanding=Dezimal(61000),
+            tracking_ref_date=date(2024, 1, 10),
+        )
+        position = _make_position(global_position_id=gpid, loans=[tracked, untracked])
+        mpd = _make_mpd(entry_id=tracked_id, global_position_id=gpid)
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_by_id.return_value = position
+        calculator.calculate.return_value = _make_result(
+            payment=Dezimal(510), outstanding=Dezimal(79500)
+        )
+
+        await uc.execute()
+
+        snapshot_writer.write.assert_awaited_once()
+        assert untracked.current_installment == Dezimal(400)
+        assert untracked.principal_outstanding == Dezimal(60000)
+        assert untracked.installment_interests == Dezimal(150)
+        assert untracked.manual_data.tracking_ref_outstanding == Dezimal(61000)
+        assert untracked.manual_data.tracking_ref_date == date(2024, 1, 10)
