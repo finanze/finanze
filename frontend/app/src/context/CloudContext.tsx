@@ -95,6 +95,8 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   const launchUrlHandledRef = useRef(false)
   const isAuthenticatedRef = useRef(isAuthenticated)
   isAuthenticatedRef.current = isAuthenticated
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
 
   const getProvider = useCallback(() => {
     if (!authProviderRef.current) {
@@ -445,7 +447,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
           if (pendingType === "recovery") {
             setIsPasswordRecoveryActive(true)
           }
-          navigate("/settings?tab=cloud")
+          navigateRef.current("/settings?tab=cloud")
         }
 
         if (cancelled) return
@@ -483,7 +485,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       cancelled = true
       unsubscribe?.()
     }
-  }, [getProvider, isAuthenticated, isCloudEnabled, navigate, syncWithBackend])
+  }, [getProvider, isAuthenticated, isCloudEnabled, syncWithBackend])
 
   const handleOAuthCallbackUrl = useCallback(
     async (url: string) => {
