@@ -164,6 +164,9 @@ class LazyComponents:
         from application.use_cases.forecast import ForecastImpl
         from application.use_cases.update_contributions import UpdateContributionsImpl
         from application.use_cases.update_position import UpdatePositionImpl
+        from application.use_cases.manual_position_snapshot import (
+            ManualPositionSnapshotWriter,
+        )
         from application.use_cases.add_manual_transaction import (
             AddManualTransactionImpl,
         )
@@ -405,16 +408,21 @@ class LazyComponents:
         self.up_contrib = UpdateContributionsImpl(
             d.entity_repo, d.auto_repo, d.virtual_repo, d.tx_handler
         )
-        self.up_pos = UpdatePositionImpl(
-            d.entity_repo,
+        manual_position_snapshot_writer = ManualPositionSnapshotWriter(
             d.position_repo,
             d.manual_repo,
             d.virtual_repo,
+            d.re_repo,
+            d.loan_calculator,
+        )
+        self.up_pos = UpdatePositionImpl(
+            d.entity_repo,
+            d.position_repo,
             crypto_asset_repo,
             d.crypto_info,
             d.tx_handler,
-            d.re_repo,
-            d.loan_calculator,
+            d.virtual_repo,
+            manual_position_snapshot_writer,
         )
         self.add_manual_tx = AddManualTransactionImpl(
             d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler

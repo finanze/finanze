@@ -191,6 +191,72 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/save_backup_settings.py",
 ]
 
+// Background worker (worker 2) module set. This list is ADDITIVE/independent of
+// the core/lazy/deferred partition: the background worker has its own Pyodide
+// filesystem and loads exactly these files to run the tracked quote/loan update
+// use cases against the shared SQLite connection.
+const BACKGROUND_PATTERNS = [
+  "init_background.py",
+  "finanze/app_background.py",
+  "finanze/logs.py",
+  "finanze/version.py",
+  "finanze/build_config.py",
+  "finanze/domain/base.py",
+  "finanze/domain/commodity.py",
+  "finanze/domain/crypto.py",
+  "finanze/domain/data_init.py",
+  "finanze/domain/dezimal.py",
+  "finanze/domain/earnings_expenses.py",
+  "finanze/domain/entity.py",
+  "finanze/domain/exception/",
+  "finanze/domain/exchange_rate.py",
+  "finanze/domain/external_integration.py",
+  "finanze/domain/fetch_record.py",
+  "finanze/domain/file_upload.py",
+  "finanze/domain/global_position.py",
+  "finanze/domain/instrument.py",
+  "finanze/domain/loan_calculator.py",
+  "finanze/domain/platform.py",
+  "finanze/domain/position_aggregation.py",
+  "finanze/domain/profitability.py",
+  "finanze/domain/public_key.py",
+  "finanze/domain/real_estate.py",
+  "finanze/domain/tracking.py",
+  "finanze/domain/user.py",
+  "finanze/domain/virtual_data.py",
+  "finanze/domain/use_cases/update_tracked_quotes.py",
+  "finanze/domain/use_cases/update_tracked_loans.py",
+  "finanze/application/ports/crypto_asset_port.py",
+  "finanze/application/ports/crypto_wallet_port.py",
+  "finanze/application/ports/data_manager.py",
+  "finanze/application/ports/datasource_backup_port.py",
+  "finanze/application/ports/datasource_initiator.py",
+  "finanze/application/ports/exchange_rate_provider.py",
+  "finanze/application/ports/exchange_rate_storage.py",
+  "finanze/application/ports/instrument_info_provider.py",
+  "finanze/application/ports/loan_calculator_port.py",
+  "finanze/application/ports/manual_position_data_port.py",
+  "finanze/application/ports/position_port.py",
+  "finanze/application/ports/real_estate_port.py",
+  "finanze/application/ports/transaction_handler_port.py",
+  "finanze/application/ports/virtual_import_registry.py",
+  "finanze/application/use_cases/update_tracked_quotes.py",
+  "finanze/application/use_cases/update_tracked_loans.py",
+  "finanze/application/use_cases/manual_position_snapshot.py",
+  "finanze/infrastructure/repository/db/",
+  "finanze/infrastructure/repository/position/",
+  "finanze/infrastructure/repository/virtual/",
+  "finanze/infrastructure/repository/real_estate/",
+  "finanze/infrastructure/repository/crypto/",
+  "finanze/infrastructure/repository/common/",
+  "finanze/infrastructure/calculations/",
+  "finanze/infrastructure/client/instrument/",
+  "finanze/infrastructure/client/http/",
+  "finanze/infrastructure/file_storage/preference_exchange_storage.py",
+  "finanze/infrastructure/user_files/capacitor_data_manager.py",
+  "finanze/infrastructure/user_files/user_data_manager.py",
+]
+
 function matchesPatterns(relativePath, patterns) {
   const normalized = relativePath.replace(/\\/g, "/")
   for (const pattern of patterns) {
@@ -220,6 +286,10 @@ function isCoreFile(relativePath) {
 
 function isLazyFile(relativePath) {
   return matchesPatterns(relativePath, LAZY_PATTERNS)
+}
+
+function isBackgroundFile(relativePath) {
+  return matchesPatterns(relativePath, BACKGROUND_PATTERNS)
 }
 
 // Ensure destination exists
@@ -288,6 +358,7 @@ function isExcludedFile(filePath) {
 const coreFileList = []
 const deferredFileList = []
 const lazyFileList = []
+const backgroundFileList = []
 
 function copyRecursive(source, dest, rootPath, isCustom = false) {
   if (!fs.existsSync(source)) return
@@ -350,6 +421,11 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
       lazyFileList.push(relativeToDest)
     } else {
       deferredFileList.push(relativeToDest)
+    }
+
+    // Background worker manifest is additive (independent of the above buckets).
+    if (isBackgroundFile(relativeToDest)) {
+      backgroundFileList.push(relativeToDest)
     }
   }
 }
@@ -441,6 +517,13 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
     path.resolve(__dirname, "../requirements-pyodide-lazy.txt"),
   )
 
+  const backgroundWheelsReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-background.txt"),
+  )
+  const backgroundPyodideReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-pyodide-background.txt"),
+  )
+
   function extractPackageName(req) {
     return req.split("==")[0].split(">=")[0].split("<=")[0].toLowerCase()
   }
@@ -456,6 +539,10 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
     wheelMatchesReqs(w, deferredWheelsReqs),
   )
   const lazyWheels = allWheels.filter(w => wheelMatchesReqs(w, lazyWheelsReqs))
+
+  const backgroundWheels = allWheels.filter(w =>
+    wheelMatchesReqs(w, backgroundWheelsReqs),
+  )
 
   const lines = []
   lines.push("# Generated by scripts/bundle-python.js. DO NOT EDIT.")
@@ -482,6 +569,13 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
   lines.push("]")
   lines.push("")
 
+  lines.push("LOCAL_WHEELS_BACKGROUND = [")
+  for (const f of backgroundWheels) {
+    lines.push(`    "/python/wheels/${f}",`)
+  }
+  lines.push("]")
+  lines.push("")
+
   lines.push("PYODIDE_PACKAGES_CORE = [")
   for (const req of corePyodideReqs) {
     lines.push(`    ${JSON.stringify(req)},`)
@@ -498,6 +592,13 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
 
   lines.push("PYODIDE_PACKAGES_LAZY = [")
   for (const req of lazyPyodideReqs) {
+    lines.push(`    ${JSON.stringify(req)},`)
+  }
+  lines.push("]")
+  lines.push("")
+
+  lines.push("PYODIDE_PACKAGES_BACKGROUND = [")
+  for (const req of backgroundPyodideReqs) {
     lines.push(`    ${JSON.stringify(req)},`)
   }
   lines.push("]")
@@ -545,6 +646,7 @@ fs.writeFileSync(
   "utf8",
 )
 coreFileList.push("finanze/build_config.py")
+backgroundFileList.push("finanze/build_config.py")
 
 const manifestCore = {
   files: coreFileList,
@@ -556,6 +658,10 @@ const manifestDeferred = {
 
 const manifestLazy = {
   files: lazyFileList,
+}
+
+const manifestBackground = {
+  files: Array.from(new Set(backgroundFileList)),
 }
 
 fs.writeFileSync(
@@ -573,11 +679,16 @@ fs.writeFileSync(
   JSON.stringify(manifestLazy, null, 2),
 )
 
+fs.writeFileSync(
+  path.join(DEST_ROOT, "manifest_background.json"),
+  JSON.stringify(manifestBackground, null, 2),
+)
+
 const totalFiles =
   coreFileList.length + deferredFileList.length + lazyFileList.length
 console.log(
-  `Bundle complete. ${totalFiles} files copied (${coreFileList.length} core, ${deferredFileList.length} deferred, ${lazyFileList.length} lazy).`,
+  `Bundle complete. ${totalFiles} files copied (${coreFileList.length} core, ${deferredFileList.length} deferred, ${lazyFileList.length} lazy, ${manifestBackground.files.length} background).`,
 )
 console.log(
-  `Manifests written to ${path.join(DEST_ROOT, "manifest_core.json")} and manifest_deferred.json`,
+  `Manifests written to ${path.join(DEST_ROOT, "manifest_core.json")}, manifest_deferred.json, manifest_lazy.json and manifest_background.json`,
 )

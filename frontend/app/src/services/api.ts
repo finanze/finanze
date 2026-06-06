@@ -60,6 +60,7 @@ import {
   CryptoAssetDetails,
   AvailableCryptoAssetsResult,
   WalletAddressesResponse,
+  UpdateTrackedResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -80,7 +81,12 @@ import {
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { AppSettings } from "@/context/AppContext"
-import { triggerDeferredInit } from "@/lib/mobile"
+import {
+  triggerDeferredInit,
+  isBackgroundUpdateAvailable,
+  backgroundUpdateQuotes,
+  backgroundUpdateLoans,
+} from "@/lib/mobile"
 
 export interface ApiServerInfo {
   isCustomServer: boolean
@@ -412,12 +418,22 @@ export async function saveManualPositions(
   return (await getApiClient()).post("/data/manual/positions", request)
 }
 
-export async function updateQuotesManualPositions(): Promise<void> {
-  return (await getApiClient()).post("/data/manual/positions/update-quotes")
+export async function updateQuotesManualPositions(): Promise<UpdateTrackedResult> {
+  if (isBackgroundUpdateAvailable()) {
+    return backgroundUpdateQuotes<UpdateTrackedResult>()
+  }
+  return (await getApiClient()).post<UpdateTrackedResult>(
+    "/data/manual/positions/update-quotes",
+  )
 }
 
-export async function updateTrackedLoans(): Promise<void> {
-  return (await getApiClient()).post("/data/manual/positions/update-loans")
+export async function updateTrackedLoans(): Promise<UpdateTrackedResult> {
+  if (isBackgroundUpdateAvailable()) {
+    return backgroundUpdateLoans<UpdateTrackedResult>()
+  }
+  return (await getApiClient()).post<UpdateTrackedResult>(
+    "/data/manual/positions/update-loans",
+  )
 }
 
 export async function createManualTransaction(

@@ -102,6 +102,9 @@ interface AppContextType {
   ) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
   fetchExternalIntegrations: (force?: boolean) => Promise<void>
+  setOnTrackedUpdateCompleted: (
+    callback: ((entityIds: string[]) => Promise<void>) | null,
+  ) => void
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -244,6 +247,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const onTrackedUpdateCompletedRef = useRef<
+    ((entityIds: string[]) => Promise<void>) | null
+  >(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
   const LAST_UPDATE_LOANS_KEY = "lastUpdateLoansTime"
@@ -467,6 +473,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const setOnTrackedUpdateCompleted = useCallback(
+    (callback: ((entityIds: string[]) => Promise<void>) | null) => {
+      onTrackedUpdateCompletedRef.current = callback
+    },
+    [],
+  )
+
   const updateQuotesIfNeeded = useCallback(async () => {
     const now = Date.now()
 
@@ -478,13 +491,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       now - lastCallTime >= QUOTES_UPDATE_INTERVAL_MS
     ) {
       try {
-        await updateQuotesManualPositions()
+        await fetchExchangeRatesSilently()
+        const result = await updateQuotesManualPositions()
         localStorage.setItem(LAST_UPDATE_QUOTES_KEY, now.toString())
+        if (result?.changed) {
+          await onTrackedUpdateCompletedRef.current?.(result.changedEntities)
+        }
       } catch (error) {
         console.error("Error updating manual positions quotes:", error)
       }
     }
-  }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
+  }, [
+    LAST_UPDATE_QUOTES_KEY,
+    QUOTES_UPDATE_INTERVAL_MS,
+    fetchExchangeRatesSilently,
+  ])
 
   const updateLoansIfNeeded = useCallback(async () => {
     const now = Date.now()
@@ -497,8 +518,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       now - lastCallTime >= LOANS_UPDATE_INTERVAL_MS
     ) {
       try {
-        await updateTrackedLoans()
+        const result = await updateTrackedLoans()
         localStorage.setItem(LAST_UPDATE_LOANS_KEY, now.toString())
+        if (result?.changed) {
+          await onTrackedUpdateCompletedRef.current?.(result.changedEntities)
+        }
       } catch (error) {
         console.error("Error updating tracked loans:", error)
       }
@@ -563,6 +587,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveSettings: saveSettingsData,
         refreshExchangeRates,
         fetchExternalIntegrations,
+        setOnTrackedUpdateCompleted,
       }}
     >
       {children}

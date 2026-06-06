@@ -51,13 +51,17 @@ export async function promptLogin(
           result.credentials.cookie = cookieHeader
           if (!result.credentials.user) {
             mintosSession.clearStorageData()
-            mintosWindow?.reload()
+            if (mintosWindow && !mintosWindow.isDestroyed()) {
+              mintosWindow.reload()
+            }
             return
           }
         }
 
         sendCompletion(result)
-        mintosWindow?.close()
+        if (mintosWindow && !mintosWindow.isDestroyed()) {
+          mintosWindow.close()
+        }
       }
     },
   )
@@ -68,14 +72,21 @@ export async function promptLogin(
 
   try {
     await mintosWindow.loadURL("https://www.mintos.com/en/login")
-  } catch (error) {
-    console.error("Failed to load Mintos login page:", error)
-    mintosWindow?.close()
-    return { success: false }
+  } catch (error: any) {
+    const isAborted =
+      error?.message?.includes("ERR_ABORTED") ||
+      error?.toString?.()?.includes("ERR_ABORTED")
+    if (!isAborted) {
+      console.error("Failed to load Mintos login page:", error)
+      if (mintosWindow && !mintosWindow.isDestroyed()) {
+        mintosWindow.close()
+      }
+      return { success: false }
+    }
   }
 
-  if (request.credentials)
-    await mintosWindow?.webContents.executeJavaScript(`
+  if (request.credentials && mintosWindow && !mintosWindow.isDestroyed())
+    await mintosWindow.webContents.executeJavaScript(`
             function typeAndTab(e,t){const n=document.getElementById(e);n&&(n.focus(),n.value=t,n.dispatchEvent(new Event('input',{bubbles:!0})),n.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',code:'Tab',keyCode:9,which:9,bubbles:!0,cancelable:!0})))}function pressEnter(){const e=document.activeElement||document.body;e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:!0,cancelable:!0}))}
             typeAndTab('login-username', '${request.credentials?.user}')
             typeAndTab('login-password', '${request.credentials?.password}')

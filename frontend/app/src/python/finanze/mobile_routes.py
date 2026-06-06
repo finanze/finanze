@@ -104,20 +104,6 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
             "list_real_estate",
             d.list_re,
         ),
-        (
-            "POST",
-            "/api/v1/data/manual/positions/update-quotes",
-            "update_tracked_quotes",
-            "update_tracked_quotes",
-            d.up_tracked,
-        ),
-        (
-            "POST",
-            "/api/v1/data/manual/positions/update-loans",
-            "update_tracked_loans",
-            "update_tracked_loans",
-            d.up_tracked_loans,
-        ),
         ("GET", "/api/v1/cloud/backup", "get_backups", "get_backups", d.get_backups),
         (
             "POST",

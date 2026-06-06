@@ -142,8 +142,6 @@ class DeferredComponents:
         from application.use_cases.user_login import UserLoginImpl
         from application.use_cases.change_user_password import ChangeUserPasswordImpl
         from application.use_cases.user_logout import UserLogoutImpl
-        from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
-        from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 
         core = self._core
 
@@ -290,13 +288,6 @@ class DeferredComponents:
         self.get_pending = GetPendingFlowsImpl(self.pending_repo)
 
         self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
-
-        self.up_tracked = UpdateTrackedQuotesImpl(
-            self.position_repo, self.manual_repo, self.inst_provider, self.ex_client
-        )
-        self.up_tracked_loans = UpdateTrackedLoansImpl(
-            self.position_repo, self.manual_repo, self.loan_calculator, self.re_repo
-        )
 
         backupable_ports = {
             BackupFileType.DATA: core.db_manager,

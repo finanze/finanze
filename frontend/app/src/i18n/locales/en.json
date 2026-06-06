@@ -1842,7 +1842,14 @@
     "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information.",
     "paymentDate": "Payment Date",
     "retainedAmount": "Retained Amount",
-    "pendingTransfers": "Pending Transfers"
+    "pendingTransfers": "Pending Transfers",
+    "sortByAmount": "Sort by amount",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "hideEmpty": "Hide empty accounts",
+    "groupByEntity": "Group by entity",
+    "showIbans": "Show IBANs",
+    "emptyCount": "+{count} empty"
   },
   "cardTypes": {
     "CREDIT": "Credit",
