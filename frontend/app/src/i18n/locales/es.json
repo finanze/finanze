@@ -1841,7 +1841,14 @@
     "noDataDescription": "Conecta tus cuentas bancarias para ver información de cuentas, tarjetas y préstamos.",
     "paymentDate": "Fecha de Pago",
     "retainedAmount": "Retenido",
-    "pendingTransfers": "Transferencias Pendientes"
+    "pendingTransfers": "Transferencias Pendientes",
+    "sortByAmount": "Ordenar por importe",
+    "ascending": "Ascendente",
+    "descending": "Descendente",
+    "hideEmpty": "Ocultar cuentas vacías",
+    "groupByEntity": "Agrupar por entidad",
+    "showIbans": "Mostrar IBANs",
+    "emptyCount": "+{count} vacías"
   },
   "cardTypes": {
     "CREDIT": "Crédito",
