@@ -42,6 +42,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { Switch } from "@/components/ui/Switch"
 import {
   ArrowLeft,
   Wallet,
@@ -59,8 +60,13 @@ import {
   Copy,
   Check,
   Loader2,
-  Binary,
   ChevronDown,
+  MoreVertical,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  Landmark,
+  EyeOff,
+  Hash,
 } from "lucide-react"
 import {
   ProductType,
@@ -535,6 +541,30 @@ function BankingManualControls({
   )
 }
 
+type SortOrder = "asc" | "desc"
+
+interface AccountViewOptions {
+  sortOrder: SortOrder
+  hideEmpty: boolean
+  groupByEntity: boolean
+  showIbans: boolean
+}
+
+interface CardViewOptions {
+  groupByEntity: boolean
+}
+
+const DEFAULT_ACCOUNT_OPTIONS: AccountViewOptions = {
+  sortOrder: "desc",
+  hideEmpty: false,
+  groupByEntity: false,
+  showIbans: false,
+}
+
+const DEFAULT_CARD_OPTIONS: CardViewOptions = {
+  groupByEntity: false,
+}
+
 export default function BankingPage() {
   const { t, locale } = useI18n()
   const { positionsData, isLoading, refreshEntity, refreshData } =
@@ -544,7 +574,49 @@ export default function BankingPage() {
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
-  const [showAccountNumbers, setShowAccountNumbers] = useState(false)
+
+  const [accountOptions, setAccountOptions] = useState<AccountViewOptions>(
+    () => {
+      try {
+        const raw = localStorage.getItem("bankingAccountOptions")
+        return raw
+          ? { ...DEFAULT_ACCOUNT_OPTIONS, ...JSON.parse(raw) }
+          : DEFAULT_ACCOUNT_OPTIONS
+      } catch {
+        return DEFAULT_ACCOUNT_OPTIONS
+      }
+    },
+  )
+
+  const updateAccountOptions = useCallback(
+    (patch: Partial<AccountViewOptions>) => {
+      setAccountOptions(prev => {
+        const next = { ...prev, ...patch }
+        localStorage.setItem("bankingAccountOptions", JSON.stringify(next))
+        return next
+      })
+    },
+    [],
+  )
+
+  const [cardOptions, setCardOptions] = useState<CardViewOptions>(() => {
+    try {
+      const raw = localStorage.getItem("bankingCardOptions")
+      return raw
+        ? { ...DEFAULT_CARD_OPTIONS, ...JSON.parse(raw) }
+        : DEFAULT_CARD_OPTIONS
+    } catch {
+      return DEFAULT_CARD_OPTIONS
+    }
+  })
+
+  const updateCardOptions = useCallback((patch: Partial<CardViewOptions>) => {
+    setCardOptions(prev => {
+      const next = { ...prev, ...patch }
+      localStorage.setItem("bankingCardOptions", JSON.stringify(next))
+      return next
+    })
+  }, [])
 
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
@@ -1104,8 +1176,8 @@ export default function BankingPage() {
           positions={filteredAccounts}
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
-          showAccountNumbers={showAccountNumbers}
-          onToggleAccountNumbers={() => setShowAccountNumbers(v => !v)}
+          options={accountOptions}
+          onOptionsChange={updateAccountOptions}
           onSummaryChange={updateAccountsSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
@@ -1124,6 +1196,8 @@ export default function BankingPage() {
           positions={filteredCards}
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
+          options={cardOptions}
+          onOptionsChange={updateCardOptions}
           onSummaryChange={updateCardsSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
@@ -1193,8 +1267,8 @@ interface SectionCommonProps {
 
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
-  showAccountNumbers: boolean
-  onToggleAccountNumbers: () => void
+  options: AccountViewOptions
+  onOptionsChange: (patch: Partial<AccountViewOptions>) => void
   onSummaryChange: (summary: AccountsSummary) => void
 }
 
@@ -1204,8 +1278,8 @@ function BankAccountsSection({
   positions,
   defaultCurrency,
   exchangeRates,
-  showAccountNumbers,
-  onToggleAccountNumbers,
+  options,
+  onOptionsChange,
   onSummaryChange,
   onFocusEntity,
   selectedEntities,
@@ -1486,6 +1560,72 @@ function BankAccountsSection({
     onSummaryChange(summary)
   }, [summary, onSummaryChange])
 
+  const showAccountNumbers = options.showIbans
+
+  const nonDeletedItems = useMemo(
+    () =>
+      displayItems.filter(
+        item => !(item.originalId && isEntryDeleted(item.originalId)),
+      ),
+    [displayItems, isEntryDeleted],
+  )
+
+  const hiddenEmptyCount = useMemo(
+    () =>
+      nonDeletedItems.filter(item => (item.position.convertedTotal ?? 0) === 0)
+        .length,
+    [nonDeletedItems],
+  )
+
+  const sortedItems = useMemo(() => {
+    const base = options.hideEmpty
+      ? nonDeletedItems.filter(
+          item => (item.position.convertedTotal ?? 0) !== 0,
+        )
+      : nonDeletedItems
+    const factor = options.sortOrder === "asc" ? 1 : -1
+    return [...base].sort(
+      (a, b) =>
+        ((a.position.convertedTotal ?? 0) - (b.position.convertedTotal ?? 0)) *
+        factor,
+    )
+  }, [nonDeletedItems, options.hideEmpty, options.sortOrder])
+
+  const groupedItems = useMemo(() => {
+    if (!options.groupByEntity) return null
+    const groups = new Map<
+      string,
+      {
+        entityName: string
+        items: ManualDisplayItem<AccountDisplay, AccountDraft>[]
+      }
+    >()
+    sortedItems.forEach(item => {
+      const key = item.position.entityId
+      const existing = groups.get(key)
+      if (existing) {
+        existing.items.push(item)
+      } else {
+        groups.set(key, {
+          entityName: item.position.entityName,
+          items: [item],
+        })
+      }
+    })
+    const factor = options.sortOrder === "asc" ? 1 : -1
+    return Array.from(groups.entries())
+      .map(([entityId, group]) => ({
+        entityId,
+        entityName: group.entityName,
+        items: group.items,
+        total: group.items.reduce(
+          (sum, item) => sum + (item.position.convertedTotal ?? 0),
+          0,
+        ),
+      }))
+      .sort((a, b) => (a.total - b.total) * factor)
+  }, [sortedItems, options.groupByEntity, options.sortOrder])
+
   const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
   const manualEmptyDescription = manualTranslate(
     `${assetPath}.empty.description`,
@@ -1515,15 +1655,77 @@ function BankAccountsSection({
         </button>
         {!collapsed && (
           <div className="flex items-center gap-2">
-            <Button
-              variant={showAccountNumbers ? "outline" : "ghost"}
-              size="sm"
-              className="flex items-center gap-1 h-8 px-2 text-xs"
-              onClick={onToggleAccountNumbers}
-            >
-              <Binary className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Iban</span>
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-2">
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOptionsChange({
+                        sortOrder:
+                          options.sortOrder === "desc" ? "asc" : "desc",
+                      })
+                    }
+                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                  >
+                    <span className="flex items-center gap-2">
+                      {options.sortOrder === "desc" ? (
+                        <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ArrowUpNarrowWide className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      {t.banking.sortByAmount}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {options.sortOrder === "desc"
+                        ? t.banking.descending
+                        : t.banking.ascending}
+                    </span>
+                  </button>
+                  <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+                    <span className="flex items-center gap-2">
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      {t.banking.hideEmpty}
+                    </span>
+                    <Switch
+                      checked={options.hideEmpty}
+                      onCheckedChange={val =>
+                        onOptionsChange({ hideEmpty: Boolean(val) })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+                    <span className="flex items-center gap-2">
+                      <Landmark className="h-4 w-4 text-muted-foreground" />
+                      {t.banking.groupByEntity}
+                    </span>
+                    <Switch
+                      checked={options.groupByEntity}
+                      onCheckedChange={val =>
+                        onOptionsChange({ groupByEntity: Boolean(val) })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+                    <span className="flex items-center gap-2">
+                      <Hash className="h-4 w-4 text-muted-foreground" />
+                      {t.banking.showIbans}
+                    </span>
+                    <Switch
+                      checked={options.showIbans}
+                      onCheckedChange={val =>
+                        onOptionsChange({ showIbans: Boolean(val) })
+                      }
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             {!isEditMode && (
               <Button
                 variant="default"
@@ -1564,254 +1766,288 @@ function BankAccountsSection({
           </Card>
         ) : (
           <TooltipProvider delayDuration={120}>
-            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {displayItems.map(item => {
-                const { position, manualDraft, isManual, isDirty, originalId } =
-                  item
+            <div className="space-y-4">
+              {(
+                groupedItems ?? [
+                  {
+                    entityId: "__all__",
+                    entityName: null as string | null,
+                    items: sortedItems,
+                  },
+                ]
+              ).map(group => (
+                <div key={group.entityId} className="space-y-3">
+                  {group.entityName && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Landmark className="h-3.5 w-3.5" />
+                      <span>{group.entityName}</span>
+                      <span className="text-xs">({group.items.length})</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {group.items.map(item => {
+                      const { position, manualDraft, isManual, isDirty } = item
 
-                if (originalId && isEntryDeleted(originalId)) {
-                  return null
-                }
+                      const hasInterest =
+                        isFiniteNumber(position.interest) &&
+                        (position.interest ?? 0) > 0
+                      const hasRetained =
+                        isFiniteNumber(position.convertedRetained) &&
+                        Math.abs(position.convertedRetained ?? 0) > 0
+                      const hasPendingTransfers =
+                        isFiniteNumber(position.convertedPendingTransfers) &&
+                        Math.abs(position.convertedPendingTransfers ?? 0) > 0
+                      const hasFooter =
+                        hasInterest || hasRetained || hasPendingTransfers
 
-                const hasInterest =
-                  isFiniteNumber(position.interest) &&
-                  (position.interest ?? 0) > 0
-                const hasRetained =
-                  isFiniteNumber(position.convertedRetained) &&
-                  Math.abs(position.convertedRetained ?? 0) > 0
-                const hasPendingTransfers =
-                  isFiniteNumber(position.convertedPendingTransfers) &&
-                  Math.abs(position.convertedPendingTransfers ?? 0) > 0
-                const hasFooter =
-                  hasInterest || hasRetained || hasPendingTransfers
+                      const highlightClass = isDirty
+                        ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                        : ""
+                      const showActions = isEditMode && isManual
 
-                const highlightClass = isDirty
-                  ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
-                  : ""
-                const showActions = isEditMode && isManual
-
-                return (
-                  <Card
-                    key={item.key}
-                    className={cn(
-                      "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
-                      highlightClass,
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        {getAccountTypeIcon(position.type as AccountType)}
-                        <Badge
-                          variant="secondary"
+                      return (
+                        <Card
+                          key={item.key}
                           className={cn(
-                            "text-xs",
-                            getAccountTypeColor(position.type),
+                            "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
+                            highlightClass,
                           )}
                         >
-                          {t.accountTypes[position.type] || position.type}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <SourceBadge
-                          source={position.source}
-                          onClick={
-                            position.source === DataSource.MANUAL
-                              ? onEnterGlobalEditMode
-                              : undefined
-                          }
-                        />
-                        <EntityBadge
-                          name={position.entityName}
-                          origin={position.entityOrigin}
-                          onClick={() => onFocusEntity(position.entityId)}
-                          className="text-xs"
-                          title={position.entityName}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-1 flex-col justify-between gap-4">
-                      <div className="space-y-2">
-                        {position.name && (
-                          <h3 className="text-lg font-semibold">
-                            {position.name}
-                          </h3>
-                        )}
-                        {position.iban && (
-                          <div className="flex items-center gap-2 group">
-                            <div className="font-mono text-sm text-muted-foreground">
-                              {formatIban(position.iban, showAccountNumbers)}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                              {getAccountTypeIcon(position.type as AccountType)}
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "text-xs",
+                                  getAccountTypeColor(position.type),
+                                )}
+                              >
+                                {t.accountTypes[position.type] || position.type}
+                              </Badge>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
-                                copiedIban === position.iban
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                              }`}
-                              onClick={() => handleCopyIban(position.iban!)}
-                              title={
-                                copiedIban === position.iban
-                                  ? t.common.copied
-                                  : t.common.copy
-                              }
-                            >
-                              {copiedIban === position.iban ? (
-                                <Check className="h-3 w-3" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <SourceBadge
+                                source={position.source}
+                                onClick={
+                                  position.source === DataSource.MANUAL
+                                    ? onEnterGlobalEditMode
+                                    : undefined
+                                }
+                              />
+                              <EntityBadge
+                                name={position.entityName}
+                                origin={position.entityOrigin}
+                                onClick={() => onFocusEntity(position.entityId)}
+                                className="text-xs"
+                                title={position.entityName}
+                              />
+                            </div>
                           </div>
-                        )}
-                        <div className="space-y-1">
-                          <div className="text-2xl font-bold">
-                            <Sensitive>
-                              {formatCurrency(
-                                position.convertedTotal,
-                                locale,
-                                defaultCurrency,
+
+                          <div className="flex flex-1 flex-col justify-between gap-4">
+                            <div className="space-y-2">
+                              {position.name && (
+                                <h3 className="text-lg font-semibold">
+                                  {position.name}
+                                </h3>
                               )}
-                            </Sensitive>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {position.currency !== defaultCurrency && (
-                              <span>
-                                <Sensitive>
-                                  {formatCurrency(
-                                    position.total ?? 0,
-                                    locale,
-                                    position.currency,
+                              {position.iban && (
+                                <div className="flex items-center gap-2 group">
+                                  <div className="font-mono text-sm text-muted-foreground">
+                                    {formatIban(
+                                      position.iban,
+                                      showAccountNumbers,
+                                    )}
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                                      copiedIban === position.iban
+                                        ? "text-green-600 dark:text-green-400"
+                                        : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    }`}
+                                    onClick={() =>
+                                      handleCopyIban(position.iban!)
+                                    }
+                                    title={
+                                      copiedIban === position.iban
+                                        ? t.common.copied
+                                        : t.common.copy
+                                    }
+                                  >
+                                    {copiedIban === position.iban ? (
+                                      <Check className="h-3 w-3" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
+                              <div className="space-y-1">
+                                <div className="text-2xl font-bold">
+                                  <Sensitive>
+                                    {formatCurrency(
+                                      position.convertedTotal,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </Sensitive>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {position.currency !== defaultCurrency && (
+                                    <span>
+                                      <Sensitive>
+                                        {formatCurrency(
+                                          position.total ?? 0,
+                                          locale,
+                                          position.currency,
+                                        )}
+                                      </Sensitive>
+                                      <span aria-hidden="true" className="px-1">
+                                        •
+                                      </span>
+                                    </span>
                                   )}
-                                </Sensitive>
-                                <span aria-hidden="true" className="px-1">
-                                  •
-                                </span>
-                              </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {hasFooter && (
+                              <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
+                                {hasInterest && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
+                                      >
+                                        <Percent className="h-3 w-3" />
+                                        <Sensitive className="text-green-600 dark:text-green-400">
+                                          {formatPercentage(
+                                            (position.interest ?? 0) * 100,
+                                            locale,
+                                          )}
+                                        </Sensitive>
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {t.banking.interestRate}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {hasRetained && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
+                                      >
+                                        <Shield className="h-3 w-3" />
+                                        <Sensitive className="text-orange-500">
+                                          {formatCurrency(
+                                            position.convertedRetained ?? 0,
+                                            locale,
+                                            defaultCurrency,
+                                          )}
+                                        </Sensitive>
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {t.banking.retainedAmount}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {hasPendingTransfers && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
+                                      >
+                                        <AlertCircle className="h-3 w-3" />
+                                        <Sensitive className="text-blue-500">
+                                          {formatCurrency(
+                                            position.convertedPendingTransfers ??
+                                              0,
+                                            locale,
+                                            defaultCurrency,
+                                          )}
+                                        </Sensitive>
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {t.banking.pendingTransfers}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            )}
+
+                            {isDirty && (
+                              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                {manualTranslate("management.unsavedChanges")}
+                              </p>
+                            )}
+
+                            {showActions && (
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                  onClick={() => {
+                                    if (manualDraft?.originalId) {
+                                      editByOriginalId(manualDraft.originalId)
+                                    } else if (manualDraft) {
+                                      editByLocalId(manualDraft.localId)
+                                    } else if (item.originalId) {
+                                      editByOriginalId(item.originalId)
+                                    }
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  {t.common.edit}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
+                                  onClick={() => {
+                                    if (manualDraft?.originalId) {
+                                      deleteByOriginalId(manualDraft.originalId)
+                                    } else if (manualDraft) {
+                                      deleteByLocalId(manualDraft.localId)
+                                    } else if (item.originalId) {
+                                      deleteByOriginalId(item.originalId)
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  {t.common.delete}
+                                </Button>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      </div>
-
-                      {hasFooter && (
-                        <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
-                          {hasInterest && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
-                                >
-                                  <Percent className="h-3 w-3" />
-                                  <Sensitive className="text-green-600 dark:text-green-400">
-                                    {formatPercentage(
-                                      (position.interest ?? 0) * 100,
-                                      locale,
-                                    )}
-                                  </Sensitive>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t.banking.interestRate}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {hasRetained && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
-                                >
-                                  <Shield className="h-3 w-3" />
-                                  <Sensitive className="text-orange-500">
-                                    {formatCurrency(
-                                      position.convertedRetained ?? 0,
-                                      locale,
-                                      defaultCurrency,
-                                    )}
-                                  </Sensitive>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t.banking.retainedAmount}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {hasPendingTransfers && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
-                                >
-                                  <AlertCircle className="h-3 w-3" />
-                                  <Sensitive className="text-blue-500">
-                                    {formatCurrency(
-                                      position.convertedPendingTransfers ?? 0,
-                                      locale,
-                                      defaultCurrency,
-                                    )}
-                                  </Sensitive>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t.banking.pendingTransfers}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      )}
-
-                      {isDirty && (
-                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                          {manualTranslate("management.unsavedChanges")}
-                        </p>
-                      )}
-
-                      {showActions && (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={() => {
-                              if (manualDraft?.originalId) {
-                                editByOriginalId(manualDraft.originalId)
-                              } else if (manualDraft) {
-                                editByLocalId(manualDraft.localId)
-                              } else if (item.originalId) {
-                                editByOriginalId(item.originalId)
-                              }
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            {t.common.edit}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
-                            onClick={() => {
-                              if (manualDraft?.originalId) {
-                                deleteByOriginalId(manualDraft.originalId)
-                              } else if (manualDraft) {
-                                deleteByLocalId(manualDraft.localId)
-                              } else if (item.originalId) {
-                                deleteByOriginalId(item.originalId)
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            {t.common.delete}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                )
-              })}
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              {options.hideEmpty && hiddenEmptyCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onOptionsChange({ hideEmpty: false })}
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {t.banking.emptyCount.replace(
+                    "{count}",
+                    String(hiddenEmptyCount),
+                  )}
+                </button>
+              )}
             </div>
           </TooltipProvider>
         ))}
@@ -1821,6 +2057,8 @@ function BankAccountsSection({
 
 interface BankCardsSectionProps extends SectionCommonProps {
   positions: CardPosition[]
+  options: CardViewOptions
+  onOptionsChange: (patch: Partial<CardViewOptions>) => void
   onSummaryChange: (summary: CardsSummary) => void
 }
 
@@ -1830,6 +2068,8 @@ function BankCardsSection({
   positions,
   defaultCurrency,
   exchangeRates,
+  options,
+  onOptionsChange,
   onSummaryChange,
   onFocusEntity,
   selectedEntities,
@@ -2041,6 +2281,42 @@ function BankCardsSection({
     onSummaryChange(summary)
   }, [summary, onSummaryChange])
 
+  const visibleItems = useMemo(
+    () =>
+      displayItems.filter(
+        item => !(item.originalId && isEntryDeleted(item.originalId)),
+      ),
+    [displayItems, isEntryDeleted],
+  )
+
+  const groupedItems = useMemo(() => {
+    if (!options.groupByEntity) return null
+    const groups = new Map<
+      string,
+      {
+        entityName: string
+        items: ManualDisplayItem<CardDisplay, CardDraft>[]
+      }
+    >()
+    visibleItems.forEach(item => {
+      const key = item.position.entityId
+      const existing = groups.get(key)
+      if (existing) {
+        existing.items.push(item)
+      } else {
+        groups.set(key, {
+          entityName: item.position.entityName,
+          items: [item],
+        })
+      }
+    })
+    return Array.from(groups.entries()).map(([entityId, group]) => ({
+      entityId,
+      entityName: group.entityName,
+      items: group.items,
+    }))
+  }, [visibleItems, options.groupByEntity])
+
   const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
   const manualEmptyDescription = manualTranslate(
     `${assetPath}.empty.description`,
@@ -2070,6 +2346,29 @@ function BankCardsSection({
         </button>
         {!collapsed && (
           <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-2">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+                    <span className="flex items-center gap-2">
+                      <Landmark className="h-4 w-4 text-muted-foreground" />
+                      {t.banking.groupByEntity}
+                    </span>
+                    <Switch
+                      checked={options.groupByEntity}
+                      onCheckedChange={val =>
+                        onOptionsChange({ groupByEntity: Boolean(val) })
+                      }
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             {!isEditMode && (
               <Button
                 variant="default"
@@ -2109,207 +2408,228 @@ function BankCardsSection({
             </p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
-            {displayItems.map(item => {
-              const { position, manualDraft, isManual, isDirty, originalId } =
-                item
+          <div className="space-y-4">
+            {(
+              groupedItems ?? [
+                {
+                  entityId: "__all__",
+                  entityName: null as string | null,
+                  items: visibleItems,
+                },
+              ]
+            ).map(group => (
+              <div key={group.entityId} className="space-y-3">
+                {group.entityName && (
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Landmark className="h-3.5 w-3.5" />
+                    <span>{group.entityName}</span>
+                    <span className="text-xs">({group.items.length})</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
+                  {group.items.map(item => {
+                    const { position, manualDraft, isManual, isDirty } = item
 
-              if (originalId && isEntryDeleted(originalId)) {
-                return null
-              }
+                    const showActions = isEditMode && isManual
+                    const highlightClass = isDirty
+                      ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                      : ""
 
-              const showActions = isEditMode && isManual
-              const highlightClass = isDirty
-                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
-                : ""
+                    const gradientClass =
+                      position.type === CardType.CREDIT
+                        ? "from-blue-600 to-blue-800"
+                        : "from-green-600 to-green-800"
 
-              const gradientClass =
-                position.type === CardType.CREDIT
-                  ? "from-blue-600 to-blue-800"
-                  : "from-green-600 to-green-800"
+                    const utilization =
+                      position.convertedLimit && position.convertedLimit > 0
+                        ? Math.min(
+                            (position.convertedUsed / position.convertedLimit) *
+                              100,
+                            200,
+                          )
+                        : 0
 
-              const utilization =
-                position.convertedLimit && position.convertedLimit > 0
-                  ? Math.min(
-                      (position.convertedUsed / position.convertedLimit) * 100,
-                      200,
-                    )
-                  : 0
-
-              return (
-                <Card
-                  key={item.key}
-                  className={cn(
-                    "flex flex-col overflow-hidden transition-shadow hover:shadow-lg",
-                    highlightClass,
-                    !position.active && "opacity-60 grayscale",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "relative flex flex-col justify-center gap-2 p-6 text-white",
-                      "bg-gradient-to-br",
-                      gradientClass,
-                    )}
-                  >
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <SourceBadge
-                        source={position.source}
-                        onClick={
-                          position.source === DataSource.MANUAL
-                            ? onEnterGlobalEditMode
-                            : undefined
-                        }
-                      />
-                      <EntityBadge
-                        name={position.entityName}
-                        origin={position.entityOrigin}
-                        onClick={() => onFocusEntity(position.entityId)}
-                        className="text-xs"
-                      />
-                    </div>
-                    <div className="mb-4 flex items-center gap-2">
-                      <CreditCard className="h-5 w-5" />
-                      <span className="text-sm font-medium">
-                        {position.type === CardType.CREDIT
-                          ? t.cardTypes.CREDIT
-                          : t.cardTypes.DEBIT}
-                      </span>
-                    </div>
-                    <div className="mb-2 font-mono text-lg">
-                      {formatCardNumber(position.ending)}
-                    </div>
-                    {position.name && (
-                      <div className="text-sm opacity-90">{position.name}</div>
-                    )}
-                    {!position.active && (
-                      <Badge
-                        variant="destructive"
-                        className="absolute left-3 bottom-3 text-xs"
+                    return (
+                      <Card
+                        key={item.key}
+                        className={cn(
+                          "flex flex-col overflow-hidden transition-shadow hover:shadow-lg",
+                          highlightClass,
+                          !position.active && "opacity-60 grayscale",
+                        )}
                       >
-                        {manualTranslate(`${assetPath}.summary.inactive`)}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col space-y-3 p-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        {t.banking.used}
-                      </span>
-                      <span className="font-semibold">
-                        <Sensitive>
-                          {formatCurrency(
-                            position.convertedUsed,
-                            locale,
-                            defaultCurrency,
+                        <div
+                          className={cn(
+                            "relative flex flex-col justify-center gap-2 p-6 text-white",
+                            "bg-gradient-to-br",
+                            gradientClass,
                           )}
-                        </Sensitive>
-                      </span>
-                    </div>
-                    {Number(position.convertedLimit || 0) > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          {t.banking.limit}
-                        </span>
-                        <span>
-                          <Sensitive>
-                            {formatCurrency(
-                              position.convertedLimit!,
-                              locale,
-                              defaultCurrency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                    )}
-                    {Number(position.convertedLimit || 0) > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{t.banking.utilization}</span>
-                          <span>
-                            <Sensitive>
-                              {formatPercentage(
-                                Math.min(utilization, 100),
-                                locale,
-                              )}
-                            </Sensitive>
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-muted">
-                          <div
-                            className={cn(
-                              "h-2 rounded-full",
-                              utilization > 80
-                                ? "bg-red-500"
-                                : utilization > 60
-                                  ? "bg-yellow-400"
-                                  : "bg-emerald-500",
-                            )}
-                            style={{ width: `${Math.min(utilization, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {position.currency !== defaultCurrency && (
-                      <div className="border-t border-border pt-2 text-xs text-muted-foreground">
-                        <Sensitive>
-                          {formatCurrency(
-                            position.used,
-                            locale,
-                            position.currency,
+                        >
+                          <div className="absolute right-3 top-3 flex items-center gap-2">
+                            <SourceBadge
+                              source={position.source}
+                              onClick={
+                                position.source === DataSource.MANUAL
+                                  ? onEnterGlobalEditMode
+                                  : undefined
+                              }
+                            />
+                            <EntityBadge
+                              name={position.entityName}
+                              origin={position.entityOrigin}
+                              onClick={() => onFocusEntity(position.entityId)}
+                              className="text-xs"
+                            />
+                          </div>
+                          <div className="mb-4 flex items-center gap-2">
+                            <CreditCard className="h-5 w-5" />
+                            <span className="text-sm font-medium">
+                              {position.type === CardType.CREDIT
+                                ? t.cardTypes.CREDIT
+                                : t.cardTypes.DEBIT}
+                            </span>
+                          </div>
+                          <div className="mb-2 font-mono text-lg">
+                            {formatCardNumber(position.ending)}
+                          </div>
+                          {position.name && (
+                            <div className="text-sm opacity-90">
+                              {position.name}
+                            </div>
                           )}
-                          {isFiniteNumber(position.limit) &&
-                            ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
-                        </Sensitive>
-                      </div>
-                    )}
-                    {isDirty && (
-                      <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                        {manualTranslate("management.unsavedChanges")}
-                      </p>
-                    )}
-                    {showActions && (
-                      <div className="mt-auto flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (manualDraft?.originalId) {
-                              editByOriginalId(manualDraft.originalId)
-                            } else if (manualDraft) {
-                              editByLocalId(manualDraft.localId)
-                            } else if (item.originalId) {
-                              editByOriginalId(item.originalId)
-                            }
-                          }}
-                          className="flex items-center gap-1"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          {t.common.edit}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="flex items-center gap-1 text-red-500 hover:text-red-600"
-                          onClick={() => {
-                            if (manualDraft?.originalId) {
-                              deleteByOriginalId(manualDraft.originalId)
-                            } else if (manualDraft) {
-                              deleteByLocalId(manualDraft.localId)
-                            } else if (item.originalId) {
-                              deleteByOriginalId(item.originalId)
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {t.common.delete}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )
-            })}
+                          {!position.active && (
+                            <Badge
+                              variant="destructive"
+                              className="absolute left-3 bottom-3 text-xs"
+                            >
+                              {manualTranslate(`${assetPath}.summary.inactive`)}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-1 flex-col space-y-3 p-4">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              {t.banking.used}
+                            </span>
+                            <span className="font-semibold">
+                              <Sensitive>
+                                {formatCurrency(
+                                  position.convertedUsed,
+                                  locale,
+                                  defaultCurrency,
+                                )}
+                              </Sensitive>
+                            </span>
+                          </div>
+                          {Number(position.convertedLimit || 0) > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {t.banking.limit}
+                              </span>
+                              <span>
+                                <Sensitive>
+                                  {formatCurrency(
+                                    position.convertedLimit!,
+                                    locale,
+                                    defaultCurrency,
+                                  )}
+                                </Sensitive>
+                              </span>
+                            </div>
+                          )}
+                          {Number(position.convertedLimit || 0) > 0 && (
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>{t.banking.utilization}</span>
+                                <span>
+                                  <Sensitive>
+                                    {formatPercentage(
+                                      Math.min(utilization, 100),
+                                      locale,
+                                    )}
+                                  </Sensitive>
+                                </span>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-muted">
+                                <div
+                                  className={cn(
+                                    "h-2 rounded-full",
+                                    utilization > 80
+                                      ? "bg-red-500"
+                                      : utilization > 60
+                                        ? "bg-yellow-400"
+                                        : "bg-emerald-500",
+                                  )}
+                                  style={{
+                                    width: `${Math.min(utilization, 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {position.currency !== defaultCurrency && (
+                            <div className="border-t border-border pt-2 text-xs text-muted-foreground">
+                              <Sensitive>
+                                {formatCurrency(
+                                  position.used,
+                                  locale,
+                                  position.currency,
+                                )}
+                                {isFiniteNumber(position.limit) &&
+                                  ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
+                              </Sensitive>
+                            </div>
+                          )}
+                          {isDirty && (
+                            <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                              {manualTranslate("management.unsavedChanges")}
+                            </p>
+                          )}
+                          {showActions && (
+                            <div className="mt-auto flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (manualDraft?.originalId) {
+                                    editByOriginalId(manualDraft.originalId)
+                                  } else if (manualDraft) {
+                                    editByLocalId(manualDraft.localId)
+                                  } else if (item.originalId) {
+                                    editByOriginalId(item.originalId)
+                                  }
+                                }}
+                                className="flex items-center gap-1"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                {t.common.edit}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                                onClick={() => {
+                                  if (manualDraft?.originalId) {
+                                    deleteByOriginalId(manualDraft.originalId)
+                                  } else if (manualDraft) {
+                                    deleteByLocalId(manualDraft.localId)
+                                  } else if (item.originalId) {
+                                    deleteByOriginalId(item.originalId)
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                {t.common.delete}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
     </motion.div>

@@ -184,7 +184,7 @@ export type FFValue = FFStatus | string
 export type FeatureFlags = Record<string, FFValue>
 
 export enum CloudRole {
-  NONE = "NONE",
+  BASIC = "BASIC",
   PLUS = "PLUS",
 }
 
@@ -339,6 +339,12 @@ export interface FetchResponse {
     credentials?: Record<string, string>
   }
   data?: any
+}
+
+export interface UpdateTrackedResult {
+  hadTracked: boolean
+  changed: boolean
+  changedEntities: string[]
 }
 
 export enum ImportErrorType {

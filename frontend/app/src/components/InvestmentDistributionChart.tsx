@@ -432,7 +432,7 @@ export const InvestmentDistributionChart: React.FC<
                     />
                   ))}
                 </Pie>
-                {!orbitBubbles && (
+                {(!orbitBubbles || orbitBubbles.length === 0) && (
                   <Tooltip
                     content={
                       <CustomTooltip

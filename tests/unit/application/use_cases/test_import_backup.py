@@ -156,12 +156,69 @@ class TestImportCooldown:
                 BackupFileType.DATA: _make_backup_info(date=recent_date),
             }
         )
-        use_case, *_ = _build_use_case(local_info=local_info)
+        use_case, _, _, backup_repo, *_ = _build_use_case(local_info=local_info)
 
         with pytest.raises(TooManyRequests):
             await use_case.execute(
                 ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
             )
+        backup_repo.get_info.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_basic_role_has_longer_cooldown(self):
+        auth = _make_auth(permissions=["backup.import"])
+        auth.role = CloudUserRole.BASIC
+        recent_date = datetime.now(tzlocal()) - timedelta(minutes=600)
+        local_info = BackupsInfo(
+            pieces={
+                BackupFileType.DATA: _make_backup_info(date=recent_date),
+            }
+        )
+        use_case, _, _, backup_repo, *_ = _build_use_case(
+            auth=auth, local_info=local_info
+        )
+
+        with pytest.raises(TooManyRequests):
+            await use_case.execute(
+                ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+            )
+        backup_repo.get_info.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_basic_role_passes_after_cooldown(self):
+        auth = _make_auth(permissions=["backup.import"])
+        auth.role = CloudUserRole.BASIC
+        old_date = datetime.now(tzlocal()) - timedelta(minutes=1081)
+        piece_id = uuid4()
+        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        local_info = BackupsInfo(
+            pieces={
+                BackupFileType.DATA: _make_backup_info(date=old_date),
+            }
+        )
+        remote_info = BackupsInfo(
+            pieces={
+                BackupFileType.DATA: remote_backup,
+            }
+        )
+        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        download_result = BackupPieces(pieces=[transfer_piece])
+        backupable = MagicMock()
+        backupable.get_last_updated = AsyncMock(return_value=old_date)
+        backupable.import_data = AsyncMock()
+        backupable.export = AsyncMock(return_value=b"data")
+        use_case, *_ = _build_use_case(
+            auth=auth,
+            local_info=local_info,
+            remote_info=remote_info,
+            download_result=download_result,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+        assert BackupFileType.DATA in result.pieces
 
     @pytest.mark.asyncio
     async def test_no_cooldown_when_old_backup(self):

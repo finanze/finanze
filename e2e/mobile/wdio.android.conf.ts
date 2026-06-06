@@ -41,6 +41,7 @@ export const config: Options.Testrunner = {
     capabilities: [
         {
             platformName: 'Android',
+            pageLoadStrategy: 'none',
             'appium:automationName': 'UiAutomator2',
             'appium:deviceName':
                 process.env.ANDROID_DEVICE_NAME || 'emulator-5554',
@@ -49,13 +50,22 @@ export const config: Options.Testrunner = {
             'appium:allowTestPackages': true,
             'appium:fullReset': true,
             'appium:noReset': false,
+            ...(process.env.CHROMEDRIVER_EXECUTABLE
+                ? {
+                      'appium:chromedriverExecutable':
+                          process.env.CHROMEDRIVER_EXECUTABLE,
+                  }
+                : {}),
             'appium:chromedriverAutodownload': true,
             'appium:autoWebview': false,
+            'appium:ensureWebviewsHavePages': false,
+            'appium:enableWebviewDetailsCollection': false,
+            'appium:showChromedriverLog': true,
             'appium:disableWindowAnimation': true,
             'appium:appWaitDuration': 60_000,
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
             'appium:uiautomator2ServerLaunchTimeout': 90_000,
-        } as WebdriverIO.Capabilities,
+        },
     ],
-} as Options.Testrunner
+} satisfies Options.Testrunner

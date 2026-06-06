@@ -21,7 +21,7 @@ from domain.backup import (
     SyncStatus,
     BackupInfoParams,
 )
-from domain.cloud_auth import CloudPermission
+from domain.cloud_auth import CloudPermission, CloudUserRole
 from domain.exception.exceptions import (
     InvalidBackupCredentials,
     TooManyRequests,
@@ -31,7 +31,10 @@ from domain.use_cases.import_backup import ImportBackup
 
 
 class ImportBackupImpl(ImportBackup):
-    BACKUP_OPERATION_COOLDOWN_MINUTES = 5
+    BACKUP_OPERATION_COOLDOWN_MINUTES = {
+        CloudUserRole.PLUS: 5,
+        CloudUserRole.BASIC: 1080,
+    }
 
     def __init__(
         self,
@@ -58,6 +61,9 @@ class ImportBackupImpl(ImportBackup):
         user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_IMPORT.check(user_auth)
 
+        if not request.initialize:
+            await self._check_cooldown(request.types, user_auth.role)
+
         remote_backup_pieces = (
             await self._backup_repository.get_info(BackupInfoParams(auth=user_auth))
         ).pieces
@@ -72,8 +78,6 @@ class ImportBackupImpl(ImportBackup):
             }
             bkg_pass = hashlib.sha3_256(request.password.encode("utf-8")).hexdigest()
         else:
-            await self._check_cooldown(request.types)
-
             bkg_pass = (
                 request.password or await self._data_initiator.get_hashed_password()
             )
@@ -189,13 +193,16 @@ class ImportBackupImpl(ImportBackup):
 
         return BackupSyncResult(pieces=affected_pieces)
 
-    async def _check_cooldown(self, types: list[BackupFileType]):
+    async def _check_cooldown(self, types: list[BackupFileType], role: CloudUserRole):
         local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         if not local_backup_registry:
             return
 
+        cooldown_minutes = self.BACKUP_OPERATION_COOLDOWN_MINUTES.get(
+            role, self.BACKUP_OPERATION_COOLDOWN_MINUTES[CloudUserRole.BASIC]
+        )
         now = datetime.now(tzlocal())
-        cooldown_delta = timedelta(minutes=self.BACKUP_OPERATION_COOLDOWN_MINUTES)
+        cooldown_delta = timedelta(minutes=cooldown_minutes)
 
         for bkg_type, backup_info in local_backup_registry.items():
             if bkg_type not in types:
@@ -208,7 +215,7 @@ class ImportBackupImpl(ImportBackup):
                 self._log.warning(
                     "Import operation blocked: last backup was %s seconds ago, cooldown is %s minutes",
                     int(time_since_last_operation.total_seconds()),
-                    self.BACKUP_OPERATION_COOLDOWN_MINUTES,
+                    cooldown_minutes,
                 )
                 raise TooManyRequests(
                     f"Please wait {remaining_seconds} seconds before performing another backup operation"

@@ -83,6 +83,7 @@ from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
+from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
@@ -657,16 +658,21 @@ class FinanzeServer:
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
-        update_position = UpdatePositionImpl(
-            entity_port=entity_repository,
+        manual_position_snapshot_writer = ManualPositionSnapshotWriter(
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             virtual_import_registry=virtual_import_registry,
+            real_estate_port=real_estate_repository,
+            loan_calculator=loan_calculator,
+        )
+        update_position = UpdatePositionImpl(
+            entity_port=entity_repository,
+            position_port=position_repository,
             crypto_asset_registry_port=crypto_asset_repository,
             crypto_asset_info_provider=crypto_asset_info_client,
             transaction_handler_port=transaction_handler,
-            real_estate_port=real_estate_repository,
-            loan_calculator=loan_calculator,
+            virtual_import_registry=virtual_import_registry,
+            snapshot_writer=manual_position_snapshot_writer,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
@@ -690,12 +696,17 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
+            exchange_rate_storage=exchange_rate_storage,
+            virtual_import_registry=virtual_import_registry,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
-            real_estate_port=real_estate_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)
@@ -747,6 +758,7 @@ class FinanzeServer:
 
         save_backup_settings = SaveBackupSettingsImpl(
             backup_settings_port=cloud_register,
+            cloud_register=cloud_register,
         )
 
         self._log.info("Initial component setup completed.")

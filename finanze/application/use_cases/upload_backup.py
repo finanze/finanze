@@ -24,13 +24,16 @@ from domain.backup import (
     BackupUploadParams,
     BackupInfoParams,
 )
-from domain.cloud_auth import CloudPermission
+from domain.cloud_auth import CloudPermission, CloudUserRole
 from domain.exception.exceptions import TooManyRequests, BackupConflict
 from domain.use_cases.upload_backup import UploadBackup
 
 
 class UploadBackupImpl(UploadBackup):
-    BACKUP_OPERATION_COOLDOWN_MINUTES = 5
+    BACKUP_OPERATION_COOLDOWN_MINUTES = {
+        CloudUserRole.PLUS: 5,
+        CloudUserRole.BASIC: 1080,
+    }
     BACKUP_SIZE_WARNING_THRESHOLD_PERCENT = 5.0
 
     def __init__(
@@ -55,7 +58,7 @@ class UploadBackupImpl(UploadBackup):
         user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_CREATE.check(user_auth)
 
-        await self._check_cooldown(request.types)
+        await self._check_cooldown(request.types, user_auth.role)
         hashed_pass = await self._data_initiator.get_hashed_password()
 
         remote_backup_info = (
@@ -186,13 +189,16 @@ class UploadBackupImpl(UploadBackup):
                     "Import the remote backup first or use force upload to overwrite."
                 )
 
-    async def _check_cooldown(self, types: list[BackupFileType]):
+    async def _check_cooldown(self, types: list[BackupFileType], role: CloudUserRole):
         local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         if not local_backup_registry:
             return
 
+        cooldown_minutes = self.BACKUP_OPERATION_COOLDOWN_MINUTES.get(
+            role, self.BACKUP_OPERATION_COOLDOWN_MINUTES[CloudUserRole.BASIC]
+        )
         now = datetime.now(tzlocal())
-        cooldown_delta = timedelta(minutes=self.BACKUP_OPERATION_COOLDOWN_MINUTES)
+        cooldown_delta = timedelta(minutes=cooldown_minutes)
 
         for bkg_type, backup_info in local_backup_registry.items():
             if bkg_type not in types:
@@ -205,7 +211,7 @@ class UploadBackupImpl(UploadBackup):
                 self._log.warning(
                     "Upload operation blocked: last backup was %s seconds ago, cooldown is %s minutes",
                     int(time_since_last_operation.total_seconds()),
-                    self.BACKUP_OPERATION_COOLDOWN_MINUTES,
+                    cooldown_minutes,
                 )
                 raise TooManyRequests(
                     f"Please wait {remaining_seconds} seconds before performing another backup operation"

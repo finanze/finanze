@@ -14,7 +14,11 @@ import {
 } from "@/services/api"
 import { AuthResultCode, type User } from "@/types"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
-import { hideSplashScreen } from "@/lib/mobile"
+import {
+  hideSplashScreen,
+  connectBackgroundWorker,
+  disconnectBackgroundWorker,
+} from "@/lib/mobile"
 import { resetBackupStatusCache } from "@/hooks/useBackupStatus"
 
 interface AuthContextType {
@@ -99,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isSuccess = result.code === AuthResultCode.SUCCESS
       setIsAuthenticated(isSuccess)
       if (isSuccess) {
+        connectBackgroundWorker(username)
         try {
           await syncStatus()
         } catch {
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { success } = await apiSignup({ username, password })
       if (success) {
         // Signup automatically logs the user in, so set auth state
+        connectBackgroundWorker(username)
         try {
           await syncStatus()
         } catch {
@@ -151,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { success } = await apiSignup({ username, guest: true })
       if (success) {
+        connectBackgroundWorker(username)
         try {
           await syncStatus()
         } catch {
@@ -169,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     setIsLoading(true)
     try {
+      await disconnectBackgroundWorker()
       await apiLogout()
       resetBackupStatusCache()
       setIsAuthenticated(false)
@@ -195,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true)
     try {
+      await disconnectBackgroundWorker()
       await apiChangePassword({
         username,
         oldPassword,

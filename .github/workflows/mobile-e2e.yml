@@ -267,7 +267,7 @@ jobs:
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
         run: |
           WDA_PROJECT=$(find e2e/mobile/node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit)
-          WDA_DERIVED=$(dirname "$(dirname "$WDA_PROJECT")")
+          WDA_DERIVED=$(cd "$(dirname "$(dirname "$WDA_PROJECT")")" && pwd)
           echo "Building WDA from: $WDA_PROJECT"
           echo "Derived data path: $WDA_DERIVED"
           xcodebuild build-for-testing \
@@ -278,6 +278,8 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=0 \
             COMPILER_INDEX_STORE_ENABLE=NO \
             | tail -30
+          echo "--- Build products ---"
+          find "$WDA_DERIVED/Build/Products" -name "*.app" -o -name "*.xctestrun" | head -10
 
       - name: Run iOS tests
         working-directory: e2e/mobile
@@ -286,6 +288,15 @@ jobs:
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
         run: pnpm test:ios
+
+      - name: Show WDIO logs
+        if: ${{ !cancelled() }}
+        run: |
+          echo '=== WDIO Worker Logs ==='
+          for f in e2e/mobile/wdio-logs/wdio-*; do
+            echo "--- $f ---"
+            tail -80 "$f" 2>/dev/null || true
+          done
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -338,13 +349,43 @@ jobs:
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
 
+      - name: Pre-download Chromedriver
+        run: |
+          # API 35 google_apis ships with WebView 124 — update this if api-level changes
+          CHROMEDRIVER_VERSION=$(curl -sL "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_124")
+          echo "Downloading Chromedriver $CHROMEDRIVER_VERSION for WebView 124"
+          mkdir -p /tmp/chromedriver
+          curl -sL "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -o /tmp/chromedriver.zip
+          unzip -o /tmp/chromedriver.zip -d /tmp/chromedriver
+          chmod +x /tmp/chromedriver/chromedriver-linux64/chromedriver
+          /tmp/chromedriver/chromedriver-linux64/chromedriver --version
+          echo "CHROMEDRIVER_EXECUTABLE=/tmp/chromedriver/chromedriver-linux64/chromedriver" >> $GITHUB_ENV
+
       - name: Run Android tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 35
+          target: google_apis
           arch: x86_64
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: |
+            adb wait-for-device shell getprop sys.boot_completed
+            adb devices -l
+            sleep 5
+            cd e2e/mobile && ANDROID_APP_PATH=${{ github.workspace }}/android-apk/app-full-debug.apk pnpm test:android
+
+      - name: Show WDIO logs
+        if: ${{ !cancelled() }}
+        run: |
+          echo '=== WDIO Appium Log ==='
+          cat e2e/mobile/wdio-logs/wdio-appium.log 2>/dev/null | tail -300 || true
+          echo ''
+          echo '=== WDIO Worker Logs ==='
+          for f in e2e/mobile/wdio-logs/wdio-0-0-*; do
+            echo "--- $f ---"
+            cat "$f" 2>/dev/null | tail -100 || true
+          done
 
       - name: Upload test results
         if: ${{ !cancelled() }}

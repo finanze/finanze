@@ -19,7 +19,7 @@ class CloudAuthRequest:
 
 
 class CloudUserRole(str, Enum):
-    NONE = "NONE"
+    BASIC = "BASIC"
     PLUS = "PLUS"
 
 
@@ -49,6 +49,7 @@ class CloudPermission(str, Enum):
     BACKUP_CREATE = "backup.create"
     BACKUP_IMPORT = "backup.import"
     BACKUP_ERASE = "backup.erase"
+    BACKUP_AUTO = "backup.auto"
 
     def check(self, auth: CloudAuthData) -> None:
         if not auth or not auth.permissions:

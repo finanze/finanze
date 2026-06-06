@@ -21,11 +21,13 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
   <tr>
     <td align="center">
       Latest release<br>
-      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+      <a href="https://github.com/finanze/finanze/releases/latest">Download here</a>
     </td>
     <td align="center">
-      Latest release<br>
-      <a href="https://github.com/finanze/finanze/releases/latest">Get Finanze</a>
+      Get it at <br>
+      <a href="https://finanze.en.uptodown.com/android" title="Download Finanze"><img src="https://stc.utdstc.com/img/mediakit/isotipo.png" alt="Uptodown" height="14"> Uptodown</a>
+      <br>
+      <b>or </b><a href="https://github.com/finanze/finanze/releases/latest">Download .apk</a>
     </td>
     <td align="center">
       Install <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a>, then <a href="https://addaltstore.finanze.me">add the app</a><br>

@@ -82,7 +82,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
-import { Loader2, Pencil, Plus, Save, X } from "lucide-react"
+import { Check, Loader2, Pencil, Plus, Save, X } from "lucide-react"
 import { saveManualPositions } from "@/services/api"
 import {
   ProductType,
@@ -2024,13 +2024,13 @@ export function ManualPositionsManager({
                     <CardFooter className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-col max-sm:items-center">
                       <div className="flex items-center gap-2">
                         {asset === "funds" || asset === "stocks" ? (
-                          <Button
+                          <button
                             type="button"
-                            size="sm"
-                            variant={isTrackingActive ? "default" : "outline"}
+                            role="switch"
+                            aria-checked={isTrackingActive}
+                            aria-pressed={isTrackingActive}
                             onClick={handleToggleTrack}
                             disabled={!isTrackingAvailable}
-                            aria-pressed={isTrackingActive}
                             title={
                               isTrackingAvailable
                                 ? undefined
@@ -2038,11 +2038,36 @@ export function ManualPositionsManager({
                                     "management.manualPositions.shared.trackPriceUnavailable",
                                   )
                             }
+                            className={cn(
+                              "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                              isTrackingActive
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
+                              !isTrackingAvailable &&
+                                "cursor-not-allowed opacity-50 hover:bg-muted",
+                            )}
                           >
+                            <span
+                              className={cn(
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+                                isTrackingActive
+                                  ? "border-primary-foreground/40 bg-background/20"
+                                  : "border-border bg-background/40",
+                              )}
+                            >
+                              <Check
+                                className={cn(
+                                  "h-3 w-3 transition-opacity",
+                                  isTrackingActive
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                            </span>
                             {translate(
                               "management.manualPositions.shared.trackPrice",
                             )}
-                          </Button>
+                          </button>
                         ) : asset === "bankLoans" ? (
                           <div className="flex items-center gap-2">
                             <Switch

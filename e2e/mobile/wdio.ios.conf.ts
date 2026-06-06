@@ -16,6 +16,19 @@ function getIOSSDKVersion(): string {
     }
 }
 
+function findWDADerivedDataPath(): string | undefined {
+    try {
+        const wdaProject = execSync(
+            "find node_modules -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -print -quit",
+            { encoding: 'utf-8', cwd: __dirname },
+        ).trim()
+        if (wdaProject) {
+            return join(__dirname, dirname(dirname(wdaProject)))
+        }
+    } catch {}
+    return undefined
+}
+
 const APP_PATH =
     process.env.IOS_APP_PATH ||
     join(
@@ -63,12 +76,15 @@ export const config: Options.Testrunner = {
             'appium:fullReset': false,
             'appium:noReset': false,
             'appium:usePrebuiltWDA': !!process.env.CI,
+            ...(process.env.CI && {
+                'appium:derivedDataPath': findWDADerivedDataPath(),
+            }),
             'appium:showXcodeLog': !!process.env.CI,
             'appium:webviewConnectTimeout': 30_000,
             'appium:includeSafariInWebviews': false,
             'appium:wdaLaunchTimeout': 300_000,
             'appium:simulatorStartupTimeout': 180_000,
             'appium:newCommandTimeout': 120,
-        } as WebdriverIO.Capabilities,
+        },
     ],
-} as Options.Testrunner
+} satisfies Options.Testrunner

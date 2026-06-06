@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import {
   HardDrive,
@@ -87,9 +87,9 @@ export function CloudTab() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<React.ReactNode | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn")
   const [newPassword, setNewPassword] = useState("")
   const [confirmNewPassword, setConfirmNewPassword] = useState("")
@@ -109,6 +109,13 @@ export function CloudTab() {
   const canUseAppleSignIn = isElectron || (isNativeMobile() && isIOS())
   const isSignedIn = !!user
   const canSeeBackup = permissions.includes("backup.info")
+
+  useEffect(() => {
+    if (isPasswordRecoveryActive) {
+      setError(null)
+      setSuccess(null)
+    }
+  }, [isPasswordRecoveryActive])
 
   const TERMS_URL = "https://finanze.me/terms"
   const PRIVACY_URL = "https://finanze.me/privacy"
@@ -136,8 +143,21 @@ export function CloudTab() {
         return
       }
 
+      if (!/(?=.*[a-zA-Z])(?=.*\d).{8,}/.test(password)) {
+        setError(t.settings.cloud.passwordValidationError)
+        setActiveAction(null)
+        return
+      }
+
+      if (password !== confirmPassword) {
+        setError(t.settings.cloud.passwordMismatch)
+        setActiveAction(null)
+        return
+      }
+
       const result = await signUpWithEmail(email, password)
       setPassword("")
+      setConfirmPassword("")
 
       if (result.status === "EMAIL_ALREADY_REGISTERED") {
         setError(t.settings.cloud.signUpErrors.email_exists)
@@ -277,6 +297,11 @@ export function CloudTab() {
       return
     }
 
+    if (!/(?=.*[a-zA-Z])(?=.*\d).{8,}/.test(newPassword)) {
+      setError(t.settings.cloud.passwordValidationError)
+      return
+    }
+
     setActiveAction("passwordUpdate")
     try {
       await updatePassword(newPassword)
@@ -310,6 +335,11 @@ export function CloudTab() {
         return
       }
 
+      if (code === "same_password") {
+        setError(t.settings.cloud.signUpErrors.same_password)
+        return
+      }
+
       setError(t.settings.cloud.passwordUpdateError)
     } finally {
       setActiveAction(null)
@@ -338,11 +368,13 @@ export function CloudTab() {
               <User className="h-5 w-5 text-primary" />
               <CardTitle>{t.settings.cloud.accountTitle}</CardTitle>
             </div>
-            {role === CloudRole.PLUS && (
+            {role === CloudRole.PLUS ? (
               <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
                 {t.settings.cloud.roles[role]}
               </Badge>
-            )}
+            ) : role === CloudRole.BASIC ? (
+              <Badge variant="outline">{t.settings.cloud.roles[role]}</Badge>
+            ) : null}
           </div>
           <CardDescription>{t.settings.cloud.description}</CardDescription>
         </CardHeader>
@@ -513,8 +545,19 @@ export function CloudTab() {
                   onChange={e => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  minLength={6}
+                  minLength={authMode === "signUp" ? 8 : 6}
                 />
+                {authMode === "signUp" && password.length >= 4 && (
+                  <Input
+                    type="password"
+                    placeholder={t.settings.cloud.confirmPasswordPlaceholder}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    minLength={8}
+                  />
+                )}
                 {success && (
                   <p className="text-sm text-primary text-center">{success}</p>
                 )}
@@ -547,12 +590,14 @@ export function CloudTab() {
                     </>
                   )}
                 </Button>
+              </form>
 
-                {authMode === "signIn" && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                {authMode === "signIn" ? (
                   <button
                     type="button"
                     disabled={isLoading}
-                    className="w-full text-xs text-muted-foreground"
+                    className="text-muted-foreground"
                     onClick={handleForgotPassword}
                   >
                     {isLoading && activeAction === "passwordResetRequest" ? (
@@ -564,8 +609,40 @@ export function CloudTab() {
                       t.settings.cloud.forgotPassword
                     )}
                   </button>
+                ) : (
+                  <span />
                 )}
-              </form>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setError(null)
+                    setSuccess(null)
+                    setConfirmPassword("")
+                    clearOAuthError()
+                    setAuthMode(prev =>
+                      prev === "signIn" ? "signUp" : "signIn",
+                    )
+                  }}
+                >
+                  {authMode === "signIn" ? (
+                    <>
+                      {t.settings.cloud.noAccountPrefix}{" "}
+                      <span className="font-semibold text-foreground">
+                        {t.settings.cloud.noAccountAction}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {t.settings.cloud.alreadyHaveAccountPrefix}{" "}
+                      <span className="font-semibold text-foreground">
+                        {t.settings.cloud.alreadyHaveAccountAction}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -729,7 +806,6 @@ export function CloudTab() {
               isUploading={backupStatus.isUploading}
               isImporting={backupStatus.isImporting}
               isSyncing={backupStatus.isSyncing}
-              isCooldownActive={backupStatus.isCooldownActive}
               isSyncCooldownActive={backupStatus.isSyncCooldownActive}
               isConflict={backupStatus.isConflict}
               conflictImportTypes={backupStatus.conflictImportTypes}
@@ -741,6 +817,8 @@ export function CloudTab() {
               feedbackMessage={backupStatus.feedbackMessage}
               canCreateBackup={backupStatus.canCreateBackup}
               canImportBackup={backupStatus.canImportBackup}
+              canAutoSync={backupStatus.canAutoSync}
+              showAutoMode={backupStatus.showAutoMode}
               handleUpload={backupStatus.handleUpload}
               handleImport={backupStatus.handleImport}
               runManualSync={backupStatus.runManualSync}

@@ -157,6 +157,38 @@ class TestUploadCooldown:
         with pytest.raises(TooManyRequests):
             await use_case.execute(UploadBackupRequest(types=[BackupFileType.DATA]))
 
+    @pytest.mark.asyncio
+    async def test_basic_role_has_longer_cooldown(self):
+        auth = _make_auth(permissions=["backup.create"])
+        auth.role = CloudUserRole.BASIC
+        recent_date = datetime.now(tzlocal()) - timedelta(minutes=600)
+        local_info = BackupsInfo(
+            pieces={
+                BackupFileType.DATA: _make_backup_info(date=recent_date),
+            }
+        )
+        use_case, *_ = _build_use_case(auth=auth, local_info=local_info)
+
+        with pytest.raises(TooManyRequests):
+            await use_case.execute(UploadBackupRequest(types=[BackupFileType.DATA]))
+
+    @pytest.mark.asyncio
+    async def test_basic_role_passes_after_cooldown(self):
+        auth = _make_auth(permissions=["backup.create"])
+        auth.role = CloudUserRole.BASIC
+        old_date = datetime.now(tzlocal()) - timedelta(minutes=1081)
+        local_info = BackupsInfo(
+            pieces={
+                BackupFileType.DATA: _make_backup_info(date=old_date),
+            }
+        )
+        use_case, *_ = _build_use_case(auth=auth, local_info=local_info)
+
+        result = await use_case.execute(
+            UploadBackupRequest(types=[BackupFileType.DATA])
+        )
+        assert result.pieces == {}
+
 
 class TestUploadSkips:
     @pytest.mark.asyncio

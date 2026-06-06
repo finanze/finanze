@@ -77,15 +77,25 @@ jobs:
           ([[ $? -gt 0 ]] && echo "bumped=false" || echo "bumped=true") >> $GITHUB_OUTPUT
           echo "current-version=$(bump-my-version show current_version)" >> $GITHUB_OUTPUT
 
+      - name: Update Android versionCode
+        shell: bash
+        run: |
+          VERSION="${{ steps.bump.outputs.current-version }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "Computed versionCode: $VERSION_CODE from version $VERSION"
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" frontend/app/android/app/build.gradle
+
       - name: Update CHANGELOG.md
         id: update_changelog
         env:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT_VERSION: ${{ steps.bump.outputs.current-version }}
+          PREVIOUS_VERSION: ${{ steps.bump.outputs.previous-version }}
         run: |
-          changelog=$(git cliff --unreleased --tag $CURRENT_VERSION)
+          changelog=$(git cliff "v$PREVIOUS_VERSION..HEAD" --tag $CURRENT_VERSION --ignore-tags "next")
           touch CHANGELOG.md
-          git cliff --unreleased --tag $CURRENT_VERSION --prepend CHANGELOG.md
+          git cliff "v$PREVIOUS_VERSION..HEAD" --tag $CURRENT_VERSION --ignore-tags "next" --prepend CHANGELOG.md
 
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$changelog" >> $GITHUB_OUTPUT

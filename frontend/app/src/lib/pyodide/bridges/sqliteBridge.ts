@@ -22,6 +22,89 @@ let sqliteConnection: SQLiteConnection | null = null
 let currentDb: SQLiteDBConnection | null = null
 let currentDbName: string | null = null
 
+// ---------------------------------------------------------------------------
+// Cross-worker transaction-span serialization & connection ownership.
+//
+// On the mobile (Pyodide) build there can be TWO web workers (the main worker
+// and a background worker for tracked quote/loan updates). Both route their
+// SQLite calls back to THIS module on the main thread, so they share a single
+// native RW connection (`currentDb`). SQLite transactions are per-connection,
+// therefore while one worker holds an open transaction span (BEGIN issued,
+// COMMIT/ROLLBACK not yet), EVERY operation from the other worker (reads
+// included) must queue until the span is released. The owner worker passes
+// through re-entrantly so its own interleaving is byte-for-byte identical to
+// the single-worker behaviour.
+// ---------------------------------------------------------------------------
+type WorkerId = string
+
+let txOwner: WorkerId | null = null
+let connectionOwner: WorkerId | null = null
+const spanWaiters: Array<() => void> = []
+let opLock: Promise<void> | null = null
+
+function waitForSpanRelease(): Promise<void> {
+  return new Promise<void>(resolve => spanWaiters.push(resolve))
+}
+
+function drainSpanWaiters(): void {
+  const waiters = spanWaiters.splice(0, spanWaiters.length)
+  for (const w of waiters) w()
+}
+
+function releaseSpan(): void {
+  txOwner = null
+  drainSpanWaiters()
+}
+
+async function acquireOpLock(): Promise<() => void> {
+  while (opLock) {
+    await opLock
+  }
+  let release!: () => void
+  opLock = new Promise<void>(resolve => {
+    release = () => {
+      opLock = null
+      resolve()
+    }
+  })
+  return release
+}
+
+async function withGate<T>(
+  workerId: WorkerId,
+  run: () => Promise<T>,
+): Promise<T> {
+  for (;;) {
+    while (txOwner !== null && txOwner !== workerId) {
+      await waitForSpanRelease()
+    }
+    const releaseOp = await acquireOpLock()
+    // Re-check after acquiring the op lock: another worker may have opened a
+    // transaction span between the wait above and the lock acquisition.
+    if (txOwner !== null && txOwner !== workerId) {
+      releaseOp()
+      continue
+    }
+    try {
+      return await run()
+    } finally {
+      releaseOp()
+    }
+  }
+}
+
+function classifySql(sql: string): "begin" | "commit" | "rollback" | "other" {
+  const sqlForExecution = stripLeadingSqlComments(maybeRewriteSqlForWeb(sql))
+  if (!sqlForExecution) return "other"
+  const sqlMatch = normalizeSqlForMatch(sqlForExecution)
+  if (sqlMatch === "BEGIN" || sqlMatch === "BEGIN TRANSACTION") return "begin"
+  if (sqlMatch === "COMMIT" || sqlMatch === "COMMIT TRANSACTION")
+    return "commit"
+  if (sqlMatch === "ROLLBACK" || sqlMatch === "ROLLBACK TRANSACTION")
+    return "rollback"
+  return "other"
+}
+
 function stripLeadingSqlComments(sql: string): string {
   let rest = sql
   while (true) {
@@ -515,14 +598,149 @@ async function setEncryptionKey(key: string): Promise<void> {
   void key
 }
 
-export const sqliteBridge = {
-  openDatabase,
-  executeSql,
-  querySql,
-  executeTransaction,
-  executeBatch,
-  closeDatabase,
-  setEncryptionKey,
-  exportDatabaseToStaging,
-  importDatabaseFromStaging,
+function createGatedFacade(workerId: WorkerId) {
+  return {
+    async openDatabase(
+      dbName: string,
+      encrypted: boolean = true,
+      mode: string = "no-encryption",
+      version: number = 1,
+      readonly: boolean = false,
+      passphrase?: string | null,
+    ): Promise<SQLiteDBConnection> {
+      return withGate(workerId, async () => {
+        if (connectionOwner === null) {
+          connectionOwner = workerId
+          try {
+            return await openDatabase(
+              dbName,
+              encrypted,
+              mode,
+              version,
+              readonly,
+              passphrase,
+            )
+          } catch (e) {
+            connectionOwner = null
+            throw e
+          }
+        }
+        if (workerId === connectionOwner) {
+          return openDatabase(
+            dbName,
+            encrypted,
+            mode,
+            version,
+            readonly,
+            passphrase,
+          )
+        }
+        // Non-owner worker: reuse the already-open shared connection. The owner
+        // worker is responsible for the native open/migrations/rekey.
+        if (!currentDb) {
+          throw new Error(
+            "[Bridge][sqlite] Background worker openDatabase: shared connection not ready",
+          )
+        }
+        return currentDb
+      })
+    },
+
+    executeSql(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<{ changes: number; lastId: number }> {
+      const cls = classifySql(sql)
+      if (cls === "begin") {
+        return withGate(workerId, async () => {
+          const r = await executeSql(sql, values)
+          txOwner = workerId
+          return r
+        })
+      }
+      if (cls === "commit" || cls === "rollback") {
+        return withGate(workerId, async () => {
+          try {
+            return await executeSql(sql, values)
+          } finally {
+            if (txOwner === workerId) releaseSpan()
+          }
+        })
+      }
+      return withGate(workerId, () => executeSql(sql, values))
+    },
+
+    querySql(sql: string, values: unknown[] = []): Promise<unknown[]> {
+      return withGate(workerId, () => querySql(sql, values))
+    },
+
+    executeBatch(
+      statements: string,
+      transaction: boolean = true,
+    ): Promise<{ changes: number }> {
+      return withGate(workerId, () => executeBatch(statements, transaction))
+    },
+
+    executeTransaction(
+      statements: Array<{ sql: string; values?: unknown[] }>,
+    ): Promise<void> {
+      return withGate(workerId, () => executeTransaction(statements))
+    },
+
+    async closeDatabase(): Promise<void> {
+      return withGate(workerId, async () => {
+        if (workerId !== connectionOwner) {
+          // Non-owner worker: drop its local reference only; never tear down the
+          // native connection owned by the main worker.
+          return
+        }
+        await closeDatabase()
+        connectionOwner = null
+      })
+    },
+
+    setEncryptionKey(key: string): Promise<void> {
+      return setEncryptionKey(key)
+    },
+
+    exportDatabaseToStaging(stagingFileName: string): Promise<{ ok: true }> {
+      return withGate(workerId, () => exportDatabaseToStaging(stagingFileName))
+    },
+
+    importDatabaseFromStaging(
+      dbName: string,
+      password: string,
+      stagingFileName: string,
+    ): Promise<{ ok: true }> {
+      return withGate(workerId, () =>
+        importDatabaseFromStaging(dbName, password, stagingFileName),
+      )
+    },
+  }
 }
+
+const facadeRegistry = new Map<WorkerId, ReturnType<typeof createGatedFacade>>()
+
+export function getSqliteBridge(
+  workerId: string = "main",
+): ReturnType<typeof createGatedFacade> {
+  let facade = facadeRegistry.get(workerId)
+  if (!facade) {
+    facade = createGatedFacade(workerId)
+    facadeRegistry.set(workerId, facade)
+  }
+  return facade
+}
+
+// Crash-safety: if a worker is terminated mid-span, release any span/ownership
+// it held so the other worker is not blocked forever.
+export function releaseWorkerSpan(workerId: string): void {
+  if (txOwner === workerId) {
+    releaseSpan()
+  }
+  if (connectionOwner === workerId) {
+    connectionOwner = null
+  }
+}
+
+export const sqliteBridge = getSqliteBridge("main")

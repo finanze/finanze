@@ -8,12 +8,14 @@ import {
   BackupFileType,
   BackupMode,
   BackupSyncResult,
+  CloudRole,
   FullBackupsInfo,
   FullBackupInfo,
   SyncStatus,
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { useI18n } from "@/i18n"
+import { formatPlusToast } from "@/components/ui/PlusMessage"
 
 function getErrorCode(error: unknown): string | null {
   if (error instanceof ApiErrorException) {
@@ -34,11 +36,12 @@ const LAST_BACKUP_FETCH_KEY = "backup_last_fetch_at"
 const LAST_AUTO_SYNC_KEY = "backup_last_auto_sync_at"
 export const LAST_AUTO_SYNC_HAD_TRANSFER_KEY =
   "backup_last_auto_sync_had_transfer"
+const BACKUP_DATA_KEY = "backup_data"
 const BACKUP_CACHE_DURATION = 3 * 60_000
 const SKIP_FAST_CHECK_AFTER_REFRESH_MS = 10_000
 const AUTO_SYNC_INTERVAL_MS = 10 * 60_000
-const MANUAL_FULL_CHECK_INTERVAL_MS = 10 * 60_000
 const MANUAL_FAST_CHECK_INTERVAL_MS = 2.5 * 60_000
+const POST_SCRAPE_UPLOAD_DELAY_MS = 5_000
 const BACKUP_ERROR_BACKOFF_BASE_MS = 5_000
 const BACKUP_ERROR_BACKOFF_MAX_MS = 60_000
 
@@ -49,7 +52,6 @@ let globalLastFetchAt: number | null = null
 let globalHasCredentialsMismatch = false
 let globalAutoSyncInFlight = false
 let globalManualSyncInFlight = false
-let globalCooldownUntil: number | null = null
 let globalSyncCooldownUntil: number | null = null
 let globalSkipFastCheckUntil = 0
 
@@ -61,12 +63,12 @@ export function resetBackupStatusCache(): void {
   globalHasCredentialsMismatch = false
   globalAutoSyncInFlight = false
   globalManualSyncInFlight = false
-  globalCooldownUntil = null
   globalSyncCooldownUntil = null
   globalSkipFastCheckUntil = 0
   localStorage.removeItem(LAST_BACKUP_FETCH_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_HAD_TRANSFER_KEY)
+  localStorage.removeItem(BACKUP_DATA_KEY)
   window.dispatchEvent(
     new CustomEvent("backup-credentials-mismatch-change", {
       detail: { hasCredentialsMismatch: false },
@@ -113,6 +115,24 @@ function getPersistedLastFetchAt(): number | null {
 
 function setPersistedLastFetchAt(timestamp: number): void {
   localStorage.setItem(LAST_BACKUP_FETCH_KEY, timestamp.toString())
+}
+
+function getPersistedBackupData(): FullBackupsInfo | null {
+  try {
+    const stored = localStorage.getItem(BACKUP_DATA_KEY)
+    if (!stored) return null
+    return JSON.parse(stored) as FullBackupsInfo
+  } catch {
+    return null
+  }
+}
+
+function setPersistedBackupData(data: FullBackupsInfo): void {
+  try {
+    localStorage.setItem(BACKUP_DATA_KEY, JSON.stringify(data))
+  } catch {
+    // localStorage may be full or unavailable
+  }
 }
 
 export function getOverallStatus(
@@ -171,18 +191,25 @@ interface UseBackupStatusOptions {
 export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const { isActive = true } = options
   const { t } = useI18n()
-  const { permissions, backupMode, setBackupMode, isInitialized } = useCloud()
+  const { permissions, backupMode, setBackupMode, isInitialized, role } =
+    useCloud()
   const { refreshData, refreshRealEstate, refreshFlows } = useFinancialData()
-  const { fetchEntities, fetchSettings } = useAppContext()
+  const { fetchEntities, fetchSettings, showToast, featureFlags } =
+    useAppContext()
   const { updateAlertStatus } = useBackupAlertUpdater()
 
   const backupEnabled = backupMode !== BackupMode.OFF
   const isManualMode = backupMode === BackupMode.MANUAL
   const hasBackupInfo = permissions.includes("backup.info")
 
-  const [backups, setBackupsState] = useState<FullBackupsInfo | null>(
-    () => globalBackupsCache,
-  )
+  const [backups, setBackupsState] = useState<FullBackupsInfo | null>(() => {
+    if (globalBackupsCache) return globalBackupsCache
+    const persisted = getPersistedBackupData()
+    if (persisted) {
+      globalBackupsCache = persisted
+    }
+    return globalBackupsCache
+  })
   const [lastBackupsFetchAtState, setLastBackupsFetchAtState] = useState<
     number | null
   >(() => globalLastFetchAt ?? getPersistedLastFetchAt())
@@ -215,18 +242,9 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   const [isUploading, setIsUploading] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [cooldownUntil, setCooldownUntilState] = useState<number | null>(
-    () => globalCooldownUntil,
-  )
   const [syncCooldownUntil, setSyncCooldownUntilState] = useState<
     number | null
   >(() => globalSyncCooldownUntil)
-
-  const setCooldownUntil = useCallback((value: number | null) => {
-    globalCooldownUntil = value
-    setCooldownUntilState(value)
-    window.dispatchEvent(new CustomEvent("backup-cooldown-change"))
-  }, [])
 
   const setSyncCooldownUntil = useCallback((value: number | null) => {
     globalSyncCooldownUntil = value
@@ -280,7 +298,6 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
 
   useEffect(() => {
     const handleCooldownChange = () => {
-      setCooldownUntilState(globalCooldownUntil)
       setSyncCooldownUntilState(globalSyncCooldownUntil)
     }
     window.addEventListener("backup-cooldown-change", handleCooldownChange)
@@ -326,16 +343,20 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
 
   const canCreateBackup = permissions.includes("backup.create")
   const canImportBackup = permissions.includes("backup.import")
+  const canAutoSync = permissions.includes("backup.auto")
+  const showAutoMode = featureFlags.PLUS !== "OFF" || canAutoSync
 
   const applySyncResult = useCallback((result: BackupSyncResult) => {
-    setBackups(prev =>
-      normalizeBackupsInfo({
+    setBackups(prev => {
+      const updated = normalizeBackupsInfo({
         pieces: {
           ...(prev?.pieces ?? {}),
           ...(result.pieces as Partial<Record<BackupFileType, FullBackupInfo>>),
         } as Record<BackupFileType, FullBackupInfo>,
-      }),
-    )
+      })
+      setPersistedBackupData(updated)
+      return updated
+    })
     const now = Date.now()
     setLastBackupsFetchAt(now)
     setPersistedLastFetchAt(now)
@@ -413,7 +434,9 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
             return merged
           })
         } else {
-          setBackups(normalizeBackupsInfo(data))
+          const normalized = normalizeBackupsInfo(data)
+          setBackups(normalized)
+          setPersistedBackupData(normalized)
           const now = Date.now()
           setLastBackupsFetchAt(now)
           setPersistedLastFetchAt(now)
@@ -423,6 +446,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       } catch (error) {
         console.error("Failed to fetch backup info:", error)
         registerNetworkFailure()
+        const errorCode = getErrorCode(error)
+        if (errorCode === "TOO_MANY_REQUESTS") {
+          setStatusMessage(t.settings.backup.tooManyRequests)
+        }
       } finally {
         if (!onlyLocal) {
           setIsLoading(false)
@@ -431,7 +458,12 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         }
       }
     },
-    [canAttemptNetworkNow, registerNetworkFailure, registerNetworkSuccess],
+    [
+      canAttemptNetworkNow,
+      registerNetworkFailure,
+      registerNetworkSuccess,
+      t.settings.backup.tooManyRequests,
+    ],
   )
 
   useEffect(() => {
@@ -447,11 +479,12 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       now - lastBackupsFetchAt >= BACKUP_CACHE_DURATION
 
     const currentBackups = backupsRef.current
+    const useOnlyLocal = isManualMode && !canAutoSync
 
     if (!currentBackups) {
-      fetchBackups(false)
+      fetchBackups(useOnlyLocal)
     } else if (isStale) {
-      fetchBackups(false)
+      fetchBackups(useOnlyLocal)
     } else {
       if (now < globalSkipFastCheckUntil) return
       fetchBackups(true)
@@ -466,28 +499,27 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     isUploading,
     isImporting,
     isSyncing,
+    isManualMode,
+    canAutoSync,
   ])
-
-  useEffect(() => {
-    if (cooldownUntil === null) return
-    const remaining = Math.max(0, cooldownUntil - Date.now())
-    const timeout = window.setTimeout(() => setCooldownUntil(null), remaining)
-    return () => window.clearTimeout(timeout)
-  }, [cooldownUntil])
 
   useEffect(() => {
     if (syncCooldownUntil === null) return
     const remaining = Math.max(0, syncCooldownUntil - Date.now())
-    const timeout = window.setTimeout(
-      () => setSyncCooldownUntil(null),
-      remaining,
-    )
+    const timeout = window.setTimeout(() => {
+      setSyncCooldownUntil(null)
+    }, remaining)
     return () => window.clearTimeout(timeout)
   }, [syncCooldownUntil])
 
-  const isCooldownActive = cooldownUntil !== null && Date.now() < cooldownUntil
   const isSyncCooldownActive =
     syncCooldownUntil !== null && Date.now() < syncCooldownUntil
+
+  useEffect(() => {
+    if (backupMode === BackupMode.AUTO && !canAutoSync) {
+      setBackupMode(BackupMode.MANUAL)
+    }
+  }, [backupMode, canAutoSync, setBackupMode])
 
   const conflictTypes = backups
     ? (Object.entries(backups.pieces)
@@ -535,8 +567,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
   }, [isImporting])
 
   const actionInFlight = isUploading || isImporting || isSyncing
-  const baseActionsDisabled =
-    !backupEnabled || actionInFlight || isCooldownActive
+  const baseActionsDisabled = !backupEnabled || actionInFlight
 
   const handleUpload = async (types: BackupFileType[]) => {
     setIsUploading(true)
@@ -580,8 +611,17 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       registerNetworkFailure()
       const errorCode = getErrorCode(error)
       if (errorCode === "TOO_MANY_REQUESTS") {
-        setCooldownUntil(Date.now() + 30_000)
         setStatusMessage(t.settings.backup.tooManyRequests)
+        if (role !== CloudRole.PLUS) {
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
+          )
+          if (msg) showToast(msg, "info")
+        }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
@@ -617,19 +657,6 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       applySyncResult(result)
       setHasCredentialsMismatch(false)
       try {
-        const refreshed = normalizeBackupsInfo(await getBackupsInfo())
-        setBackups(refreshed)
-        const now = Date.now()
-        setLastBackupsFetchAt(now)
-        setPersistedLastFetchAt(now)
-        globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
-      } catch (refreshError) {
-        console.error(
-          "Failed to refresh backup info after import:",
-          refreshError,
-        )
-      }
-      try {
         await Promise.all([
           fetchEntities(),
           fetchSettings(),
@@ -659,8 +686,17 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       registerNetworkFailure()
       const errorCode = getErrorCode(error)
       if (errorCode === "TOO_MANY_REQUESTS") {
-        setCooldownUntil(Date.now() + 30_000)
         setStatusMessage(t.settings.backup.tooManyRequests)
+        if (role !== CloudRole.PLUS) {
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
+          )
+          if (msg) showToast(msg, "info")
+        }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
@@ -679,13 +715,15 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     if (globalManualSyncInFlight || globalAutoSyncInFlight) return
     globalManualSyncInFlight = true
     setIsSyncing(true)
-    setSyncCooldownUntil(Date.now() + 5 * 60_000)
+    const syncUntil = Date.now() + 10_000
+    setSyncCooldownUntil(syncUntil)
     setStatusMessage(null)
 
     try {
       const info = normalizeBackupsInfo(await getBackupsInfo())
       registerNetworkSuccess()
       setBackups(info)
+      setPersistedBackupData(info)
       const now = Date.now()
       setLastBackupsFetchAt(now)
       setPersistedLastFetchAt(now)
@@ -734,8 +772,17 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       registerNetworkFailure()
       const errorCode = getErrorCode(error)
       if (errorCode === "TOO_MANY_REQUESTS") {
-        setCooldownUntil(Date.now() + 30_000)
         setStatusMessage(t.settings.backup.tooManyRequests)
+        if (role !== CloudRole.PLUS) {
+          const msg = formatPlusToast(
+            t.settings.backup.plusRequiredForMoreBackups,
+            featureFlags.PLUS,
+            t.settings.backup.plusJoinMessage,
+            t.settings.backup.plusJoinEmailSubject,
+            t.settings.backup.plusJoinEmailBody,
+          )
+          if (msg) showToast(msg, "info")
+        }
       } else if (errorCode === "CONFLICT") {
         setStatusMessage(t.settings.backup.conflictRetry)
       } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
@@ -758,8 +805,11 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     refreshFlows,
     registerNetworkFailure,
     registerNetworkSuccess,
+    role,
+    showToast,
     t.settings.backup.conflictRetry,
     t.settings.backup.tooManyRequests,
+    t.settings.backup.plusRequiredForMoreBackups,
   ])
 
   const runAutoSync = useCallback(async () => {
@@ -793,6 +843,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       const info = normalizeBackupsInfo(await getBackupsInfo())
       registerNetworkSuccess()
       setBackups(info)
+      setPersistedBackupData(info)
       const now = Date.now()
       setLastBackupsFetchAt(now)
       setPersistedLastFetchAt(now)
@@ -859,7 +910,9 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       console.error("Auto sync failed:", error)
       registerNetworkFailure()
       const errorCode = getErrorCode(error)
-      if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
+      if (errorCode === "TOO_MANY_REQUESTS") {
+        // errorBackoff handles retry throttling
+      } else if (errorCode === "INVALID_BACKUP_CREDENTIALS") {
         setHasCredentialsMismatch(true)
       } else if (errorCode === "BACKUP_TRANSFER_FAILED") {
         setStatusMessage(t.settings.backup.transferFailed)
@@ -885,6 +938,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     refreshFlows,
     registerNetworkFailure,
     registerNetworkSuccess,
+    t.settings.backup.transferFailed,
   ])
 
   useEffect(() => {
@@ -920,7 +974,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       runAutoSync()
     } else {
       if (!backupsRef.current) {
-        fetchBackups(false)
+        fetchBackups(!canAutoSync)
       }
     }
   }, [
@@ -928,6 +982,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     hasBackupInfo,
     backupEnabled,
     backupMode,
+    canAutoSync,
     fetchBackups,
     runAutoSync,
   ])
@@ -947,21 +1002,19 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
         window.clearInterval(autoSyncInterval)
       }
     } else {
-      const fullCheckInterval = window.setInterval(() => {
-        if (isConflictRef.current) return
-        fetchBackups(false)
-      }, MANUAL_FULL_CHECK_INTERVAL_MS)
-
       const fastCheckInterval = window.setInterval(() => {
         if (isConflictRef.current) return
         const now = Date.now()
         if (now >= globalSkipFastCheckUntil) {
-          fetchBackups(true)
+          const remoteStale =
+            canAutoSync &&
+            globalLastFetchAt !== null &&
+            now - globalLastFetchAt >= AUTO_SYNC_INTERVAL_MS
+          fetchBackups(remoteStale ? false : true)
         }
       }, MANUAL_FAST_CHECK_INTERVAL_MS)
 
       return () => {
-        window.clearInterval(fullCheckInterval)
         window.clearInterval(fastCheckInterval)
       }
     }
@@ -970,17 +1023,74 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     hasBackupInfo,
     backupEnabled,
     backupMode,
+    canAutoSync,
     runAutoSync,
     fetchBackups,
   ])
 
+  useEffect(() => {
+    if (!isInitialized || !hasBackupInfo || !backupEnabled) return
+    if (backupMode !== BackupMode.AUTO || !canAutoSync || !canCreateBackup)
+      return
+
+    const handleScrapesDone = () => {
+      const timeout = window.setTimeout(async () => {
+        if (globalAutoSyncInFlight || globalManualSyncInFlight) return
+        if (isConflictRef.current) return
+
+        try {
+          const info = normalizeBackupsInfo(await getBackupsInfo())
+          setBackups(info)
+          setPersistedBackupData(info)
+          const now = Date.now()
+          setLastBackupsFetchAt(now)
+          setPersistedLastFetchAt(now)
+          globalSkipFastCheckUntil = now + SKIP_FAST_CHECK_AFTER_REFRESH_MS
+
+          const toUpload = (
+            Object.entries(info.pieces) as Array<
+              [BackupFileType, FullBackupsInfo["pieces"][BackupFileType]]
+            >
+          )
+            .filter(
+              ([, p]) =>
+                p.status === SyncStatus.PENDING ||
+                p.status === SyncStatus.MISSING,
+            )
+            .map(([t]) => t as BackupFileType)
+
+          if (toUpload.length > 0) {
+            const result = await uploadBackup({ types: toUpload })
+            applySyncResult(result)
+          }
+        } catch {
+          // silently ignore — next auto-sync cycle will handle it
+        }
+      }, POST_SCRAPE_UPLOAD_DELAY_MS)
+
+      return () => window.clearTimeout(timeout)
+    }
+
+    window.addEventListener("auto-refresh-scrapes-complete", handleScrapesDone)
+    return () => {
+      window.removeEventListener(
+        "auto-refresh-scrapes-complete",
+        handleScrapesDone,
+      )
+    }
+  }, [
+    isInitialized,
+    hasBackupInfo,
+    backupEnabled,
+    backupMode,
+    canAutoSync,
+    canCreateBackup,
+    applySyncResult,
+  ])
+
   const overallStatus = getOverallStatus(backups)
   const lastBackupDate = getLastRemoteBackupDate(backups)
-  const derivedCooldownMessage =
-    (isManualMode || isConflict) && isCooldownActive
-      ? t.settings.backup.cooldownActive
-      : null
-  const feedbackMessage = statusMessage ?? derivedCooldownMessage
+  const feedbackMessage = statusMessage
 
   useEffect(() => {
     updateAlertStatus(overallStatus, backupMode, hasCredentialsMismatch)
@@ -997,7 +1107,6 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     isUploading,
     isImporting,
     isSyncing,
-    isCooldownActive,
     isSyncCooldownActive,
     isConflict,
     conflictTypes,
@@ -1011,6 +1120,8 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     feedbackMessage,
     canCreateBackup,
     canImportBackup,
+    canAutoSync,
+    showAutoMode,
     handleUpload,
     handleImport,
     runManualSync,

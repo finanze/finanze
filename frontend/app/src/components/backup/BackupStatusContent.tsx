@@ -11,6 +11,8 @@ import type { ReactNode } from "react"
 import { Button } from "@/components/ui/Button"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
+import { formatPlusToast } from "@/components/ui/PlusMessage"
 import {
   BackupFileType,
   BackupMode,
@@ -88,7 +90,6 @@ interface BackupStatusContentProps {
   isUploading: boolean
   isImporting: boolean
   isSyncing: boolean
-  isCooldownActive: boolean
   isSyncCooldownActive: boolean
   isConflict: boolean
   conflictImportTypes: BackupFileType[]
@@ -100,6 +101,8 @@ interface BackupStatusContentProps {
   feedbackMessage: string | null
   canCreateBackup: boolean
   canImportBackup: boolean
+  canAutoSync: boolean
+  showAutoMode: boolean
   handleUpload: (types: BackupFileType[]) => Promise<void>
   handleImport: (types: BackupFileType[]) => Promise<void>
   runManualSync: () => Promise<void>
@@ -117,7 +120,6 @@ export function BackupStatusContent({
   isUploading,
   isImporting,
   isSyncing,
-  isCooldownActive,
   isSyncCooldownActive,
   isConflict,
   conflictImportTypes,
@@ -129,6 +131,8 @@ export function BackupStatusContent({
   feedbackMessage,
   canCreateBackup,
   canImportBackup,
+  canAutoSync,
+  showAutoMode,
   handleUpload,
   handleImport,
   runManualSync,
@@ -136,8 +140,9 @@ export function BackupStatusContent({
   className,
 }: BackupStatusContentProps) {
   const { t } = useI18n()
+  const { showToast, featureFlags } = useAppContext()
 
-  const backupModeOptions: BackupModeOption[] = [
+  const allBackupModeOptions: BackupModeOption[] = [
     {
       value: BackupMode.OFF,
       label: t.settings.backup.modes.OFF,
@@ -155,35 +160,57 @@ export function BackupStatusContent({
     },
   ]
 
+  const backupModeOptions = showAutoMode
+    ? allBackupModeOptions
+    : allBackupModeOptions.filter(o => o.value !== BackupMode.AUTO)
+
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {showModeSelector && (
         <div className="flex flex-col gap-2">
           <div className="mx-auto w-full max-w-2xl">
             <div className="flex w-full items-center gap-1 rounded-lg bg-muted p-1">
-              {backupModeOptions.map(({ value, label, icon }) => (
-                <button
-                  key={value}
-                  onClick={() => setBackupMode(value)}
-                  className={cn(
-                    "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 min-[380px]:px-3 py-1.5 text-sm font-medium transition-colors",
-                    backupMode === value
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {icon}
-                  <span
+              {backupModeOptions.map(({ value, label, icon }) => {
+                const isAutoLocked = value === BackupMode.AUTO && !canAutoSync
+                return (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      if (isAutoLocked) {
+                        const msg = formatPlusToast(
+                          t.settings.backup.plusRequiredForAutoSync,
+                          featureFlags.PLUS,
+                          t.settings.backup.plusJoinMessage,
+                          t.settings.backup.plusJoinEmailSubject,
+                          t.settings.backup.plusJoinEmailBody,
+                        )
+                        if (msg) showToast(msg, "info")
+                        return
+                      }
+                      setBackupMode(value)
+                    }}
                     className={cn(
-                      backupMode === value
-                        ? "inline"
-                        : "hidden min-[360px]:inline",
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 min-[380px]:px-3 py-1.5 text-sm font-medium transition-colors",
+                      isAutoLocked
+                        ? "text-amber-500"
+                        : backupMode === value
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {label}
-                  </span>
-                </button>
-              ))}
+                    {icon}
+                    <span
+                      className={cn(
+                        backupMode === value
+                          ? "inline"
+                          : "hidden min-[360px]:inline",
+                      )}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -273,9 +300,7 @@ export function BackupStatusContent({
                   variant="outline"
                   size="sm"
                   className="flex-1 text-xs"
-                  disabled={
-                    baseActionsDisabled || isCooldownActive || !canImportBackup
-                  }
+                  disabled={baseActionsDisabled || !canImportBackup}
                   onClick={() => handleImport(conflictImportTypes)}
                 >
                   {isImporting ? (
@@ -289,9 +314,7 @@ export function BackupStatusContent({
                   variant="outline"
                   size="sm"
                   className="flex-1 text-xs"
-                  disabled={
-                    baseActionsDisabled || isCooldownActive || !canCreateBackup
-                  }
+                  disabled={baseActionsDisabled || !canCreateBackup}
                   onClick={() => handleUpload(conflictUploadTypes)}
                 >
                   {isUploading ? (

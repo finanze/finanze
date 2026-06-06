@@ -7,6 +7,8 @@ import {
   registerBridgeWithPyodide,
   installDeferredRequirements,
   installLazyRequirements,
+  initBackgroundWorker,
+  callBackgroundPythonFunction,
 } from "@/lib/pyodide"
 import { appConsole } from "@/lib/capacitor/appConsole"
 
@@ -30,8 +32,6 @@ const DEFERRED_ENDPOINTS = new Set([
   "GET /api/v1/flows/periodic",
   "GET /api/v1/flows/pending",
   "GET /api/v1/real-estate",
-  "POST /api/v1/data/manual/positions/update-quotes",
-  "POST /api/v1/data/manual/positions/update-loans",
   "GET /api/v1/cloud/backup",
   "POST /api/v1/cloud/auth",
   "GET /api/v1/cloud/auth",
@@ -39,7 +39,7 @@ const DEFERRED_ENDPOINTS = new Set([
 ])
 
 function logInfo(message: string, data?: any) {
-  appConsole.info(`[PyodideInit] ${message}`, data)
+  appConsole.info(`[PyodideInit] ${message}`, data === undefined ? "" : data)
 }
 
 let isCoreInitialized = false
@@ -187,6 +187,91 @@ function waitForLazyInit(): Promise<void> {
   return lazyReadyPromise
 }
 
+// ---------------------------------------------------------------------------
+// Background worker (worker 2) orchestration: tracked quote/loan updates run in
+// a second Pyodide worker sharing the main worker's SQLite connection.
+// ---------------------------------------------------------------------------
+let backgroundWarmStarted = false
+let backgroundConnectedPromise: Promise<void> | null = null
+let isBackgroundConnected = false
+
+function warmStartBackgroundWorker(): void {
+  if (backgroundWarmStarted) return
+  backgroundWarmStarted = true
+  initBackgroundWorker().catch(e => {
+    appConsole.error("[PyodideInit][bg] Background warm-start failed:", e)
+  })
+}
+
+function connectBackgroundWorker(username: string): Promise<void> {
+  // Idempotent: a single connect per session. Subsequent calls reuse the
+  // in-flight / resolved promise.
+  if (backgroundConnectedPromise) return backgroundConnectedPromise
+
+  warmStartBackgroundWorker()
+
+  backgroundConnectedPromise = (async () => {
+    await initBackgroundWorker()
+    const platformType = (window as any)?.platform?.type
+    await callBackgroundPythonFunction(
+      "init_background",
+      "initialize",
+      typeof platformType === "string" ? platformType : null,
+    )
+    logInfo("[bg] Connecting background worker to shared DB...")
+    await callBackgroundPythonFunction(
+      "init_background",
+      "connect",
+      username ?? null,
+    )
+    isBackgroundConnected = true
+    logInfo("[bg] Background worker connected.")
+  })().catch(e => {
+    // Reset so a later attempt (e.g. next login) can retry.
+    backgroundConnectedPromise = null
+    isBackgroundConnected = false
+    appConsole.error("[PyodideInit][bg] Background connect failed:", e)
+    throw e
+  })
+
+  return backgroundConnectedPromise
+}
+
+async function disconnectBackgroundWorker(): Promise<void> {
+  const wasConnecting = backgroundConnectedPromise
+  backgroundConnectedPromise = null
+  isBackgroundConnected = false
+  if (!wasConnecting) return
+
+  try {
+    // Make sure connect finished before we drop the reference, to avoid racing
+    // an in-flight attach.
+    await wasConnecting.catch(() => undefined)
+    await callBackgroundPythonFunction("init_background", "disconnect")
+    logInfo("[bg] Background worker disconnected.")
+  } catch (e) {
+    appConsole.error("[PyodideInit][bg] Background disconnect failed:", e)
+  }
+}
+
+function isBackgroundReady(): boolean {
+  return isBackgroundConnected
+}
+
+async function backgroundUpdateQuotes(): Promise<unknown> {
+  if (backgroundConnectedPromise) {
+    await backgroundConnectedPromise
+  }
+  return callBackgroundPythonFunction("init_background", "update_quotes")
+}
+
+async function backgroundUpdateLoans(): Promise<unknown> {
+  if (backgroundConnectedPromise) {
+    await backgroundConnectedPromise
+  }
+  return callBackgroundPythonFunction("init_background", "update_loans")
+}
+
 export {
   API_PREFIX,
   withApiPrefix,
@@ -195,4 +280,10 @@ export {
   triggerDeferredInit,
   triggerLazyInit,
   waitForLazyInit,
+  warmStartBackgroundWorker,
+  connectBackgroundWorker,
+  disconnectBackgroundWorker,
+  isBackgroundReady,
+  backgroundUpdateQuotes,
+  backgroundUpdateLoans,
 }

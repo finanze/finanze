@@ -11,7 +11,6 @@ from domain.global_position import (
     GlobalPosition,
     Loan,
     PositionQueryRequest,
-    ProductType,
     StockDetail,
 )
 
@@ -44,6 +43,12 @@ class PositionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_manual_crypto_position_ids(
+        self, position_ids: list[UUID]
+    ) -> set[UUID]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def delete_by_id(self, position_id: UUID):
         raise NotImplementedError
 
@@ -53,12 +58,6 @@ class PositionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def update_market_value(
-        self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
-    ):
         raise NotImplementedError
 
     @abc.abstractmethod

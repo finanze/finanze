@@ -1,3 +1,23 @@
+## [0.8.5] - 2026-06-06
+
+### 🚀 Features
+
+- Basic cloud account opening (#118)
+- Keep historic record of tracked manual assets
+- Add crypto manual position price tracking historic
+- Add background backend worker for parallel mobile processes execution
+- Add new loan position snpashot on tracked fixed loans refresh
+- Sorting, grouping and filtering in banking page for accounts
+
+### 🐛 Bug Fixes
+
+- Minor improvements
+- Mintos fetch and smart cash support
+
+### ⚙️ Miscellaneous Tasks
+
+- Develop next build pre-release
+- Fix release flow
 ## [0.8.4] - 2026-05-25
 
 ### 🚀 Features

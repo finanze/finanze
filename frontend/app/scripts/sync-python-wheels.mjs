@@ -19,6 +19,10 @@ const LAZY_REQUIREMENTS_PATH = path.resolve(
   __dirname,
   "../requirements-lazy.txt",
 )
+const BACKGROUND_REQUIREMENTS_PATH = path.resolve(
+  __dirname,
+  "../requirements-background.txt",
+)
 
 const DIST_PYODIDE_DIR = path.resolve(__dirname, "../dist-pyodide")
 const WHEELS_DIR = path.join(DIST_PYODIDE_DIR, "wheels")
@@ -40,11 +44,14 @@ function parseRequirements() {
   const coreReqs = readRequirementsFile(CORE_REQUIREMENTS_PATH)
   const deferredReqs = readRequirementsFile(DEFERRED_REQUIREMENTS_PATH)
   const lazyReqs = readRequirementsFile(LAZY_REQUIREMENTS_PATH)
-  const allReqs = [...coreReqs, ...deferredReqs, ...lazyReqs]
+  const backgroundReqs = readRequirementsFile(BACKGROUND_REQUIREMENTS_PATH)
+  const allReqs = Array.from(
+    new Set([...coreReqs, ...deferredReqs, ...lazyReqs, ...backgroundReqs]),
+  )
 
   if (allReqs.length === 0) {
     throw new Error(
-      `No requirements found in ${CORE_REQUIREMENTS_PATH}, ${DEFERRED_REQUIREMENTS_PATH} or ${LAZY_REQUIREMENTS_PATH}`,
+      `No requirements found in ${CORE_REQUIREMENTS_PATH}, ${DEFERRED_REQUIREMENTS_PATH}, ${LAZY_REQUIREMENTS_PATH} or ${BACKGROUND_REQUIREMENTS_PATH}`,
     )
   }
 

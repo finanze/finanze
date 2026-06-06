@@ -4,6 +4,9 @@ import { PyodideWorkerClient } from "./worker/client"
 let workerClient: PyodideWorkerClient | null = null
 let workerInitPromise: Promise<void> | null = null
 
+let backgroundWorkerClient: PyodideWorkerClient | null = null
+let backgroundReadyPromise: Promise<void> | null = null
+
 export interface PyodideRuntimeOptions {
   indexURL?: string
   installMobileRequirements?: boolean
@@ -125,4 +128,66 @@ export async function installLazyRequirements(): Promise<void> {
   appConsole.info("[Pyodide] Installing lazy requirements...")
   await workerClient.installLazyRequirements()
   appConsole.info("[Pyodide] Lazy requirements installed.")
+}
+
+// ---------------------------------------------------------------------------
+// Background worker (worker 2): runs tracked quote/loan updates against the
+// SAME shared SQLite connection as the main worker. Warm-started at app launch;
+// the DB is only attached after login (see lib/mobile + AuthContext).
+// ---------------------------------------------------------------------------
+export function initBackgroundWorker(
+  options: PyodideRuntimeOptions = {},
+): Promise<void> {
+  if (backgroundReadyPromise) {
+    return backgroundReadyPromise
+  }
+
+  if (!backgroundWorkerClient) {
+    backgroundWorkerClient = new PyodideWorkerClient("bg")
+  }
+
+  backgroundReadyPromise = (async () => {
+    appConsole.info("[Pyodide][bg] Loading background runtime (worker)...")
+    await backgroundWorkerClient!.init({
+      indexURL: options.indexURL ?? "/pyodide/",
+      installMobileRequirements: false,
+    })
+    appConsole.info("[Pyodide][bg] Installing background requirements...")
+    await backgroundWorkerClient!.installBackgroundRequirements()
+    appConsole.info("[Pyodide][bg] Loading background modules...")
+    await backgroundWorkerClient!.loadBackgroundModules()
+    appConsole.info("[Pyodide][bg] Background runtime ready.")
+  })()
+
+  return backgroundReadyPromise
+}
+
+export function isBackgroundWorkerReady(): boolean {
+  return backgroundWorkerClient !== null && backgroundReadyPromise !== null
+}
+
+export async function callBackgroundPythonFunction<T = unknown>(
+  modulePath: string,
+  functionName: string,
+  ...args: unknown[]
+): Promise<T> {
+  if (!backgroundWorkerClient || !backgroundReadyPromise) {
+    throw new Error(
+      "Background worker not initialized. Call initBackgroundWorker() first.",
+    )
+  }
+  await backgroundReadyPromise
+  return (await backgroundWorkerClient.callPythonFunction(
+    modulePath,
+    functionName,
+    args,
+  )) as T
+}
+
+export function terminateBackgroundWorker(): void {
+  if (backgroundWorkerClient) {
+    backgroundWorkerClient.terminate()
+  }
+  backgroundWorkerClient = null
+  backgroundReadyPromise = null
 }

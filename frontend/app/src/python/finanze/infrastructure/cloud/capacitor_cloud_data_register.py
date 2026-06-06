@@ -196,10 +196,10 @@ class CapacitorCloudDataRegister(
                 try:
                     role = CloudUserRole(str(role_str).upper())
                 except ValueError:
-                    self._log.warning(f"Invalid role value '{role_str}', using NONE")
-                    role = CloudUserRole.NONE
+                    self._log.warning(f"Invalid role value '{role_str}', using BASIC")
+                    role = CloudUserRole.BASIC
             else:
-                role = CloudUserRole.NONE
+                role = CloudUserRole.BASIC
 
             if not isinstance(permissions, list):
                 self._log.warning(

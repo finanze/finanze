@@ -331,7 +331,8 @@
   "toast": {
     "success": "Success",
     "warning": "Warning",
-    "error": "Error"
+    "error": "Error",
+    "info": "Info"
   },
   "login": {
     "enterCredentials": "Enter credentials for",
@@ -639,6 +640,12 @@
       "signUp": "Create Account",
       "emailPlaceholder": "Email address",
       "passwordPlaceholder": "Password",
+      "confirmPasswordPlaceholder": "Confirm password",
+      "passwordValidationError": "Password must be at least 8 characters with at least one letter and one digit.",
+      "noAccountPrefix": "Don't have an account?",
+      "noAccountAction": "Sign up",
+      "alreadyHaveAccountPrefix": "Already have an account?",
+      "alreadyHaveAccountAction": "Sign in",
       "orContinueWith": "or continue with",
       "legalNoticePrefix": "By continuing, you agree to the",
       "termsOfService": "Terms of Service",
@@ -649,7 +656,7 @@
       "signedInAs": "Signed in as",
       "role": "Role",
       "roles": {
-        "NONE": "None",
+        "BASIC": "Basic",
         "PLUS": "＋ Plus"
       },
       "logout": "Sign out",
@@ -670,6 +677,7 @@
         "email_exists": "An account with this email already exists. Try signing in instead.",
         "email_provider_disabled": "Email/password sign up is currently disabled.",
         "weak_password": "Password is too weak. Please choose a stronger one.",
+        "same_password": "New password must be different from your current password.",
         "unknown": "Sign up failed ({error}). Please try again."
       },
       "loggingOut": "Signing out...",
@@ -734,6 +742,11 @@
       "noBackupYet": "No backup yet",
       "pendingBackup": "Pending",
       "tooManyRequests": "Too many requests. Please wait a bit before retrying.",
+      "plusRequiredForMoreBackups": "You need {plus} for more frequent backups",
+      "plusRequiredForAutoSync": "Auto sync is a {plus} feature",
+      "plusJoinMessage": "Get it now at {email}!",
+      "plusJoinEmailSubject": "Join Plus",
+      "plusJoinEmailBody": "Hi, I would like to join Plus, thank you.",
       "cooldownActive": "Please wait a moment before trying again.",
       "conflictRetry": "Sync conflict detected. Choose local or remote.",
       "transferFailed": "Could not connect to the backup server. Please try again later.",
@@ -1829,7 +1842,14 @@
     "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information.",
     "paymentDate": "Payment Date",
     "retainedAmount": "Retained Amount",
-    "pendingTransfers": "Pending Transfers"
+    "pendingTransfers": "Pending Transfers",
+    "sortByAmount": "Sort by amount",
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "hideEmpty": "Hide empty accounts",
+    "groupByEntity": "Group by entity",
+    "showIbans": "Show IBANs",
+    "emptyCount": "+{count} empty"
   },
   "cardTypes": {
     "CREDIT": "Credit",

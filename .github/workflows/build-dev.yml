@@ -699,10 +699,19 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             DOCKER_TAG="pr${{ github.event.pull_request.number }}"
+            FRONTEND_TAGS="$DOCKER_TAG"
+            SELENIUM_TAGS="$DOCKER_TAG-selenium"
+            NOSELENIUM_TAGS="$DOCKER_TAG,$DOCKER_TAG-no-selenium"
           else
             DOCKER_TAG="dev"
+            FRONTEND_TAGS="$DOCKER_TAG,next"
+            SELENIUM_TAGS="$DOCKER_TAG-selenium,next-selenium"
+            NOSELENIUM_TAGS="$DOCKER_TAG,$DOCKER_TAG-no-selenium,next,next-no-selenium"
           fi
           echo "docker_tag=$DOCKER_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend_tags=$FRONTEND_TAGS" >> "$GITHUB_OUTPUT"
+          echo "selenium_tags=$SELENIUM_TAGS" >> "$GITHUB_OUTPUT"
+          echo "noselenium_tags=$NOSELENIUM_TAGS" >> "$GITHUB_OUTPUT"
           echo "Using Docker tag: $DOCKER_TAG"
 
       - name: Hack bumpversion config with dev version
@@ -756,7 +765,7 @@ jobs:
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
           buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          tags: ${{ steps.docker_tag.outputs.docker_tag }}
+          tags: ${{ steps.docker_tag.outputs.frontend_tags }}
 
       - name: Publish selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
@@ -767,7 +776,7 @@ jobs:
           default_branch: develop
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=true
-          tags: ${{ steps.docker_tag.outputs.docker_tag }}-selenium
+          tags: ${{ steps.docker_tag.outputs.selenium_tags }}
 
       - name: Publish no-selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
@@ -778,7 +787,7 @@ jobs:
           default_branch: develop
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=false
-          tags: ${{ steps.docker_tag.outputs.docker_tag }},${{ steps.docker_tag.outputs.docker_tag }}-no-selenium
+          tags: ${{ steps.docker_tag.outputs.noselenium_tags }}
 
       - name: Update PR comment
         if: ${{ always() && github.event_name == 'pull_request' }}
@@ -828,3 +837,209 @@ jobs:
             await doUpdate();
             await new Promise(r => setTimeout(r, 2000));
             await doUpdate();
+
+
+  publish-next:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    needs: [ build-app, build-android, build-docker ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install CD deps
+        shell: bash
+        run: pip install -r requirements-cd.txt
+
+      - name: Compute Dev Version
+        id: dev_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet || true
+          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
+          if [[ $BASE_VERSION =~ ^v ]]; then
+            BASE_NO_V=${BASE_VERSION#v}
+          else
+            BASE_NO_V="$BASE_VERSION"
+          fi
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
+          else
+            COUNT=$(git rev-list HEAD --count)
+          fi
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
+          echo "Computed dev version: $DEV_VERSION"
+          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find artifacts -type f \
+            \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.exe' \
+               -o -name '*.apk' -o -name '*.aab' \) \
+            -exec cp -f {} dist/ \;
+          echo "Collected assets:"
+          ls -la dist
+
+      - name: Move next tag to current commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f next "$GITHUB_SHA"
+          git push -f origin next
+
+      - name: Create or update next pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE="Next (develop build $DEV_VERSION)"
+          if gh release view next >/dev/null 2>&1; then
+            echo "Updating existing 'next' pre-release"
+            gh release edit next --prerelease --latest=false --title "$TITLE" --target develop
+            echo "Deleting previous assets"
+            for asset in $(gh release view next --json assets --jq '.assets[].name'); do
+              echo "Removing $asset"
+              gh release delete-asset next "$asset" -y || true
+            done
+          else
+            echo "Creating 'next' pre-release"
+            gh release create next \
+              --prerelease \
+              --latest=false \
+              --target develop \
+              --title "$TITLE" \
+              --notes "Rolling pre-release automatically built from the latest \`develop\` commit. Not intended for production use."
+          fi
+          gh release upload next dist/* --clobber
+
+      - name: Update next release description with build table
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = 'next';
+            const version = '${{ steps.dev_version.outputs.dev_version }}';
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner, repo, release_id: release.id,
+            });
+
+            const formatSize = (bytes) => {
+              const mb = bytes / 1024 / 1024;
+              return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+            };
+
+            const desktopBuilds = [
+              { icon: '🍎', label: 'macOS', arch: 'ARM64 (Apple Silicon)', pattern: '-mac-arm64.dmg' },
+              { icon: '🍎', label: 'macOS', arch: 'Intel x64', pattern: '-mac-x64.dmg' },
+              { icon: '🐧', label: 'Linux', arch: 'x64', pattern: '-linux-x86_64.AppImage' },
+              { icon: '🪟', label: 'Windows', arch: 'x64', pattern: '-win-x64.exe' },
+            ];
+
+            const buildAppResult = '${{ needs.build-app.result }}';
+            let desktopRows = '';
+            for (const build of desktopBuilds) {
+              const asset = assets.find(a => a.name.endsWith(build.pattern));
+              if (asset) {
+                const size = formatSize(asset.size);
+                desktopRows += `| ${build.icon} ${build.label} | ${build.arch} | ${size} | [Download](${asset.browser_download_url}) |\n`;
+              } else {
+                const status = buildAppResult === 'failure' ? '❌ Failed' : buildAppResult === 'cancelled' ? '⚪ Cancelled' : '⚠️ Not found';
+                desktopRows += `| ${build.icon} ${build.label} | ${build.arch} | — | ${status} |\n`;
+              }
+            }
+
+            const androidBuilds = [
+              { type: '.apk', pattern: `-android-full.apk` },
+              { type: '.aab', pattern: `-android-full.aab` },
+            ];
+
+            const buildAndroidResult = '${{ needs.build-android.result }}';
+            let androidRows = '';
+            for (const build of androidBuilds) {
+              const asset = assets.find(a => a.name.endsWith(build.pattern));
+              if (asset) {
+                const size = formatSize(asset.size);
+                androidRows += `| \`${build.type}\` | ${size} | [Download](${asset.browser_download_url}) |\n`;
+              } else {
+                const status = buildAndroidResult === 'failure' ? '❌ Failed' : buildAndroidResult === 'cancelled' ? '⚪ Cancelled' : '⚠️ Not found';
+                androidRows += `| \`${build.type}\` | — | ${status} |\n`;
+              }
+            }
+
+            const dockerResult = '${{ needs.build-docker.result }}';
+            let dockerSection;
+            if (dockerResult === 'success') {
+              dockerSection = [
+                `| Image | Tag | Pull Command |`,
+                `|-------|-----|-------------|`,
+                `| \`finanze/finanze\` | \`next\` | \`docker pull finanze/finanze:next\` |`,
+                `| \`finanze/finanze\` | \`next-selenium\` | \`docker pull finanze/finanze:next-selenium\` |`,
+                `| \`finanze/finanze-frontend\` | \`next\` | \`docker pull finanze/finanze-frontend:next\` |`,
+              ].join('\n');
+            } else if (dockerResult === 'failure') {
+              dockerSection = `❌ Docker build failed.`;
+            } else if (dockerResult === 'cancelled') {
+              dockerSection = `⚪ Docker build was cancelled.`;
+            } else {
+              dockerSection = `⚠️ Docker build status unknown.`;
+            }
+
+            const table = [
+              ``,
+              `## 📦 Build Assets`,
+              ``,
+              `_Rolling pre-release built from \`develop\` — version \`${version}\`._`,
+              ``,
+              `### Desktop`,
+              ``,
+              `| Platform | Architecture | Size | Link |`,
+              `|----------|-------------|------|------|`,
+              desktopRows.trim(),
+              ``,
+              `### 📱 Android`,
+              ``,
+              `| Type | Size | Link |`,
+              `|------|------|------|`,
+              androidRows.trim(),
+              ``,
+              `### 🐳 Docker Images`,
+              ``,
+              dockerSection,
+            ].join('\n');
+
+            const existingBody = release.body || '';
+            const buildMarker = '## 📦 Build Assets';
+            let newBody;
+            if (existingBody.includes(buildMarker)) {
+              newBody = existingBody.substring(0, existingBody.indexOf(buildMarker)).trimEnd() + '\n' + table;
+            } else {
+              newBody = existingBody.trimEnd() + '\n' + table;
+            }
+
+            await github.rest.repos.updateRelease({
+              owner, repo, release_id: release.id,
+              body: newBody,
+            });

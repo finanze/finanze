@@ -329,7 +329,8 @@
   "toast": {
     "success": "Operación exitosa",
     "warning": "Advertencia",
-    "error": "Error"
+    "error": "Error",
+    "info": "Info"
   },
   "login": {
     "enterCredentials": "Ingresa las credenciales de",
@@ -638,6 +639,12 @@
       "signUp": "Crear cuenta",
       "emailPlaceholder": "Correo electrónico",
       "passwordPlaceholder": "Contraseña",
+      "confirmPasswordPlaceholder": "Confirmar contraseña",
+      "passwordValidationError": "La contraseña debe tener al menos 8 caracteres con al menos una letra y un dígito.",
+      "noAccountPrefix": "¿No tienes cuenta?",
+      "noAccountAction": "Regístrate",
+      "alreadyHaveAccountPrefix": "¿Ya tienes cuenta?",
+      "alreadyHaveAccountAction": "Inicia sesión",
       "orContinueWith": "o continuar con",
       "legalNoticePrefix": "Al continuar, aceptas los",
       "termsOfService": "Términos del servicio",
@@ -648,7 +655,7 @@
       "signedInAs": "Sesión iniciada como",
       "role": "Rol",
       "roles": {
-        "NONE": "Ninguno",
+        "BASIC": "Básico",
         "PLUS": "＋ Plus"
       },
       "logout": "Cerrar sesión",
@@ -669,6 +676,7 @@
         "email_exists": "Ya existe una cuenta con ese correo. Prueba a iniciar sesión.",
         "email_provider_disabled": "El registro con email/contraseña está deshabilitado actualmente.",
         "weak_password": "La contraseña es demasiado débil. Elige una más segura.",
+        "same_password": "La nueva contraseña debe ser diferente a la actual.",
         "unknown": "Error al registrarte ({error}). Inténtalo de nuevo."
       },
       "loggingOut": "Cerrando sesión...",
@@ -733,6 +741,11 @@
       "noBackupYet": "Sin copia aún",
       "pendingBackup": "Pendiente",
       "tooManyRequests": "Demasiadas solicitudes. Espera un momento antes de reintentar.",
+      "plusRequiredForMoreBackups": "Necesitas {plus} para copias de seguridad más frecuentes",
+      "plusRequiredForAutoSync": "La sincronización automática es una función {plus}",
+      "plusJoinMessage": "¡Obtenlo ahora en {email}!",
+      "plusJoinEmailSubject": "Unirse a Plus",
+      "plusJoinEmailBody": "Hola, me gustaría unirme a Plus, gracias.",
       "cooldownActive": "Espera un momento antes de intentar de nuevo.",
       "conflictRetry": "Conflicto detectado. Elige local o remoto.",
       "transferFailed": "No se pudo conectar con el servidor de copias. Inténtalo de nuevo más tarde.",
@@ -1828,7 +1841,14 @@
     "noDataDescription": "Conecta tus cuentas bancarias para ver información de cuentas, tarjetas y préstamos.",
     "paymentDate": "Fecha de Pago",
     "retainedAmount": "Retenido",
-    "pendingTransfers": "Transferencias Pendientes"
+    "pendingTransfers": "Transferencias Pendientes",
+    "sortByAmount": "Ordenar por importe",
+    "ascending": "Ascendente",
+    "descending": "Descendente",
+    "hideEmpty": "Ocultar cuentas vacías",
+    "groupByEntity": "Agrupar por entidad",
+    "showIbans": "Mostrar IBANs",
+    "emptyCount": "+{count} vacías"
   },
   "cardTypes": {
     "CREDIT": "Crédito",

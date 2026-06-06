@@ -31,13 +31,14 @@ import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { BackupAlertSync } from "./components/BackupAlertSync"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
 import { isNativeMobile } from "@/lib/platform"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
   const [showReleaseModal, setShowReleaseModal] = useState(false)
+  const releaseModalDismissedRef = useRef(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
   const {
     state: autoUpdateState,
@@ -75,18 +76,19 @@ function App() {
     checkOnMount: isAuthenticated && !isInitializing && !isNativeMobile(),
     skipVersions: skippedVersions,
     onUpdateAvailable: () => {
-      // Only show modal if user is authenticated and not already shown
-      if (isAuthenticated && !showReleaseModal) {
+      if (isAuthenticated && !releaseModalDismissedRef.current) {
         setShowReleaseModal(true)
       }
     },
   })
 
   const handleCloseReleaseModal = () => {
+    releaseModalDismissedRef.current = true
     setShowReleaseModal(false)
   }
 
   const handleSkipVersion = (version: string) => {
+    releaseModalDismissedRef.current = true
     setSkippedVersions(prev => [...prev, version])
     setShowReleaseModal(false)
   }
@@ -97,16 +99,11 @@ function App() {
       !isNativeMobile() &&
       autoUpdateState.isSupported &&
       autoUpdateState.updateInfo &&
-      !showReleaseModal
+      !releaseModalDismissedRef.current
     ) {
       setShowReleaseModal(true)
     }
-  }, [
-    autoUpdateState.isSupported,
-    autoUpdateState.updateInfo,
-    isAuthenticated,
-    showReleaseModal,
-  ])
+  }, [autoUpdateState.isSupported, autoUpdateState.updateInfo, isAuthenticated])
 
   if (isInitializing) {
     return <SplashScreen />
