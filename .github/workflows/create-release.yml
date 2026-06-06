@@ -91,10 +91,13 @@ jobs:
         env:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT_VERSION: ${{ steps.bump.outputs.current-version }}
+          PREVIOUS_VERSION: ${{ steps.bump.outputs.previous-version }}
         run: |
-          changelog=$(git cliff --unreleased --tag $CURRENT_VERSION)
+          git fetch --tags --force
+          RANGE="v$PREVIOUS_VERSION..HEAD"
+          changelog=$(git cliff "$RANGE" --tag $CURRENT_VERSION)
           touch CHANGELOG.md
-          git cliff --unreleased --tag $CURRENT_VERSION --prepend CHANGELOG.md
+          git cliff "$RANGE" --tag $CURRENT_VERSION --prepend CHANGELOG.md
 
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$changelog" >> $GITHUB_OUTPUT
