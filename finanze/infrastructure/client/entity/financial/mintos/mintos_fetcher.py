@@ -93,8 +93,8 @@ class MintosFetcher(FinancialEntityFetcher):
         overview_net_annual_returns_json = await self._client.get_net_annual_returns(
             wallet_currency_id
         )
-        net_annual_returns = overview_net_annual_returns_json["netAnnualReturns"][
-            str(wallet_currency_id)
+        net_annual_returns = overview_net_annual_returns_json[
+            "netAnnualReturnPercentage"
         ]
 
         portfolio_data_json = await self._client.get_portfolio(wallet_currency_id)
@@ -109,6 +109,14 @@ class MintosFetcher(FinancialEntityFetcher):
             type=AccountType.VIRTUAL_WALLET,
         )
 
+        accounts = [account_data]
+
+        smart_cash_account = await self._build_smart_cash_account(
+            overview_json, currency_iso
+        )
+        if smart_cash_account is not None:
+            accounts.append(smart_cash_account)
+
         loan_distribution = map_loan_distribution(total_investment_distribution)
         crowdlending = Crowdlending(
             id=uuid4(),
@@ -120,7 +128,7 @@ class MintosFetcher(FinancialEntityFetcher):
         )
 
         products = {
-            ProductType.ACCOUNT: Accounts([account_data]),
+            ProductType.ACCOUNT: Accounts(accounts),
             ProductType.CROWDLENDING: crowdlending,
         }
 
@@ -128,4 +136,37 @@ class MintosFetcher(FinancialEntityFetcher):
             id=uuid4(),
             entity=MINTOS,
             products=products,
+        )
+
+    async def _build_smart_cash_account(
+        self, overview_json: dict, currency_iso: str
+    ) -> Account | None:
+        smart_cash = overview_json.get("smartCash") or {}
+        raw_value = smart_cash.get("value")
+        if raw_value is None:
+            return None
+
+        try:
+            smart_cash_total = round(Dezimal(raw_value), 2)
+        except (ValueError, TypeError):
+            return None
+
+        if not smart_cash_total > 0:
+            return None
+
+        interest = None
+        fund_json = await self._client.get_smart_cash_fund()
+        raw_interest = fund_json.get("interestRatePercentage")
+        if raw_interest is not None:
+            try:
+                interest = round(Dezimal(raw_interest) / 100, 6)
+            except (ValueError, TypeError):
+                interest = None
+
+        return Account(
+            id=uuid4(),
+            total=smart_cash_total,
+            currency=currency_iso,
+            type=AccountType.SAVINGS,
+            interest=interest,
         )

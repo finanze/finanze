@@ -30,7 +30,7 @@ class MintosAPIClient:
     def __init__(self):
         self._session = new_http_session()
         self._log = logging.getLogger(__name__)
-        self._automated_login = _is_selenium_available()
+        self._automated_login = False  # _is_selenium_available()
         self._session_expiration = None
 
     @property
@@ -106,7 +106,7 @@ class MintosAPIClient:
     @cached(cache=Cache.MEMORY, ttl=120)
     async def get_net_annual_returns(self, wallet_currency_id) -> dict:
         return await self._get_request(
-            f"/en/webapp-api/user/overview-net-annual-returns?currencyIsoCode={wallet_currency_id}"
+            f"/marketplace-api/v1/accounts/{wallet_currency_id}/net-annual-return"
         )
 
     @cached(cache=Cache.MEMORY, ttl=120)
@@ -114,3 +114,7 @@ class MintosAPIClient:
         return await self._get_request(
             f"/marketplace-api/v1/user/overview/currency/{wallet_currency_id}/portfolio-data"
         )
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_smart_cash_fund(self) -> dict:
+        return await self._get_request("/msc-api/v1/funds/current")
