@@ -197,8 +197,11 @@ Check [Export & Import Configuration](#export--import-configuration) for more te
 
 ### Download
 
-Download the latest version of the app from the [Releases](https://github.com/finanze/finanze/releases) for your
-OS.
+Download the latest version of the app from the [Releases](https://github.com/finanze/finanze/releases) for your OS.
+
+Want to try the latest in-development features? Grab a build from the rolling
+[`next` pre-release](https://github.com/finanze/finanze/releases/tag/next), which is automatically updated on every push
+to `develop`. These builds may be unstable and not intended for production use.
 
 ### Docker
 
