@@ -1,3 +1,16 @@
+## [0.8.6] - 2026-06-10
+
+### 🐛 Bug Fixes
+
+- Myinvestor login
+
+### 📚 Documentation
+
+- Update README with app store link
+
+### ⚙️ Miscellaneous Tasks
+
+- Add README dev build release link & app store build
 ## [0.8.5] - 2026-06-06
 
 ### 🚀 Features
