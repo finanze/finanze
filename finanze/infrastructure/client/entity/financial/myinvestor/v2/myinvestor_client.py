@@ -115,22 +115,16 @@ class MyInvestorAPIV2Client:
 
         device_id = session.payload.get("device_id") if session else str(uuid4())
 
-        headers = {
-            **self._headers,
-            "x-device-id": device_id,
-            "x-myinvestor-app": "version=3.117.0,platform=web",
-        }
+        self._headers["x-device-id"] = device_id
+        self._headers["x-myinvestor-app"] = "version=3.125.0,platform=web"
+
+        headers = {**self._headers}
 
         if captcha_token:
             headers["X-Recaptcha-Token"] = captcha_token
+            headers["X-Recaptcha-Action"] = "SECURITY_CHECK"
 
-        request = {
-            "customerId": username,
-            "accessType": "USERNAME",
-            "password": password,
-            "deviceId": device_id,
-            "platform": "BROWSER",
-        }
+        request = {"customerId": username, "password": password}
 
         if code and process_id:
             if len(code) != 6:
@@ -142,7 +136,7 @@ class MyInvestorAPIV2Client:
             request["code"] = code
 
             response = await self._post_request(
-                "/login/api/v1/auth/token",
+                "/login/api/v2/auth/token",
                 body=request,
                 raw=True,
                 base_url=self.LOGIN_URL,
@@ -164,7 +158,7 @@ class MyInvestorAPIV2Client:
 
         elif not process_id and not code:
             response = await self._post_request(
-                "/login/api/v1/auth/token",
+                "/login/api/v2/auth/token",
                 body=request,
                 raw=True,
                 base_url=self.LOGIN_URL,
