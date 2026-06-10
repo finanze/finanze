@@ -113,6 +113,9 @@ class DeferredComponents:
         from infrastructure.repository.real_estate.real_estate_repository import (
             RealEstateRepository,
         )
+        from infrastructure.repository.networth_timeline.networth_timeline_repository import (
+            NetworthTimelineSQLRepository,
+        )
         from infrastructure.repository.virtual.virtual_import_repository import (
             VirtualImportRepository,
         )
@@ -131,6 +134,9 @@ class DeferredComponents:
             GetExternalIntegrationsImpl,
         )
         from application.use_cases.get_money_events import GetMoneyEventsImpl
+        from application.use_cases.get_networth_timeline import (
+            GetNetworthTimelineImpl,
+        )
         from application.use_cases.get_pending_flows import GetPendingFlowsImpl
         from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
         from application.use_cases.get_position import GetPositionImpl
@@ -226,6 +232,7 @@ class DeferredComponents:
         self.period_repo = PeriodicFlowRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)
         self.re_repo = RealEstateRepository(client=db_client)
+        self.networth_timeline_repo = NetworthTimelineSQLRepository(client=db_client)
         ext_ent_repo = ExternalEntityRepository(client=db_client)
         self.creds_repo = CredentialsRepository(client=db_client)
         self.entity_account_repo = EntityAccountRepository(client=db_client)
@@ -288,6 +295,14 @@ class DeferredComponents:
         self.get_pending = GetPendingFlowsImpl(self.pending_repo)
 
         self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
+
+        self.get_networth_timeline = GetNetworthTimelineImpl(
+            self.networth_timeline_repo,
+            ex_storage,
+            self.config_loader,
+            self.entity_repo,
+            self.re_repo,
+        )
 
         backupable_ports = {
             BackupFileType.DATA: core.db_manager,

@@ -17,6 +17,7 @@ import {
   HandCoins,
   Building2,
   House,
+  Home,
   ArrowDownRight,
   ArrowUpRight,
   Wallet,
@@ -34,6 +35,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   FUND: "#06b6d4", // Equivalent to text-cyan-500
   REAL_ESTATE_CF: "#10b981", // Equivalent to text-green-500
   REAL_ESTATE: "#059669", // Tailwind emerald-600
+  REAL_ESTATE_RESIDENCE: "#047857", // Tailwind emerald-700
   FACTORING: "#f59e0b", // Equivalent to text-amber-500
   DEPOSIT: "#8b5cf6", // Equivalent to text-purple-500
   CASH: "#6b7280", // Equivalent to text-gray-500
@@ -42,6 +44,9 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   COMMODITY: "#eab308", // Equivalent to text-yellow-500
   PENDING_FLOWS: "#14b8a6", // Equivalent to text-teal-500
   CREDIT: "#f43f5e", // Equivalent to text-rose-500
+  CARD: "#ef4444", // Equivalent to text-red-500
+  LOAN: "#dc2626", // Equivalent to text-red-700
+  DERIVATIVE: "#ec4899", // Equivalent to text-pink-500
 }
 
 export function getPieSliceColorForAssetType(type: string): string {
@@ -95,6 +100,10 @@ export function getIconForAssetType(
     case "REAL_ESTATE":
       return (
         <House className={getIconClass("text-emerald-600")} style={iconStyle} />
+      )
+    case "REAL_ESTATE_RESIDENCE":
+      return (
+        <Home className={getIconClass("text-emerald-700")} style={iconStyle} />
       )
     case "FACTORING":
       return (

@@ -148,6 +148,12 @@ from infrastructure.repository.db.versions.v0.v08.v080_14_credits import (
 from infrastructure.repository.db.versions.v0.v08.v080_15_hd_address_balance import (
     V0815HdAddressBalance,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_0_networth_timeline import (
+    V0900NetworthTimeline,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_1_recompute_loan_hashes import (
+    V0901RecomputeLoanHashes,
+)
 
 versions = [
     V0Genesis(),
@@ -210,4 +216,6 @@ versions = [
     V0813ImprovedLoans(),
     V0814Credits(),
     V0815HdAddressBalance(),
+    V0900NetworthTimeline(),
+    V0901RecomputeLoanHashes(),
 ]

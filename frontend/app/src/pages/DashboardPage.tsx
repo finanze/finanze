@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/Popover"
 import { getIconForAssetType, getIconForTxType } from "@/utils/dashboardUtils"
 import { PortfolioDonutChart } from "@/components/dashboard/PortfolioDonutChart"
+import NetWorthTimelineCard from "@/components/dashboard/NetWorthTimelineCard"
+import type { NetworthTimelinePoint } from "@/types/networthTimeline"
 import {
   TrendingUp,
   AlertCircle,
@@ -59,6 +61,10 @@ import {
   computeForecastKpis,
   filterRealEstateByOptions,
   getTotalCash,
+  getTotalCardUsed,
+  getTotalCreditDrawn,
+  getUnlinkedLoansOutstanding,
+  getRealEstateOwnedEquityTotal,
 } from "@/utils/financialDataUtils"
 import { EntityRefreshDropdown } from "@/components/EntityRefreshDropdown"
 
@@ -290,6 +296,90 @@ export default function DashboardPage() {
   }, [cachedLastTransactions, t])
 
   const targetCurrency = settings.general.defaultCurrency
+
+  // Independent "today" point for the net worth timeline (backend only returns up to yesterday).
+  // Mirrors the timeline convention: assets + real estate equity, minus all debts (card used,
+  // credit drawn, unlinked loan principal). Linked mortgages are already netted into RE equity.
+  const timelineTodayPoint = useMemo<NetworthTimelinePoint | null>(() => {
+    if (!positionsData || !exchangeRates) return null
+    const breakdown: Record<string, number> = {}
+
+    const distribution = getAssetDistribution(
+      positionsData,
+      targetCurrency,
+      exchangeRates,
+      [],
+      [],
+    )
+    for (const item of distribution) {
+      if (item.type === "PENDING_FLOWS") continue
+      const key = item.type === "CASH" ? "ACCOUNT" : item.type
+      breakdown[key] = (breakdown[key] ?? 0) + item.value
+    }
+
+    const investmentRealEstate = (realEstateList || []).filter(
+      re => !re.basic_info?.is_residence,
+    )
+    const residenceRealEstate = (realEstateList || []).filter(
+      re => re.basic_info?.is_residence,
+    )
+    const investmentEquity = getRealEstateOwnedEquityTotal(
+      investmentRealEstate,
+      targetCurrency,
+      exchangeRates,
+    )
+    const residenceEquity = getRealEstateOwnedEquityTotal(
+      residenceRealEstate,
+      targetCurrency,
+      exchangeRates,
+    )
+    if (investmentEquity) breakdown["REAL_ESTATE"] = investmentEquity
+    if (residenceEquity) breakdown["REAL_ESTATE_RESIDENCE"] = residenceEquity
+
+    const cardUsed = getTotalCardUsed(
+      positionsData,
+      targetCurrency,
+      exchangeRates,
+    )
+    const creditDrawn = getTotalCreditDrawn(
+      positionsData,
+      targetCurrency,
+      exchangeRates,
+    )
+    const unlinkedLoans = getUnlinkedLoansOutstanding(
+      positionsData,
+      realEstateList,
+      targetCurrency,
+      exchangeRates,
+    )
+    if (cardUsed) breakdown["CARD"] = -cardUsed
+    if (creditDrawn) breakdown["CREDIT"] = -creditDrawn
+    if (unlinkedLoans) breakdown["LOAN"] = -unlinkedLoans
+
+    const total = Object.values(breakdown).reduce(
+      (sum, value) => sum + value,
+      0,
+    )
+    const date = new Date().toISOString().split("T")[0]
+    return { date, total, breakdown }
+  }, [positionsData, exchangeRates, realEstateList, targetCurrency])
+
+  const timelineDefaultHidden = useMemo<string[]>(() => {
+    const hidden: string[] = []
+    if (!dashboardOptions.includeLoans) hidden.push("LOAN", "CREDIT")
+    if (!dashboardOptions.includeCardExpenses) hidden.push("CARD")
+    if (!dashboardOptions.includeRealEstate) {
+      hidden.push("REAL_ESTATE", "REAL_ESTATE_RESIDENCE")
+    } else if (!dashboardOptions.includeResidences) {
+      hidden.push("REAL_ESTATE_RESIDENCE")
+    }
+    return hidden
+  }, [
+    dashboardOptions.includeLoans,
+    dashboardOptions.includeCardExpenses,
+    dashboardOptions.includeRealEstate,
+    dashboardOptions.includeResidences,
+  ])
 
   const upcomingEventsData = useMemo(() => {
     return upcomingEventsRaw.map(event => ({
@@ -1665,6 +1755,13 @@ export default function DashboardPage() {
                   {renderUpcomingCard()}
                 </AnimatedContainer>
               </div>
+
+              <AnimatedContainer skipAnimation={skipAnimations} delay={0.25}>
+                <NetWorthTimelineCard
+                  todayPoint={timelineTodayPoint}
+                  defaultHiddenTypes={timelineDefaultHidden}
+                />
+              </AnimatedContainer>
 
               {ongoingProjects.length > 0 ? (
                 <AnimatedContainer skipAnimation={skipAnimations} delay={0.3}>

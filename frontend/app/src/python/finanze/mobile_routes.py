@@ -62,6 +62,13 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
         ("GET", "/api/v1/positions", "positions", "positions", d.get_pos),
         (
             "GET",
+            "/api/v1/networth-timeline",
+            "networth_timeline",
+            "networth_timeline",
+            d.get_networth_timeline,
+        ),
+        (
+            "GET",
             "/api/v1/contributions",
             "contributions",
             "contributions",
