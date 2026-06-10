@@ -31,7 +31,8 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
     </td>
     <td align="center">
       Install <a href="https://altstore.io/download"><img src="resources/altstore.png" alt="AltStore" height="14"> AltStore</a>, then <a href="https://addaltstore.finanze.me">add the app</a><br>
-      <b>or </b>join <a href="https://testflight.finanze.me"><img src="resources/testflight.png" alt="TestFlight" height="14">TestFlight</a>
+      <b>or </b>join <a href="https://testflight.finanze.me"><img src="resources/testflight.png" alt="TestFlight" height="14">TestFlight</a><br>
+      <b>or </b><a href="https://apps.apple.com/es/app/finanze-portfolio-tracker/id6763042710"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="28"></a>*
     </td>
   </tr>
 </table>
@@ -333,3 +334,7 @@ important ones are::
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
   for it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
   with headless mode.
+
+---
+
+<small>\* App Store version has limited features and does not support bank connections. Use AltStore or TestFlight for the full experience.</small>
