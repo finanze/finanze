@@ -103,6 +103,22 @@ def _insert_sheets_import(conn, import_id, gp_id, day, entity_id):
     )
 
 
+def _insert_position_import(conn, import_id, gp_id, day, entity_id, source):
+    conn.execute(
+        "INSERT INTO virtual_data_imports "
+        "(id, import_id, global_position_id, source, date, feature, entity_id) "
+        "VALUES (?, ?, ?, ?, ?, 'POSITION', ?)",
+        (
+            str(uuid4()),
+            str(import_id),
+            gp_id,
+            source,
+            f"{day}T12:00:00",
+            str(entity_id),
+        ),
+    )
+
+
 @pytest_asyncio.fixture
 async def setup():
     conn = sqlite3.connect(":memory:")
@@ -391,3 +407,99 @@ class TestNetworthTimelineRepositoryIntegration:
         assert by_day["2025-09-11"].breakdown["LOAN"] == Dezimal(-161218)
         # Second import fully replaces the first → only the 12718 loan remains.
         assert by_day["2025-11-19"].breakdown["LOAN"] == Dezimal(-12718)
+
+    @pytest.mark.asyncio
+    async def test_manual_redeclaring_import_keeps_and_drops_holders(self, setup):
+        # Manual imports fully re-declare the manual portfolio. An unchanged
+        # position is re-referenced by later imports (kept, never duplicated);
+        # a position omitted by a later import stops contributing from that day.
+        repository, conn = setup
+        entity = uuid4()
+        import1 = uuid4()
+        import2 = uuid4()
+        import3 = uuid4()
+        account_a = uuid4()
+        account_b = uuid4()
+
+        # First import: a deposit only.
+        gp_dep = _insert_gp(
+            conn, entity, "2026-01-30", source="MANUAL", account_id=account_a
+        )
+        _insert(conn, "deposit_positions", gp_dep, "amount", "2000")
+        _insert_position_import(conn, import1, gp_dep, "2026-01-30", entity, "MANUAL")
+
+        # Second import re-declares the deposit (re-reference) and adds factoring.
+        gp_fac = _insert_gp(
+            conn, entity, "2026-04-12", source="MANUAL", account_id=account_b
+        )
+        _insert(conn, "factoring_positions", gp_fac, "amount", "1100")
+        _insert_position_import(conn, import2, gp_dep, "2026-04-12", entity, "MANUAL")
+        _insert_position_import(conn, import2, gp_fac, "2026-04-12", entity, "MANUAL")
+
+        # Third import drops the deposit, keeps only factoring.
+        _insert_position_import(conn, import3, gp_fac, "2026-05-20", entity, "MANUAL")
+        conn.commit()
+
+        result = await _use_case(repository).execute(NetworthTimelineQuery())
+        by_day = {p.date.isoformat(): p for p in result.points}
+
+        # First import: deposit alone.
+        assert by_day["2026-01-30"].total == Dezimal(2000)
+        # Second import: deposit kept (not duplicated) + factoring added.
+        assert by_day["2026-04-12"].breakdown["DEPOSIT"] == Dezimal(2000)
+        assert by_day["2026-04-12"].breakdown["FACTORING"] == Dezimal(1100)
+        assert by_day["2026-04-12"].total == Dezimal(3100)
+        # Third import drops the deposit → only factoring remains.
+        assert "DEPOSIT" not in by_day["2026-05-20"].breakdown
+        assert by_day["2026-05-20"].breakdown["FACTORING"] == Dezimal(1100)
+        assert by_day["2026-05-20"].total == Dezimal(1100)
+
+    @pytest.mark.asyncio
+    async def test_manual_not_double_counted_with_real(self, setup):
+        # A bank account first entered manually and later connected as REAL must
+        # not be counted twice: the REAL holder and the manual source are
+        # independent, and the stale manual entry is replaced when the manual
+        # import that drops it arrives.
+        repository, conn = setup
+        entity = uuid4()
+        manual_import1 = uuid4()
+        manual_import2 = uuid4()
+        account = uuid4()
+        _insert_account(conn, entity, account)
+
+        # Manual fund entry, declared by the first manual import.
+        gp_manual = _insert_gp(
+            conn, entity, "2025-11-01", source="MANUAL", account_id=account
+        )
+        _insert(conn, "fund_positions", gp_manual, "market_value", "50000")
+        _insert_position_import(
+            conn, manual_import1, gp_manual, "2025-11-01", entity, "MANUAL"
+        )
+
+        # The account is later connected (REAL) and reports its real value.
+        gp_real = _insert_gp(
+            conn, entity, "2026-05-22", source="REAL", account_id=account
+        )
+        _insert(conn, "fund_positions", gp_real, "market_value", "73000")
+
+        # A later manual import drops the now-real fund entry.
+        gp_other = _insert_gp(
+            conn, entity, "2026-06-01", source="MANUAL", account_id=None
+        )
+        _insert(conn, "deposit_positions", gp_other, "amount", "500")
+        _insert_position_import(
+            conn, manual_import2, gp_other, "2026-06-01", entity, "MANUAL"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(NetworthTimelineQuery())
+        by_day = {p.date.isoformat(): p for p in result.points}
+
+        # While only the manual fund exists.
+        assert by_day["2025-11-01"].breakdown["FUND"] == Dezimal(50000)
+        # REAL fund arrives: manual import still declares it until replaced.
+        assert by_day["2026-05-22"].breakdown["FUND"] == Dezimal(123000)
+        # The newer manual import drops the manual fund → only the REAL fund and
+        # the new manual deposit remain (no double counting of the fund).
+        assert by_day["2026-06-01"].breakdown["FUND"] == Dezimal(73000)
+        assert by_day["2026-06-01"].breakdown["DEPOSIT"] == Dezimal(500)

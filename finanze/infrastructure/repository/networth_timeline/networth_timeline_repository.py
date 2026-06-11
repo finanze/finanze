@@ -107,20 +107,30 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
     async def get_position_snapshots(
         self, excluded_entity_ids: list[str]
     ) -> list[PositionSnapshot]:
-        snapshots = await self._load_snapshot_index(excluded_entity_ids)
-        if not snapshots:
-            return []
-        await self._attach_holdings(snapshots)
-        return list(snapshots.values())
+        real_snapshots = await self._load_real_snapshots(excluded_entity_ids)
+        import_rows = await self._load_batched_import_rows(excluded_entity_ids)
 
-    async def _load_snapshot_index(
+        gp_ids = set(real_snapshots.keys())
+        gp_ids.update(row["gp_id"] for row in import_rows)
+        if not gp_ids:
+            return []
+
+        holdings_by_gp = await self._load_holdings()
+
+        for gp_id, snapshot in real_snapshots.items():
+            snapshot.holdings = holdings_by_gp.get(gp_id, [])
+
+        batched_snapshots = self._build_batched_snapshots(import_rows, holdings_by_gp)
+        return list(real_snapshots.values()) + batched_snapshots
+
+    async def _load_real_snapshots(
         self, excluded_entity_ids: list[str]
     ) -> dict[str, PositionSnapshot]:
         sql = NetworthTimelineQueries.GET_SNAPSHOTS_BASE.value
         params = []
         if excluded_entity_ids:
             placeholders = ", ".join("?" for _ in excluded_entity_ids)
-            sql += f" WHERE gp.entity_id NOT IN ({placeholders})"
+            sql += f" AND gp.entity_id NOT IN ({placeholders})"
             params.extend(excluded_entity_ids)
         sql += " ORDER BY gp.date ASC"
 
@@ -134,21 +144,64 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
                     moment=datetime.fromisoformat(row["date"]),
                     holdings=[],
                     holder_deleted_at=_parse_date(row["deleted_at"]),
-                    import_batch=row["import_batch"],
                 )
         return snapshots
 
-    async def _attach_holdings(self, snapshots: dict[str, PositionSnapshot]) -> None:
+    async def _load_batched_import_rows(self, excluded_entity_ids: list[str]) -> list:
+        sql = NetworthTimelineQueries.GET_BATCHED_IMPORTS.value
+        params = []
+        if excluded_entity_ids:
+            placeholders = ", ".join("?" for _ in excluded_entity_ids)
+            sql += f" AND gp.entity_id NOT IN ({placeholders})"
+            params.extend(excluded_entity_ids)
+
+        async with self._db_client.read() as cursor:
+            await cursor.execute(sql, tuple(params))
+            return await cursor.fetchall()
+
+    def _build_batched_snapshots(
+        self, import_rows: list, holdings_by_gp: dict[str, list[HoldingValuation]]
+    ) -> list[PositionSnapshot]:
+        # Each import of a re-declaring source (manual/sheets) carries the whole
+        # portfolio for that source: collapse all of its positions into a single
+        # snapshot held by the source, so the latest import on or before a day
+        # fully replaces the previous one.
+        imports: dict[str, dict] = {}
+        for row in import_rows:
+            entry = imports.get(row["import_id"])
+            if entry is None:
+                entry = {
+                    "source": row["source"],
+                    "date": row["import_date"],
+                    "gp_ids": [],
+                }
+                imports[row["import_id"]] = entry
+            entry["gp_ids"].append(row["gp_id"])
+
+        snapshots: list[PositionSnapshot] = []
+        for entry in imports.values():
+            holdings: list[HoldingValuation] = []
+            for gp_id in entry["gp_ids"]:
+                holdings.extend(holdings_by_gp.get(gp_id, []))
+            snapshots.append(
+                PositionSnapshot(
+                    holder=entry["source"],
+                    moment=datetime.fromisoformat(entry["date"]),
+                    holdings=holdings,
+                    redeclaring=True,
+                )
+            )
+        return snapshots
+
+    async def _load_holdings(self) -> dict[str, list[HoldingValuation]]:
+        holdings_by_gp: dict[str, list[HoldingValuation]] = {}
         async with self._db_client.read() as cursor:
             await cursor.execute(NetworthTimelineQueries.GET_HOLDING_VALUATIONS.value)
             for row in await cursor.fetchall():
-                snapshot = snapshots.get(row["global_position_id"])
-                if snapshot is None:
-                    continue
                 amount = row["amount"]
                 if amount is None:
                     continue
-                snapshot.holdings.append(
+                holdings_by_gp.setdefault(row["global_position_id"], []).append(
                     HoldingValuation(
                         product_type=ProductType(row["product_type"]),
                         currency=row["currency"],
@@ -156,6 +209,7 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
                         loan_ref=row["loan_ref"],
                     )
                 )
+        return holdings_by_gp
 
     async def get_mortgage_valuations(
         self, loan_refs: list[str]

@@ -27,15 +27,22 @@ class NetworthTimelineQueries(str, Enum):
 
     GET_SNAPSHOTS_BASE = """
         SELECT gp.id, gp.entity_id, COALESCE(gp.entity_account_id, '') AS ea_key,
-               gp.source, gp.date, ea.deleted_at,
-               (
-                   SELECT MAX(vdi.import_id)
-                   FROM virtual_data_imports vdi
-                   WHERE vdi.global_position_id = gp.id
-                     AND vdi.feature = 'POSITION'
-               ) AS import_batch
+               gp.source, gp.date, ea.deleted_at
         FROM global_positions gp
             LEFT JOIN entity_accounts ea ON gp.entity_account_id = ea.id
+        WHERE gp.source = 'REAL'
+    """
+
+    GET_BATCHED_IMPORTS = """
+        SELECT gp.source AS source,
+               vdi.import_id AS import_id,
+               vdi.date AS import_date,
+               vdi.global_position_id AS gp_id
+        FROM virtual_data_imports vdi
+            JOIN global_positions gp ON gp.id = vdi.global_position_id
+        WHERE vdi.feature = 'POSITION'
+          AND vdi.global_position_id IS NOT NULL
+          AND gp.source IN ('MANUAL', 'SHEETS')
     """
 
     GET_HOLDING_VALUATIONS = """

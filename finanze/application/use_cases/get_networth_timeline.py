@@ -204,23 +204,8 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
 
         current: dict[str, PositionSnapshot] = {}
         points: list[NetworthTimelinePoint] = []
-        current_import_batch: Optional[str] = None
         for day in sorted(days):
             for snapshot in sorted(by_day.get(day, []), key=lambda s: s.moment):
-                # Sources whose every import fully re-declares the portfolio
-                # (Sheets) carry an import batch. A newer batch replaces all
-                # prior batched holders, so anything missing from it stops
-                # contributing from this import day on.
-                if (
-                    snapshot.import_batch is not None
-                    and snapshot.import_batch != current_import_batch
-                ):
-                    current = {
-                        holder: held
-                        for holder, held in current.items()
-                        if held.import_batch is None
-                    }
-                    current_import_batch = snapshot.import_batch
                 current[snapshot.holder] = snapshot
 
             breakdown: dict[str, Dezimal] = {}
@@ -285,15 +270,16 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
 
             mortgages = []
             for flow in real_estate.flows:
-                if (
-                    flow.flow_subtype != RealEstateFlowSubtype.LOAN
-                    or not flow.linked_loan_hash
-                ):
+                if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
                     continue
                 loan_ref = flow.linked_loan_hash
-                snaps = self._collapse_daily(outstanding_by_ref.get(loan_ref, []))
+                snaps = (
+                    self._collapse_daily(outstanding_by_ref.get(loan_ref, []))
+                    if loan_ref
+                    else []
+                )
                 anchor = purchase_date
-                origination = origination_by_ref.get(loan_ref)
+                origination = origination_by_ref.get(loan_ref) if loan_ref else None
                 if origination and origination > anchor:
                     anchor = origination
                 fallback_outstanding = None
@@ -486,8 +472,11 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             for s in snapshots
             if s.holder_deleted_at is not None
         )
-        import_batches = sorted(
-            {s.import_batch for s in snapshots if s.import_batch is not None}
+        # A re-declaring import retroactively defines the portfolio of its
+        # source from its day on, so changes to the set of imports must force a
+        # full recomputation.
+        import_markers = sorted(
+            f"{s.holder}:{s.moment.isoformat()}" for s in snapshots if s.redeclaring
         )
         raw = "|".join(
             [
@@ -495,7 +484,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                 ",".join(excluded_ids),
                 ",".join(sorted(mortgage_refs)),
                 ",".join(deleted_holders),
-                ",".join(import_batches),
+                ",".join(import_markers),
             ]
         )
         return hashlib.sha256(raw.encode()).hexdigest()

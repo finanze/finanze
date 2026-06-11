@@ -28,13 +28,13 @@ def _holding(product_type, amount, currency="EUR", loan_ref=None):
     )
 
 
-def _snapshot(holder, day, holdings, hour=12, deleted_at=None, import_batch=None):
+def _snapshot(holder, day, holdings, hour=12, deleted_at=None, redeclaring=False):
     return PositionSnapshot(
         holder=holder,
         moment=datetime(day.year, day.month, day.day, hour, 0, 0),
         holdings=holdings,
         holder_deleted_at=deleted_at,
-        import_batch=import_batch,
+        redeclaring=redeclaring,
     )
 
 
@@ -276,9 +276,11 @@ class TestCompute:
 
     @pytest.mark.asyncio
     async def test_sheets_import_replaces_previous(self):
-        # First Sheets import declares two accounts; a later import drops one of
-        # them. The dropped holder must stop contributing from the later import
-        # day, while a non-batched (REAL) holder keeps carrying forward.
+        # A re-declaring source (Sheets) produces one snapshot per import held by
+        # the source itself, carrying the whole portfolio that import declared.
+        # A later import fully replaces the previous one, so a holding dropped
+        # from it stops contributing; a non-redeclaring (REAL) holder is
+        # untouched and keeps carrying forward.
         snapshots = [
             _snapshot(
                 "e0||REAL",
@@ -286,22 +288,16 @@ class TestCompute:
                 [_holding("ACCOUNT", "5000")],
             ),
             _snapshot(
-                "e1|accA|SHEETS",
+                "SHEETS",
                 date(2025, 9, 11),
-                [_holding("LOAN", "148500")],
-                import_batch="import-1",
+                [_holding("LOAN", "148500"), _holding("LOAN", "12718")],
+                redeclaring=True,
             ),
             _snapshot(
-                "e1|accB|SHEETS",
-                date(2025, 9, 11),
-                [_holding("LOAN", "12718")],
-                import_batch="import-1",
-            ),
-            _snapshot(
-                "e1|accB|SHEETS",
+                "SHEETS",
                 date(2025, 11, 19),
                 [_holding("LOAN", "12718")],
-                import_batch="import-2",
+                redeclaring=True,
             ),
         ]
         use_case, port = _build(snapshots=snapshots)
@@ -312,10 +308,41 @@ class TestCompute:
         # First import: both Sheets loans plus the REAL account.
         assert by_day[date(2025, 9, 11)].breakdown["LOAN"] == Dezimal(-161218)
         assert by_day[date(2025, 9, 11)].breakdown["ACCOUNT"] == Dezimal(5000)
-        # Second import drops accA → only the 12718 loan remains.
+        # Second import drops the 148500 loan → only the 12718 loan remains.
         assert by_day[date(2025, 11, 19)].breakdown["LOAN"] == Dezimal(-12718)
-        # The non-batched REAL holder is untouched by the Sheets replacement.
+        # The non-redeclaring REAL holder is untouched by the Sheets replacement.
         assert by_day[date(2025, 11, 19)].breakdown["ACCOUNT"] == Dezimal(5000)
+
+    @pytest.mark.asyncio
+    async def test_manual_redeclaring_replaces_stale_holders(self):
+        # The same logical position re-entered manually (e.g. once with an
+        # account, later without) must not be double-counted: the latest import
+        # carries the whole manual portfolio and replaces the previous one.
+        snapshots = [
+            _snapshot(
+                "MANUAL",
+                date(2026, 1, 30),
+                [_holding("FACTORING", "1111"), _holding("DEPOSIT", "2000")],
+                redeclaring=True,
+            ),
+            _snapshot(
+                "MANUAL",
+                date(2026, 4, 12),
+                [_holding("FACTORING", "1100"), _holding("DEPOSIT", "2000")],
+                redeclaring=True,
+            ),
+        ]
+        use_case, port = _build(snapshots=snapshots)
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        by_day = {p.date: p for p in _persisted(port)["points"]}
+        assert by_day[date(2026, 1, 30)].breakdown["FACTORING"] == Dezimal(1111)
+        # Latest manual import replaces the stale 1111 factoring with 1100; the
+        # deposit it still declares is kept (not dropped, not duplicated).
+        assert by_day[date(2026, 4, 12)].breakdown["FACTORING"] == Dezimal(1100)
+        assert by_day[date(2026, 4, 12)].breakdown["DEPOSIT"] == Dezimal(2000)
+        assert by_day[date(2026, 4, 12)].total == Dezimal(3100)
 
 
 class TestControlFlow:
@@ -445,3 +472,39 @@ class TestMergeAndRealEstate:
         assert by_day[date(2025, 1, 1)].breakdown["REAL_ESTATE"] == Dezimal(120000)
         assert by_day[date(2025, 4, 1)].breakdown["REAL_ESTATE"] == Dezimal(120000)
         assert by_day[date(2025, 5, 1)].breakdown["REAL_ESTATE"] == Dezimal(122000)
+
+    @pytest.mark.asyncio
+    async def test_unlinked_mortgage_subtracted_from_equity(self):
+        # A manually entered mortgage (no linked loan hash) must still reduce the
+        # real estate equity using its declared outstanding principal.
+        flows = [_re_loan_flow(None, outstanding="12718")]
+        real_estate = [_real_estate(date(2025, 1, 1), "30000", "30000", flows=flows)]
+        use_case, _ = _build(points=[], real_estate=real_estate)
+
+        result = await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        by_day = {p.date: p for p in result.points}
+        assert by_day[date(2025, 1, 1)].breakdown["REAL_ESTATE"] == Dezimal(
+            30000 - 12718
+        )
+
+    @pytest.mark.asyncio
+    async def test_unlinked_mortgage_currency_converted(self):
+        # The unlinked mortgage outstanding is expressed in the property currency
+        # and must be converted into the target currency before netting.
+        flows = [_re_loan_flow(None, outstanding="11000")]
+        real_estate = [
+            _real_estate(
+                date(2025, 1, 1), "30000", "30000", flows=flows, currency="USD"
+            )
+        ]
+        rates = {"EUR": {"USD": Dezimal("1.1")}}
+        use_case, _ = _build(points=[], real_estate=real_estate, rates=rates)
+
+        result = await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        by_day = {p.date: p for p in result.points}
+        # value 30000/1.1 = 27272.72..., outstanding 11000/1.1 = 10000
+        assert by_day[date(2025, 1, 1)].breakdown["REAL_ESTATE"] == Dezimal(
+            "30000"
+        ) / Dezimal("1.1") - Dezimal(10000)

@@ -44,21 +44,24 @@ class HoldingValuation:
 class PositionSnapshot:
     """A point-in-time valuation of one holder's position.
 
-    A holder is an entity account under a given source; it reports successive
-    snapshots over time, and the latest snapshot on or before a day represents
-    its value on that day. ``holder_deleted_at`` is the date the holder account
-    was deleted (if any); from that day on the holder no longer contributes.
-    ``import_batch`` identifies the import that produced the snapshot for
-    sources whose every import fully re-declares the portfolio (Sheets): the
-    newest batch replaces all prior batches, so a holder missing from it stops
-    contributing. It is ``None`` for sources that accumulate per holder.
+    A holder reports successive snapshots over time, and the latest snapshot on
+    or before a day represents its value on that day. ``holder_deleted_at`` is
+    the date the holder account was deleted (if any); from that day on the
+    holder no longer contributes.
+
+    For per-account sources (bank fetches), one snapshot is produced per
+    account and the holder is that account. For sources whose every import
+    fully re-declares the portfolio (manual entries, Sheets), a single
+    ``redeclaring`` snapshot is produced per import: the holder is the source
+    itself and the holdings are the whole portfolio declared by that import, so
+    the latest import on or before a day fully replaces the previous one.
     """
 
     holder: str
     moment: datetime
     holdings: list[HoldingValuation] = field(default_factory=list)
     holder_deleted_at: Optional[date] = None
-    import_batch: Optional[str] = None
+    redeclaring: bool = False
 
 
 @dataclass
