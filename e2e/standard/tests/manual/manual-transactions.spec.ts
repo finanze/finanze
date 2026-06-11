@@ -193,11 +193,17 @@ test.describe('Manual Transactions', () => {
         // Submit
         const dialog = page.locator('.fixed.inset-0').last()
         await dialog.getByRole('button', { name: 'Save' }).click()
-        await expect(
-            page.getByText('Manual transaction updated successfully'),
-        ).toBeVisible({ timeout: 10_000 })
 
+        // The success toast auto-dismisses and is racy to assert on. Verify the
+        // edit succeeded by confirming the dialog closed and the updated amount
+        // is reflected in the list.
+        await expect(page.getByText('Edit manual transaction')).toBeHidden({
+            timeout: 10_000,
+        })
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
+            timeout: 5_000,
+        })
+        await expect(page.getByText('+€750.50').first()).toBeVisible({
             timeout: 5_000,
         })
     })

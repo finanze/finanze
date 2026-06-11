@@ -18,8 +18,10 @@ describe('Basic Setup', () => {
         await switchToWebView()
         log('switchToWebView done', t0)
 
+        // Cold Pyodide boot is slower on CI than locally; allow headroom but
+        // not so much that a genuinely stuck boot wastes minutes per retry.
         const username = await $('#username')
-        await username.waitForDisplayed({ timeout: 30_000 })
+        await username.waitForDisplayed({ timeout: 60_000 })
         log('#username visible', t0)
 
         await $('#username').setValue(TEST_USER)

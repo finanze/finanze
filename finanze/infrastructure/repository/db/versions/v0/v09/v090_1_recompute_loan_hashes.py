@@ -1,5 +1,4 @@
 from domain.data_init import DatasourceInitContext
-from domain.global_position import compute_loan_hash
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.query_mixin import QueryMixin
 from infrastructure.repository.db.upgrader import DBVersionMigration
@@ -11,6 +10,8 @@ class V0901RecomputeLoanHashes(DBVersionMigration, QueryMixin):
         return "v0.9.0:1_recompute_loan_hashes"
 
     async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        from domain.global_position import compute_loan_hash
+
         await cursor.execute(
             "SELECT lp.id, lp.hash, gp.entity_id, lp.loan_amount, lp.creation "
             "FROM loan_positions lp "

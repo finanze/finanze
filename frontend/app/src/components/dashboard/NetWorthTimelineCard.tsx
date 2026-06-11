@@ -151,6 +151,20 @@ function rangeCutoff(range: RangeKey): string | null {
   return d.toISOString().split("T")[0]
 }
 
+const INITIAL_RANGE: RangeKey = "1Y"
+
+// Lower bound of the data a given selection needs. `null` means "from the very
+// beginning" (e.g. the ALL range, or a custom range with only an upper bound).
+function neededCutoff(
+  range: RangeKey,
+  customFrom: string,
+  customTo: string,
+): string | null {
+  if (customFrom) return customFrom
+  if (customTo) return null
+  return rangeCutoff(range)
+}
+
 let hasLoadedTimelineThisSession = false
 
 interface NetWorthTimelineCardProps {
@@ -173,11 +187,17 @@ export default function NetWorthTimelineCard({
   )
   const [currency, setCurrency] = useState<string>(defaultCurrency)
   const [loading, setLoading] = useState(!hasLoadedTimelineThisSession)
+  const [rangeLoading, setRangeLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [range, setRange] = useState<RangeKey>("1Y")
+  const [range, setRange] = useState<RangeKey>(INITIAL_RANGE)
   const [customFrom, setCustomFrom] = useState<string>("")
   const [customTo, setCustomTo] = useState<string>("")
+  // Lower bound currently loaded into `backendPoints`. `null` means everything
+  // (down to the very first point) is loaded, so no further fetch is needed.
+  const [coveredFrom, setCoveredFrom] = useState<string | null>(
+    rangeCutoff(INITIAL_RANGE),
+  )
   const [chartType, setChartType] = useState<"stacked" | "lines">("stacked")
   const [showTotal, setShowTotal] = useState(true)
   const [dragStart, setDragStart] = useState<string | null>(null)
@@ -190,6 +210,7 @@ export default function NetWorthTimelineCard({
   useModalBackHandler(expanded, () => setExpanded(false))
 
   const loadedRef = useRef(false)
+  const fetchSeqRef = useRef(0)
 
   useEffect(() => {
     if (loadedRef.current) return
@@ -202,9 +223,14 @@ export default function NetWorthTimelineCard({
       setCurrency(cur || defaultCurrency)
     }
 
+    const initialCutoff = rangeCutoff(INITIAL_RANGE)
+
     const load = async () => {
       try {
-        const fast = await getNetworthTimeline({ no_calculation: true })
+        const fast = await getNetworthTimeline({
+          no_calculation: true,
+          from_date: initialCutoff ?? undefined,
+        })
         apply(fast.points, fast.currency)
       } catch {
         // ignore, the full load below will surface errors
@@ -213,8 +239,11 @@ export default function NetWorthTimelineCard({
       }
 
       try {
-        const full = await getNetworthTimeline({})
+        const full = await getNetworthTimeline({
+          from_date: initialCutoff ?? undefined,
+        })
         apply(full.points, full.currency)
+        if (!cancelled) setCoveredFrom(initialCutoff)
         hasLoadedTimelineThisSession = true
       } catch (err) {
         console.error("Error loading net worth timeline:", err)
@@ -231,6 +260,44 @@ export default function NetWorthTimelineCard({
       cancelled = true
     }
   }, [defaultCurrency, t])
+
+  // Widen the loaded window on demand when the user selects a range/custom range
+  // that needs older data than what is currently cached. Narrower selections are
+  // served from memory; we only ever fetch (and cache) a wider window.
+  useEffect(() => {
+    if (!loadedRef.current) return
+    if (coveredFrom === null) return // everything is already loaded
+
+    const needed = neededCutoff(range, customFrom, customTo)
+    const needsWider = needed === null || needed < coveredFrom
+    if (!needsWider) return
+
+    let cancelled = false
+    const seq = ++fetchSeqRef.current
+    setRangeLoading(true)
+
+    const widen = async () => {
+      try {
+        const res = await getNetworthTimeline({
+          no_calculation: true,
+          from_date: needed ?? undefined,
+        })
+        if (cancelled || seq !== fetchSeqRef.current) return
+        setBackendPoints(res.points)
+        setCurrency(res.currency || defaultCurrency)
+        setCoveredFrom(needed)
+      } catch (err) {
+        console.error("Error widening net worth timeline:", err)
+      } finally {
+        if (!cancelled && seq === fetchSeqRef.current) setRangeLoading(false)
+      }
+    }
+
+    widen()
+    return () => {
+      cancelled = true
+    }
+  }, [range, customFrom, customTo, coveredFrom, defaultCurrency])
 
   const allPoints = useMemo(() => {
     if (!todayPoint) return backendPoints
@@ -419,167 +486,176 @@ export default function NetWorthTimelineCard({
   const renderChart = (height: number | string, isExpanded: boolean) => {
     const gridTicks = niceGridTicks(maxTotal, isExpanded ? 7 : 4)
     return (
-      <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart
-          data={chartData}
-          margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
-          onMouseDown={handleDragStart}
-          onMouseMove={handleDragMove}
-          onMouseUp={handleDragEnd}
-          onMouseLeave={handleDragEnd}
-          style={{ cursor: dragStart ? "col-resize" : "crosshair" }}
-        >
-          {chartType === "stacked" && (
-            <defs>
-              {displayTypes.map((type, index) => {
-                const c = colorOf(type, index)
-                return (
-                  <linearGradient
-                    id={`nwt-grad-${index}`}
-                    key={`${type}-${index}`}
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor={c} stopOpacity={0.62} />
-                    <stop offset="100%" stopColor={c} stopOpacity={0.12} />
-                  </linearGradient>
-                )
-              })}
-            </defs>
-          )}
-          {isExpanded && (
-            <CartesianGrid
-              horizontal={false}
-              vertical
-              strokeDasharray="3 3"
-              stroke="hsl(var(--foreground))"
-              strokeOpacity={0.12}
-            />
-          )}
-          {gridTicks.map(tick => (
-            <ReferenceLine
-              key={tick}
-              y={tick}
-              stroke="hsl(var(--foreground))"
-              strokeOpacity={0.07}
-              label={
-                isPrivate
-                  ? undefined
-                  : makeGridLabel(formatCompactCurrency(tick, locale, currency))
-              }
-            />
-          ))}
-          <XAxis
-            dataKey="date"
-            height={28}
-            tick={{ fontSize: 11 }}
-            tickLine={false}
-            axisLine={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
-            tickMargin={8}
-            minTickGap={isExpanded ? 24 : 64}
-            tickFormatter={formatAxisDate}
-          />
-          <YAxis
-            mirror
-            width={0}
-            domain={[0, (dataMax: number) => dataMax * 1.1]}
-            tick={false}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={formatYAxis}
-          />
-          <Tooltip
-            cursor={!dragStart}
-            content={({ active, payload, label }) => {
-              if (dragStart) return null
-              if (!active || !payload || payload.length === 0) return null
-              const row = payload[0].payload as Record<string, number>
-              return (
-                <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-md">
-                  <p className="font-semibold mb-1">
-                    {formatDate(String(label), locale)}
-                  </p>
-                  <p className="mb-1 flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">
-                      {t.netWorthTimeline.showTotal}
-                    </span>
-                    <Sensitive className="font-bold text-foreground">
-                      {formatCurrency(row.__total ?? 0, locale, currency)}
-                    </Sensitive>
-                  </p>
-                  {displayTypes.map(type => (
-                    <p
-                      key={type}
-                      className="flex items-center justify-between gap-4"
+      <div className="relative" style={{ height }}>
+        {rangeLoading && (
+          <div className="absolute right-2 top-2 z-10">
+            <LoadingSpinner size="sm" />
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
+            onMouseDown={handleDragStart}
+            onMouseMove={handleDragMove}
+            onMouseUp={handleDragEnd}
+            onMouseLeave={handleDragEnd}
+            style={{ cursor: dragStart ? "col-resize" : "crosshair" }}
+          >
+            {chartType === "stacked" && (
+              <defs>
+                {displayTypes.map((type, index) => {
+                  const c = colorOf(type, index)
+                  return (
+                    <linearGradient
+                      id={`nwt-grad-${index}`}
+                      key={`${type}-${index}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full"
-                          style={{ backgroundColor: colorOf(type, 0) }}
-                        />
-                        {typeLabel(type)}
+                      <stop offset="0%" stopColor={c} stopOpacity={0.62} />
+                      <stop offset="100%" stopColor={c} stopOpacity={0.12} />
+                    </linearGradient>
+                  )
+                })}
+              </defs>
+            )}
+            {isExpanded && (
+              <CartesianGrid
+                horizontal={false}
+                vertical
+                strokeDasharray="3 3"
+                stroke="hsl(var(--foreground))"
+                strokeOpacity={0.12}
+              />
+            )}
+            {gridTicks.map(tick => (
+              <ReferenceLine
+                key={tick}
+                y={tick}
+                stroke="hsl(var(--foreground))"
+                strokeOpacity={0.07}
+                label={
+                  isPrivate
+                    ? undefined
+                    : makeGridLabel(
+                        formatCompactCurrency(tick, locale, currency),
+                      )
+                }
+              />
+            ))}
+            <XAxis
+              dataKey="date"
+              height={28}
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
+              tickMargin={8}
+              minTickGap={isExpanded ? 24 : 64}
+              tickFormatter={formatAxisDate}
+            />
+            <YAxis
+              mirror
+              width={0}
+              domain={[0, (dataMax: number) => dataMax * 1.1]}
+              tick={false}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={formatYAxis}
+            />
+            <Tooltip
+              cursor={!dragStart}
+              content={({ active, payload, label }) => {
+                if (dragStart) return null
+                if (!active || !payload || payload.length === 0) return null
+                const row = payload[0].payload as Record<string, number>
+                return (
+                  <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-md">
+                    <p className="font-semibold mb-1">
+                      {formatDate(String(label), locale)}
+                    </p>
+                    <p className="mb-1 flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">
+                        {t.netWorthTimeline.showTotal}
                       </span>
-                      <Sensitive>
-                        {formatCurrency(row[type] ?? 0, locale, currency)}
+                      <Sensitive className="font-bold text-foreground">
+                        {formatCurrency(row.__total ?? 0, locale, currency)}
                       </Sensitive>
                     </p>
-                  ))}
-                </div>
-              )
-            }}
-          />
-          {chartType === "stacked"
-            ? displayTypes.map((type, index) => (
-                <Area
-                  key={type}
-                  type="monotone"
-                  dataKey={type}
-                  name={typeLabel(type)}
-                  stackId="networth"
-                  stroke="none"
-                  fill={`url(#nwt-grad-${index})`}
-                  fillOpacity={1}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              ))
-            : displayTypes.map((type, index) => (
-                <Line
-                  key={type}
-                  type="monotone"
-                  dataKey={type}
-                  name={typeLabel(type)}
-                  stroke={colorOf(type, index)}
-                  strokeWidth={1.5}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              ))}
-          <Line
-            type="monotone"
-            dataKey="__total"
-            name={t.netWorthTimeline.showTotal}
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={false}
-            hide={!showTotal}
-            isAnimationActive={false}
-          />
-          {dragStart && dragEnd && dragStart !== dragEnd && (
-            <ReferenceArea
-              x1={dragStart}
-              x2={dragEnd}
-              fill="hsl(var(--primary))"
-              fillOpacity={0.12}
-              stroke="hsl(var(--primary))"
-              strokeOpacity={0.4}
+                    {displayTypes.map(type => (
+                      <p
+                        key={type}
+                        className="flex items-center justify-between gap-4"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="inline-block h-2 w-2 rounded-full"
+                            style={{ backgroundColor: colorOf(type, 0) }}
+                          />
+                          {typeLabel(type)}
+                        </span>
+                        <Sensitive>
+                          {formatCurrency(row[type] ?? 0, locale, currency)}
+                        </Sensitive>
+                      </p>
+                    ))}
+                  </div>
+                )
+              }}
             />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+            {chartType === "stacked"
+              ? displayTypes.map((type, index) => (
+                  <Area
+                    key={type}
+                    type="monotone"
+                    dataKey={type}
+                    name={typeLabel(type)}
+                    stackId="networth"
+                    stroke="none"
+                    fill={`url(#nwt-grad-${index})`}
+                    fillOpacity={1}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                ))
+              : displayTypes.map((type, index) => (
+                  <Line
+                    key={type}
+                    type="monotone"
+                    dataKey={type}
+                    name={typeLabel(type)}
+                    stroke={colorOf(type, index)}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                ))}
+            <Line
+              type="monotone"
+              dataKey="__total"
+              name={t.netWorthTimeline.showTotal}
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={false}
+              hide={!showTotal}
+              isAnimationActive={false}
+            />
+            {dragStart && dragEnd && dragStart !== dragEnd && (
+              <ReferenceArea
+                x1={dragStart}
+                x2={dragEnd}
+                fill="hsl(var(--primary))"
+                fillOpacity={0.12}
+                stroke="hsl(var(--primary))"
+                strokeOpacity={0.4}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     )
   }
 
