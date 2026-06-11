@@ -19,10 +19,19 @@ class MetalPriceClient(MetalPriceProvider):
         self._rmint_api_price_client = RMintApiPriceClient()
 
         self.SYMBOL_MAPPINGS = {
-            CommodityType.GOLD: self._gold_api_price_client,
-            CommodityType.SILVER: self._gold_api_price_client,
-            CommodityType.PLATINUM: self._rmint_api_price_client,
-            CommodityType.PALLADIUM: self._gold_api_price_client,
+            CommodityType.GOLD: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.SILVER: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.PLATINUM: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.PALLADIUM: [self._gold_api_price_client],
         }
 
         self._price_cache = Cache(Cache.MEMORY)
@@ -51,11 +60,20 @@ class MetalPriceClient(MetalPriceProvider):
             return None
 
         timeout = kwargs.get("timeout", None)
-        client = self.SYMBOL_MAPPINGS[commodity]
-        price = await client.get_price(commodity, timeout)
+        clients = self.SYMBOL_MAPPINGS[commodity]
+        price = None
+        for client in clients:
+            price = await client.get_price(commodity, timeout)
+            if price is not None:
+                break
+            self._log.warning(
+                f"Client {client.__class__.__name__} failed for {commodity}, trying next."
+            )
 
         if price is None:
-            self._log.error(f"Failed to fetch price for {commodity}, skipping.")
+            self._log.error(
+                f"All clients failed to fetch price for {commodity}, skipping."
+            )
             await self._price_cache.delete(price_key)
             await self._none_cache.set(none_key, True, ttl=self.NONE_PRICE_CACHE_TTL)
         else:

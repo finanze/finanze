@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import httpx
+
 from domain.commodity import COMMODITY_SYMBOLS, CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.exchange_rate import CommodityExchangeRate
@@ -12,9 +13,12 @@ class GoldApiPriceClient:
     BASE_URL = "https://api.gold-api.com/price"
     TIMEOUT = 3
 
+    BASE_CURRENCY = "EUR"
+
     SUPPORTED_COMMODITIES = {
         CommodityType.GOLD,
         CommodityType.SILVER,
+        CommodityType.PLATINUM,
         CommodityType.PALLADIUM,
     }
 
@@ -35,7 +39,7 @@ class GoldApiPriceClient:
     async def _fetch_price(
         self, symbol: str, timeout: int
     ) -> Optional[CommodityExchangeRate]:
-        url = f"{self.BASE_URL}/{symbol}"
+        url = f"{self.BASE_URL}/{symbol}/{self.BASE_CURRENCY}"
         try:
             data = await self._fetch(url, timeout)
         except (httpx.RequestError, TimeoutError) as e:
@@ -44,7 +48,7 @@ class GoldApiPriceClient:
 
         return CommodityExchangeRate(
             unit=WeightUnit.TROY_OUNCE,
-            currency="USD",
+            currency=self.BASE_CURRENCY,
             price=Dezimal(str(data["price"])),
         )
 
