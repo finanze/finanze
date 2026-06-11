@@ -20,6 +20,18 @@ class CryptoCurrencyType(str, Enum):
     TOKEN = "TOKEN"
 
 
+def crypto_rate_key(
+    asset_type: CryptoCurrencyType,
+    symbol: Optional[str],
+    contract_address: Optional[str],
+) -> Optional[str]:
+    if asset_type == CryptoCurrencyType.TOKEN and contract_address:
+        return contract_address.lower()
+    if symbol:
+        return symbol.upper()
+    return None
+
+
 @dataclass
 class CryptoAsset:
     name: str

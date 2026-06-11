@@ -17,6 +17,7 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
+from domain.crypto import crypto_rate_key
 from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict
@@ -248,7 +249,10 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         rates = crypto_matrix.get(asset.currency)
         if not rates:
             return None
-        rate = rates.get(asset.symbol.upper())
+        rate_key = crypto_rate_key(asset.type, asset.symbol, asset.contract_address)
+        if rate_key is None:
+            return None
+        rate = rates.get(rate_key)
         if rate is None or rate == 0:
             return None
         price = Dezimal(1) / rate

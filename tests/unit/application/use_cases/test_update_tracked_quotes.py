@@ -183,6 +183,7 @@ def _make_crypto_asset(
     market_value=Dezimal(0),
     source=DataSource.MANUAL,
     crypto_type=CryptoCurrencyType.NATIVE,
+    contract_address=None,
 ) -> CryptoCurrencyPosition:
     return CryptoCurrencyPosition(
         id=uuid4(),
@@ -192,6 +193,7 @@ def _make_crypto_asset(
         currency=currency,
         market_value=market_value,
         source=source,
+        contract_address=contract_address,
     )
 
 
@@ -769,6 +771,84 @@ class TestManualCryptoUpdate:
         written_entity, written_position = snapshot_writer.write.await_args.args
         assert written_entity is position.entity
         assert written_position is position
+
+    @pytest.mark.asyncio
+    async def test_updates_token_market_value_by_contract_address(self):
+        gpid = uuid4()
+        rate = Dezimal(1) / Dezimal("0.06")
+        asset = _make_crypto_asset(
+            symbol="BTCB",
+            amount=Dezimal(2),
+            currency="EUR",
+            market_value=Dezimal(0),
+            crypto_type=CryptoCurrencyType.TOKEN,
+            contract_address="0xAbC123",
+        )
+        position = _make_position(gpid, crypto_wallets=[_make_crypto_wallet([asset])])
+
+        position_port, virtual_import_registry = _make_crypto_registry_and_port(
+            position, [gpid]
+        )
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(
+            return_value={
+                "EUR": {"BTCB": Dezimal(1) / Dezimal(50000), "0xabc123": rate}
+            }
+        )
+
+        snapshot_writer = MagicMock()
+        snapshot_writer.write = AsyncMock()
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            virtual_import_registry=virtual_import_registry,
+            exchange_rate_storage=exchange_rate_storage,
+            snapshot_writer=snapshot_writer,
+        )
+
+        await use_case.execute()
+
+        expected = round(Dezimal(2) * Dezimal("0.06"), 2)
+        assert asset.market_value == expected
+        snapshot_writer.write.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_token_ignores_symbol_keyed_rate(self):
+        gpid = uuid4()
+        asset = _make_crypto_asset(
+            symbol="BTCB",
+            amount=Dezimal(2),
+            currency="EUR",
+            market_value=Dezimal(0),
+            crypto_type=CryptoCurrencyType.TOKEN,
+            contract_address="0xAbC123",
+        )
+        position = _make_position(gpid, crypto_wallets=[_make_crypto_wallet([asset])])
+
+        position_port, virtual_import_registry = _make_crypto_registry_and_port(
+            position, [gpid]
+        )
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(
+            return_value={"EUR": {"BTCB": Dezimal(1) / Dezimal(50000)}}
+        )
+
+        snapshot_writer = MagicMock()
+        snapshot_writer.write = AsyncMock()
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            virtual_import_registry=virtual_import_registry,
+            exchange_rate_storage=exchange_rate_storage,
+            snapshot_writer=snapshot_writer,
+        )
+
+        await use_case.execute()
+
+        assert asset.market_value == Dezimal(0)
+        snapshot_writer.write.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_crypto_when_symbol_missing_from_matrix(self):

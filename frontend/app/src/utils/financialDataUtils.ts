@@ -84,6 +84,15 @@ export const convertCurrency = (
   return 0
 }
 
+export const getCryptoRateKey = (
+  asset: Pick<CryptoCurrencyPosition, "type" | "symbol" | "contract_address">,
+): string | null => {
+  if (asset.type === CryptoCurrencyType.TOKEN && asset.contract_address) {
+    return asset.contract_address.toLowerCase()
+  }
+  return asset.symbol ? asset.symbol.toUpperCase() : null
+}
+
 export const calculateCryptoValue = (
   amount: number,
   symbol: string,
@@ -149,13 +158,13 @@ export const calculateCryptoAssetValue = (
 ): number => {
   if (!asset) return 0
 
-  const symbol = asset.symbol?.toUpperCase()
   const amount = asset.amount || 0
+  const rateKey = getCryptoRateKey(asset)
 
-  if (amount > 0 && symbol) {
+  if (amount > 0 && rateKey) {
     const computedValue = calculateCryptoValue(
       amount,
-      symbol,
+      rateKey,
       targetCurrency,
       exchangeRates,
     )
