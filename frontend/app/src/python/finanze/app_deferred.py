@@ -302,6 +302,7 @@ class DeferredComponents:
             self.config_loader,
             self.entity_repo,
             self.re_repo,
+            self.metal_client,
         )
 
         backupable_ports = {

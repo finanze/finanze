@@ -3,6 +3,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from application.ports.networth_timeline_port import NetworthTimelinePort
+from domain.commodity import CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.global_position import ProductType
 from domain.networth_timeline import (
@@ -201,12 +202,20 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
                 amount = row["amount"]
                 if amount is None:
                     continue
+                weight = row["weight"]
                 holdings_by_gp.setdefault(row["global_position_id"], []).append(
                     HoldingValuation(
                         product_type=ProductType(row["product_type"]),
                         currency=row["currency"],
                         amount=Dezimal(amount),
                         loan_ref=row["loan_ref"],
+                        commodity_type=CommodityType(row["commodity_type"])
+                        if row["commodity_type"]
+                        else None,
+                        weight=Dezimal(weight) if weight is not None else None,
+                        weight_unit=WeightUnit(row["weight_unit"])
+                        if row["weight_unit"]
+                        else None,
                     )
                 )
         return holdings_by_gp

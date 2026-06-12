@@ -542,6 +542,7 @@ class FinanzeServer:
             config_loader,
             entity_repository,
             real_estate_repository,
+            metal_price_client,
         )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository

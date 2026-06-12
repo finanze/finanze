@@ -8,15 +8,19 @@ from typing import Optional
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.exchange_rate_storage import ExchangeRateStorage
+from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
+from domain.commodity import CommodityType, to_troy_ounces
 from domain.dezimal import Dezimal
-from domain.exchange_rate import ExchangeRates
+from domain.exchange_rate import ExchangeRates, HistoricMetalRates
 from domain.global_position import ProductType
 from domain.networth_timeline import (
+    COMMODITY_HISTORIC_CUTOFF,
     REAL_ESTATE_BUCKET,
     REAL_ESTATE_RESIDENCE_BUCKET,
+    HoldingValuation,
     NetworthTimeline,
     NetworthTimelinePoint,
     NetworthTimelineQuery,
@@ -27,6 +31,8 @@ from domain.real_estate import RealEstate, RealEstateFlowSubtype
 from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 
 _DEBT_TYPES = {ProductType.CARD, ProductType.LOAN, ProductType.CREDIT}
+
+_HistoricRates = dict[CommodityType, Optional[HistoricMetalRates]]
 
 
 class _PropertyModel:
@@ -51,12 +57,14 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         config_port: ConfigPort,
         entity_port: EntityPort,
         real_estate_port: RealEstatePort,
+        metal_price_provider: MetalPriceProvider,
     ):
         self._port = networth_timeline_port
         self._exchange_rate_storage = exchange_rate_storage
         self._config_port = config_port
         self._entity_port = entity_port
         self._real_estate_port = real_estate_port
+        self._metal_price_provider = metal_price_provider
         self._lock = asyncio.Lock()
         self._log = logging.getLogger(__name__)
 
@@ -101,10 +109,16 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         snapshots = await self._port.get_position_snapshots(excluded_ids)
         snapshots = [s for s in snapshots if s.moment.date() <= yesterday]
 
-        signature = self._signature(
+        state = await self._port.get_state()
+        base_signature = self._signature(
             target_currency, excluded_ids, mortgage_refs, snapshots
         )
-        state = await self._port.get_state()
+        historic, historic_part = await self._resolve_historic_rates(
+            snapshots, state, base_signature, yesterday
+        )
+        signature = (
+            f"{base_signature}|{historic_part}" if historic_part else base_signature
+        )
         wipe = state.inputs_signature != signature
         last_computed = None if wipe else state.last_computed_date
 
@@ -118,12 +132,21 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                 )
             return
 
-        max_snapshot_day = max(s.moment.date() for s in snapshots)
-        if not wipe and last_computed is not None and last_computed >= max_snapshot_day:
+        commodity_days = self._commodity_days(snapshots, historic, yesterday)
+        max_day = max(s.moment.date() for s in snapshots)
+        if commodity_days:
+            max_day = max(max_day, max(commodity_days))
+        if not wipe and last_computed is not None and last_computed >= max_day:
             return
 
         all_points = self._carry_forward(
-            snapshots, mortgage_refs, target_currency, rates, yesterday
+            snapshots,
+            mortgage_refs,
+            target_currency,
+            rates,
+            yesterday,
+            historic,
+            commodity_days,
         )
 
         if wipe:
@@ -137,7 +160,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             points_to_persist,
             target_currency,
             NetworthTimelineState(
-                inputs_signature=signature, last_computed_date=max_snapshot_day
+                inputs_signature=signature, last_computed_date=max_day
             ),
             wipe,
         )
@@ -148,6 +171,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         mortgage_refs: set[str],
         target_currency: str,
         rates: ExchangeRates,
+        historic: _HistoricRates,
     ) -> dict[str, Dezimal]:
         breakdown: dict[str, Dezimal] = {}
         for holding in snapshot.holdings:
@@ -158,6 +182,9 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                 and holding.loan_ref
                 and holding.loan_ref in mortgage_refs
             ):
+                continue
+            # Revaluable commodities are valued per day from historic prices.
+            if self._is_revaluable(holding, historic):
                 continue
             converted = self._convert(
                 holding.amount,
@@ -173,6 +200,122 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             breakdown[key] = breakdown.get(key, Dezimal(0)) + converted
         return breakdown
 
+    # --- Commodity revaluation from historic metal prices ---
+
+    async def _resolve_historic_rates(
+        self,
+        snapshots: list[PositionSnapshot],
+        state: NetworthTimelineState,
+        base_signature: str,
+        yesterday: date,
+    ) -> tuple[_HistoricRates, str]:
+        types = sorted(
+            {
+                holding.commodity_type
+                for snapshot in snapshots
+                if snapshot.moment.date() < COMMODITY_HISTORIC_CUTOFF
+                for holding in snapshot.holdings
+                if holding.product_type == ProductType.COMMODITY
+                and holding.commodity_type is not None
+                and holding.weight is not None
+                and holding.weight_unit is not None
+            },
+            key=lambda t: t.value,
+        )
+        if not types:
+            return {}, ""
+
+        # Once every pre-cutoff day is memoized with all datasets available,
+        # the static historic data can add nothing new, so the fetch is skipped.
+        complete_part = ",".join(f"{t.value}:present" for t in types)
+        upper = min(yesterday, COMMODITY_HISTORIC_CUTOFF - timedelta(days=1))
+        if (
+            state.inputs_signature == f"{base_signature}|{complete_part}"
+            and state.last_computed_date is not None
+            and state.last_computed_date >= upper
+        ):
+            return {}, complete_part
+
+        results = await asyncio.gather(
+            *(self._metal_price_provider.get_partial_historic_rates(t) for t in types)
+        )
+        historic = dict(zip(types, results))
+        part = ",".join(
+            f"{t.value}:present" if r is not None and r.days else f"{t.value}:missing"
+            for t, r in historic.items()
+        )
+        return historic, part
+
+    @staticmethod
+    def _is_revaluable(holding: HoldingValuation, historic: _HistoricRates) -> bool:
+        return (
+            holding.product_type == ProductType.COMMODITY
+            and holding.commodity_type is not None
+            and holding.weight is not None
+            and holding.weight_unit is not None
+            and historic.get(holding.commodity_type) is not None
+        )
+
+    def _commodity_days(
+        self,
+        snapshots: list[PositionSnapshot],
+        historic: _HistoricRates,
+        yesterday: date,
+    ) -> set[date]:
+        first: Optional[date] = None
+        types: set[CommodityType] = set()
+        for snapshot in snapshots:
+            revaluable = [
+                h for h in snapshot.holdings if self._is_revaluable(h, historic)
+            ]
+            if not revaluable:
+                continue
+            day = snapshot.moment.date()
+            if first is None or day < first:
+                first = day
+            types.update(h.commodity_type for h in revaluable)
+        if first is None:
+            return set()
+
+        upper = min(yesterday, COMMODITY_HISTORIC_CUTOFF - timedelta(days=1))
+        days: set[date] = set()
+        for commodity_type in types:
+            rates = historic.get(commodity_type)
+            if rates is None:
+                continue
+            days.update(d for d in rates.days if first <= d <= upper)
+        return days
+
+    def _commodity_value_at(
+        self,
+        holding: HoldingValuation,
+        day: date,
+        historic: _HistoricRates,
+        target_currency: str,
+        rates: ExchangeRates,
+    ) -> Optional[Dezimal]:
+        metal_rates = historic.get(holding.commodity_type)
+        if metal_rates is not None and day < COMMODITY_HISTORIC_CUTOFF:
+            ounces = to_troy_ounces(holding.weight, holding.weight_unit)
+            native = holding.currency
+            if native and native != target_currency:
+                price = metal_rates.price_at(day, native)
+                if price is not None:
+                    converted = self._convert(
+                        ounces * price, native, target_currency, rates
+                    )
+                    if converted is not None:
+                        return converted
+            price = metal_rates.price_at(day, target_currency)
+            if price is not None:
+                return ounces * price
+        return self._convert(
+            holding.amount,
+            holding.currency or target_currency,
+            target_currency,
+            rates,
+        )
+
     def _carry_forward(
         self,
         snapshots: list[PositionSnapshot],
@@ -180,11 +323,19 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         target_currency: str,
         rates: ExchangeRates,
         yesterday: date,
+        historic: _HistoricRates,
+        commodity_days: set[date],
     ) -> list[NetworthTimelinePoint]:
         breakdown_of: dict[int, dict[str, Dezimal]] = {
             id(snapshot): self._snapshot_breakdown(
-                snapshot, mortgage_refs, target_currency, rates
+                snapshot, mortgage_refs, target_currency, rates, historic
             )
+            for snapshot in snapshots
+        }
+        revaluable_of: dict[int, list[HoldingValuation]] = {
+            id(snapshot): [
+                h for h in snapshot.holdings if self._is_revaluable(h, historic)
+            ]
             for snapshot in snapshots
         }
 
@@ -201,6 +352,9 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             deleted_at = snapshot.holder_deleted_at
             if deleted_at is not None and first_day < deleted_at <= yesterday:
                 days.add(deleted_at)
+        # Historic metal price days densify the series so commodity values vary
+        # daily even where no position snapshot exists.
+        days.update(commodity_days)
 
         current: dict[str, PositionSnapshot] = {}
         points: list[NetworthTimelinePoint] = []
@@ -222,6 +376,14 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                     breakdown[product_type] = (
                         breakdown.get(product_type, Dezimal(0)) + value
                     )
+                for holding in revaluable_of[id(snapshot)]:
+                    value = self._commodity_value_at(
+                        holding, day, historic, target_currency, rates
+                    )
+                    if value is None:
+                        continue
+                    key = holding.product_type.value
+                    breakdown[key] = breakdown.get(key, Dezimal(0)) + value
             total = sum(breakdown.values(), Dezimal(0))
             points.append(
                 NetworthTimelinePoint(date=day, total=total, breakdown=breakdown)
@@ -465,7 +627,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         target_currency: str,
         excluded_ids: list[str],
         mortgage_refs: set[str],
-        snapshots: list[PositionSnapshot] = (),
+        snapshots: list[PositionSnapshot],
     ) -> str:
         deleted_holders = sorted(
             f"{s.holder}:{s.holder_deleted_at.isoformat()}"

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -6,9 +6,12 @@ import pytest
 
 from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
+from domain.commodity import CommodityType, WeightUnit
 from domain.dezimal import Dezimal
+from domain.exchange_rate import HistoricMetalRates
 from domain.global_position import ProductType
 from domain.networth_timeline import (
+    COMMODITY_HISTORIC_CUTOFF,
     HoldingValuation,
     MortgageValuation,
     NetworthTimelinePoint,
@@ -18,6 +21,8 @@ from domain.networth_timeline import (
 )
 from domain.real_estate import RealEstateFlowSubtype
 
+_ONE_TROY_OUNCE_GRAMS = "31.1034768"
+
 
 def _holding(product_type, amount, currency="EUR", loan_ref=None):
     return HoldingValuation(
@@ -25,6 +30,34 @@ def _holding(product_type, amount, currency="EUR", loan_ref=None):
         currency=currency,
         amount=Dezimal(amount),
         loan_ref=loan_ref,
+    )
+
+
+def _commodity(
+    amount,
+    weight,
+    unit=WeightUnit.GRAM,
+    commodity_type=CommodityType.GOLD,
+    currency="EUR",
+):
+    return HoldingValuation(
+        product_type=ProductType.COMMODITY,
+        currency=currency,
+        amount=Dezimal(amount),
+        commodity_type=commodity_type,
+        weight=Dezimal(weight),
+        weight_unit=unit,
+    )
+
+
+def _historic(days, prices):
+    return HistoricMetalRates(
+        unit=WeightUnit.TROY_OUNCE,
+        days=tuple(days),
+        prices={
+            currency: tuple(Dezimal(v) for v in values)
+            for currency, values in prices.items()
+        },
     )
 
 
@@ -100,6 +133,7 @@ def _build(
     mortgages=None,
     points=None,
     currency="EUR",
+    metal_rates=None,
 ):
     port = AsyncMock(spec=NetworthTimelinePort)
     port.get_state.return_value = state or NetworthTimelineState()
@@ -119,7 +153,17 @@ def _build(
     real_estate_port = AsyncMock()
     real_estate_port.get_all.return_value = real_estate or []
 
-    use_case = GetNetworthTimelineImpl(port, exchange, config, entity, real_estate_port)
+    metal = AsyncMock()
+    if metal_rates is None:
+        metal.get_partial_historic_rates.return_value = None
+    else:
+        metal.get_partial_historic_rates.side_effect = lambda commodity, **kwargs: (
+            metal_rates.get(commodity)
+        )
+
+    use_case = GetNetworthTimelineImpl(
+        port, exchange, config, entity, real_estate_port, metal
+    )
     return use_case, port
 
 
@@ -358,7 +402,7 @@ class TestControlFlow:
         snapshots = [
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")])
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set())
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
@@ -388,7 +432,7 @@ class TestControlFlow:
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")]),
             _snapshot("e1||REAL", date(2025, 1, 3), [_holding("ACCOUNT", "150")]),
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set())
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
@@ -508,3 +552,278 @@ class TestMergeAndRealEstate:
         assert by_day[date(2025, 1, 1)].breakdown["REAL_ESTATE"] == Dezimal(
             "30000"
         ) / Dezimal("1.1") - Dezimal(10000)
+
+
+class TestCommodityRevaluation:
+    @pytest.mark.asyncio
+    async def test_daily_revaluation_densifies_and_overrides_stored_value(self):
+        snapshots = [
+            _snapshot(
+                "h1", date(2025, 6, 15), [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)]
+            )
+        ]
+        historic = _historic(
+            [date(2025, 6, 15), date(2025, 6, 20), date(2025, 6, 25)],
+            {"EUR": ["2000", "2100", "2200"]},
+        )
+        use_case, port = _build(
+            snapshots=snapshots, metal_rates={CommodityType.GOLD: historic}
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        persisted = _persisted(port)
+        points = {p.date: p for p in persisted["points"]}
+        assert len(points) == 3
+        # The historic price overrides the stale stored market value (1000).
+        assert points[date(2025, 6, 15)].breakdown["COMMODITY"] == Dezimal(2000)
+        # Days without snapshots still get a revalued point.
+        assert points[date(2025, 6, 20)].breakdown["COMMODITY"] == Dezimal(2100)
+        assert points[date(2025, 6, 25)].breakdown["COMMODITY"] == Dezimal(2200)
+        # The memo cursor extends to the last densified day.
+        assert persisted["state"].last_computed_date == date(2025, 6, 25)
+
+    @pytest.mark.asyncio
+    async def test_troy_ounce_weight_used_directly(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                date(2025, 6, 15),
+                [_commodity("1000", "2", unit=WeightUnit.TROY_OUNCE)],
+            )
+        ]
+        historic = _historic([date(2025, 6, 15)], {"EUR": ["2000"]})
+        use_case, port = _build(
+            snapshots=snapshots, metal_rates={CommodityType.GOLD: historic}
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = _persisted(port)["points"]
+        assert points[0].breakdown["COMMODITY"] == Dezimal(4000)
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_stored_value_without_historic_rates(self):
+        snapshots = [
+            _snapshot(
+                "h1", date(2025, 6, 15), [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)]
+            )
+        ]
+        use_case, port = _build(snapshots=snapshots)
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = _persisted(port)["points"]
+        assert len(points) == 1
+        assert points[0].breakdown["COMMODITY"] == Dezimal(1000)
+
+    def test_post_cutoff_days_use_stored_value(self):
+        holding = _commodity("1000", _ONE_TROY_OUNCE_GRAMS)
+        historic = _historic([date(2025, 6, 15)], {"EUR": ["2000"]})
+        use_case, _ = _build()
+
+        value = use_case._commodity_value_at(
+            holding,
+            COMMODITY_HISTORIC_CUTOFF,
+            {CommodityType.GOLD: historic},
+            "EUR",
+            {},
+        )
+
+        assert value == Dezimal(1000)
+
+    @pytest.mark.asyncio
+    async def test_native_currency_series_converted_to_target(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                date(2025, 6, 15),
+                [_commodity("1000", _ONE_TROY_OUNCE_GRAMS, currency="USD")],
+            )
+        ]
+        historic = _historic([date(2025, 6, 15)], {"USD": ["2500"]})
+        rates = {"EUR": {"USD": Dezimal("1.25")}}
+        use_case, port = _build(
+            snapshots=snapshots,
+            rates=rates,
+            metal_rates={CommodityType.GOLD: historic},
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = _persisted(port)["points"]
+        assert points[0].breakdown["COMMODITY"] == Dezimal(2000)
+
+    @pytest.mark.asyncio
+    async def test_target_currency_series_when_native_missing(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                date(2025, 6, 15),
+                [_commodity("1000", _ONE_TROY_OUNCE_GRAMS, currency="USD")],
+            )
+        ]
+        historic = _historic([date(2025, 6, 15)], {"EUR": ["2000"]})
+        use_case, port = _build(
+            snapshots=snapshots, metal_rates={CommodityType.GOLD: historic}
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = _persisted(port)["points"]
+        assert points[0].breakdown["COMMODITY"] == Dezimal(2000)
+
+    @pytest.mark.asyncio
+    async def test_stored_value_converted_when_no_usable_series(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                date(2025, 6, 15),
+                [_commodity("1000", _ONE_TROY_OUNCE_GRAMS, currency="USD")],
+            )
+        ]
+        historic = _historic([date(2025, 6, 15)], {"GBP": ["1800"]})
+        rates = {"EUR": {"USD": Dezimal("1.25")}}
+        use_case, port = _build(
+            snapshots=snapshots,
+            rates=rates,
+            metal_rates={CommodityType.GOLD: historic},
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = _persisted(port)["points"]
+        assert points[0].breakdown["COMMODITY"] == Dezimal(800)
+
+    @pytest.mark.asyncio
+    async def test_provider_not_called_without_commodities(self):
+        snapshots = [_snapshot("h1", date(2025, 1, 1), [_holding("ACCOUNT", "100")])]
+        use_case, _ = _build(snapshots=snapshots)
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        use_case._metal_price_provider.get_partial_historic_rates.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rates_appearing_wipes_memo(self):
+        snapshots = [
+            _snapshot(
+                "h1", date(2025, 6, 15), [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)]
+            )
+        ]
+        use_case, port = _build(snapshots=snapshots)
+        await use_case.execute(NetworthTimelineQuery())
+        signature = _persisted(port)["state"].inputs_signature
+
+        historic = _historic([date(2025, 6, 15)], {"EUR": ["2000"]})
+        state = NetworthTimelineState(
+            inputs_signature=signature, last_computed_date=date(2025, 6, 15)
+        )
+        use_case2, port2 = _build(
+            snapshots=snapshots,
+            state=state,
+            metal_rates={CommodityType.GOLD: historic},
+        )
+        await use_case2.execute(NetworthTimelineQuery())
+
+        persisted = _persisted(port2)
+        assert persisted["wipe"] is True
+        assert persisted["points"][0].breakdown["COMMODITY"] == Dezimal(2000)
+
+    @pytest.mark.asyncio
+    async def test_provider_not_called_when_memo_current(self):
+        snapshots = [
+            _snapshot(
+                "h1", date(2025, 6, 15), [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)]
+            )
+        ]
+        historic = _historic(
+            [date(2025, 6, 15), COMMODITY_HISTORIC_CUTOFF - timedelta(days=1)],
+            {"EUR": ["2000", "2100"]},
+        )
+        metal_rates = {CommodityType.GOLD: historic}
+        use_case, port = _build(snapshots=snapshots, metal_rates=metal_rates)
+        await use_case.execute(NetworthTimelineQuery())
+        state = _persisted(port)["state"]
+
+        use_case2, port2 = _build(
+            snapshots=snapshots, state=state, metal_rates=metal_rates
+        )
+        await use_case2.execute(NetworthTimelineQuery())
+
+        use_case2._metal_price_provider.get_partial_historic_rates.assert_not_awaited()
+        port2.persist.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_provider_not_called_for_post_cutoff_snapshots(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                COMMODITY_HISTORIC_CUTOFF,
+                [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)],
+            )
+        ]
+        use_case, _ = _build(metal_rates={})
+
+        historic, part = await use_case._resolve_historic_rates(
+            snapshots, NetworthTimelineState(), "base", COMMODITY_HISTORIC_CUTOFF
+        )
+
+        assert historic == {}
+        assert part == ""
+        use_case._metal_price_provider.get_partial_historic_rates.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_dataset_extension_appends_without_wipe(self):
+        snapshots = [
+            _snapshot(
+                "h1", date(2025, 6, 15), [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)]
+            )
+        ]
+        historic = _historic([date(2025, 6, 15)], {"EUR": ["2000"]})
+        use_case, port = _build(
+            snapshots=snapshots, metal_rates={CommodityType.GOLD: historic}
+        )
+        await use_case.execute(NetworthTimelineQuery())
+        state = _persisted(port)["state"]
+
+        extended = _historic(
+            [date(2025, 6, 15), date(2025, 6, 20)], {"EUR": ["2000", "2100"]}
+        )
+        use_case2, port2 = _build(
+            snapshots=snapshots,
+            state=state,
+            metal_rates={CommodityType.GOLD: extended},
+        )
+        await use_case2.execute(NetworthTimelineQuery())
+
+        persisted = _persisted(port2)
+        assert persisted["wipe"] is False
+        assert len(persisted["points"]) == 1
+        assert persisted["points"][0].date == date(2025, 6, 20)
+        assert persisted["points"][0].breakdown["COMMODITY"] == Dezimal(2100)
+
+    @pytest.mark.asyncio
+    async def test_deleted_holder_commodity_stops_on_deletion_day(self):
+        snapshots = [
+            _snapshot(
+                "h1",
+                date(2025, 6, 15),
+                [_commodity("1000", _ONE_TROY_OUNCE_GRAMS)],
+                deleted_at=date(2025, 6, 22),
+            )
+        ]
+        historic = _historic(
+            [date(2025, 6, 15), date(2025, 6, 20), date(2025, 6, 25)],
+            {"EUR": ["2000", "2100", "2200"]},
+        )
+        use_case, port = _build(
+            snapshots=snapshots, metal_rates={CommodityType.GOLD: historic}
+        )
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        points = {p.date: p for p in _persisted(port)["points"]}
+        assert points[date(2025, 6, 20)].breakdown["COMMODITY"] == Dezimal(2100)
+        assert points[date(2025, 6, 22)].breakdown == {}
+        assert points[date(2025, 6, 25)].breakdown == {}

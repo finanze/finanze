@@ -18,7 +18,7 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
-from domain.commodity import COMMODITY_SYMBOLS, WEIGHT_CONVERSIONS, WeightUnit
+from domain.commodity import COMMODITY_SYMBOLS, to_troy_ounces
 from domain.crypto import crypto_rate_key
 from domain.dezimal import Dezimal
 from domain.entity import Feature
@@ -283,12 +283,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         if rate is None or rate == 0:
             return None
         price = Dezimal(1) / rate
-        amount = commodity.amount
-        if commodity.unit != WeightUnit.TROY_OUNCE:
-            conversion_factor = WEIGHT_CONVERSIONS[WeightUnit.TROY_OUNCE][
-                commodity.unit
-            ]
-            amount = amount / conversion_factor
+        amount = to_troy_ounces(commodity.amount, commodity.unit)
         return round(amount * price, 2)
 
     async def _count_manual_crypto_entries(self, crypto_position_ids: set[UUID]) -> int:

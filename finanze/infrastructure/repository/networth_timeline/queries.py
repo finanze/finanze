@@ -46,31 +46,32 @@ class NetworthTimelineQueries(str, Enum):
     """
 
     GET_HOLDING_VALUATIONS = """
-        SELECT global_position_id, 'ACCOUNT' AS product_type, currency, total AS amount, NULL AS loan_ref FROM account_positions
+        SELECT global_position_id, 'ACCOUNT' AS product_type, currency, total AS amount, NULL AS loan_ref,
+               NULL AS commodity_type, NULL AS weight, NULL AS weight_unit FROM account_positions
         UNION ALL
-        SELECT global_position_id, 'STOCK_ETF', currency, market_value, NULL FROM stock_positions
+        SELECT global_position_id, 'STOCK_ETF', currency, market_value, NULL, NULL, NULL, NULL FROM stock_positions
         UNION ALL
-        SELECT global_position_id, 'FUND', currency, market_value, NULL FROM fund_positions
+        SELECT global_position_id, 'FUND', currency, market_value, NULL, NULL, NULL, NULL FROM fund_positions
         UNION ALL
-        SELECT global_position_id, 'DEPOSIT', currency, amount, NULL FROM deposit_positions
+        SELECT global_position_id, 'DEPOSIT', currency, amount, NULL, NULL, NULL, NULL FROM deposit_positions
         UNION ALL
-        SELECT global_position_id, 'FACTORING', currency, amount, NULL FROM factoring_positions
+        SELECT global_position_id, 'FACTORING', currency, amount, NULL, NULL, NULL, NULL FROM factoring_positions
         UNION ALL
-        SELECT global_position_id, 'REAL_ESTATE_CF', currency, amount, NULL FROM real_estate_cf_positions
+        SELECT global_position_id, 'REAL_ESTATE_CF', currency, amount, NULL, NULL, NULL, NULL FROM real_estate_cf_positions
         UNION ALL
-        SELECT global_position_id, 'CROWDLENDING', currency, total, NULL FROM crowdlending_positions
+        SELECT global_position_id, 'CROWDLENDING', currency, total, NULL, NULL, NULL, NULL FROM crowdlending_positions
         UNION ALL
-        SELECT global_position_id, 'CRYPTO', currency, market_value, NULL FROM crypto_currency_positions
+        SELECT global_position_id, 'CRYPTO', currency, market_value, NULL, NULL, NULL, NULL FROM crypto_currency_positions
         UNION ALL
-        SELECT global_position_id, 'COMMODITY', currency, market_value, NULL FROM commodity_positions
+        SELECT global_position_id, 'COMMODITY', currency, market_value, NULL, type, amount, unit FROM commodity_positions
         UNION ALL
-        SELECT global_position_id, 'DERIVATIVE', currency, market_value, NULL FROM derivative_positions
+        SELECT global_position_id, 'DERIVATIVE', currency, market_value, NULL, NULL, NULL, NULL FROM derivative_positions
         UNION ALL
-        SELECT global_position_id, 'CARD', currency, used, NULL FROM card_positions
+        SELECT global_position_id, 'CARD', currency, used, NULL, NULL, NULL, NULL FROM card_positions
         UNION ALL
-        SELECT global_position_id, 'LOAN', currency, principal_outstanding, hash FROM loan_positions
+        SELECT global_position_id, 'LOAN', currency, principal_outstanding, hash, NULL, NULL, NULL FROM loan_positions
         UNION ALL
-        SELECT global_position_id, 'CREDIT', currency, drawn_amount, NULL FROM credit_positions
+        SELECT global_position_id, 'CREDIT', currency, drawn_amount, NULL, NULL, NULL, NULL FROM credit_positions
     """
 
     GET_MORTGAGE_VALUATIONS = """

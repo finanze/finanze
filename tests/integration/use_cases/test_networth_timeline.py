@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -7,7 +8,9 @@ import pytest
 import pytest_asyncio
 
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
+from domain.commodity import CommodityType, WeightUnit
 from domain.dezimal import Dezimal
+from domain.exchange_rate import HistoricMetalRates
 from domain.networth_timeline import NetworthTimelineQuery
 from domain.real_estate import RealEstateFlowSubtype
 from infrastructure.repository.db.client import DBClient
@@ -31,7 +34,10 @@ _SCHEMA = """
     CREATE TABLE real_estate_cf_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), amount TEXT);
     CREATE TABLE crowdlending_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), total TEXT);
     CREATE TABLE crypto_currency_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
-    CREATE TABLE commodity_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
+    CREATE TABLE commodity_positions (
+        id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3),
+        market_value TEXT, type VARCHAR(32), amount TEXT, unit VARCHAR(32)
+    );
     CREATE TABLE derivative_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
     CREATE TABLE card_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), used TEXT);
     CREATE TABLE loan_positions (
@@ -131,7 +137,7 @@ async def setup():
     conn.close()
 
 
-def _use_case(repository, *, rates=None, real_estate=None):
+def _use_case(repository, *, rates=None, real_estate=None, metal_rates=None):
     exchange = AsyncMock()
     exchange.get.return_value = rates if rates is not None else {}
     config = AsyncMock()
@@ -142,8 +148,15 @@ def _use_case(repository, *, rates=None, real_estate=None):
     entity.get_disabled_entities.return_value = []
     real_estate_port = AsyncMock()
     real_estate_port.get_all.return_value = real_estate or []
+    metal = AsyncMock()
+    if metal_rates is None:
+        metal.get_partial_historic_rates.return_value = None
+    else:
+        metal.get_partial_historic_rates.side_effect = lambda commodity, **kwargs: (
+            metal_rates.get(commodity)
+        )
     return GetNetworthTimelineImpl(
-        repository, exchange, config, entity, real_estate_port
+        repository, exchange, config, entity, real_estate_port, metal
     )
 
 
@@ -503,3 +516,36 @@ class TestNetworthTimelineRepositoryIntegration:
         # the new manual deposit remain (no double counting of the fund).
         assert by_day["2026-06-01"].breakdown["FUND"] == Dezimal(73000)
         assert by_day["2026-06-01"].breakdown["DEPOSIT"] == Dezimal(500)
+
+    @pytest.mark.asyncio
+    async def test_commodity_revalued_daily_from_historic_rates(self, setup):
+        repository, conn = setup
+        entity = uuid4()
+        gp = _insert_gp(conn, entity, "2025-06-15")
+        _insert(
+            conn,
+            "commodity_positions",
+            gp,
+            "market_value",
+            "1000",
+            type="GOLD",
+            amount="31.1034768",
+            unit="GRAM",
+        )
+        conn.commit()
+
+        historic = HistoricMetalRates(
+            unit=WeightUnit.TROY_OUNCE,
+            days=(date(2025, 6, 15), date(2025, 6, 20)),
+            prices={"EUR": (Dezimal("2000"), Dezimal("2100"))},
+        )
+        use_case = _use_case(repository, metal_rates={CommodityType.GOLD: historic})
+
+        result = await use_case.execute(NetworthTimelineQuery())
+
+        by_day = {p.date.isoformat(): p for p in result.points}
+        assert len(result.points) == 2
+        # The stale stored market value (1000) is replaced by weight × price.
+        assert by_day["2025-06-15"].breakdown["COMMODITY"] == Dezimal(2000)
+        # The day without a snapshot gets a densified revalued point.
+        assert by_day["2025-06-20"].breakdown["COMMODITY"] == Dezimal(2100)

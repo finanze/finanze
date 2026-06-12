@@ -5,8 +5,11 @@ from aiocache import Cache
 
 from application.ports.metal_price_provider import MetalPriceProvider
 from domain.commodity import CommodityType
-from domain.exchange_rate import CommodityExchangeRate
+from domain.exchange_rate import CommodityExchangeRate, HistoricMetalRates
 from infrastructure.client.rates.metal.gold_api_price_client import GoldApiPriceClient
+from infrastructure.client.rates.metal.historic_metal_price_client import (
+    HistoricMetalPriceClient,
+)
 from infrastructure.client.rates.metal.rmint_api_price_client import RMintApiPriceClient
 
 
@@ -17,6 +20,7 @@ class MetalPriceClient(MetalPriceProvider):
     def __init__(self):
         self._gold_api_price_client = GoldApiPriceClient()
         self._rmint_api_price_client = RMintApiPriceClient()
+        self._historic_price_client = HistoricMetalPriceClient()
 
         self.SYMBOL_MAPPINGS = {
             CommodityType.GOLD: [
@@ -81,3 +85,10 @@ class MetalPriceClient(MetalPriceProvider):
             await self._price_cache.set(price_key, price, ttl=self.PRICE_CACHE_TTL)
 
         return price
+
+    async def get_partial_historic_rates(
+        self, commodity: CommodityType, **kwargs
+    ) -> Optional[HistoricMetalRates]:
+        return await self._historic_price_client.get_partial_historic_rates(
+            commodity, **kwargs
+        )
