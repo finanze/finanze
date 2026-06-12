@@ -345,6 +345,7 @@ export interface UpdateTrackedResult {
   hadTracked: boolean
   changed: boolean
   changedEntities: string[]
+  throttled?: boolean
 }
 
 export enum ImportErrorType {

@@ -79,6 +79,9 @@ class MobileBackgroundApp:
         from infrastructure.repository.real_estate.real_estate_repository import (
             RealEstateRepository,
         )
+        from infrastructure.repository.tracked_updates.tracked_updates_repository import (
+            TrackedUpdatesRepository,
+        )
         from infrastructure.repository.db.transaction_handler import TransactionHandler
         from infrastructure.calculations.loan_calculator import LoanCalculator
         from application.use_cases.manual_position_snapshot import (
@@ -97,6 +100,7 @@ class MobileBackgroundApp:
         manual_repo = ManualPositionDataSQLRepository(client=self.db_client)
         virtual_repo = VirtualImportRepository(client=self.db_client)
         re_repo = RealEstateRepository(client=self.db_client)
+        throttle_repo = TrackedUpdatesRepository(client=self.db_client)
         tx_handler = TransactionHandler(client=self.db_client)
         loan_calculator = LoanCalculator()
         inst_provider = InstrumentProviderAdapter(
@@ -121,10 +125,16 @@ class MobileBackgroundApp:
             self.ex_storage,
             virtual_repo,
             snapshot_writer,
+            throttle_repo,
             tx_handler,
         )
         self.up_tracked_loans = UpdateTrackedLoansImpl(
-            position_repo, manual_repo, loan_calculator, snapshot_writer, tx_handler
+            position_repo,
+            manual_repo,
+            loan_calculator,
+            snapshot_writer,
+            throttle_repo,
+            tx_handler,
         )
 
         await self.ex_storage.initialize()
@@ -193,4 +203,5 @@ class MobileBackgroundApp:
             "hadTracked": result.had_tracked,
             "changed": result.changed,
             "changedEntities": [str(eid) for eid in result.changed_entities],
+            "throttled": result.throttled,
         }

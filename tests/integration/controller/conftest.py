@@ -167,6 +167,7 @@ from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from infrastructure.calculations.loan_calculator import LoanCalculator
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 
 from domain.entity import Entity
 from domain.backup import BackupFileType
@@ -265,6 +266,8 @@ async def app(tmp_path):
     pending_flow_repo = PendingFlowRepository(client=db_client)
     real_estate_repo = RealEstateRepository(client=db_client)
     transaction_handler = TransactionHandler(client=db_client)
+    tracked_updates_port = AsyncMock(spec=TrackedUpdatesPort)
+    tracked_updates_port.get_last_executed.return_value = None
 
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
@@ -445,6 +448,7 @@ async def app(tmp_path):
         manual_position_data_port=manual_position_data_port,
         loan_calculator=loan_calc,
         snapshot_writer=manual_position_snapshot_writer,
+        throttle_port=tracked_updates_port,
         transaction_handler_port=transaction_handler,
     )
 

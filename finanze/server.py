@@ -227,6 +227,9 @@ from infrastructure.repository.networth_timeline.networth_timeline_repository im
 )
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
+from infrastructure.repository.tracked_updates.tracked_updates_repository import (
+    TrackedUpdatesRepository,
+)
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
@@ -337,6 +340,7 @@ class FinanzeServer:
         crypto_wallet_repository = CryptoWalletRepository(client=db_client)
         crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repository = LastFetchesRepository(client=db_client)
+        tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=db_client
         )
@@ -711,6 +715,7 @@ class FinanzeServer:
             exchange_rate_storage=exchange_rate_storage,
             virtual_import_registry=virtual_import_registry,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
@@ -718,6 +723,7 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
