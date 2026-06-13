@@ -21,6 +21,7 @@ interface DatePickerProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  contentClassName?: string
   id?: string
 }
 
@@ -35,6 +36,7 @@ function DatePicker({
   placeholder = "Pick a date",
   disabled = false,
   className,
+  contentClassName,
   id,
 }: DatePickerProps) {
   const { locale, t } = useI18n()
@@ -114,7 +116,9 @@ function DatePicker({
           </div>
         )}
 
-        <PopoverContent className="z-[18000] w-auto p-4">
+        <PopoverContent
+          className={cn("z-[18000] w-auto p-4", contentClassName)}
+        >
           {showYearPicker ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

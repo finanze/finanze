@@ -25,6 +25,7 @@ import {
   calculateCryptoValue,
   calculateInvestmentDistribution,
   convertCurrency,
+  getCryptoRateKey,
   getWalletAssets,
 } from "@/utils/financialDataUtils"
 import {
@@ -634,6 +635,9 @@ function CryptoInvestmentContent({
                   effectiveAsset.name ||
                   symbol
                 const hasAssetDetails = Boolean(effectiveAsset.crypto_asset)
+                const rateKey = getCryptoRateKey(
+                  effectiveAsset as CryptoCurrencyPosition,
+                )
                 const value = hasAssetDetails
                   ? calculateCryptoAssetValue(
                       effectiveAsset as CryptoCurrencyPosition,
@@ -650,7 +654,7 @@ function CryptoInvestmentContent({
                   : 0
                 const hasSymbolRate =
                   hasAssetDetails &&
-                  hasSymbolConversion(symbol, defaultCurrency, rates)
+                  hasSymbolConversion(rateKey, defaultCurrency, rates)
                 const marketCurrency =
                   effectiveAsset.currency ||
                   effectiveAsset.investment_currency ||
@@ -714,7 +718,7 @@ function CryptoInvestmentContent({
                   amount: effectiveAsset.amount ?? 0,
                   currentPrice: calculateCryptoValue(
                     1,
-                    symbol,
+                    rateKey ?? symbol,
                     defaultCurrency,
                     rates,
                   ),
@@ -842,6 +846,9 @@ function CryptoInvestmentContent({
           const isToken =
             (draft.type ?? CryptoCurrencyType.NATIVE) ===
               CryptoCurrencyType.TOKEN || Boolean(draft.contract_address)
+          const rateKey = getCryptoRateKey(
+            draft as unknown as CryptoCurrencyPosition,
+          )
           const groupingKey = isToken
             ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
             : `native:${symbol || draft.localId}`
@@ -893,7 +900,7 @@ function CryptoInvestmentContent({
             amount: draft.amount ?? 0,
             currentPrice: calculateCryptoValue(
               1,
-              symbol,
+              rateKey ?? symbol,
               defaultCurrency,
               rates,
             ),

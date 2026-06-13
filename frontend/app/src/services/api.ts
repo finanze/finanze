@@ -73,6 +73,10 @@ import {
   UpdatePositionRequest,
 } from "../types/position"
 import type { Historic, HistoricQueryRequest } from "../types/historic"
+import type {
+  NetworthTimeline,
+  NetworthTimelineQuery,
+} from "../types/networthTimeline"
 import {
   TransactionQueryRequest,
   TransactionsResult,
@@ -744,6 +748,20 @@ export async function getMoneyEvents(
   params.append("to_date", query.to_date)
 
   return (await getApiClient()).get(`/events?${params.toString()}`)
+}
+
+export async function getNetworthTimeline(
+  query?: NetworthTimelineQuery,
+): Promise<NetworthTimeline> {
+  const params = new URLSearchParams()
+  if (query?.from_date) params.append("from_date", query.from_date)
+  if (query?.to_date) params.append("to_date", query.to_date)
+  if (query?.no_calculation) params.append("no_calculation", "true")
+
+  const queryString = params.toString()
+  return (await getApiClient()).get(
+    `/networth-timeline${queryString ? `?${queryString}` : ""}`,
+  )
 }
 
 export async function calculateSavings(

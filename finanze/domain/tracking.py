@@ -8,6 +8,7 @@ from pydantic.dataclasses import dataclass
 class UpdateTrackedResult:
     had_tracked: bool
     changed_entities: list[UUID] = field(default_factory=list)
+    throttled: bool = False
 
     @property
     def changed(self) -> bool:

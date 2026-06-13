@@ -43,6 +43,7 @@ from domain.use_cases.get_euribor_rates import GetEuriborRates
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
+from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
@@ -154,6 +155,7 @@ from infrastructure.controller.routes.get_template_fields_route import (
 from infrastructure.controller.routes.get_templates import get_templates
 from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 from infrastructure.controller.routes.historic import get_historic
+from infrastructure.controller.routes.networth_timeline import networth_timeline
 from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.import_sheets import import_sheets
@@ -209,6 +211,7 @@ async def register_routes(
     get_position_uc: GetPosition,
     get_contributions_uc: GetContributions,
     get_historic_uc: GetHistoric,
+    get_networth_timeline_uc: GetNetworthTimeline,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
     get_money_events_uc: GetMoneyEvents,
@@ -488,6 +491,10 @@ async def register_routes(
     @app.route("/api/v1/historic", methods=["GET"])
     async def get_historic_route():
         return await get_historic(get_historic_uc)
+
+    @app.route("/api/v1/networth-timeline", methods=["GET"])
+    async def networth_timeline_route():
+        return await networth_timeline(get_networth_timeline_uc)
 
     @app.route("/api/v1/assets/instruments", methods=["GET"])
     async def instruments_route():

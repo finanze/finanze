@@ -1,7 +1,7 @@
 import logging
 from asyncio import Lock
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -10,6 +10,7 @@ from dateutil.tz import tzlocal
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
@@ -27,6 +28,9 @@ from domain.loan_calculator import LoanCalculationParams
 from domain.tracking import UpdateTrackedResult
 from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
 
+_THROTTLE_KEY = "TRACKED_LOANS"
+_THROTTLE_INTERVAL = timedelta(hours=18)
+
 
 class UpdateTrackedLoansImpl(UpdateTrackedLoans):
     def __init__(
@@ -35,12 +39,14 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
         manual_position_data_port: ManualPositionDataPort,
         loan_calculator: LoanCalculatorPort,
         snapshot_writer: ManualPositionSnapshotWriter,
+        throttle_port: TrackedUpdatesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         self._position_port = position_port
         self._manual_position_data_port = manual_position_data_port
         self._loan_calculator = loan_calculator
         self._snapshot_writer = snapshot_writer
+        self._throttle_port = throttle_port
         self._transaction_handler_port = transaction_handler_port
 
         self._lock = Lock()
@@ -51,6 +57,17 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
             raise ExecutionConflict()
 
         async with self._lock:
+            now = datetime.now(tzlocal())
+            last_executed = await self._throttle_port.get_last_executed(_THROTTLE_KEY)
+            if last_executed is not None and (now - last_executed) < _THROTTLE_INTERVAL:
+                self._log.info(
+                    "Skipping tracked loans update, last run %s within %s",
+                    last_executed,
+                    _THROTTLE_INTERVAL,
+                )
+                return UpdateTrackedResult(had_tracked=False, throttled=True)
+            await self._throttle_port.update_last_executed(_THROTTLE_KEY, now)
+
             loan_entries = await self._manual_position_data_port.get_trackable_loans()
             if not loan_entries:
                 return UpdateTrackedResult(had_tracked=False)

@@ -31,6 +31,12 @@ WEIGHT_CONVERSIONS = {
 }
 
 
+def to_troy_ounces(amount: Dezimal, unit: WeightUnit) -> Dezimal:
+    if unit == WeightUnit.TROY_OUNCE:
+        return amount
+    return amount / WEIGHT_CONVERSIONS[WeightUnit.TROY_OUNCE][unit]
+
+
 @dataclass
 class CommodityRegister:
     name: str

@@ -5,8 +5,11 @@ from aiocache import Cache
 
 from application.ports.metal_price_provider import MetalPriceProvider
 from domain.commodity import CommodityType
-from domain.exchange_rate import CommodityExchangeRate
+from domain.exchange_rate import CommodityExchangeRate, HistoricMetalRates
 from infrastructure.client.rates.metal.gold_api_price_client import GoldApiPriceClient
+from infrastructure.client.rates.metal.historic_metal_price_client import (
+    HistoricMetalPriceClient,
+)
 from infrastructure.client.rates.metal.rmint_api_price_client import RMintApiPriceClient
 
 
@@ -17,12 +20,22 @@ class MetalPriceClient(MetalPriceProvider):
     def __init__(self):
         self._gold_api_price_client = GoldApiPriceClient()
         self._rmint_api_price_client = RMintApiPriceClient()
+        self._historic_price_client = HistoricMetalPriceClient()
 
         self.SYMBOL_MAPPINGS = {
-            CommodityType.GOLD: self._gold_api_price_client,
-            CommodityType.SILVER: self._gold_api_price_client,
-            CommodityType.PLATINUM: self._rmint_api_price_client,
-            CommodityType.PALLADIUM: self._gold_api_price_client,
+            CommodityType.GOLD: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.SILVER: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.PLATINUM: [
+                self._gold_api_price_client,
+                self._rmint_api_price_client,
+            ],
+            CommodityType.PALLADIUM: [self._gold_api_price_client],
         }
 
         self._price_cache = Cache(Cache.MEMORY)
@@ -51,11 +64,20 @@ class MetalPriceClient(MetalPriceProvider):
             return None
 
         timeout = kwargs.get("timeout", None)
-        client = self.SYMBOL_MAPPINGS[commodity]
-        price = await client.get_price(commodity, timeout)
+        clients = self.SYMBOL_MAPPINGS[commodity]
+        price = None
+        for client in clients:
+            price = await client.get_price(commodity, timeout)
+            if price is not None:
+                break
+            self._log.warning(
+                f"Client {client.__class__.__name__} failed for {commodity}, trying next."
+            )
 
         if price is None:
-            self._log.error(f"Failed to fetch price for {commodity}, skipping.")
+            self._log.error(
+                f"All clients failed to fetch price for {commodity}, skipping."
+            )
             await self._price_cache.delete(price_key)
             await self._none_cache.set(none_key, True, ttl=self.NONE_PRICE_CACHE_TTL)
         else:
@@ -63,3 +85,10 @@ class MetalPriceClient(MetalPriceProvider):
             await self._price_cache.set(price_key, price, ttl=self.PRICE_CACHE_TTL)
 
         return price
+
+    async def get_partial_historic_rates(
+        self, commodity: CommodityType, **kwargs
+    ) -> Optional[HistoricMetalRates]:
+        return await self._historic_price_client.get_partial_historic_rates(
+            commodity, **kwargs
+        )

@@ -82,12 +82,16 @@ async function fetchEntityAllFeatures(page: Page, entityName: string) {
         page.getByText(`Data successfully fetched from ${entityName}`),
     ).toBeVisible({ timeout: 30_000 })
 
-    // Close the FeatureSelector overlay by clicking Cancel
-    const cancelBtn = page.getByRole('button', { name: 'Cancel' })
-    if (await cancelBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await cancelBtn.click()
-        await page.waitForTimeout(500)
-    }
+    // Close the FeatureSelector overlay by clicking Cancel. Scope the locator to
+    // the overlay and tolerate the click failing if the overlay is already
+    // animating out (the element can detach mid-click), then confirm it's gone.
+    const cancelBtn = page
+        .locator('.fixed')
+        .getByRole('button', { name: 'Cancel' })
+    await cancelBtn.click({ timeout: 5_000 }).catch(() => {})
+    await expect(
+        page.getByText(`Select features to fetch from ${entityName}`),
+    ).toBeHidden({ timeout: 5_000 })
 }
 
 /**

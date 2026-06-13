@@ -253,8 +253,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
   const LAST_UPDATE_LOANS_KEY = "lastUpdateLoansTime"
-  const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
-  const LOANS_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
+  const QUOTES_UPDATE_INTERVAL_MS = 8 * 60 * 60 * 1000
+  const LOANS_UPDATE_INTERVAL_MS = 18 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   const showToast = useCallback(

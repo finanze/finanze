@@ -68,9 +68,14 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         timeout = kwargs.get("timeout")
         result = {}
 
-        coingecko_prices = await self._cc_client.get_prices(symbols, fiat_isos, timeout)
-        for sym, prices in coingecko_prices.items():
-            result[sym] = prices
+        try:
+            cc_prices = await self._cc_client.get_prices(symbols, fiat_isos, timeout)
+            for sym, prices in cc_prices.items():
+                result[sym] = prices
+        except Exception as e:
+            self._log.warning(
+                f"CryptoCompare prices fetch failed, falling back to CoinGecko: {e}"
+            )
 
         missing_symbols = [s for s in symbols if s not in result]
         if missing_symbols:

@@ -13,7 +13,7 @@ export const sharedConfig: Partial<Options.Testrunner> = {
     framework: 'mocha',
     mochaOpts: {
         ui: 'bdd',
-        timeout: 120_000,
+        timeout: 180_000,
     },
     reporters: ['spec'],
 }

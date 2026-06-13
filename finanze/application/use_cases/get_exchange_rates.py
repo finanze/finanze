@@ -14,6 +14,7 @@ from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
 from domain.commodity import COMMODITY_SYMBOLS
 from domain.constants import SUPPORTED_CURRENCIES
+from domain.crypto import CryptoCurrencyType
 from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
@@ -369,54 +370,60 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         return items
 
-    async def _get_position_crypto_currency_symbol_address(
+    async def _get_position_crypto_identifiers(
         self,
-    ) -> dict[str, str | None]:
+    ) -> tuple[set[str], set[str]]:
         crypto_entity_positions = await self._position_port.get_last_grouped_by_entity(
             PositionQueryRequest(products=[ProductType.CRYPTO])
         )
-        asset_addresses: dict[str, str | None] = {}
+        native_symbols: set[str] = set()
+        token_addresses: set[str] = set()
         for position in crypto_entity_positions.values():
             if ProductType.CRYPTO not in position.products:
                 continue
             for wallet in position.products[ProductType.CRYPTO].entries:
                 for asset in wallet.assets:
-                    asset_addresses[asset.symbol.upper()] = (
-                        asset.contract_address.lower()
-                        if asset.contract_address
-                        else None
-                    )
-        return asset_addresses
+                    if (
+                        asset.symbol
+                        and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
+                    ):
+                        continue
+                    if (
+                        asset.type == CryptoCurrencyType.TOKEN
+                        and asset.contract_address
+                    ):
+                        token_addresses.add(asset.contract_address.lower())
+                    elif asset.symbol:
+                        native_symbols.add(asset.symbol.upper())
+        return native_symbols, token_addresses
 
     async def _get_crypto_price_map(
-        self, symbol_addresses: dict[str, str | None]
+        self, native_symbols: set[str], token_addresses: set[str]
     ) -> dict[str, dict[str, Dezimal]]:
         price_map: dict[str, dict[str, Dezimal]] = {}
 
-        addresses: dict[str, str] = {}
-        non_address_symbols: list[str] = []
-        for symbol, address in symbol_addresses.items():
-            if address is None:
-                non_address_symbols.append(symbol)
-            else:
-                addresses[address.lower()] = symbol
-
-        if non_address_symbols:
-            price_map = (
+        if native_symbols:
+            symbol_prices = (
                 await self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
-                    non_address_symbols, fiat_isos=SUPPORTED_CURRENCIES
+                    list(native_symbols), fiat_isos=SUPPORTED_CURRENCIES
                 )
             )
+            normalized = {
+                sym.upper(): fiat_prices for sym, fiat_prices in symbol_prices.items()
+            }
+            for symbol in native_symbols:
+                fiat_prices = normalized.get(symbol)
+                if fiat_prices:
+                    price_map[symbol] = fiat_prices
 
-        if addresses:
+        if token_addresses:
             address_prices = (
                 await self._crypto_asset_info_provider.get_prices_by_addresses(
-                    list(addresses.keys()), fiat_isos=SUPPORTED_CURRENCIES
+                    list(token_addresses), fiat_isos=SUPPORTED_CURRENCIES
                 )
             )
             for addr, fiat_prices in address_prices.items():
-                symbol = addresses[addr.lower()]
-                price_map[symbol] = fiat_prices
+                price_map[addr.lower()] = fiat_prices
 
         return price_map
 
@@ -438,16 +445,12 @@ class GetExchangeRatesImpl(GetExchangeRates):
             return tasks
 
         # Otherwise, fetch user position-related crypto prices
-        asset_symbol_addresses = (
-            await self._get_position_crypto_currency_symbol_address()
-        )
-        for ignored in self.IGNORED_CRYPTO_SYMBOLS:
-            asset_symbol_addresses.pop(ignored, None)
-        if not asset_symbol_addresses:
+        native_symbols, token_addresses = await self._get_position_crypto_identifiers()
+        if not native_symbols and not token_addresses:
             return []
 
         async def _run_batch():
-            return await self._get_crypto_price_map(asset_symbol_addresses)
+            return await self._get_crypto_price_map(native_symbols, token_addresses)
 
         return [(_run_batch, ("crypto_batch", None))]
 
@@ -487,15 +490,15 @@ class GetExchangeRatesImpl(GetExchangeRates):
         if self._fiat_matrix is None:
             return
         if base_currency in crypto_rates:
-            for symbol, rate in crypto_rates[base_currency].items():
+            for key, rate in crypto_rates[base_currency].items():
                 try:
                     rate_dec = _to_decimal(rate)
                     if rate_dec is None or rate_dec == 0:
                         continue
-                    self._fiat_matrix[base_currency][symbol.upper()] = Dezimal(
+                    self._fiat_matrix[base_currency][key] = Dezimal(
                         Decimal(1) / rate_dec
                     )
                 except Exception as e:
                     self._log.error(
-                        f"Failed to apply crypto {symbol} for {base_currency}: {e}"
+                        f"Failed to apply crypto {key} for {base_currency}: {e}"
                     )

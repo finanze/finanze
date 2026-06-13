@@ -58,6 +58,7 @@ from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
@@ -221,8 +222,14 @@ from infrastructure.repository.position.manual_position_data_repository import (
 from infrastructure.repository.real_estate.real_estate_repository import (
     RealEstateRepository,
 )
+from infrastructure.repository.networth_timeline.networth_timeline_repository import (
+    NetworthTimelineSQLRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
+from infrastructure.repository.tracked_updates.tracked_updates_repository import (
+    TrackedUpdatesRepository,
+)
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
@@ -333,12 +340,14 @@ class FinanzeServer:
         crypto_wallet_repository = CryptoWalletRepository(client=db_client)
         crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repository = LastFetchesRepository(client=db_client)
+        tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=db_client
         )
         periodic_flow_repository = PeriodicFlowRepository(client=db_client)
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
+        networth_timeline_repository = NetworthTimelineSQLRepository(client=db_client)
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
@@ -527,6 +536,14 @@ class FinanzeServer:
             auto_contrib_repository, entity_repository
         )
         get_historic = GetHistoricImpl(historic_repository, entity_repository)
+        get_networth_timeline = GetNetworthTimelineImpl(
+            networth_timeline_repository,
+            exchange_rate_storage,
+            config_loader,
+            entity_repository,
+            real_estate_repository,
+            metal_price_client,
+        )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
@@ -699,6 +716,7 @@ class FinanzeServer:
             exchange_rate_storage=exchange_rate_storage,
             virtual_import_registry=virtual_import_registry,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
@@ -706,6 +724,7 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
@@ -791,6 +810,7 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_historic,
+            get_networth_timeline,
             get_transactions,
             get_exchange_rates,
             get_money_events,

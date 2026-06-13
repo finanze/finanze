@@ -1044,6 +1044,31 @@
     "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows.",
     "includeRealEstateTaxes": "Include real estate taxes"
   },
+  "netWorthTimeline": {
+    "title": "Net Worth",
+    "noData": "No timeline data available yet",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "dateRange": "Date range",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear",
+    "productTypes": "Products",
+    "options": "Options",
+    "stacked": "Stacked",
+    "lines": "Lines",
+    "showTotal": "Total",
+    "selectAll": "Select all",
+    "clearAll": "Clear all",
+    "ranges": {
+      "ALL": "All",
+      "1Y": "1Y",
+      "6M": "6M",
+      "3M": "3M",
+      "1M": "1M",
+      "1W": "1W"
+    }
+  },
   "export": {
     "title": "Export & Import",
     "intro": "Coordinate how data flows between Finanze and your spreadsheets.",
@@ -1546,6 +1571,7 @@
       "FACTORING": "Factoring",
       "REAL_ESTATE_CF": "Real Estate Cf",
       "REAL_ESTATE": "Real Estate",
+      "REAL_ESTATE_RESIDENCE": "Residence",
       "DEPOSIT": "Deposit",
       "CASH": "Cash",
       "CROWDLENDING": "Crowdlending",

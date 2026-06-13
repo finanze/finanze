@@ -1043,6 +1043,31 @@
     "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible.",
     "includeRealEstateTaxes": "Incluir impuestos inmobiliarios"
   },
+  "netWorthTimeline": {
+    "title": "Patrimonio",
+    "noData": "Aún no hay datos de evolución disponibles",
+    "expand": "Ampliar",
+    "collapse": "Reducir",
+    "dateRange": "Rango de fechas",
+    "from": "Desde",
+    "to": "Hasta",
+    "clear": "Limpiar",
+    "productTypes": "Productos",
+    "options": "Opciones",
+    "stacked": "Apilado",
+    "lines": "Líneas",
+    "showTotal": "Total",
+    "selectAll": "Seleccionar todo",
+    "clearAll": "Limpiar todo",
+    "ranges": {
+      "ALL": "Todo",
+      "1Y": "1A",
+      "6M": "6M",
+      "3M": "3M",
+      "1M": "1M",
+      "1W": "1S"
+    }
+  },
   "export": {
     "title": "Exportar e Importar",
     "intro": "Coordina cómo fluye la información entre Finanze y tus hojas.",
@@ -1545,6 +1570,7 @@
       "FACTORING": "Factoring",
       "REAL_ESTATE_CF": "Cf. Inmobiliario",
       "REAL_ESTATE": "Inmobiliario",
+      "REAL_ESTATE_RESIDENCE": "Residencia",
       "DEPOSIT": "Depósitos",
       "CASH": "Efectivo",
       "CROWDLENDING": "Crowdlending",

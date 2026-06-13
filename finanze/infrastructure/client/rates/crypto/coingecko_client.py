@@ -35,8 +35,8 @@ class CoinGeckoClient:
     TIMEOUT = 10
     CHUNK_SIZE = 50
     COOLDOWN = 1
-    MAX_RETRIES = 4
-    BACKOFF_EXPONENT_BASE = 2.8
+    MAX_RETRIES = 5
+    BACKOFF_EXPONENT_BASE = 2.75
     BACKOFF_FACTOR = 1.6
     CACHE_FILENAME = "coingecko.json"
     CACHE_MAX_AGE_DAYS = 4

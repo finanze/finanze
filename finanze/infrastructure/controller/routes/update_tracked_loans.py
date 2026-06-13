@@ -11,6 +11,7 @@ async def update_tracked_loans(update_tracked_loans_uc: UpdateTrackedLoans):
                 "hadTracked": result.had_tracked,
                 "changed": result.changed,
                 "changedEntities": [str(eid) for eid in result.changed_entities],
+                "throttled": result.throttled,
             }
         ),
         200,
