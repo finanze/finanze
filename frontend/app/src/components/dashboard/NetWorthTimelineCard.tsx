@@ -717,6 +717,7 @@ export default function NetWorthTimelineCard({
               value={customFrom}
               onChange={setCustomFrom}
               placeholder={t.netWorthTimeline.from}
+              contentClassName="z-[18100]"
             />
           </div>
           <div className="space-y-1">
@@ -727,6 +728,7 @@ export default function NetWorthTimelineCard({
               value={customTo}
               onChange={setCustomTo}
               placeholder={t.netWorthTimeline.to}
+              contentClassName="z-[18100]"
             />
           </div>
           <Button
@@ -905,7 +907,7 @@ export default function NetWorthTimelineCard({
 
       {expanded &&
         createPortal(
-          <div className="fixed inset-0 z-[18000] bg-background flex flex-col p-4 md:p-6 select-none">
+          <div className="fixed inset-0 z-[18000] bg-background flex flex-col px-4 pb-4 md:px-6 md:pb-6 pt-[max(1rem,var(--safe-area-inset-top,0px))] md:pt-[max(1.5rem,var(--safe-area-inset-top,0px))] select-none">
             <div className="flex flex-row items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold flex items-center">
                 <LineChartIcon className="h-5 w-5 mr-2 text-primary" />
