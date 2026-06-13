@@ -132,6 +132,76 @@ describe("countdown in non-AUTO backup mode", () => {
     expect(ctx.pendingAutoRefreshCandidates).toHaveLength(0)
     expect(ctx.autoRefreshCountdown).toBeNull()
   })
+
+  it("skips entities that became fresh by the time countdown reaches 0", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+
+    mockGetAutoRefreshCandidates.mockReturnValue([])
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("scrapes only entities that are still stale at countdown 0", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+
+    mockGetAutoRefreshCandidates.mockReturnValue([buildCandidate({ id: "e2" })])
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(1)
+    const callArgs = mockFetchFinancialEntity.mock.calls[0][0] as any
+    expect(callArgs.entity).toBe("e2")
+  })
 })
 
 describe("countdown in AUTO backup mode", () => {
