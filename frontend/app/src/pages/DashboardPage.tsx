@@ -364,6 +364,80 @@ export default function DashboardPage() {
     return { date, total, breakdown }
   }, [positionsData, exchangeRates, realEstateList, targetCurrency])
 
+  // Projected counterpart of `timelineTodayPoint` at the forecast target date.
+  // Mirrors the same breakdown convention but on the forecast-adjusted snapshot:
+  // crypto/commodity appreciation factors and real estate equity at target.
+  const timelineForecastPoint = useMemo<NetworthTimelinePoint | null>(() => {
+    if (!forecastMode || !forecastResult || !exchangeRates) return null
+    const breakdown: Record<string, number> = {}
+
+    const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+    const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+    const distribution = getAssetDistribution(
+      effectivePositionsData,
+      targetCurrency,
+      exchangeRates,
+      [],
+      [],
+    )
+    for (const item of distribution) {
+      if (item.type === "PENDING_FLOWS") continue
+      const key = item.type === "CASH" ? "ACCOUNT" : item.type
+      let value = item.value
+      if (item.type === "CRYPTO") value *= cryptoFactor
+      else if (item.type === "COMMODITY") value *= commodityFactor
+      breakdown[key] = (breakdown[key] ?? 0) + value
+    }
+
+    const residenceById = new Map<string, boolean>(
+      (realEstateList || [])
+        .filter(re => re.id)
+        .map(re => [re.id as string, !!re.basic_info?.is_residence]),
+    )
+    let investmentEquity = 0
+    let residenceEquity = 0
+    for (const re of forecastResult.real_estate || []) {
+      const equity = re.equity_at_target || 0
+      if (residenceById.get(re.id)) residenceEquity += equity
+      else investmentEquity += equity
+    }
+    if (investmentEquity) breakdown["REAL_ESTATE"] = investmentEquity
+    if (residenceEquity) breakdown["REAL_ESTATE_RESIDENCE"] = residenceEquity
+
+    const cardUsed = getTotalCardUsed(
+      effectivePositionsData,
+      targetCurrency,
+      exchangeRates,
+    )
+    const creditDrawn = getTotalCreditDrawn(
+      effectivePositionsData,
+      targetCurrency,
+      exchangeRates,
+    )
+    const unlinkedLoans = getUnlinkedLoansOutstanding(
+      effectivePositionsData,
+      realEstateList,
+      targetCurrency,
+      exchangeRates,
+    )
+    if (cardUsed) breakdown["CARD"] = -cardUsed
+    if (creditDrawn) breakdown["CREDIT"] = -creditDrawn
+    if (unlinkedLoans) breakdown["LOAN"] = -unlinkedLoans
+
+    const total = Object.values(breakdown).reduce(
+      (sum, value) => sum + value,
+      0,
+    )
+    return { date: forecastResult.target_date, total, breakdown }
+  }, [
+    forecastMode,
+    forecastResult,
+    effectivePositionsData,
+    exchangeRates,
+    realEstateList,
+    targetCurrency,
+  ])
+
   const timelineDefaultHidden = useMemo<string[]>(() => {
     const hidden: string[] = []
     if (!dashboardOptions.includeLoans) hidden.push("LOAN", "CREDIT")
@@ -1759,6 +1833,7 @@ export default function DashboardPage() {
               <AnimatedContainer skipAnimation={skipAnimations} delay={0.25}>
                 <NetWorthTimelineCard
                   todayPoint={timelineTodayPoint}
+                  forecastPoint={timelineForecastPoint}
                   defaultHiddenTypes={timelineDefaultHidden}
                 />
               </AnimatedContainer>

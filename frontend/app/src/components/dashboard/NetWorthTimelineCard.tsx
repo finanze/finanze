@@ -169,11 +169,13 @@ let hasLoadedTimelineThisSession = false
 
 interface NetWorthTimelineCardProps {
   todayPoint?: NetworthTimelinePoint | null
+  forecastPoint?: NetworthTimelinePoint | null
   defaultHiddenTypes?: string[]
 }
 
 export default function NetWorthTimelineCard({
   todayPoint,
+  forecastPoint,
   defaultHiddenTypes,
 }: NetWorthTimelineCardProps) {
   const { t, locale } = useI18n()
@@ -211,6 +213,10 @@ export default function NetWorthTimelineCard({
 
   const loadedRef = useRef(false)
   const fetchSeqRef = useRef(0)
+
+  // Forecast mode replaces the whole series with just the present point and the
+  // projected one, so the user reads the relative change between the two.
+  const isForecast = !!forecastPoint
 
   useEffect(() => {
     if (loadedRef.current) return
@@ -300,6 +306,9 @@ export default function NetWorthTimelineCard({
   }, [range, customFrom, customTo, coveredFrom, defaultCurrency])
 
   const allPoints = useMemo(() => {
+    if (isForecast) {
+      return todayPoint ? [todayPoint, forecastPoint!] : [forecastPoint!]
+    }
     if (!todayPoint) return backendPoints
     if (
       backendPoints.length &&
@@ -308,7 +317,7 @@ export default function NetWorthTimelineCard({
       return backendPoints
     }
     return [...backendPoints, todayPoint]
-  }, [backendPoints, todayPoint])
+  }, [backendPoints, todayPoint, forecastPoint, isForecast])
 
   const allTypes = useMemo(() => {
     const present = new Set<string>()
@@ -351,6 +360,7 @@ export default function NetWorthTimelineCard({
   )
 
   const filteredPoints = useMemo(() => {
+    if (isForecast) return allPoints
     if (customFrom || customTo) {
       return allPoints.filter(
         p =>
@@ -361,7 +371,7 @@ export default function NetWorthTimelineCard({
     const cutoff = rangeCutoff(range)
     if (!cutoff) return allPoints
     return allPoints.filter(p => p.date >= cutoff)
-  }, [allPoints, range, customFrom, customTo])
+  }, [allPoints, range, customFrom, customTo, isForecast])
 
   const chartData = useMemo(() => {
     return filteredPoints.map(point => {
@@ -828,14 +838,14 @@ export default function NetWorthTimelineCard({
   }
 
   const renderBody = (chartHeight: number, isExpanded: boolean) => {
-    if (loading) {
+    if (!isForecast && loading) {
       return (
         <div className="flex justify-center items-center h-[260px]">
           <LoadingSpinner size="md" />
         </div>
       )
     }
-    if (error) {
+    if (!isForecast && error) {
       return (
         <div className="flex flex-col items-center justify-center h-[260px] text-center text-sm text-muted-foreground">
           <p>{error}</p>
@@ -855,9 +865,9 @@ export default function NetWorthTimelineCard({
 
   const renderControls = () => (
     <div className="flex flex-wrap items-center gap-2 justify-end">
-      {renderRangeButtons()}
+      {!isForecast && renderRangeButtons()}
       {renderTypeFilter()}
-      {renderDateRange()}
+      {!isForecast && renderDateRange()}
     </div>
   )
 

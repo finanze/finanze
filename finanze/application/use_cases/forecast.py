@@ -38,6 +38,7 @@ from domain.global_position import (
     FundPortfolios,
     GlobalPosition,
     Loan,
+    Loans,
     ProductType,
     RealEstateCFInvestments,
     StockInvestments,
@@ -95,6 +96,16 @@ class ForecastImpl(Forecast):
         if not hashes:
             return {}
         return await self._position_port.get_loans_by_hash(list(set(hashes)))
+
+    def _collect_linked_loan_hashes(self, real_estates: list[RealEstate]) -> set[str]:
+        hashes: set[str] = set()
+        for re in real_estates:
+            for flow in re.flows:
+                if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
+                    continue
+                if flow.linked_loan_hash is not None:
+                    hashes.add(flow.linked_loan_hash)
+        return hashes
 
     # ---------- Helpers for occurrences ----------
     def _advance_after_today(
@@ -866,6 +877,46 @@ class ForecastImpl(Forecast):
                 break
         return outstanding
 
+    def _amortize_standalone_loans(
+        self,
+        forecast_positions: Dict[str, GlobalPosition],
+        linked_hashes: set[str],
+        target: date,
+        today: date,
+    ) -> None:
+        months_delta = relativedelta(target, today)
+        months = (
+            months_delta.years * 12
+            + months_delta.months
+            + (1 if months_delta.days > 0 else 0)
+        )
+        if months <= 0:
+            return
+        for entity_id, gp in forecast_positions.items():
+            if ProductType.LOAN not in gp.products:
+                continue
+            loans: Loans = gp.products[ProductType.LOAN]
+            for loan in loans.entries:
+                loan_hash = loan.hash or loan.compute_hash(entity_id)
+                if loan_hash in linked_hashes:
+                    continue
+                projected = self._simulate_loan_outstanding(
+                    outstanding_now=loan.principal_outstanding,
+                    payment=loan.current_installment,
+                    start=loan.creation,
+                    interest_type=loan.interest_type.name
+                    if loan.interest_type is not None
+                    else None,
+                    annual_rate_base=loan.interest_rate,
+                    euribor=loan.euribor_rate,
+                    fixed_years=loan.fixed_years,
+                    months=months,
+                    today=today,
+                    fixed_interest_rate=loan.fixed_interest_rate,
+                )
+                loan.principal_outstanding = projected
+                loan.principal_paid = loan.loan_amount - projected
+
     def _equity_for_property(
         self,
         re: RealEstate,
@@ -1171,6 +1222,13 @@ class ForecastImpl(Forecast):
 
         # Liquidate matured investments
         self._liquidate_maturing_investments(forecast_positions, target, cash_delta)
+
+        # Amortize standalone loans (linked mortgages are handled via real estate equity)
+        real_estates_for_loans = await self._real_estate_port.get_all()
+        linked_hashes = self._collect_linked_loan_hashes(real_estates_for_loans)
+        self._amortize_standalone_loans(
+            forecast_positions, linked_hashes, target, today
+        )
 
         # Real estate equity forecast
         re_equity = await self._forecast_real_estate_equity(target)

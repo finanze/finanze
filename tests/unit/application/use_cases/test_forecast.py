@@ -7,6 +7,10 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import (
     GlobalPosition,
+    InterestType,
+    Loan,
+    Loans,
+    LoanType,
     ProductType,
     RealEstateCFDetail,
     RealEstateCFInvestments,
@@ -141,3 +145,97 @@ class TestLiquidateRecf:
         assert len(gp.products[ProductType.REAL_ESTATE_CF].entries) == 1
         assert gp.products[ProductType.REAL_ESTATE_CF].entries[0] is kept
         assert "EUR" in cash_delta
+
+
+def _loan(
+    *,
+    outstanding: Dezimal = Dezimal(1200),
+    loan_amount: Dezimal = Dezimal(2000),
+    installment: Dezimal = Dezimal(100),
+    interest_rate: Dezimal = Dezimal(0),
+    interest_type: InterestType = InterestType.FIXED,
+    creation: date = date(2020, 1, 1),
+    loan_hash: str = "",
+) -> Loan:
+    return Loan(
+        id=uuid4(),
+        type=LoanType.STANDARD,
+        currency="EUR",
+        current_installment=installment,
+        interest_rate=interest_rate,
+        loan_amount=loan_amount,
+        creation=creation,
+        maturity=date(2035, 1, 1),
+        principal_outstanding=outstanding,
+        interest_type=interest_type,
+        hash=loan_hash,
+        source=DataSource.REAL,
+    )
+
+
+def _gp_with_loans(loans: list[Loan]) -> GlobalPosition:
+    return GlobalPosition(
+        id=uuid4(),
+        entity=_entity(),
+        products={ProductType.LOAN: Loans(entries=loans)},
+    )
+
+
+class TestAmortizeStandaloneLoans:
+    def test_zero_interest_loan_amortized(self):
+        loan = _loan(loan_hash="abc")
+        gp = _gp_with_loans([loan])
+        positions = {"e1": gp}
+
+        _forecast_impl()._amortize_standalone_loans(
+            positions, set(), date(2024, 7, 1), date(2024, 1, 1)
+        )
+
+        # 6 months * 100, no interest -> 1200 - 600 = 600
+        assert loan.principal_outstanding == Dezimal(600)
+        assert loan.principal_paid == Dezimal(1400)
+
+    def test_linked_loan_skipped(self):
+        loan = _loan(loan_hash="linked-hash")
+        gp = _gp_with_loans([loan])
+        positions = {"e1": gp}
+
+        _forecast_impl()._amortize_standalone_loans(
+            positions, {"linked-hash"}, date(2024, 7, 1), date(2024, 1, 1)
+        )
+
+        assert loan.principal_outstanding == Dezimal(1200)
+
+    def test_past_target_leaves_loan_unchanged(self):
+        loan = _loan(loan_hash="abc")
+        gp = _gp_with_loans([loan])
+        positions = {"e1": gp}
+
+        _forecast_impl()._amortize_standalone_loans(
+            positions, set(), date(2024, 1, 1), date(2024, 1, 1)
+        )
+
+        assert loan.principal_outstanding == Dezimal(1200)
+
+    def test_outstanding_capped_at_zero(self):
+        loan = _loan(outstanding=Dezimal(150), loan_amount=Dezimal(2000))
+        gp = _gp_with_loans([loan])
+        positions = {"e1": gp}
+
+        _forecast_impl()._amortize_standalone_loans(
+            positions, set(), date(2025, 1, 1), date(2024, 1, 1)
+        )
+
+        assert loan.principal_outstanding == Dezimal(0)
+        assert loan.principal_paid == Dezimal(2000)
+
+    def test_unhashed_loan_amortized(self):
+        loan = _loan(loan_hash="")
+        gp = _gp_with_loans([loan])
+        positions = {str(gp.entity.id): gp}
+
+        _forecast_impl()._amortize_standalone_loans(
+            positions, set(), date(2024, 7, 1), date(2024, 1, 1)
+        )
+
+        assert loan.principal_outstanding == Dezimal(600)
