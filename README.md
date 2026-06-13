@@ -74,24 +74,24 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 
 ### Supported Assets by Financial Entity & Crypto Exchanges
 
-| Financial Entity    | Accounts       | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-|---------------------|----------------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
+| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
+| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
 | Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅              | ✅     | ✅     | ✅              | ✅        | ✅          | Credits             | -      | -     |                     |
+| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
 | SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic      | ✅              | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
-| Unicaja             | ✅              | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
+| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
+| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
 | Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos              | ✅ (Smart Cash) | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     | Crowdlending        |
-| Freedom24           | ✅              | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
+| Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending        |
+| Freedom24           | ✅              | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
 | Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING                 | ✅              | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
-| Grupo Cajamar       | ✅              | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
+| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
+| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
 | DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
-| Interactive Brokers | ✅              | -     | ❌     | ✅️ Stocks      | -        | -          | -                   | -      | ❌     |                     |
+| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
 
-| Crypto Exchange | Crypto           | Specific |
-|-----------------|------------------|----------|
+| Crypto Exchange | Crypto            | Specific |
+| --------------- | ----------------- | -------- |
 | Binance         | ✅ Spot & Futures | Futures  |
 
 #### GoCardless Integration
@@ -113,24 +113,24 @@ Not all entities support the same features, in general we can group data in the 
   deposits are not included here).
 
 | Financial Entity    | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
-|---------------------|-----------------|---------------------------|--------------------------------|------------------------|
-| Urbanitae           | ✅               | -                         | ✅                              | ✅                      |
-| MyInvestor          | ✅               | ✅                         | ✅                              | ❌                      |
-| SEGO                | ✅               | -                         | ✅                              | ✅                      |
-| Trade Republic      | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja             | ✅               | ✅                         | ❌                              | -                      |
-| Wecity              | ✅               | -                         | ✅                              | ✅                      |
-| Mintos              | ✅               | -                         | ❌                              | ❌                      |
-| Freedom24           | ✅               | -                         | ✅                              | ❌                      |
-| Indexa Capital      | ✅               | -                         | ✅                              | -                      |
-| ING                 | ✅               | ✅                         | ✅                              | -                      |
-| Grupo Cajamar       | ✅               | -                         | ❌                              | -                      |
-| DEGIRO              | ✅               | ❌                         | ✅                              | -                      |
-| Interactive Brokers | ✅               | ❌                         | ✅⚠️                            | -                      |
+| ------------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
+| Urbanitae           | ✅              | -                         | ✅                             | ✅                     |
+| MyInvestor          | ✅              | ✅                        | ✅                             | ❌                     |
+| SEGO                | ✅              | -                         | ✅                             | ✅                     |
+| Trade Republic      | ✅              | ✅                        | ✅                             | -                      |
+| Unicaja             | ✅              | ✅                        | ❌                             | -                      |
+| Wecity              | ✅              | -                         | ✅                             | ✅                     |
+| Mintos              | ✅              | -                         | ❌                             | ❌                     |
+| Freedom24           | ✅              | -                         | ✅                             | ❌                     |
+| Indexa Capital      | ✅              | -                         | ✅                             | -                      |
+| ING                 | ✅              | ✅                        | ✅                             | -                      |
+| Grupo Cajamar       | ✅              | -                         | ❌                             | -                      |
+| DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
+| Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
-|-----------------|-----------------|---------------------------|--------------------------------|------------------------|
-| Binance         | ✅ Spot          | ❌                         | ✅️                             | -                      |
+| --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
+| Binance         | ✅ Spot         | ❌                        | ✅️                             | -                      |
 
 ### Financial Entity notes
 
@@ -220,8 +220,7 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ## Development
 
-This project requires `Python 3.13` or `3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
-`3.13`.
+This project requires `Python 3.14`.
 For the frontend use `pnpm`, and `node 24`.
 
 ### Setup
@@ -279,8 +278,8 @@ For the frontend use `pnpm`, and `node 24`.
 
 6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
 
-   Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (
-   `go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
+    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (
+    `go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
 
     ```sh
     cd frontend/app           # If not already

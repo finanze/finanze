@@ -1,6 +1,6 @@
 import { loadPyodide, type PyodideInterface } from "pyodide"
 
-const CACHE_NAME = "pyodide-cache-v0.29.2"
+const CACHE_NAME = "pyodide-cache-v314.0.0"
 
 function shouldInterceptUrl(url: string): boolean {
   const lowerUrl = url.toLowerCase()
@@ -15,6 +15,7 @@ function shouldInterceptUrl(url: string): boolean {
 
 function getMimeType(url: string): string | null {
   if (url.includes(".wasm")) return "application/wasm"
+  if (url.includes(".mjs")) return "application/javascript"
   if (url.includes(".js")) return "application/javascript"
   if (url.includes(".json")) return "application/json"
   if (url.includes(".zip")) return "application/zip"
