@@ -3,7 +3,7 @@ import { ProductType } from "@/types/position"
 import { getForecast, getMoneyEvents } from "@/services/api"
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 
 let hasLoadedTransactionsThisSession = false
 import { useI18n } from "@/i18n"
@@ -133,6 +133,9 @@ export default function DashboardPage() {
     }>
   >([])
   const [upcomingEventsLoading, setUpcomingEventsLoading] = useState(false)
+  const [expandedUpcomingId, setExpandedUpcomingId] = useState<string | null>(
+    null,
+  )
 
   const transactions = cachedLastTransactions
 
@@ -1366,7 +1369,7 @@ export default function DashboardPage() {
         {!forecastMode &&
           !upcomingEventsLoading &&
           upcomingEventsData.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-0 -mx-6">
               {upcomingEventsData.map((item, index) => {
                 const isEarning = item.direction === "in"
                 const urgencyInfo = getDateUrgencyInfo(
@@ -1386,66 +1389,85 @@ export default function DashboardPage() {
                     : item.kind === "maturity" || isEarning
                       ? "+"
                       : "-"
+                const itemKey = `${item.kind}-${item.id}-${index}`
+                const isExpanded = expandedUpcomingId === itemKey
+                const icon =
+                  item.kind === "contribution" ? (
+                    <PiggyBank className="h-4 w-4 text-blue-500" />
+                  ) : item.kind === "maturity" && item.productType ? (
+                    <span>
+                      {getIconForAssetType(item.productType, "h-4 w-4", null)}
+                    </span>
+                  ) : item.recurring ? (
+                    <CalendarSync
+                      className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                    />
+                  ) : (
+                    <HandCoins
+                      className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                    />
+                  )
+                const badge = urgencyInfo?.show && (
+                  <Badge
+                    variant={
+                      urgencyInfo.urgencyLevel === "urgent"
+                        ? "destructive"
+                        : urgencyInfo.urgencyLevel === "soon"
+                          ? "default"
+                          : "outline"
+                    }
+                    className="text-[10px] leading-tight px-1.5 py-0 h-4 flex-shrink-0 whitespace-nowrap inline-flex items-center justify-center"
+                  >
+                    {urgencyInfo.timeText}
+                  </Badge>
+                )
+                const amountEl = (
+                  <p
+                    className={`font-mono text-sm font-semibold flex-shrink-0 text-right ${amountColorClass}`}
+                  >
+                    <Sensitive>
+                      {amountPrefix}
+                      {formatCurrency(
+                        Math.abs(item.convertedAmount),
+                        locale,
+                        settings.general.defaultCurrency,
+                      )}
+                    </Sensitive>
+                  </p>
+                )
                 return (
                   <div
-                    key={`${item.kind}-${item.id}-${index}`}
-                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
+                    key={itemKey}
+                    className="px-6 py-3 border-b last:border-b-0 cursor-pointer select-none"
+                    onClick={() =>
+                      setExpandedUpcomingId(isExpanded ? null : itemKey)
+                    }
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {item.kind === "contribution" ? (
-                        <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                      ) : item.kind === "maturity" && item.productType ? (
-                        <span className="flex-shrink-0">
-                          {getIconForAssetType(
-                            item.productType,
-                            "h-4 w-4",
-                            null,
-                          )}
-                        </span>
-                      ) : item.recurring ? (
-                        <CalendarSync
-                          className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                        />
-                      ) : (
-                        <HandCoins
-                          className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                        />
-                      )}
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                        <p
-                          className="font-medium text-sm truncate"
-                          title={fullName}
-                        >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex-shrink-0">{icon}</div>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">
                           {displayName}
                         </p>
-                        {urgencyInfo?.show && (
-                          <Badge
-                            variant={
-                              urgencyInfo.urgencyLevel === "urgent"
-                                ? "destructive"
-                                : urgencyInfo.urgencyLevel === "soon"
-                                  ? "default"
-                                  : "outline"
-                            }
-                            className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
-                          >
-                            {urgencyInfo.timeText}
-                          </Badge>
-                        )}
+                        {badge}
                       </div>
+                      {amountEl}
                     </div>
-                    <p
-                      className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
-                    >
-                      <Sensitive>
-                        {amountPrefix}
-                        {formatCurrency(
-                          Math.abs(item.convertedAmount),
-                          locale,
-                          settings.general.defaultCurrency,
-                        )}
-                      </Sensitive>
-                    </p>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <p className="font-medium text-sm mt-2 pl-7 break-words text-muted-foreground">
+                            {fullName}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )
               })}
@@ -1482,20 +1504,14 @@ export default function DashboardPage() {
       return {
         show: true,
         urgencyLevel: "soon" as const,
-        timeText: `${t.management.inDays}`.replace(
-          "{days}",
-          diffDays.toString(),
-        ),
+        timeText: `${diffDays}d`,
       }
     }
     if (diffDays <= 30) {
       return {
         show: true,
         urgencyLevel: "normal" as const,
-        timeText: `${t.management.inDays}`.replace(
-          "{days}",
-          diffDays.toString(),
-        ),
+        timeText: `${diffDays}d`,
       }
     }
     return {
