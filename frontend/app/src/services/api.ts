@@ -754,6 +754,7 @@ export async function getNetworthTimeline(
   query?: NetworthTimelineQuery,
 ): Promise<NetworthTimeline> {
   const params = new URLSearchParams()
+  if (query?.base_currency) params.append("base_currency", query.base_currency)
   if (query?.from_date) params.append("from_date", query.from_date)
   if (query?.to_date) params.append("to_date", query.to_date)
   if (query?.no_calculation) params.append("no_calculation", "true")

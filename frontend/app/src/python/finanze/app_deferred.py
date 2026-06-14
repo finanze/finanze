@@ -299,7 +299,6 @@ class DeferredComponents:
         self.get_networth_timeline = GetNetworthTimelineImpl(
             self.networth_timeline_repo,
             ex_storage,
-            self.config_loader,
             self.entity_repo,
             self.re_repo,
             self.metal_client,

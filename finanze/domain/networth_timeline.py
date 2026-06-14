@@ -31,6 +31,7 @@ class NetworthTimeline:
 
 @dataclass
 class NetworthTimelineQuery:
+    base_currency: str = "EUR"
     from_date: Optional[date] = None
     to_date: Optional[date] = None
     no_calculation: bool = False

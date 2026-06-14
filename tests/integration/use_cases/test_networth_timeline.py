@@ -140,10 +140,6 @@ async def setup():
 def _use_case(repository, *, rates=None, real_estate=None, metal_rates=None):
     exchange = AsyncMock()
     exchange.get.return_value = rates if rates is not None else {}
-    config = AsyncMock()
-    config.load.return_value = SimpleNamespace(
-        general=SimpleNamespace(defaultCurrency="EUR")
-    )
     entity = AsyncMock()
     entity.get_disabled_entities.return_value = []
     real_estate_port = AsyncMock()
@@ -156,7 +152,7 @@ def _use_case(repository, *, rates=None, real_estate=None, metal_rates=None):
             metal_rates.get(commodity)
         )
     return GetNetworthTimelineImpl(
-        repository, exchange, config, entity, real_estate_port, metal
+        repository, exchange, entity, real_estate_port, metal
     )
 
 

@@ -539,7 +539,6 @@ class FinanzeServer:
         get_networth_timeline = GetNetworthTimelineImpl(
             networth_timeline_repository,
             exchange_rate_storage,
-            config_loader,
             entity_repository,
             real_estate_repository,
             metal_price_client,

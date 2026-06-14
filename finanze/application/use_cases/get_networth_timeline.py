@@ -1,11 +1,11 @@
 import asyncio
 import hashlib
 import logging
+import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
@@ -50,27 +50,29 @@ class _PropertyModel:
 
 
 class GetNetworthTimelineImpl(GetNetworthTimeline):
+    RE_SERIES_CACHE_TTL_SECONDS = 60 * 60
+
     def __init__(
         self,
         networth_timeline_port: NetworthTimelinePort,
         exchange_rate_storage: ExchangeRateStorage,
-        config_port: ConfigPort,
         entity_port: EntityPort,
         real_estate_port: RealEstatePort,
         metal_price_provider: MetalPriceProvider,
     ):
         self._port = networth_timeline_port
         self._exchange_rate_storage = exchange_rate_storage
-        self._config_port = config_port
         self._entity_port = entity_port
         self._real_estate_port = real_estate_port
         self._metal_price_provider = metal_price_provider
         self._lock = asyncio.Lock()
+        self._re_series_cache: Optional[
+            tuple[str, float, list[tuple[date, dict[str, Dezimal]]]]
+        ] = None
         self._log = logging.getLogger(__name__)
 
     async def execute(self, query: NetworthTimelineQuery) -> NetworthTimeline:
-        settings = await self._config_port.load()
-        target_currency = settings.general.defaultCurrency
+        target_currency = query.base_currency
         disabled = await self._entity_port.get_disabled_entities()
         excluded_ids = sorted(str(e.id) for e in disabled)
 
@@ -402,6 +404,69 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         if not real_estate_list:
             return []
 
+        # The real estate series is not memoized in the database, so rebuilding
+        # it (a mortgage valuation query plus breakpoint assembly) on every call
+        # dominates the endpoint cost. It is independent of the requested date
+        # range, so a single full series is cached and sliced per request. The
+        # signature invalidates on real estate edits; the TTL refreshes the
+        # parts sourced from the DB (mortgage valuation snapshots) and rates.
+        signature = self._real_estate_cache_signature(
+            real_estate_list, mortgage_refs, target_currency
+        )
+        now = time.monotonic()
+        cached = self._re_series_cache
+        if cached is not None and cached[0] == signature and cached[1] > now:
+            return cached[2]
+
+        series = await self._compute_real_estate_series(
+            real_estate_list, mortgage_refs, target_currency, rates
+        )
+        self._re_series_cache = (
+            signature,
+            now + self.RE_SERIES_CACHE_TTL_SECONDS,
+            series,
+        )
+        return series
+
+    def _real_estate_cache_signature(
+        self,
+        real_estate_list: list[RealEstate],
+        mortgage_refs: set[str],
+        target_currency: str,
+    ) -> str:
+        parts = [target_currency, ",".join(sorted(mortgage_refs))]
+        for real_estate in real_estate_list:
+            flows: list[str] = []
+            for flow in real_estate.flows:
+                if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
+                    continue
+                outstanding = getattr(flow.payload, "principal_outstanding", None)
+                flows.append(
+                    f"{flow.linked_loan_hash or ''}:"
+                    f"{'' if outstanding is None else outstanding}"
+                )
+            parts.append(
+                "#".join(
+                    [
+                        str(getattr(real_estate, "id", None)),
+                        real_estate.purchase_info.date.isoformat(),
+                        str(real_estate.purchase_info.price),
+                        str(real_estate.valuation_info.estimated_market_value),
+                        real_estate.currency,
+                        "1" if real_estate.basic_info.is_residence else "0",
+                        ";".join(sorted(flows)),
+                    ]
+                )
+            )
+        return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+    async def _compute_real_estate_series(
+        self,
+        real_estate_list: list[RealEstate],
+        mortgage_refs: set[str],
+        target_currency: str,
+        rates: ExchangeRates,
+    ) -> list[tuple[date, dict[str, Dezimal]]]:
         mortgage_valuations = await self._port.get_mortgage_valuations(
             sorted(mortgage_refs)
         )
