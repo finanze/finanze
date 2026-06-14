@@ -8,7 +8,7 @@ from typing import Optional
 
 from application.ports.entity_port import EntityPort
 from application.ports.exchange_rate_storage import ExchangeRateStorage
-from application.ports.metal_price_provider import MetalPriceProvider
+from application.ports.historic_metal_price_provider import HistoricMetalPriceProvider
 from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
@@ -58,13 +58,13 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         exchange_rate_storage: ExchangeRateStorage,
         entity_port: EntityPort,
         real_estate_port: RealEstatePort,
-        metal_price_provider: MetalPriceProvider,
+        historic_metal_price_provider: HistoricMetalPriceProvider,
     ):
         self._port = networth_timeline_port
         self._exchange_rate_storage = exchange_rate_storage
         self._entity_port = entity_port
         self._real_estate_port = real_estate_port
-        self._metal_price_provider = metal_price_provider
+        self._metal_price_provider = historic_metal_price_provider
         self._lock = asyncio.Lock()
         self._re_series_cache: Optional[
             tuple[str, float, list[tuple[date, dict[str, Dezimal]]]]

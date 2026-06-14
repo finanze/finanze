@@ -272,6 +272,25 @@ async function backgroundUpdateLoans(): Promise<unknown> {
   return callBackgroundPythonFunction("init_background", "update_loans")
 }
 
+async function backgroundGetNetworthTimeline(query?: {
+  base_currency?: string
+  from_date?: string
+  to_date?: string
+  no_calculation?: boolean
+}): Promise<unknown> {
+  if (backgroundConnectedPromise) {
+    await backgroundConnectedPromise
+  }
+  return callBackgroundPythonFunction(
+    "init_background",
+    "get_networth_timeline",
+    query?.base_currency,
+    query?.from_date,
+    query?.to_date,
+    query?.no_calculation ?? false,
+  )
+}
+
 export {
   API_PREFIX,
   withApiPrefix,
@@ -286,4 +305,5 @@ export {
   isBackgroundReady,
   backgroundUpdateQuotes,
   backgroundUpdateLoans,
+  backgroundGetNetworthTimeline,
 }

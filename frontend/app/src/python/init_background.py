@@ -25,3 +25,17 @@ async def update_quotes() -> dict:
 
 async def update_loans() -> dict:
     return await app.update_loans()
+
+
+async def get_networth_timeline(
+    base_currency: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    no_calculation: bool = False,
+) -> dict:
+    return await app.get_networth_timeline(
+        base_currency=base_currency,
+        from_date=from_date,
+        to_date=to_date,
+        no_calculation=no_calculation,
+    )

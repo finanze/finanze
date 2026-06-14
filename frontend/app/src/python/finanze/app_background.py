@@ -38,6 +38,7 @@ class MobileBackgroundApp:
 
         self.up_tracked = None
         self.up_tracked_loans = None
+        self.get_networth_timeline_uc = None
 
         self._connected = False
         self._user: User | None = None
@@ -82,6 +83,15 @@ class MobileBackgroundApp:
         from infrastructure.repository.tracked_updates.tracked_updates_repository import (
             TrackedUpdatesRepository,
         )
+        from infrastructure.repository.entity.entity_repository import (
+            EntitySQLRepository as EntityRepository,
+        )
+        from infrastructure.repository.networth_timeline.networth_timeline_repository import (
+            NetworthTimelineSQLRepository,
+        )
+        from infrastructure.client.rates.metal.historic_metal_price_client import (
+            HistoricMetalPriceClient,
+        )
         from infrastructure.repository.db.transaction_handler import TransactionHandler
         from infrastructure.calculations.loan_calculator import LoanCalculator
         from application.use_cases.manual_position_snapshot import (
@@ -89,6 +99,9 @@ class MobileBackgroundApp:
         )
         from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
         from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
+        from application.use_cases.get_networth_timeline import (
+            GetNetworthTimelineImpl,
+        )
 
         apply_httpx_patch()
 
@@ -101,11 +114,14 @@ class MobileBackgroundApp:
         virtual_repo = VirtualImportRepository(client=self.db_client)
         re_repo = RealEstateRepository(client=self.db_client)
         throttle_repo = TrackedUpdatesRepository(client=self.db_client)
+        entity_repo = EntityRepository(client=self.db_client)
+        networth_repo = NetworthTimelineSQLRepository(client=self.db_client)
         tx_handler = TransactionHandler(client=self.db_client)
         loan_calculator = LoanCalculator()
         inst_provider = InstrumentProviderAdapter(
             enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
         )
+        historic_metal_client = HistoricMetalPriceClient()
 
         ex_provider = StorageBackedExchangeRateProvider(self.ex_storage)
 
@@ -135,6 +151,13 @@ class MobileBackgroundApp:
             snapshot_writer,
             throttle_repo,
             tx_handler,
+        )
+        self.get_networth_timeline_uc = GetNetworthTimelineImpl(
+            networth_repo,
+            self.ex_storage,
+            entity_repo,
+            re_repo,
+            historic_metal_client,
         )
 
         await self.ex_storage.initialize()
@@ -196,6 +219,45 @@ class MobileBackgroundApp:
             raise RuntimeError("Background worker not connected")
         result = await self.up_tracked_loans.execute()
         return self._serialize_result(result)
+
+    async def get_networth_timeline(
+        self,
+        base_currency: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        no_calculation: bool = False,
+    ) -> dict:
+        from datetime import date
+        from domain.networth_timeline import NetworthTimelineQuery
+
+        if not self._connected:
+            raise RuntimeError("Background worker not connected")
+        await self.ex_storage.initialize()
+
+        query = NetworthTimelineQuery(
+            base_currency=base_currency or "EUR",
+            from_date=date.fromisoformat(from_date) if from_date else None,
+            to_date=date.fromisoformat(to_date) if to_date else None,
+            no_calculation=no_calculation,
+        )
+        result = await self.get_networth_timeline_uc.execute(query)
+        return self._serialize_timeline(result)
+
+    @staticmethod
+    def _serialize_timeline(result) -> dict:
+        return {
+            "currency": result.currency,
+            "points": [
+                {
+                    "date": point.date.isoformat(),
+                    "total": float(point.total),
+                    "breakdown": {
+                        key: float(value) for key, value in point.breakdown.items()
+                    },
+                }
+                for point in result.points
+            ],
+        }
 
     @staticmethod
     def _serialize_result(result) -> dict:

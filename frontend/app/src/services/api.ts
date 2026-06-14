@@ -90,6 +90,7 @@ import {
   isBackgroundUpdateAvailable,
   backgroundUpdateQuotes,
   backgroundUpdateLoans,
+  backgroundGetNetworthTimeline,
 } from "@/lib/mobile"
 
 export interface ApiServerInfo {
@@ -753,6 +754,10 @@ export async function getMoneyEvents(
 export async function getNetworthTimeline(
   query?: NetworthTimelineQuery,
 ): Promise<NetworthTimeline> {
+  if (isBackgroundUpdateAvailable()) {
+    return backgroundGetNetworthTimeline<NetworthTimeline>(query)
+  }
+
   const params = new URLSearchParams()
   if (query?.base_currency) params.append("base_currency", query.base_currency)
   if (query?.from_date) params.append("from_date", query.from_date)

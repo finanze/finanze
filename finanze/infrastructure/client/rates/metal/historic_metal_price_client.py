@@ -5,13 +5,14 @@ from typing import Optional
 import httpx
 from aiocache import Cache
 
+from application.ports.historic_metal_price_provider import HistoricMetalPriceProvider
 from domain.commodity import COMMODITY_SYMBOLS, CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.exchange_rate import HistoricMetalRates
 from infrastructure.client.http.http_session import get_http_session
 
 
-class HistoricMetalPriceClient:
+class HistoricMetalPriceClient(HistoricMetalPriceProvider):
     BASE_URL = "https://static.finanze.me/rates/metals"
     TIMEOUT = 10
     CACHE_TTL = 12 * 60 * 60  # 12 hours; the dataset is historical and static
