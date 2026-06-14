@@ -81,7 +81,7 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
         state: NetworthTimelineState,
         wipe: bool,
     ):
-        async with self._db_client.tx() as cursor:
+        async with self._db_client.tx(skip_last_update=True) as cursor:
             if wipe:
                 await cursor.execute(NetworthTimelineQueries.DELETE_ALL_POINTS.value)
             for point in points:

@@ -1,3 +1,4 @@
+import time
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -81,10 +82,6 @@ def _mortgage(loan_ref, day, outstanding, currency="EUR", origination=None):
     )
 
 
-def _settings(currency="EUR"):
-    return SimpleNamespace(general=SimpleNamespace(defaultCurrency=currency))
-
-
 def _re_loan_flow(linked_hash, outstanding=None):
     payload = SimpleNamespace(
         principal_outstanding=Dezimal(outstanding) if outstanding is not None else None
@@ -104,8 +101,10 @@ def _real_estate(
     flows=None,
     currency="EUR",
     is_residence=False,
+    id=None,
 ):
     return SimpleNamespace(
+        id=id,
         basic_info=SimpleNamespace(
             name="Test Property",
             is_residence=is_residence,
@@ -132,7 +131,6 @@ def _build(
     snapshots=None,
     mortgages=None,
     points=None,
-    currency="EUR",
     metal_rates=None,
 ):
     port = AsyncMock(spec=NetworthTimelinePort)
@@ -143,9 +141,6 @@ def _build(
 
     exchange = AsyncMock()
     exchange.get.return_value = rates if rates is not None else {}
-
-    config = AsyncMock()
-    config.load.return_value = _settings(currency)
 
     entity = AsyncMock()
     entity.get_disabled_entities.return_value = disabled or []
@@ -161,9 +156,7 @@ def _build(
             metal_rates.get(commodity)
         )
 
-    use_case = GetNetworthTimelineImpl(
-        port, exchange, config, entity, real_estate_port, metal
-    )
+    use_case = GetNetworthTimelineImpl(port, exchange, entity, real_estate_port, metal)
     return use_case, port
 
 
@@ -827,3 +820,53 @@ class TestCommodityRevaluation:
         assert points[date(2025, 6, 20)].breakdown["COMMODITY"] == Dezimal(2100)
         assert points[date(2025, 6, 22)].breakdown == {}
         assert points[date(2025, 6, 25)].breakdown == {}
+
+
+class TestRealEstateCache:
+    @pytest.mark.asyncio
+    async def test_series_cached_within_ttl(self):
+        real_estate = [_real_estate(date(2025, 1, 1), "200000", "200000")]
+        use_case, port = _build(points=[], real_estate=real_estate)
+
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        assert port.get_mortgage_valuations.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_signature_change_recomputes(self):
+        real_estate = [_real_estate(date(2025, 1, 1), "200000", "200000")]
+        use_case, port = _build(points=[], real_estate=real_estate)
+
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        use_case._real_estate_port.get_all.return_value = [
+            _real_estate(date(2025, 1, 1), "200000", "250000")
+        ]
+        result = await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        assert port.get_mortgage_valuations.await_count == 2
+        by_day = {p.date: p for p in result.points}
+        assert by_day[date(2025, 1, 1)].breakdown["REAL_ESTATE"] == Dezimal(250000)
+
+    @pytest.mark.asyncio
+    async def test_expired_ttl_recomputes(self):
+        real_estate = [_real_estate(date(2025, 1, 1), "200000", "200000")]
+        use_case, port = _build(points=[], real_estate=real_estate)
+
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        signature, _, series = use_case._re_series_cache
+        use_case._re_series_cache = (signature, time.monotonic() - 1, series)
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        assert port.get_mortgage_valuations.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_real_estate_does_not_cache(self):
+        use_case, port = _build(points=[], real_estate=[])
+
+        await use_case.execute(NetworthTimelineQuery(no_calculation=True))
+
+        assert use_case._re_series_cache is None
+        port.get_mortgage_valuations.assert_not_awaited()

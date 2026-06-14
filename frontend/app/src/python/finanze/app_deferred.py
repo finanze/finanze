@@ -113,9 +113,6 @@ class DeferredComponents:
         from infrastructure.repository.real_estate.real_estate_repository import (
             RealEstateRepository,
         )
-        from infrastructure.repository.networth_timeline.networth_timeline_repository import (
-            NetworthTimelineSQLRepository,
-        )
         from infrastructure.repository.virtual.virtual_import_repository import (
             VirtualImportRepository,
         )
@@ -134,9 +131,6 @@ class DeferredComponents:
             GetExternalIntegrationsImpl,
         )
         from application.use_cases.get_money_events import GetMoneyEventsImpl
-        from application.use_cases.get_networth_timeline import (
-            GetNetworthTimelineImpl,
-        )
         from application.use_cases.get_pending_flows import GetPendingFlowsImpl
         from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
         from application.use_cases.get_position import GetPositionImpl
@@ -232,11 +226,10 @@ class DeferredComponents:
         self.period_repo = PeriodicFlowRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)
         self.re_repo = RealEstateRepository(client=db_client)
-        self.networth_timeline_repo = NetworthTimelineSQLRepository(client=db_client)
         ext_ent_repo = ExternalEntityRepository(client=db_client)
         self.creds_repo = CredentialsRepository(client=db_client)
         self.entity_account_repo = EntityAccountRepository(client=db_client)
-        ex_storage = PreferenceExchangeRateStorage()
+        self.ex_storage = PreferenceExchangeRateStorage()
 
         self.ex_client = ExchangeRateClient()
         self.crypto_info = CryptoAssetInfoClient(
@@ -274,7 +267,7 @@ class DeferredComponents:
             self.ex_client,
             self.crypto_info,
             self.metal_client,
-            ex_storage,
+            self.ex_storage,
             self.position_repo,
             port_call_runner=_pyodide_port_call_runner,
             job_scheduler=_pyodide_job_scheduler,
@@ -296,15 +289,6 @@ class DeferredComponents:
 
         self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
 
-        self.get_networth_timeline = GetNetworthTimelineImpl(
-            self.networth_timeline_repo,
-            ex_storage,
-            self.config_loader,
-            self.entity_repo,
-            self.re_repo,
-            self.metal_client,
-        )
-
         backupable_ports = {
             BackupFileType.DATA: core.db_manager,
             BackupFileType.CONFIG: self.config_loader,
@@ -320,6 +304,6 @@ class DeferredComponents:
         self.get_cloud = GetCloudAuthImpl(self.cloud_register)
         self.get_bkp_settings = GetBackupSettingsImpl(self.cloud_register)
 
-        await ex_storage.initialize()
+        await self.ex_storage.initialize()
         await self.crypto_info.initialize()
         await self.get_ex_rates.execute(initial_load=True)

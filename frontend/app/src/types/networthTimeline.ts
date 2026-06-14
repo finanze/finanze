@@ -10,6 +10,7 @@ export interface NetworthTimeline {
 }
 
 export interface NetworthTimelineQuery {
+  base_currency: string
   from_date?: string
   to_date?: string
   no_calculation?: boolean

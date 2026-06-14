@@ -6,6 +6,7 @@ from quart import jsonify, request
 
 
 async def networth_timeline(get_networth_timeline_uc: GetNetworthTimeline):
+    base_currency = request.args.get("base_currency")
     from_date_param = request.args.get("from_date")
     to_date_param = request.args.get("to_date")
     no_calculation = request.args.get("no_calculation", "false").lower() in (
@@ -13,6 +14,14 @@ async def networth_timeline(get_networth_timeline_uc: GetNetworthTimeline):
         "1",
         "yes",
     )
+
+    if not base_currency:
+        return jsonify(
+            {
+                "code": "INVALID_REQUEST",
+                "message": "base_currency is required.",
+            }
+        ), 400
 
     from_date = None
     to_date = None
@@ -38,6 +47,7 @@ async def networth_timeline(get_networth_timeline_uc: GetNetworthTimeline):
         ), 400
 
     query = NetworthTimelineQuery(
+        base_currency=base_currency,
         from_date=from_date,
         to_date=to_date,
         no_calculation=no_calculation,

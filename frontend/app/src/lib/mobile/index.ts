@@ -108,6 +108,16 @@ export async function backgroundUpdateLoans<T = unknown>(): Promise<T> {
   return backgroundUpdateLoans() as Promise<T>
 }
 
+export async function backgroundGetNetworthTimeline<T = unknown>(query?: {
+  base_currency?: string
+  from_date?: string
+  to_date?: string
+  no_calculation?: boolean
+}): Promise<T> {
+  const { backgroundGetNetworthTimeline } = await import("@/lib/pyodide/init")
+  return backgroundGetNetworthTimeline(query) as Promise<T>
+}
+
 export function hideSplashScreen() {
   if (!__MOBILE__) return
   if (!isNativeMobile()) return

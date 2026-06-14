@@ -157,6 +157,9 @@ from infrastructure.client.rates.crypto.file_coingecko_strategy import (
     FileCoinGeckoCacheStrategy,
 )
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.rates.metal.historic_metal_price_client import (
+    HistoricMetalPriceClient,
+)
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.cloud.backup.backup_processor_adapter import (
     BackupProcessorAdapter,
@@ -370,6 +373,7 @@ class FinanzeServer:
             coingecko_strategy=FileCoinGeckoCacheStrategy(str(args.data_dir))
         )
         metal_price_client = MetalPriceClient()
+        historic_metal_price_client = HistoricMetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
         public_key_derivation = PublicKeyDerivationAdapter()
 
@@ -539,10 +543,9 @@ class FinanzeServer:
         get_networth_timeline = GetNetworthTimelineImpl(
             networth_timeline_repository,
             exchange_rate_storage,
-            config_loader,
             entity_repository,
             real_estate_repository,
-            metal_price_client,
+            historic_metal_price_client,
         )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
