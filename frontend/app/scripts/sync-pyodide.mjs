@@ -9,7 +9,7 @@ import process from "node:process"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const PYODIDE_VERSION = "0.29.2"
+const PYODIDE_VERSION = "314.0.0"
 const TARBALL_URL = `https://github.com/pyodide/pyodide/releases/download/${PYODIDE_VERSION}/pyodide-${PYODIDE_VERSION}.tar.bz2`
 
 const DIST_PYODIDE_DIR = path.resolve(__dirname, "../dist-pyodide")
@@ -39,7 +39,7 @@ const ESSENTIAL_RUNTIME_FILES = [
   "pyodide.mjs",
   "pyodide.asm.wasm",
   "python_stdlib.zip",
-  "pyodide.asm.js",
+  "pyodide.asm.mjs",
   "pyodide.js",
   "package.json",
   "pyodide.d.ts",
