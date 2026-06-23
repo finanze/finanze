@@ -14,6 +14,7 @@ from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_account_port import EntityAccountPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
+from application.ports.feature_flag_port import FeatureFlagPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
@@ -179,6 +180,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         entity_account_port: EntityAccountPort,
         loan_calculator: LoanCalculatorPort,
         real_estate_port: RealEstatePort,
+        feature_flag_port: FeatureFlagPort,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -196,6 +198,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._entity_account_port = entity_account_port
         self._loan_calculator = loan_calculator
         self._real_estate_port = real_estate_port
+        self._feature_flag_port = feature_flag_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -267,6 +270,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 options=fetch_request.login_options,
                 session=stored_session,
                 keychain=keychain,
+                feature_flags=self._feature_flag_port.get_all(),
             )
             login_result = await specific_fetcher.login(login_request)
             login_result_code = login_result.code

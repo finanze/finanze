@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_account_port import EntityAccountPort
+from application.ports.feature_flag_port import FeatureFlagPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.public_keychain_loader import PublicKeychainLoader
 from application.ports.sessions_port import SessionsPort
@@ -33,6 +34,7 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
         transaction_handler_port: TransactionHandlerPort,
         keychain_loader: PublicKeychainLoader,
         entity_account_port: EntityAccountPort,
+        feature_flag_port: FeatureFlagPort,
     ):
         self._entity_fetchers = entity_fetchers
         self._credentials_port = credentials_port
@@ -40,6 +42,7 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
         self._keychain_loader = keychain_loader
         self._transaction_handler_port = transaction_handler_port
         self._entity_account_port = entity_account_port
+        self._feature_flag_port = feature_flag_port
 
         self._log = logging.getLogger(__name__)
 
@@ -73,6 +76,7 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
             two_factor=login_request.two_factor,
             options=login_options,
             keychain=keychain,
+            feature_flags=self._feature_flag_port.get_all(),
         )
         login_result = await specific_fetcher.login(login_params)
         if login_result.code != LoginResultCode.CREATED:

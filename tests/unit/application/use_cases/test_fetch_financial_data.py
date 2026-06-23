@@ -54,6 +54,7 @@ def _build_use_case():
         entity_account_port=AsyncMock(),
         loan_calculator=loan_calculator,
         real_estate_port=real_estate_port,
+        feature_flag_port=MagicMock(get_all=MagicMock(return_value={})),
     )
     return uc, position_port, loan_calculator, real_estate_port
 

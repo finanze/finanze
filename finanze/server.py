@@ -449,6 +449,7 @@ class FinanzeServer:
             entity_account_repository,
             loan_calculator,
             real_estate_repository,
+            feature_flag_port,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -522,6 +523,7 @@ class FinanzeServer:
             transaction_handler,
             public_keychain,
             entity_account_repository,
+            feature_flag_port,
         )
         cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
         disconnect_entity = DisconnectEntityImpl(

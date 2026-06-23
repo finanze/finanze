@@ -859,12 +859,16 @@ class TestGetMoneyEvents:
             PERIODIC_FLOWS_URL,
             json=_periodic_flow_payload(since="2026-01-01", frequency="MONTHLY"),
         )
+        today = date.today()
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2026-06-15")]},
+            json={
+                "flows": [
+                    _pending_flow_payload(date=(today + timedelta(days=15)).isoformat())
+                ]
+            },
         )
 
-        today = date.today()
         from_date = today.isoformat()
         to_date = (today + timedelta(days=365)).isoformat()
 

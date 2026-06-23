@@ -9,6 +9,7 @@ from pydantic.dataclasses import dataclass
 
 from domain.native_entity import EntityCredentials
 from domain.public_keychain import PublicKeychain
+from domain.status import FeatureFlags
 
 
 class LoginConfirmationType(str, Enum):
@@ -100,6 +101,7 @@ class EntityLoginParams:
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None
+    feature_flags: Optional[FeatureFlags] = None
 
 
 @dataclass
