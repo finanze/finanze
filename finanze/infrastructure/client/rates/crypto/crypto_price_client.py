@@ -69,21 +69,26 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         result = {}
 
         try:
-            cc_prices = await self._cc_client.get_prices(symbols, fiat_isos, timeout)
-            for sym, prices in cc_prices.items():
+            cg_prices = await self._coingecko_client.get_prices(
+                symbols, fiat_isos, timeout
+            )
+            for sym, prices in cg_prices.items():
                 result[sym] = prices
         except Exception as e:
             self._log.warning(
-                f"CryptoCompare prices fetch failed, falling back to CoinGecko: {e}"
+                f"CoinGecko prices fetch failed, falling back to CryptoCompare: {e}"
             )
 
         missing_symbols = [s for s in symbols if s not in result]
         if missing_symbols:
-            missing_prices = await self._coingecko_client.get_prices(
-                missing_symbols, fiat_isos, timeout
-            )
-            for sym, prices in missing_prices.items():
-                result[sym] = prices
+            try:
+                missing_prices = await self._cc_client.get_prices(
+                    missing_symbols, fiat_isos, timeout
+                )
+                for sym, prices in missing_prices.items():
+                    result[sym] = prices
+            except Exception as e:
+                self._log.warning(f"CryptoCompare prices fetch failed: {e}")
 
         # { crypto_symbol: { fiat_iso: Dezimal(price) } }
         return result
@@ -110,14 +115,18 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     )
     async def get_by_symbol(self, symbol: str) -> list[CryptoAsset]:
         try:
-            assets = await self._cc_client.search(symbol)
+            assets = await self._coingecko_client.search(symbol)
             if assets:
                 return assets
         except Exception as e:
-            self._log.error(f"CryptoCompare search failed for {symbol}: {e}")
+            self._log.error(f"CoinGecko search failed for {symbol}: {e}")
 
-        self._log.info(f"Backing off to CoinGecko search for symbol {symbol}")
-        return await self._coingecko_client.search(symbol)
+        self._log.info(f"Backing off to CryptoCompare search for symbol {symbol}")
+        try:
+            return await self._cc_client.search(symbol)
+        except Exception as e:
+            self._log.error(f"CryptoCompare search failed for {symbol}: {e}")
+            return []
 
     async def get_multiple_overview_by_addresses(
         self, addresses: list[str]
