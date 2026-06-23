@@ -5,7 +5,6 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from infrastructure.client.entity.financial.tr.tr_timeline import preview
 
-
 bond_pattern = re.compile(
     r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\.?\s+20\d{2}",
     re.IGNORECASE,
@@ -33,9 +32,15 @@ class Portfolio:
         while recv > 0:
             subscription_id, subscription, response = await self.tr.recv()
 
-            if subscription["type"] == "compactPortfolio":
+            if subscription["type"] == "compactPortfolioByType":
                 recv -= 1
-                self.portfolio = response["positions"]
+                positions = []
+                for cat in response.get("categories", []):
+                    for pos in cat.get("positions", []):
+                        if "isin" in pos and "instrumentId" not in pos:
+                            pos["instrumentId"] = pos["isin"]
+                        positions.append(pos)
+                self.portfolio = positions
             elif subscription["type"] == "cash":
                 recv -= 1
                 self.cash = response
