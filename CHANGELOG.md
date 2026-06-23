@@ -8,10 +8,6 @@
 
 - TR position fetch
 - Use coingecko instead of cryptocompare
-
-### 🧪 Testing
-
-- Pass
 ## [0.8.6] - 2026-06-10
 
 ### 🐛 Bug Fixes
