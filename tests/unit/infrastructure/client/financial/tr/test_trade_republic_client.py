@@ -47,8 +47,8 @@ def _make_mock_api():
     return api
 
 
-def _make_client(use_v2=True):
-    client = TradeRepublicClient(use_v2=use_v2)
+def _make_client():
+    client = TradeRepublicClient()
     client._tr_api = _make_mock_api()
     client._stable_device_id = "a" * 128
     client._fetch_app_version = AsyncMock(return_value="15.7.0")
@@ -188,7 +188,7 @@ class TestCompleteLogin:
 
     @pytest.mark.asyncio
     async def test_returns_error_when_no_api(self):
-        client = TradeRepublicClient(use_v2=True)
+        client = TradeRepublicClient()
 
         result = await client.complete_login("proc-123", "waf-token")
 
@@ -213,13 +213,14 @@ class TestLoginV2Flow:
         mock_api._websession.post = AsyncMock(return_value=resp)
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             client._fetch_app_version = AsyncMock(return_value="15.7.0")
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
                 login_options=LoginOptions(),
                 waf_token="waf-abc",
+                use_v2=True,
             )
 
         assert result.code == LoginResultCode.CODE_REQUESTED
@@ -233,7 +234,7 @@ class TestLoginV2Flow:
         mock_api._websession.post = AsyncMock(return_value=resp)
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=False)
+            client = TradeRepublicClient()
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
@@ -251,7 +252,7 @@ class TestLoginV2Flow:
         mock_api = _make_mock_api()
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
@@ -262,7 +263,7 @@ class TestLoginV2Flow:
 
     @pytest.mark.asyncio
     async def test_login_rejects_phone_without_prefix(self):
-        client = TradeRepublicClient(use_v2=True)
+        client = TradeRepublicClient()
         result = await client.login(
             phone="49123456789",
             pin="1234",
@@ -279,7 +280,7 @@ class TestLoginV2Flow:
         mock_api.complete_weblogin = AsyncMock()
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
@@ -306,7 +307,7 @@ class TestLoginV2Flow:
         )
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             result = await client.login(
                 phone="+49123456789",
                 pin="1234",
@@ -355,7 +356,7 @@ class TestDeviceInfo:
     @pytest.mark.asyncio
     async def test_fetch_app_version_returns_remote_version(self):
         await TradeRepublicClient._fetch_app_version.cache.clear()
-        client = TradeRepublicClient(use_v2=True)
+        client = TradeRepublicClient()
         mock_response = MagicMock()
         mock_response.text = AsyncMock(return_value="16.0.0\n")
         mock_response.raise_for_status = MagicMock()
@@ -373,7 +374,7 @@ class TestDeviceInfo:
     @pytest.mark.asyncio
     async def test_fetch_app_version_returns_default_on_error(self):
         await TradeRepublicClient._fetch_app_version.cache.clear()
-        client = TradeRepublicClient(use_v2=True)
+        client = TradeRepublicClient()
         mock_session = MagicMock()
         mock_session.get = AsyncMock(side_effect=httpx.HTTPError("connection failed"))
 
@@ -417,7 +418,7 @@ class TestDeviceInfo:
         mock_api._websession.post = AsyncMock(return_value=resp)
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             client._fetch_app_version = AsyncMock(return_value="15.7.0")
             assert client._stable_device_id is None
             await client.login(
@@ -425,6 +426,7 @@ class TestDeviceInfo:
                 pin="1234",
                 login_options=LoginOptions(),
                 waf_token="waf-abc",
+                use_v2=True,
             )
 
         assert client._stable_device_id is not None
@@ -449,7 +451,7 @@ class TestDeviceInfo:
         )
 
         with patch(API_CLASS, return_value=mock_api):
-            client = TradeRepublicClient(use_v2=True)
+            client = TradeRepublicClient()
             await client.login(
                 phone="+49123456789",
                 pin="1234",

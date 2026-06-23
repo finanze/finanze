@@ -267,6 +267,7 @@ class LazyComponents:
                 d.tx_handler,
                 public_keychain,
                 d.entity_account_repo,
+                self._core.ff_client,
             )
 
             self.fetch_financial = FetchFinancialDataImpl(
@@ -286,6 +287,7 @@ class LazyComponents:
                 d.entity_account_repo,
                 d.loan_calculator,
                 d.re_repo,
+                self._core.ff_client,
             )
             self.fetch_crypto = FetchCryptoDataImpl(
                 d.position_repo,
