@@ -47,6 +47,7 @@ from domain.transactions import (
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
+from domain.status import FFStatus
 
 FALLBACK_LOCALE = "en"
 
@@ -164,6 +165,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
 
+        use_v2 = (login_params.feature_flags or {}).get("TR_V2_AUTH_API") == FFStatus.ON
+
         if process_id and not code:
             return await self._client.complete_login(process_id, waf_token)
 
@@ -175,6 +178,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             code=code,
             waf_token=waf_token,
             session=login_params.session,
+            use_v2=use_v2,
         )
 
     async def _map_private_equity(

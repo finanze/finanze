@@ -291,6 +291,7 @@ async def app(tmp_path):
         transaction_handler_port,
         keychain_loader,
         entity_account_port,
+        feature_flag_port,
     )
     fetch_financial_data_uc = FetchFinancialDataImpl(
         position_port,
@@ -309,6 +310,7 @@ async def app(tmp_path):
         entity_account_port,
         loan_calculator,
         real_estate_repo,
+        feature_flag_port,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,

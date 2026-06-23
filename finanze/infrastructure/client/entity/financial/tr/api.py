@@ -256,7 +256,7 @@ class TradeRepublicApi:
         return await self.subscribe({"type": "portfolioStatus"})
 
     async def compact_portfolio(self):
-        return await self.subscribe({"type": "compactPortfolio"})
+        return await self.subscribe({"type": "compactPortfolioByType"})
 
     async def watchlist(self):
         return await self.subscribe({"type": "watchlist"})
