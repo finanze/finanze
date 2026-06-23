@@ -79,10 +79,9 @@ class TradeRepublicClient:
     _APP_VERSION_URL = "https://app.traderepublic.com/app-version.txt"
     _DEFAULT_APP_VERSION = "15.7.0"
 
-    def __init__(self, use_v2: bool = False):
+    def __init__(self):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
-        self._use_v2 = use_v2
         self._cancel_event: asyncio.Event = asyncio.Event()
         self._stable_device_id: str | None = None
 
@@ -149,6 +148,7 @@ class TradeRepublicClient:
         code: str = None,
         waf_token: str = None,
         session: Optional[EntitySession] = None,
+        use_v2: bool = False,
     ) -> EntityLoginResult:
         if not phone.startswith("+"):
             return EntityLoginResult(
@@ -206,7 +206,7 @@ class TradeRepublicClient:
 
         elif not code or not process_id:
             if not login_options.avoid_new_login:
-                if self._use_v2:
+                if use_v2:
                     return await self._login_v2()
                 else:
                     return await self._login_v1()

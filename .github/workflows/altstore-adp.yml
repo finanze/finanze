@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: '15.0'
+      version_patch_suffix:
+        description: 'Suffix appended to the patch number for the AltStore version (e.g. 01 → 0.8.1 becomes 0.8.101). Defaults to 01.'
+        required: false
+        type: string
+        default: '01'
 
 permissions:
   contents: write
@@ -66,14 +71,18 @@ jobs:
             exit 1
           fi
 
-          EXISTING=$(echo "$SOURCE" | jq --arg v "$VERSION" '.apps[0].versions[] | select(.version == $v)')
+          SUFFIX="${{ inputs.version_patch_suffix }}"
+          ALTSTORE_VERSION="${VERSION}${SUFFIX}"
+
+          EXISTING=$(echo "$SOURCE" | jq --arg v "$ALTSTORE_VERSION" '.apps[0].versions[] | select(.version == $v)')
           if [ -n "$EXISTING" ]; then
-            echo "::error::Version $VERSION already exists in AltStore source.json"
+            echo "::error::Version $ALTSTORE_VERSION already exists in AltStore source.json"
             exit 1
           fi
-          echo "Version $VERSION not yet in source.json, proceeding."
+          echo "Version $ALTSTORE_VERSION not yet in source.json, proceeding."
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "altstore_version=$ALTSTORE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Fetch ADP status
         id: adp
@@ -145,6 +154,7 @@ jobs:
           IPA_SIZE=$(stat -c%s "$FIRST_IPA")
 
           VERSION="${{ steps.version.outputs.version }}"
+          ALTSTORE_VERSION="${{ steps.version.outputs.altstore_version }}"
           BUILD_VERSION="${{ inputs.build_version }}"
           MIN_OS="${{ inputs.min_os_version }}"
           DATE="${{ steps.adp.outputs.date }}"
@@ -165,7 +175,7 @@ jobs:
           done <<< "$IPA_FILES"
 
           VERSIONS_JSON=$(jq -n \
-            --arg version "$VERSION" \
+            --arg version "$ALTSTORE_VERSION" \
             --arg buildVersion "$BUILD_VERSION" \
             --arg date "$DATE" \
             --arg downloadURL "$BASE_URL/altstore-manifest.json" \
