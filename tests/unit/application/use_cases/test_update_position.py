@@ -16,10 +16,17 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
 from application.use_cases.update_position import UpdatePositionImpl
+from domain.crypto import CryptoAsset, CryptoAssetDetails, CryptoCurrencyType
+from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
+from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import DataSource
 from domain.global_position import (
+    CryptoCurrencies,
+    CryptoCurrencyPosition,
+    CryptoCurrencyWallet,
     GlobalPosition,
+    ProductType,
     UpdatePositionRequest,
 )
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
@@ -401,3 +408,104 @@ class TestManualDataDeletion:
         await uc.execute(request)
 
         manual_data_port.delete_by_position_id.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestProcessCryptoAssets
+# ---------------------------------------------------------------------------
+
+
+def _build_crypto_use_case():
+    entity_port = AsyncMock(spec=EntityPort)
+    position_port = AsyncMock(spec=PositionPort)
+    manual_data_port = AsyncMock(spec=ManualPositionDataPort)
+    virtual_registry = AsyncMock(spec=VirtualImportRegistry)
+    crypto_registry = AsyncMock(spec=CryptoAssetRegistryPort)
+    crypto_info = AsyncMock(spec=CryptoAssetInfoProvider)
+    tx_handler = MagicMock(spec=TransactionHandlerPort)
+
+    @asynccontextmanager
+    async def _fake_tx():
+        yield
+
+    tx_handler.start = _fake_tx
+
+    snapshot_writer = ManualPositionSnapshotWriter(
+        position_port,
+        manual_data_port,
+        virtual_registry,
+        AsyncMock(),
+        MagicMock(spec=LoanCalculatorPort),
+    )
+
+    uc = UpdatePositionImpl(
+        entity_port,
+        position_port,
+        crypto_registry,
+        crypto_info,
+        tx_handler,
+        virtual_registry,
+        snapshot_writer,
+    )
+    return uc, crypto_registry, crypto_info
+
+
+def _make_crypto_position(external_ids):
+    asset = CryptoCurrencyPosition(
+        id=None,
+        symbol="GRAM",
+        amount=Dezimal("654.234"),
+        type=CryptoCurrencyType.TOKEN,
+        crypto_asset=CryptoAsset(
+            name="Gram (prev. Toncoin)",
+            symbol="GRAM",
+            icon_urls=[],
+            external_ids=external_ids,
+        ),
+        contract_address="EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c",
+    )
+    wallet = CryptoCurrencyWallet(id=None, name="TON", assets=[asset])
+    return GlobalPosition(
+        id=uuid4(),
+        entity=_make_entity(),
+        date=datetime.now(tzlocal()),
+        products={ProductType.CRYPTO: CryptoCurrencies(entries=[wallet])},
+        source=DataSource.MANUAL,
+    )
+
+
+class TestProcessCryptoAssets:
+    @pytest.mark.asyncio
+    async def test_string_provider_converted_to_enum(self):
+        uc, crypto_registry, crypto_info = _build_crypto_use_case()
+        crypto_registry.get_by_symbol.return_value = None
+        crypto_info.get_asset_details.return_value = CryptoAssetDetails(
+            name="Gram (prev. Toncoin)",
+            symbol="GRAM",
+            platforms=[],
+            provider=ExternalIntegrationId.COINGECKO,
+            provider_id="the-open-network",
+            price={},
+            type=CryptoCurrencyType.TOKEN,
+            icon_url="https://example.com/gram.png",
+        )
+
+        position = _make_crypto_position({"COINGECKO": "the-open-network"})
+        await uc._process_crypto_assets_in_position(position)
+
+        crypto_info.get_asset_details.assert_awaited_once()
+        kwargs = crypto_info.get_asset_details.await_args.kwargs
+        assert kwargs["provider"] == ExternalIntegrationId.COINGECKO
+        assert isinstance(kwargs["provider"], ExternalIntegrationId)
+        crypto_registry.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unknown_provider_skips_without_error(self):
+        uc, crypto_registry, crypto_info = _build_crypto_use_case()
+        crypto_registry.get_by_symbol.return_value = None
+
+        position = _make_crypto_position({"NOT_A_PROVIDER": "the-open-network"})
+        await uc._process_crypto_assets_in_position(position)
+
+        crypto_info.get_asset_details.assert_not_awaited()
+        crypto_registry.save.assert_not_awaited()

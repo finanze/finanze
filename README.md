@@ -325,6 +325,7 @@ important ones are::
 ## Attributions & Credits
 
 - Powered by [CoinGecko](https://www.coingecko.com/).
+- Powered by [CoinMarketCap](https://coinmarketcap.com/).
 - Powered by [CryptoCompare](https://www.cryptocompare.com/).
 - [Pyodide](https://github.com/pyodide/pyodide) is used for mobile backend compatibility.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been

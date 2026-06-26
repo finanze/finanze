@@ -3,8 +3,6 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
 
 import httpx
-from aiocache import cached
-from aiocache.serializers import PickleSerializer
 from dateutil.tz import tzlocal
 
 from domain.crypto import (
@@ -25,8 +23,8 @@ from domain.exception.exceptions import (
 from domain.external_integration import ExternalIntegrationId
 from domain.native_entities import BSC, ETHEREUM, TRON, BITCOIN, LITECOIN
 from infrastructure.client.http.backoff import http_get_with_backoff
-from infrastructure.client.rates.crypto.coingecko_cache_strategy import (
-    CoinGeckoCacheStrategy,
+from infrastructure.client.rates.crypto.crypto_dataset_client import (
+    CryptoDatasetClient,
 )
 
 
@@ -38,8 +36,7 @@ class CoinGeckoClient:
     MAX_RETRIES = 5
     BACKOFF_EXPONENT_BASE = 2.75
     BACKOFF_FACTOR = 1.6
-    CACHE_FILENAME = "coingecko.json"
-    CACHE_MAX_AGE_DAYS = 4
+    CACHE_MAX_AGE_DAYS = 5
 
     ENTITY_CHAIN_MAP = {
         "bitcoin": BITCOIN,
@@ -49,13 +46,15 @@ class CoinGeckoClient:
         "litecoin": LITECOIN,
     }
 
-    def __init__(self, cache_strategy: CoinGeckoCacheStrategy):
+    def __init__(self, dataset_client: CryptoDatasetClient):
         self._log = logging.getLogger(__name__)
-        self._strategy = cache_strategy
+        self._dataset_client = dataset_client
         self._coin_list_cache: list[dict[str, Any]] | None = None
         self._coin_list_last_updated: datetime | None = None
         self._platforms_cache: list[dict[str, Any]] | None = None
         self._platforms_last_updated: datetime | None = None
+        self._address_index: dict[str, dict[str, Any]] | None = None
+        self._address_index_ts: datetime | None = None
 
     async def initialize(self):
         await self._load_coin_list_cache()
@@ -104,41 +103,29 @@ class CoinGeckoClient:
 
     async def _load_coin_list_cache(self) -> None:
         try:
-            (
-                self._coin_list_cache,
-                self._coin_list_last_updated,
-            ) = await self._strategy.load_coin_list()
+            dataset = await self._dataset_client.load_coingecko()
+            if dataset is not None:
+                self._coin_list_cache = dataset.to_coingecko_coin_list()
+                self._coin_list_last_updated = dataset.updated_at
         except Exception as e:
-            self._log.warning(f"Failed to load coin list from cache: {e}")
+            self._log.warning(f"Failed to load coin list from dataset: {e}")
 
     async def _load_platforms_cache(self) -> None:
         try:
-            (
-                self._platforms_cache,
-                self._platforms_last_updated,
-            ) = await self._strategy.load_platforms()
+            dataset = await self._dataset_client.load_coingecko()
+            if dataset is not None:
+                self._platforms_cache = dataset.to_coingecko_platforms()
+                self._platforms_last_updated = dataset.updated_at
         except Exception as e:
-            self._log.warning(f"Failed to load platforms from cache: {e}")
+            self._log.warning(f"Failed to load platforms from dataset: {e}")
 
     async def _save_coin_list_cache(self, coin_list: list[dict[str, Any]]) -> None:
-        try:
-            self._coin_list_last_updated = datetime.now(tzlocal())
-            await self._strategy.save_coin_list(coin_list, self._coin_list_last_updated)
-            self._coin_list_cache = coin_list
-        except Exception as e:
-            self._log.exception(f"Failed to persist coin list cache: {e}")
-
-    def _read_cache_file(self) -> dict[str, Any]:
-        # Deprecated/Removed
-        return {}
+        self._coin_list_last_updated = datetime.now(tzlocal())
+        self._coin_list_cache = coin_list
 
     async def _save_platforms_cache(self, platforms: list[dict[str, Any]]) -> None:
-        try:
-            self._platforms_last_updated = datetime.now(tzlocal())
-            await self._strategy.save_platforms(platforms, self._platforms_last_updated)
-            self._platforms_cache = platforms
-        except Exception as e:
-            self._log.exception(f"Failed to persist platforms cache: {e}")
+        self._platforms_last_updated = datetime.now(tzlocal())
+        self._platforms_cache = platforms
 
     def _is_platforms_cache_valid(self) -> bool:
         if not self._platforms_cache or not self._platforms_last_updated:
@@ -154,12 +141,11 @@ class CoinGeckoClient:
         age = datetime.now(tzlocal()) - self._coin_list_last_updated
         return age < timedelta(days=self.CACHE_MAX_AGE_DAYS)
 
-    @cached(
-        ttl=86400,
-        key_builder=lambda f, self: "coingecko_coin_list",
-        serializer=PickleSerializer(),
-    )
     async def _get_coin_list(self) -> list[dict[str, Any]]:
+        if self._is_coin_list_cache_valid():
+            return self._coin_list_cache
+
+        await self._load_coin_list_cache()
         if self._is_coin_list_cache_valid():
             return self._coin_list_cache
 
@@ -247,12 +233,11 @@ class CoinGeckoClient:
             provider_id=coin.get("id", ""),
         )
 
-    @cached(
-        ttl=86400,
-        key_builder=lambda f, self: "coingecko_asset_platforms",
-        serializer=PickleSerializer(),
-    )
     async def get_asset_platforms(self) -> dict[str, CryptoPlatform]:
+        if self._is_platforms_cache_valid():
+            return self._build_platforms_index(self._platforms_cache)
+
+        await self._load_platforms_cache()
         if self._is_platforms_cache_valid():
             return self._build_platforms_index(self._platforms_cache)
 
@@ -295,20 +280,22 @@ class CoinGeckoClient:
                 )
         return index
 
-    @cached(
-        ttl=86400,
-        key_builder=lambda f, self: "coingecko_coin_address_index",
-        serializer=PickleSerializer(),
-    )
     async def _get_coin_address_index(self) -> dict[str, dict[str, Any]]:
-        index: dict[str, dict[str, Any]] = {}
         try:
             coin_list = await self._get_coin_list()
         except Exception as e:
             self._log.error(f"Failed to fetch coin list for address overview: {e}")
-            return index
+            return self._address_index or {}
+        if (
+            self._address_index is not None
+            and self._address_index_ts == self._coin_list_last_updated
+        ):
+            return self._address_index
+        index: dict[str, dict[str, Any]] = {}
         for coin in coin_list:
             self._add_platform_addresses(index, coin)
+        self._address_index = index
+        self._address_index_ts = self._coin_list_last_updated
         return index
 
     def _add_platform_addresses(
