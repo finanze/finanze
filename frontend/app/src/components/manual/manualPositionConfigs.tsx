@@ -2936,6 +2936,7 @@ function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
                 {unitPrice.toLocaleString(locale, {
                   style: "currency",
                   currency: defaultCurrency,
+                  maximumFractionDigits: 6,
                 })}
               </span>
             </div>

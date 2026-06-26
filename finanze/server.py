@@ -153,8 +153,8 @@ from infrastructure.client.instrument.instrument_provider_adapter import (
     InstrumentProviderAdapter,
 )
 from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetInfoClient
-from infrastructure.client.rates.crypto.file_coingecko_strategy import (
-    FileCoinGeckoCacheStrategy,
+from infrastructure.client.rates.crypto.file_crypto_dataset_store import (
+    FileCryptoDatasetStore,
 )
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.historic_metal_price_client import (
@@ -370,7 +370,7 @@ class FinanzeServer:
         exchange_rate_client = ExchangeRateClient()
         ecb_client = ECBClient()
         crypto_asset_info_client = CryptoAssetInfoClient(
-            coingecko_strategy=FileCoinGeckoCacheStrategy(str(args.data_dir))
+            dataset_store=FileCryptoDatasetStore(str(args.data_dir))
         )
         metal_price_client = MetalPriceClient()
         historic_metal_price_client = HistoricMetalPriceClient()

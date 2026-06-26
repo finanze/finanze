@@ -53,8 +53,8 @@ class DeferredComponents:
         from infrastructure.sheets.capacitor_sheets_initiator import (
             CapacitorSheetsInitiator,
         )
-        from infrastructure.client.rates.crypto.preference_coingecko_strategy import (
-            PreferenceCoinGeckoCacheStrategy,
+        from infrastructure.client.rates.crypto.mobile_crypto_dataset_store import (
+            MobileCryptoDatasetStore,
         )
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
@@ -233,7 +233,7 @@ class DeferredComponents:
 
         self.ex_client = ExchangeRateClient()
         self.crypto_info = CryptoAssetInfoClient(
-            coingecko_strategy=PreferenceCoinGeckoCacheStrategy()
+            dataset_store=MobileCryptoDatasetStore()
         )
         self.metal_client = MetalPriceClient()
         self.inst_provider = InstrumentProviderAdapter(
