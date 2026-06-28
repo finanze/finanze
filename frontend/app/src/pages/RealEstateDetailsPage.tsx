@@ -753,9 +753,7 @@ export default function RealEstateDetailsPage() {
                                         (
                                           f.payload as any
                                         )?.interest_type?.toLowerCase() as
-                                          | "fixed"
-                                          | "variable"
-                                          | "mixed"
+                                          "fixed" | "variable" | "mixed"
                                       ]
                                     }
                                   </span>

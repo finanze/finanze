@@ -825,8 +825,7 @@ export default function AutoContributionsPage() {
           const funds =
             (
               entityPositions.products[ProductType.FUND] as
-                | FundInvestments
-                | undefined
+                FundInvestments | undefined
             )?.entries ?? []
           funds.forEach(fund => {
             if (!fund.isin) return
@@ -846,8 +845,7 @@ export default function AutoContributionsPage() {
           const stocks =
             (
               entityPositions.products[ProductType.STOCK_ETF] as
-                | StockInvestments
-                | undefined
+                StockInvestments | undefined
             )?.entries ?? []
           stocks.forEach(stock => {
             if (!stock.isin) return
@@ -872,8 +870,7 @@ export default function AutoContributionsPage() {
           const accounts =
             (
               entityPositions.products[ProductType.ACCOUNT] as
-                | Accounts
-                | undefined
+                Accounts | undefined
             )?.entries ?? []
           accounts
             .filter(
@@ -896,8 +893,7 @@ export default function AutoContributionsPage() {
           const cryptoWallets =
             (
               entityPositions.products[ProductType.CRYPTO] as
-                | CryptoCurrencies
-                | undefined
+                CryptoCurrencies | undefined
             )?.entries ?? []
           cryptoWallets.forEach(wallet => {
             wallet.assets?.forEach(asset => {

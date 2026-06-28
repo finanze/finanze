@@ -35,8 +35,8 @@ replace = '__version__ = "{new_version}"'
 
 [[tool.bumpversion.files]]
 filename = "frontend/app/ios/App/App.xcodeproj/project.pbxproj"
-search = 'MARKETING_VERSION = {current_version};'
-replace = 'MARKETING_VERSION = {new_version};'
+search = 'MARKETING_VERSION = {current_version}00;'
+replace = 'MARKETING_VERSION = {new_version}00;'
 
 [[tool.bumpversion.files]]
 filename = "frontend/app/android/app/build.gradle"

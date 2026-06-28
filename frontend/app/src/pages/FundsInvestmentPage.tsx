@@ -281,8 +281,7 @@ function FundsInvestmentPageContent({
       .flat()
       .forEach(globalPosition => {
         const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
+          { entries?: FundPortfolio[] } | undefined
         const entries = product?.entries ?? []
 
         entries.forEach(portfolio => {

@@ -327,8 +327,7 @@ export function ManualPositionsManager({
       const allAccountEntries: Account[] = []
       entityPositions.forEach(entityPosition => {
         const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
+          { entries?: Account[] } | undefined
         if (product?.entries?.length) {
           allAccountEntries.push(...product.entries)
         }
@@ -385,8 +384,7 @@ export function ManualPositionsManager({
       const entries: FundPortfolio[] = []
       entityPositions.forEach(entityPosition => {
         const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
+          { entries?: FundPortfolio[] } | undefined
         if (product?.entries) {
           entries.push(...product.entries)
         }

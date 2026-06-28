@@ -201,8 +201,7 @@ export function RealEstateFormModal({
     const ids: string[] = []
     for (const f of formData.flows) {
       const id = (f.periodic_flow_id || f.periodic_flow?.id) as
-        | string
-        | undefined
+        string | undefined
       if (id) ids.push(id)
     }
     return new Set(ids)
@@ -2449,8 +2448,7 @@ export function RealEstateFormModal({
                                     <IconPicker
                                       value={
                                         flow.periodic_flow?.icon as
-                                          | IconName
-                                          | undefined
+                                          IconName | undefined
                                       }
                                       onValueChange={value => {
                                         setFormData(prev => ({
@@ -3702,8 +3700,7 @@ export function RealEstateFormModal({
                                     <IconPicker
                                       value={
                                         flow.periodic_flow?.icon as
-                                          | IconName
-                                          | undefined
+                                          IconName | undefined
                                       }
                                       onValueChange={value => {
                                         setFormData(prev => ({
@@ -4286,8 +4283,7 @@ export function RealEstateFormModal({
                                     <IconPicker
                                       value={
                                         flow.periodic_flow?.icon as
-                                          | IconName
-                                          | undefined
+                                          IconName | undefined
                                       }
                                       onValueChange={value => {
                                         setFormData(prev => ({
@@ -4775,8 +4771,7 @@ export function RealEstateFormModal({
                                       <IconPicker
                                         value={
                                           flow.periodic_flow?.icon as
-                                            | IconName
-                                            | undefined
+                                            IconName | undefined
                                         }
                                         onValueChange={value => {
                                           setFormData(prev => ({

@@ -1616,15 +1616,12 @@ export function SavingsCalculator() {
                                 data: Record<string, number | string>,
                               ) => {
                                 const balance = data[`balance_${idx}`] as
-                                  | number
-                                  | undefined
+                                  number | undefined
                                 if (balance !== undefined) return balance
                                 const capital = data[`capital_${idx}`] as
-                                  | number
-                                  | undefined
+                                  number | undefined
                                 const gains = data[`gains_${idx}`] as
-                                  | number
-                                  | undefined
+                                  number | undefined
                                 if (
                                   capital !== undefined &&
                                   gains !== undefined
@@ -1755,8 +1752,7 @@ export function SavingsCalculator() {
                                       data: Record<string, number | string>,
                                     ) => {
                                       const balance = data[`balance_${idx}`] as
-                                        | number
-                                        | undefined
+                                        number | undefined
                                       const withdrawn = data[
                                         `withdrawn_${idx}`
                                       ] as number | undefined

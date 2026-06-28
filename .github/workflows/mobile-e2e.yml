@@ -259,8 +259,13 @@ jobs:
           xcrun simctl boot "$DEVICE_ID" || true
           open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
+          DEVICE_VERSION=$(xcrun simctl list devices available --json \
+            | jq -r --arg udid "$DEVICE_ID" '.devices | to_entries[] | select(any(.value[]; .udid == $udid)) | .key' \
+            | sed -E 's/.*SimRuntime\.iOS-//; s/-/./g')
+          echo "Detected simulator runtime: $DEVICE_VERSION"
           echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
           echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
+          echo "IOS_PLATFORM_VERSION=$DEVICE_VERSION" >> $GITHUB_ENV
 
       - name: Pre-build WebDriverAgent
         env:
@@ -287,6 +292,7 @@ jobs:
           IOS_APP_PATH: ${{ github.workspace }}/ios-app/App.app
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+          IOS_PLATFORM_VERSION: ${{ env.IOS_PLATFORM_VERSION }}
         run: pnpm test:ios
 
       - name: Show WDIO logs
