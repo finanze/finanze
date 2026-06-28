@@ -6,14 +6,33 @@ import type { Options } from '@wdio/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-function getIOSSDKVersion(): string {
+function getSimulatorRuntimeVersion(): string {
     try {
-        return execSync('xcodebuild -version -sdk iphonesimulator SDKVersion', {
+        const out = execSync('xcrun simctl list runtimes --json', {
             encoding: 'utf-8',
-        }).trim()
-    } catch {
-        return '18.0'
-    }
+        })
+        const data = JSON.parse(out) as {
+            runtimes: Array<{
+                identifier: string
+                version: string
+                isAvailable?: boolean
+                platform?: string
+            }>
+        }
+        const versions = data.runtimes
+            .filter(
+                r =>
+                    r.isAvailable !== false &&
+                    (r.platform === 'iOS' || r.identifier.includes('iOS')),
+            )
+            .map(r => r.version)
+            .filter(Boolean)
+            .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+        if (versions.length > 0) {
+            return versions[0]
+        }
+    } catch {}
+    return '18.0'
 }
 
 function findWDADerivedDataPath(): string | undefined {
@@ -68,7 +87,8 @@ export const config: Options.Testrunner = {
             'appium:automationName': 'XCUITest',
             'appium:deviceName': process.env.IOS_DEVICE_NAME || 'iPhone 17 Pro',
             'appium:platformVersion':
-                process.env.IOS_PLATFORM_VERSION || getIOSSDKVersion(),
+                process.env.IOS_PLATFORM_VERSION ||
+                getSimulatorRuntimeVersion(),
             ...(process.env.IOS_DEVICE_UDID && {
                 'appium:udid': process.env.IOS_DEVICE_UDID,
             }),
