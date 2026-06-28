@@ -144,10 +144,7 @@ export enum CredentialType {
 }
 
 export type Feature =
-  | "POSITION"
-  | "AUTO_CONTRIBUTIONS"
-  | "TRANSACTIONS"
-  | "HISTORIC"
+  "POSITION" | "AUTO_CONTRIBUTIONS" | "TRANSACTIONS" | "HISTORIC"
 
 export interface AuthRequest {
   username: string
@@ -526,12 +523,7 @@ export interface AboutAppInfo {
 }
 
 export type BackendLogLevel =
-  | "NONE"
-  | "DEBUG"
-  | "INFO"
-  | "WARNING"
-  | "ERROR"
-  | "CRITICAL"
+  "NONE" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
 
 export interface BackendStartOptions {
   dataDir?: string
@@ -555,11 +547,7 @@ export interface BackendRuntimeArgs {
 export interface BackendOptions extends BackendStartOptions {}
 
 export type BackendState =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "error"
+  "stopped" | "starting" | "running" | "stopping" | "error"
 
 export interface BackendErrorInfo {
   message: string
@@ -957,10 +945,7 @@ export interface CostPayload {
 }
 
 export type RealEstateFlowPayload =
-  | LoanPayload
-  | RentPayload
-  | SupplyPayload
-  | CostPayload
+  LoanPayload | RentPayload | SupplyPayload | CostPayload
 
 export interface RealEstateFlow {
   periodic_flow_id?: string | null

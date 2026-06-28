@@ -350,8 +350,7 @@ const sumDerivativeValues = (
   underlyingFilter?: Set<ProductType>,
 ): number => {
   const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-    | DerivativePositions
-    | undefined
+    DerivativePositions | undefined
   if (
     !derivProduct ||
     !("entries" in derivProduct) ||
@@ -825,8 +824,7 @@ export const getAssetDistribution = (
       }
 
       const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-        | DerivativePositions
-        | undefined
+        DerivativePositions | undefined
       if (
         derivProduct &&
         "entries" in derivProduct &&
@@ -3158,8 +3156,7 @@ export const getTotalCreditDrawn = (
     .flat()
     .forEach((entityPosition: any) => {
       const creditsProduct = entityPosition.products?.[ProductType.CREDIT] as
-        | Credits
-        | undefined
+        Credits | undefined
       if (creditsProduct?.entries) {
         creditsProduct.entries.forEach((credit: any) => {
           total += convertCurrency(

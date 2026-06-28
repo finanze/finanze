@@ -70,8 +70,7 @@ export function useManualDrafts<Entry extends Record<string, any>>(
     },
     () => {
       const stored = registry.get(asset) as
-        | ManualPositionDraft<Entry>[]
-        | undefined
+        ManualPositionDraft<Entry>[] | undefined
       if (stored) return stored
       if (!emptyCache.has(asset)) {
         emptyCache.set(asset, [])
@@ -80,8 +79,7 @@ export function useManualDrafts<Entry extends Record<string, any>>(
     },
     () => {
       const stored = registry.get(asset) as
-        | ManualPositionDraft<Entry>[]
-        | undefined
+        ManualPositionDraft<Entry>[] | undefined
       if (stored) return stored
       if (!emptyCache.has(asset)) {
         emptyCache.set(asset, [])

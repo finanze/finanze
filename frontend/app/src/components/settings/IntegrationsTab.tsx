@@ -31,8 +31,7 @@ import {
 import { getPlatformType } from "@/lib/platform"
 
 type IntegrationHintPart =
-  | { type: "text"; value: string }
-  | { type: "link"; label: string; url: string }
+  { type: "text"; value: string } | { type: "link"; label: string; url: string }
 
 const parseIntegrationHintParts = (
   rawParts: unknown,

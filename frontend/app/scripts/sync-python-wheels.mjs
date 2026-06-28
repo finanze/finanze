@@ -144,6 +144,16 @@ function downloadWheels(requirements, clean) {
       "download",
       "--only-binary=:all:",
       "--no-deps",
+      // Force pure-python (none-any) wheels so they are compatible with
+      // Pyodide's emscripten-wasm32 platform. Without this, pip on the build
+      // machine prefers a native binary wheel (e.g. cp314 macosx_arm64) when
+      // one exists, which micropip rejects at install time.
+      "--platform",
+      "any",
+      "--implementation",
+      "py",
+      "--abi",
+      "none",
       "-d",
       WHEELS_DIR,
       ...requirements,

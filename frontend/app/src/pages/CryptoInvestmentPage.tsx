@@ -546,8 +546,7 @@ function CryptoInvestmentContent({
       .flat()
       .forEach(entityPosition => {
         const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-          | DerivativePositions
-          | undefined
+          DerivativePositions | undefined
         if (
           !derivProduct ||
           !("entries" in derivProduct) ||

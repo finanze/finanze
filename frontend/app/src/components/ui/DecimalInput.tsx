@@ -24,8 +24,7 @@ interface DecimalInputStringProps extends DecimalInputBaseProps {
 }
 
 export type DecimalInputProps =
-  | DecimalInputNumericProps
-  | DecimalInputStringProps
+  DecimalInputNumericProps | DecimalInputStringProps
 
 const fmt = (v: number | string | null | undefined) => {
   if (v == null || v === "") return ""

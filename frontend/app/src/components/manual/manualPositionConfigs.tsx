@@ -3044,8 +3044,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.ACCOUNT] as
-            | { entries?: Account[] }
-            | undefined
+            { entries?: Account[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(account => {
             if (!isManualSource(account)) return
@@ -3269,8 +3268,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.CARD] as
-            | { entries?: Card[] }
-            | undefined
+            { entries?: Card[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(card => {
             if (!isManualSource(card)) return
@@ -3508,8 +3506,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.LOAN] as
-            | { entries?: Loan[] }
-            | undefined
+            { entries?: Loan[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(loan => {
             if (!isManualSource(loan)) return
@@ -3966,8 +3963,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.CREDIT] as
-            | { entries?: CreditDetail[] }
-            | undefined
+            { entries?: CreditDetail[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(credit => {
             if (!isManualSource(credit)) return
@@ -4211,8 +4207,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const accountEntries: Account[] = []
         entityPositions.forEach(ep => {
           const ap = ep.products[ProductType.ACCOUNT] as
-            | { entries?: Account[] }
-            | undefined
+            { entries?: Account[] } | undefined
           if (ap?.entries) accountEntries.push(...ap.entries)
         })
 
@@ -4418,8 +4413,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.FUND] as
-            | { entries?: FundDetail[] }
-            | undefined
+            { entries?: FundDetail[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(fund => {
             if (!isManualSource(fund)) return
@@ -5179,8 +5173,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.STOCK_ETF] as
-            | { entries?: StockDetail[] }
-            | undefined
+            { entries?: StockDetail[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(stock => {
             if (!isManualSource(stock)) return
@@ -5783,8 +5776,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.DEPOSIT] as
-            | { entries?: Deposit[] }
-            | undefined
+            { entries?: Deposit[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(deposit => {
             if (!isManualSource(deposit)) return
@@ -5950,8 +5942,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.FACTORING] as
-            | { entries?: FactoringDetail[] }
-            | undefined
+            { entries?: FactoringDetail[] } | undefined
           const entries = product?.entries ?? []
           entries.forEach(factor => {
             if (!isManualSource(factor)) return
@@ -6540,8 +6531,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         const entityPositions = positionsData.positions[entity.id] ?? []
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[ProductType.CRYPTO] as
-            | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
-            | undefined
+            { entries?: { assets?: CryptoCurrencyPosition[] }[] } | undefined
           const wallets = product?.entries ?? []
           wallets.forEach(wallet => {
             const assets = wallet.assets ?? []
