@@ -10,7 +10,10 @@ from application.ports.real_estate_port import RealEstatePort
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
-from domain.exception.exceptions import RealEstateNotFound
+from domain.exception.exceptions import (
+    MarketValueValuationRequired,
+    RealEstateNotFound,
+)
 from domain.global_position import InterestType, LoanType
 from domain.real_estate import (
     BasicInfo,
@@ -22,6 +25,7 @@ from domain.real_estate import (
     RealEstateFlowSubtype,
     RentPayload,
     UpdateRealEstateRequest,
+    Valuation,
     ValuationInfo,
 )
 
@@ -89,7 +93,15 @@ def _make_real_estate(id=None, flows=None):
             date=date(2020, 1, 1), price=Dezimal(200000), expenses=[]
         ),
         valuation_info=ValuationInfo(
-            estimated_market_value=Dezimal(250000), valuations=[]
+            estimated_market_value=Dezimal(250000),
+            valuations=[
+                Valuation(
+                    date=date(2020, 1, 1),
+                    amount=Dezimal(250000),
+                    notes=None,
+                    market_value=True,
+                )
+            ],
         ),
         flows=flows or [],
         currency="EUR",
@@ -148,6 +160,49 @@ class TestUpdateRealEstate:
             await uc.execute(request)
 
         re_port.update.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_no_market_value_valuation_raises(self):
+        uc, re_port, _, _ = _build_use_case()
+
+        re = _make_real_estate()
+        re.valuation_info.valuations = []
+        request = _make_request(re)
+
+        with pytest.raises(MarketValueValuationRequired):
+            await uc.execute(request)
+
+        re_port.update.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_estimated_market_value_derived_on_update(self):
+        uc, re_port, _, _ = _build_use_case()
+
+        re_id = uuid4()
+        existing_re = _make_existing_re(id=re_id, flows=[])
+        re_port.get_by_id.return_value = existing_re
+
+        update_re = _make_real_estate(id=re_id, flows=[])
+        update_re.valuation_info.valuations = [
+            Valuation(
+                date=date(2021, 1, 1),
+                amount=Dezimal(260000),
+                notes=None,
+                market_value=True,
+            ),
+            Valuation(
+                date=date(2023, 6, 1),
+                amount=Dezimal(310000),
+                notes=None,
+                market_value=True,
+            ),
+        ]
+        request = _make_request(update_re, remove_unassigned_flows=False)
+
+        await uc.execute(request)
+
+        assert update_re.valuation_info.estimated_market_value == Dezimal(310000)
+        re_port.update.assert_awaited_once_with(update_re)
 
     @pytest.mark.asyncio
     async def test_add_new_flow(self):

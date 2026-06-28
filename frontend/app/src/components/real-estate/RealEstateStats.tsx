@@ -475,7 +475,7 @@ export function RealEstateStats({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-4">
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
                   <span className="text-blue-700 dark:text-blue-300 flex items-center gap-2 font-medium">
                     <TrendingUp className="h-4 w-4" />
                     {t.realEstate.labels.roi}
@@ -496,7 +496,7 @@ export function RealEstateStats({
                 </div>
               </div>
               <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
                   <span className="text-purple-700 dark:text-purple-300 flex items-center gap-2 font-medium">
                     <Calculator className="h-4 w-4" />
                     {t.realEstate.labels.coc}
@@ -533,7 +533,7 @@ export function RealEstateStats({
               </div>
               {/* Total Return (CoC + Amortization) */}
               <div className="p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
                   <span className="text-teal-700 dark:text-teal-300 flex items-center gap-2 font-medium">
                     <Calculator className="h-4 w-4" />
                     {t.realEstate.labels.totalReturn}
@@ -559,7 +559,7 @@ export function RealEstateStats({
               </div>
               {/* ROE (always based on annual net cashflow before taxes) */}
               <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
                   <span className="text-indigo-700 dark:text-indigo-300 flex items-center gap-2 font-medium">
                     <TrendingUp className="h-4 w-4" />
                     {t.realEstate.labels.roe}
@@ -581,7 +581,7 @@ export function RealEstateStats({
               {/* Net CoC (after tax) - show only if marginal tax rate is provided */}
               {typeof marginalTaxRate !== "undefined" && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
                     <span className="text-amber-700 dark:text-amber-300 flex items-center gap-2 font-medium">
                       <Calculator className="h-4 w-4" />
                       {t.realEstate.labels.netCoC}

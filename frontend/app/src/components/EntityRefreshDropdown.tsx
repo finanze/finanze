@@ -313,7 +313,7 @@ export function EntityRefreshDropdown() {
                   </button>
                 </div>
               )}
-              <div className="max-h-80 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto overscroll-contain">
                 {entitiesWithLastUpdate.map(item => {
                   if (item.type === "entity") {
                     const { entity, lastUpdatedAt } = item

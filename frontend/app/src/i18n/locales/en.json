@@ -2183,6 +2183,9 @@
           "fixedYears": "Fixed-rate years",
           "creation": "Start date",
           "maturity": "Maturity",
+          "termShortcut": "Term",
+          "yearsShort": "y",
+          "customYearsPlaceholder": "Years",
           "installmentFrequency": "Installment frequency",
           "fixedInterestRate": "Fixed interest rate",
           "trackLoan": "Update loan automatically",
@@ -2609,6 +2612,9 @@
     },
     "valuation": {
       "estimatedMarketValue": "Estimated market value",
+      "estimatedMarketValueHint": "Derived from the latest valuation marked as market value.",
+      "noMarketValue": "Mark a valuation as market value",
+      "useAsMarketValue": "Use as market value",
       "valuations": "Valuations",
       "addValuation": "Add",
       "date": "Date",
@@ -2638,6 +2644,10 @@
       "fixedInterestRateLabel": "Fixed interest rate",
       "fromLabel": "From",
       "untilLabel": "Until",
+      "termShortcut": "Term",
+      "yearsShort": "y",
+      "customYears": "Custom",
+      "customYearsPlaceholder": "Years",
       "existingLoan": "Existing Loan",
       "standard": "Standard",
       "mortgage": "Mortgage",
@@ -2836,7 +2846,10 @@
       "loans": {
         "principalOutstandingInfo": "Required to compute equity and some KPIs (e.g., ROE and real-estate distribution).",
         "totalLoanAmountInfo": "Used to compute capital contributed and financing ratio. Provide it for accurate CoC-related KPIs.",
-        "monthlyInterestInfo": "Used to estimate taxes and total return (principal amortization excluded)."
+        "monthlyInterestInfo": "Used to estimate taxes and total return (principal amortization excluded).",
+        "currentInstallmentInfo": "The current periodic installment paid for this loan.",
+        "calculatedHint": "Can be auto-calculated from the total loan amount, start date and interest rate using Calculate data.",
+        "principalOutstandingManualNote": "If you have made early repayments, it's better to enter this amount manually."
       }
     },
     "amortizations": {

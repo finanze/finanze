@@ -433,23 +433,95 @@ const renderDateInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
   label: string,
   props: ManualFormFieldRenderProps<FormState>,
-) => (
-  <div className="space-y-1.5">
-    <Label>{label}</Label>
-    <DatePicker
-      value={(props.form[field] as string) ?? ""}
-      onChange={value => {
-        props.updateField(field, value)
-        props.clearError(field)
-      }}
-    />
-    {props.errors[field] && (
-      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-        {props.errors[field]}
-      </p>
-    )}
-  </div>
-)
+  options?: { yearShortcutsFrom?: keyof FormState },
+) => {
+  const baseField = options?.yearShortcutsFrom
+  const baseValue = baseField ? ((props.form[baseField] as string) ?? "") : ""
+  const baseDate = baseField ? normalizeDateInput(baseValue) : ""
+  const applyYears = (years: number) => {
+    if (!baseDate) return
+    const [y, m, d] = baseDate.split("-").map(Number)
+    if (!y || !m || !d) return
+    const target = new Date(y + years, m - 1, d)
+    const result = `${target.getFullYear()}-${String(
+      target.getMonth() + 1,
+    ).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`
+    props.updateField(field, result)
+    props.clearError(field)
+  }
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <DatePicker
+        value={(props.form[field] as string) ?? ""}
+        onChange={value => {
+          props.updateField(field, value)
+          props.clearError(field)
+        }}
+      />
+      {baseField && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          <span className="text-xs text-muted-foreground">
+            {props.t(
+              "management.manualPositions.bankLoans.fields.termShortcut",
+            )}
+          </span>
+          {[20, 25, 30].map(years => (
+            <button
+              key={years}
+              type="button"
+              disabled={!baseDate}
+              onClick={() => applyYears(years)}
+              className="px-2 py-0.5 text-xs rounded-md border border-border hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {years}
+              {props.t(
+                "management.manualPositions.bankLoans.fields.yearsShort",
+              )}
+            </button>
+          ))}
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder={props.t(
+              "management.manualPositions.bankLoans.fields.customYearsPlaceholder",
+            )}
+            disabled={!baseDate}
+            onKeyDown={e => {
+              if (
+                !/[0-9]/.test(e.key) &&
+                e.key !== "Backspace" &&
+                e.key !== "Delete" &&
+                e.key !== "ArrowLeft" &&
+                e.key !== "ArrowRight" &&
+                e.key !== "Tab" &&
+                e.key !== "Enter"
+              ) {
+                e.preventDefault()
+                return
+              }
+              if (e.key === "Enter") {
+                e.preventDefault()
+                const n = parseInt(e.currentTarget.value, 10)
+                if (n > 0) applyYears(n)
+              }
+            }}
+            onBlur={e => {
+              const n = parseInt(e.target.value, 10)
+              if (n > 0) applyYears(n)
+            }}
+            className="w-20 px-2 py-0.5 text-xs rounded-md border border-border bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+      )}
+      {props.errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const buildPortfolioLabel = (
   portfolio?: Pick<FundPortfolio, "name" | "currency"> | null,
@@ -3784,6 +3856,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "maturity",
             props.t("management.manualPositions.bankLoans.fields.maturity"),
             props,
+            { yearShortcutsFrom: "creation" },
           )}
           {renderTextInput(
             "current_installment",

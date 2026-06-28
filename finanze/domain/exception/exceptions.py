@@ -100,6 +100,11 @@ class RealEstateNotFound(Exception):
     pass
 
 
+class MarketValueValuationRequired(Exception):
+    def __init__(self):
+        super().__init__("At least one valuation must be marked as market value")
+
+
 class FlowNotFound(Exception):
     pass
 

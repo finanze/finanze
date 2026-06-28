@@ -981,6 +981,7 @@ export interface Valuation {
   date: string
   amount: number
   notes?: string | null
+  market_value?: boolean
 }
 
 export interface Location {

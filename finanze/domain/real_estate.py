@@ -70,6 +70,7 @@ class Valuation:
     date: date
     amount: Dezimal
     notes: Optional[str]
+    market_value: bool = False
 
 
 @dataclass
@@ -100,6 +101,13 @@ class ValuationInfo:
     estimated_market_value: Dezimal
     valuations: List[Valuation]
     annual_appreciation: Optional[Dezimal] = None
+
+
+def latest_market_value_amount(valuation_info: ValuationInfo) -> Optional[Dezimal]:
+    market_valuations = [v for v in valuation_info.valuations if v.market_value]
+    if not market_valuations:
+        return None
+    return max(market_valuations, key=lambda v: v.date).amount
 
 
 @dataclass

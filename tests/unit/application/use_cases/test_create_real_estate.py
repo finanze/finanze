@@ -10,7 +10,7 @@ from application.ports.real_estate_port import RealEstatePort
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
-from domain.exception.exceptions import FlowNotFound
+from domain.exception.exceptions import FlowNotFound, MarketValueValuationRequired
 from domain.global_position import InterestType, LoanType
 from domain.real_estate import (
     BasicInfo,
@@ -22,6 +22,7 @@ from domain.real_estate import (
     RealEstateFlow,
     RealEstateFlowSubtype,
     RentPayload,
+    Valuation,
     ValuationInfo,
 )
 
@@ -89,7 +90,15 @@ def _make_real_estate(id=None, flows=None):
             date=date(2020, 1, 1), price=Dezimal(200000), expenses=[]
         ),
         valuation_info=ValuationInfo(
-            estimated_market_value=Dezimal(250000), valuations=[]
+            estimated_market_value=Dezimal(250000),
+            valuations=[
+                Valuation(
+                    date=date(2020, 1, 1),
+                    amount=Dezimal(250000),
+                    notes=None,
+                    market_value=True,
+                )
+            ],
         ),
         flows=flows or [],
         currency="EUR",
@@ -181,4 +190,49 @@ class TestCreateRealEstate:
 
         await uc.execute(request)
 
+        re_port.insert.assert_awaited_once_with(re)
+
+    @pytest.mark.asyncio
+    async def test_no_market_value_valuation_raises(self):
+        uc, re_port, _, _ = _build_use_case()
+
+        re = _make_real_estate(flows=[])
+        re.valuation_info.valuations = []
+        request = _make_request(re)
+
+        with pytest.raises(MarketValueValuationRequired):
+            await uc.execute(request)
+
+        re_port.insert.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_estimated_market_value_derived_from_latest_market_valuation(self):
+        uc, re_port, _, _ = _build_use_case()
+
+        re = _make_real_estate(flows=[])
+        re.valuation_info.valuations = [
+            Valuation(
+                date=date(2021, 1, 1),
+                amount=Dezimal(260000),
+                notes=None,
+                market_value=True,
+            ),
+            Valuation(
+                date=date(2023, 6, 1),
+                amount=Dezimal(300000),
+                notes=None,
+                market_value=True,
+            ),
+            Valuation(
+                date=date(2024, 1, 1),
+                amount=Dezimal(999999),
+                notes=None,
+                market_value=False,
+            ),
+        ]
+        request = _make_request(re)
+
+        await uc.execute(request)
+
+        assert re.valuation_info.estimated_market_value == Dezimal(300000)
         re_port.insert.assert_awaited_once_with(re)

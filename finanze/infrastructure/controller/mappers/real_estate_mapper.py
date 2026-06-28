@@ -85,14 +85,16 @@ def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
                 date=val_date,
                 amount=Dezimal(val_data["amount"]),
                 notes=val_data.get("notes"),
+                market_value=bool(val_data.get("market_value", False)),
             )
         )
 
     annual_appreciation = body["valuation_info"].get("annual_appreciation")
+    estimated_market_value = body["valuation_info"].get("estimated_market_value")
     valuation_info = ValuationInfo(
-        estimated_market_value=Dezimal(
-            body["valuation_info"]["estimated_market_value"]
-        ),
+        estimated_market_value=Dezimal(estimated_market_value)
+        if estimated_market_value is not None
+        else Dezimal(0),
         valuations=valuations,
         annual_appreciation=Dezimal(annual_appreciation)
         if annual_appreciation is not None

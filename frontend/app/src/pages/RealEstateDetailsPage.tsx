@@ -553,14 +553,15 @@ export default function RealEstateDetailsPage() {
                         {v.notes ? (
                           <Popover>
                             <PopoverTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
+                              <span
+                                role="button"
+                                tabIndex={0}
                                 aria-label={t.common.viewDetails}
                                 title={t.common.viewDetails}
+                                className="inline-flex items-center cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 outline-none"
                               >
                                 <Info className="w-4 h-4" />
-                              </Button>
+                              </span>
                             </PopoverTrigger>
                             <PopoverContent className="w-80">
                               <div className="text-sm font-medium mb-2">

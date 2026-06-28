@@ -2195,6 +2195,9 @@
           "fixedYears": "Años a tipo fijo",
           "creation": "Fecha de inicio",
           "maturity": "Vencimiento",
+          "termShortcut": "Plazo",
+          "yearsShort": "a",
+          "customYearsPlaceholder": "Años",
           "installmentFrequency": "Frecuencia de cuota",
           "fixedInterestRate": "Tipo de interés fijo",
           "trackLoan": "Actualizar préstamo automáticamente",
@@ -2621,6 +2624,9 @@
     },
     "valuation": {
       "estimatedMarketValue": "Valor estimado de mercado",
+      "estimatedMarketValueHint": "Se obtiene de la última tasación marcada como valor de mercado.",
+      "noMarketValue": "Marca una tasación como valor de mercado",
+      "useAsMarketValue": "Usar como valor de mercado",
       "valuations": "Tasaciones",
       "addValuation": "Añadir",
       "date": "Fecha",
@@ -2651,6 +2657,10 @@
       "monthlyInterest": "Intereses de la cuota",
       "fromLabel": "Desde",
       "untilLabel": "Hasta",
+      "termShortcut": "Plazo",
+      "yearsShort": "a",
+      "customYears": "Otro",
+      "customYearsPlaceholder": "Años",
       "existingLoan": "Préstamo Existente",
       "standard": "Estándar",
       "mortgage": "Hipoteca",
@@ -2849,7 +2859,10 @@
       "loans": {
         "principalOutstandingInfo": "Necesario para calcular el patrimonio neto y algunos KPIs (p. ej., ROE y distribución inmobiliaria).",
         "totalLoanAmountInfo": "Se usa para calcular el capital aportado y el ratio de financiación. Indícalo para KPIs de CoC precisos.",
-        "monthlyInterestInfo": "Se usa para estimar impuestos y el retorno total (se excluye la amortización de capital)."
+        "monthlyInterestInfo": "Se usa para estimar impuestos y el retorno total (se excluye la amortización de capital).",
+        "currentInstallmentInfo": "La cuota periódica actual que se paga por este préstamo.",
+        "calculatedHint": "Se puede calcular automáticamente a partir del importe total del préstamo, la fecha de inicio y el tipo de interés usando Calcular datos.",
+        "principalOutstandingManualNote": "Si has hecho amortizaciones anticipadas, es mejor introducir este importe manualmente."
       }
     },
     "amortizations": {

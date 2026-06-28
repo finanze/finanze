@@ -445,6 +445,13 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                     f"{flow.linked_loan_hash or ''}:"
                     f"{'' if outstanding is None else outstanding}"
                 )
+            market_valuations = ";".join(
+                sorted(
+                    f"{valuation.date.isoformat()}:{valuation.amount}"
+                    for valuation in real_estate.valuation_info.valuations
+                    if valuation.market_value
+                )
+            )
             parts.append(
                 "#".join(
                     [
@@ -452,6 +459,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
                         real_estate.purchase_info.date.isoformat(),
                         str(real_estate.purchase_info.price),
                         str(real_estate.valuation_info.estimated_market_value),
+                        market_valuations,
                         real_estate.currency,
                         "1" if real_estate.basic_info.is_residence else "0",
                         ";".join(sorted(flows)),
@@ -565,6 +573,37 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         rates: ExchangeRates,
     ) -> list[tuple[date, Dezimal]]:
         purchase_date = real_estate.purchase_info.date
+
+        market_valuations = [
+            valuation
+            for valuation in real_estate.valuation_info.valuations
+            if valuation.market_value
+        ]
+
+        if market_valuations:
+            # The property is valued day by day from its market-value
+            # valuations: the purchase price anchors the purchase date and each
+            # marked valuation overrides the value from its own date onwards.
+            purchase_value = self._convert(
+                real_estate.purchase_info.price,
+                real_estate.currency,
+                target_currency,
+                rates,
+            )
+            by_day: dict[date, Dezimal] = {
+                purchase_date: purchase_value
+                if purchase_value is not None
+                else Dezimal(0)
+            }
+            for valuation in sorted(market_valuations, key=lambda v: v.date):
+                converted = self._convert(
+                    valuation.amount, real_estate.currency, target_currency, rates
+                )
+                if converted is None:
+                    continue
+                by_day[valuation.date] = converted
+            return sorted(by_day.items())
+
         value = self._convert(
             real_estate.valuation_info.estimated_market_value,
             real_estate.currency,
