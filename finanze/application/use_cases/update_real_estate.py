@@ -3,8 +3,12 @@ from application.ports.file_storage_port import FileStoragePort
 from application.ports.periodic_flow_port import PeriodicFlowPort
 from application.ports.real_estate_port import RealEstatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
-from domain.exception.exceptions import FlowNotFound, RealEstateNotFound
-from domain.real_estate import UpdateRealEstateRequest
+from domain.exception.exceptions import (
+    FlowNotFound,
+    MarketValueValuationRequired,
+    RealEstateNotFound,
+)
+from domain.real_estate import UpdateRealEstateRequest, latest_market_value_amount
 from domain.use_cases.update_real_estate import UpdateRealEstate
 
 
@@ -24,6 +28,11 @@ class UpdateRealEstateImpl(AtomicUCMixin, UpdateRealEstate):
 
     async def execute(self, request: UpdateRealEstateRequest):
         real_estate = request.real_estate
+
+        market_value = latest_market_value_amount(real_estate.valuation_info)
+        if market_value is None:
+            raise MarketValueValuationRequired()
+        real_estate.valuation_info.estimated_market_value = market_value
 
         existing_real_estate = await self._real_estate_port.get_by_id(real_estate.id)
         if existing_real_estate is None:

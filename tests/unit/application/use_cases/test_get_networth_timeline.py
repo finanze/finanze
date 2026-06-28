@@ -271,7 +271,11 @@ class TestCompute:
             "165000",
             "190000",
             valuations=[
-                SimpleNamespace(date=date(2025, 6, 30), amount=Dezimal("191879.41"))
+                SimpleNamespace(
+                    date=date(2025, 6, 30),
+                    amount=Dezimal("191879.41"),
+                    market_value=False,
+                )
             ],
         )
         use_case, _ = _build()
@@ -284,6 +288,46 @@ class TestCompute:
         assert use_case._value_at(breakpoints, date(2025, 6, 30)) == Dezimal(0)
         # Fixed estimated market value from the purchase date on.
         assert use_case._value_at(breakpoints, date(2025, 8, 10)) == Dezimal(190000)
+
+    @pytest.mark.asyncio
+    async def test_market_value_valuations_drive_breakpoints(self):
+        real_estate = _real_estate(
+            date(2025, 1, 1),
+            "165000",
+            "190000",
+            valuations=[
+                SimpleNamespace(
+                    date=date(2025, 6, 30),
+                    amount=Dezimal("180000"),
+                    market_value=True,
+                ),
+                SimpleNamespace(
+                    date=date(2025, 9, 30),
+                    amount=Dezimal("200000"),
+                    market_value=True,
+                ),
+                SimpleNamespace(
+                    date=date(2025, 3, 1),
+                    amount=Dezimal("999999"),
+                    market_value=False,
+                ),
+            ],
+        )
+        use_case, _ = _build()
+
+        breakpoints = use_case._build_value_breakpoints(real_estate, "EUR", {})
+
+        # Purchase price anchors the purchase date, then market-value valuations
+        # override the value over time (non-market valuations are ignored).
+        assert breakpoints == [
+            (date(2025, 1, 1), Dezimal(165000)),
+            (date(2025, 6, 30), Dezimal(180000)),
+            (date(2025, 9, 30), Dezimal(200000)),
+        ]
+        assert use_case._value_at(breakpoints, date(2024, 12, 31)) == Dezimal(0)
+        assert use_case._value_at(breakpoints, date(2025, 1, 1)) == Dezimal(165000)
+        assert use_case._value_at(breakpoints, date(2025, 7, 1)) == Dezimal(180000)
+        assert use_case._value_at(breakpoints, date(2025, 10, 1)) == Dezimal(200000)
 
     @pytest.mark.asyncio
     async def test_deleted_holder_stops_contributing_after_deletion(self):

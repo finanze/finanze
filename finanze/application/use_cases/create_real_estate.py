@@ -3,8 +3,8 @@ from application.ports.file_storage_port import FileStoragePort
 from application.ports.periodic_flow_port import PeriodicFlowPort
 from application.ports.real_estate_port import RealEstatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
-from domain.exception.exceptions import FlowNotFound
-from domain.real_estate import CreateRealEstateRequest
+from domain.exception.exceptions import FlowNotFound, MarketValueValuationRequired
+from domain.real_estate import CreateRealEstateRequest, latest_market_value_amount
 from domain.use_cases.create_real_estate import CreateRealEstate
 
 
@@ -24,6 +24,12 @@ class CreateRealEstateImpl(AtomicUCMixin, CreateRealEstate):
 
     async def execute(self, request: CreateRealEstateRequest):
         real_estate = request.real_estate
+
+        market_value = latest_market_value_amount(real_estate.valuation_info)
+        if market_value is None:
+            raise MarketValueValuationRequired()
+        real_estate.valuation_info.estimated_market_value = market_value
+
         for re_flow in real_estate.flows:
             if re_flow.periodic_flow_id is None and re_flow.periodic_flow is not None:
                 re_flow.periodic_flow_id = (

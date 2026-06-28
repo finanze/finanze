@@ -37,6 +37,7 @@ import {
   Info,
   Link,
   Unlink,
+  BookCheck,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/formatters"
 import {
@@ -908,6 +909,7 @@ export function RealEstateFormModal({
             date: new Date().toISOString().split("T")[0],
             amount: 0,
             notes: "",
+            market_value: prev.valuation_info.valuations.length === 0,
           },
         ],
       },
@@ -926,6 +928,37 @@ export function RealEstateFormModal({
       },
     }))
     setHasUnsavedChanges(true)
+  }
+
+  const toggleMarketValueValuation = (index: number) => {
+    setFormData(prev => {
+      const valuation = prev.valuation_info.valuations[index]
+      const markedCount = prev.valuation_info.valuations.filter(
+        v => v.market_value,
+      ).length
+      // Don't allow unchecking the last remaining market-value valuation.
+      if (valuation?.market_value && markedCount <= 1) {
+        return prev
+      }
+      return {
+        ...prev,
+        valuation_info: {
+          ...prev.valuation_info,
+          valuations: prev.valuation_info.valuations.map((v, i) =>
+            i === index ? { ...v, market_value: !v.market_value } : v,
+          ),
+        },
+      }
+    })
+    setHasUnsavedChanges(true)
+  }
+
+  const getDerivedMarketValuation = (): Valuation | null => {
+    const marked = formData.valuation_info.valuations.filter(
+      v => v.market_value,
+    )
+    if (marked.length === 0) return null
+    return marked.reduce((latest, v) => (v.date > latest.date ? v : latest))
   }
 
   const addFlow = (flowSubtype: RealEstateFlowSubtype) => {
@@ -998,6 +1031,26 @@ export function RealEstateFormModal({
     setFormData(prev => ({
       ...prev,
       flows: prev.flows.filter((_, i) => i !== index),
+    }))
+    setHasUnsavedChanges(true)
+  }
+
+  const setLoanUntilFromTerm = (index: number, years: number) => {
+    setFormData(prev => ({
+      ...prev,
+      flows: prev.flows.map((flow, i) => {
+        if (i !== index || !flow.periodic_flow?.since) return flow
+        const [y, m, d] = flow.periodic_flow.since.split("-").map(Number)
+        if (!y || !m || !d) return flow
+        const target = new Date(y + years, m - 1, d)
+        const until = `${target.getFullYear()}-${String(
+          target.getMonth() + 1,
+        ).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`
+        return {
+          ...flow,
+          periodic_flow: { ...flow.periodic_flow, until },
+        }
+      }),
     }))
     setHasUnsavedChanges(true)
   }
@@ -1093,11 +1146,8 @@ export function RealEstateFormModal({
     if (!formData.purchase_info.price || formData.purchase_info.price <= 0) {
       errors.push("purchase_info.price")
     }
-    if (
-      !formData.valuation_info.estimated_market_value ||
-      formData.valuation_info.estimated_market_value <= 0
-    ) {
-      errors.push("valuation_info.estimated_market_value")
+    if (!formData.valuation_info.valuations.some(v => v.market_value)) {
+      errors.push("valuation_info.market_value")
     }
 
     // Validate flows
@@ -1227,9 +1277,16 @@ export function RealEstateFormModal({
         return processedFlow
       })
 
+      const derivedMarketValuation = getDerivedMarketValuation()
       const processedFormData = {
         ...formData,
         flows: processedFlows,
+        valuation_info: {
+          ...formData.valuation_info,
+          estimated_market_value: derivedMarketValuation
+            ? derivedMarketValuation.amount
+            : formData.valuation_info.estimated_market_value,
+        },
       }
 
       if (property?.id) {
@@ -1351,14 +1408,14 @@ export function RealEstateFormModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-0 sm:p-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           <motion.div
-            className="bg-card text-card-foreground rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[80] shadow-xl flex flex-col"
+            className="bg-card text-card-foreground rounded-none sm:rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[80] shadow-xl flex flex-col"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1935,25 +1992,49 @@ export function RealEstateFormModal({
                     <div>
                       <Label>
                         {t.realEstate.valuation.estimatedMarketValue}
-                        <span className="text-gray-400 ml-1">*</span>
                       </Label>
-                      <div className="relative">
-                        <DecimalInput
-                          value={
-                            formData.valuation_info.estimated_market_value || ""
-                          }
-                          onValueChange={v =>
-                            handleInputChange(
-                              "valuation_info.estimated_market_value",
-                              v,
-                            )
-                          }
-                          className={`pr-12 ${hasValidationError("valuation_info.estimated_market_value") ? "border-red-500" : ""}`}
-                        />
-                        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                          {getCurrencySymbol(formData.currency)}
-                        </span>
-                      </div>
+                      {(() => {
+                        const derived = getDerivedMarketValuation()
+                        const showError = hasValidationError(
+                          "valuation_info.market_value",
+                        )
+                        return (
+                          <>
+                            <div
+                              className={`flex items-center gap-2 rounded-md border px-3 py-2 ${
+                                showError
+                                  ? "border-red-500 bg-red-50 dark:bg-red-900/10"
+                                  : "border-border bg-muted/40"
+                              }`}
+                            >
+                              <BookCheck
+                                size={16}
+                                className={
+                                  derived
+                                    ? "text-primary"
+                                    : "text-muted-foreground"
+                                }
+                              />
+                              {derived ? (
+                                <span className="font-medium">
+                                  {formatCurrency(
+                                    derived.amount,
+                                    locale,
+                                    formData.currency,
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">
+                                  {t.realEstate.valuation.noMarketValue}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t.realEstate.valuation.estimatedMarketValueHint}
+                            </p>
+                          </>
+                        )
+                      })()}
                     </div>
                     <div>
                       <Label>{t.realEstate.valuation.annualAppreciation}</Label>
@@ -2068,6 +2149,57 @@ export function RealEstateFormModal({
                                   }}
                                 />
                               </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleMarketValueValuation(index)
+                                }
+                                disabled={
+                                  valuation.market_value &&
+                                  formData.valuation_info.valuations.filter(
+                                    v => v.market_value,
+                                  ).length === 1
+                                }
+                                className={`flex items-center justify-between w-full rounded-md px-2.5 py-1.5 text-left transition-colors ${
+                                  valuation.market_value
+                                    ? "bg-muted/40"
+                                    : "hover:bg-muted/40"
+                                } ${
+                                  valuation.market_value &&
+                                  formData.valuation_info.valuations.filter(
+                                    v => v.market_value,
+                                  ).length === 1
+                                    ? "cursor-not-allowed"
+                                    : ""
+                                }`}
+                              >
+                                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <BookCheck
+                                    size={14}
+                                    className={
+                                      valuation.market_value
+                                        ? "text-primary"
+                                        : "text-muted-foreground"
+                                    }
+                                  />
+                                  {t.realEstate.valuation.useAsMarketValue}
+                                </span>
+                                <div className="scale-75 origin-right">
+                                  <Switch
+                                    checked={!!valuation.market_value}
+                                    disabled={
+                                      valuation.market_value &&
+                                      formData.valuation_info.valuations.filter(
+                                        v => v.market_value,
+                                      ).length === 1
+                                    }
+                                    onCheckedChange={() =>
+                                      toggleMarketValueValuation(index)
+                                    }
+                                    onClick={e => e.stopPropagation()}
+                                  />
+                                </div>
+                              </button>
                             </div>
                           ),
                         )}
@@ -2306,7 +2438,7 @@ export function RealEstateFormModal({
                           return (
                             <div
                               key={originalIndex}
-                              className={`border rounded-lg p-4 ${isLinked ? "border-blue-300 dark:border-blue-600 bg-blue-50/30 dark:bg-blue-950/20" : "border-gray-200 dark:border-gray-700"}`}
+                              className={`-mx-4 px-4 py-4 border-y border-x-0 rounded-none sm:mx-0 sm:border sm:rounded-lg ${isLinked ? "border-blue-300 dark:border-blue-600 bg-blue-50/30 dark:bg-blue-950/20" : "border-gray-200 dark:border-gray-700 bg-muted/30 dark:bg-white/[0.03]"}`}
                             >
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
                                 <div className="flex items-end gap-2 flex-1 mr-2">
@@ -2551,71 +2683,6 @@ export function RealEstateFormModal({
                                   >
                                     <Trash2 size={16} />
                                   </Button>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                  <Label>
-                                    {t.realEstate.labels.monthlyPayment}
-                                    <span className="text-gray-400 ml-1">
-                                      *
-                                    </span>
-                                  </Label>
-                                  <div className="relative">
-                                    <DecimalInput
-                                      value={flow.periodic_flow?.amount || ""}
-                                      onValueChange={v =>
-                                        updateFlowAmount(originalIndex, v ?? 0)
-                                      }
-                                      disabled={isLinked}
-                                      className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""} ${isLinked ? "opacity-60" : ""}`}
-                                    />
-                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                      {getCurrencySymbol(formData.currency)}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="inline-flex items-center gap-1">
-                                    {t.realEstate.labels.monthlyInterest}
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <span
-                                          aria-label={t.common.viewDetails}
-                                          title={t.common.viewDetails}
-                                          className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
-                                        >
-                                          <Info className="h-3.5 w-3.5" />
-                                        </span>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-80 text-xs">
-                                        {
-                                          t.realEstate.popovers.loans
-                                            .monthlyInterestInfo
-                                        }
-                                      </PopoverContent>
-                                    </Popover>
-                                  </Label>
-                                  <div className="relative">
-                                    <DecimalInput
-                                      value={
-                                        loanPayload.monthly_interests || ""
-                                      }
-                                      onValueChange={v =>
-                                        updateFlowPayload(
-                                          originalIndex,
-                                          "monthly_interests",
-                                          v,
-                                        )
-                                      }
-                                      disabled={isLinked}
-                                      className={`pr-12 ${isLinked ? "opacity-60" : ""}`}
-                                    />
-                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                      {getCurrencySymbol(formData.currency)}
-                                    </span>
-                                  </div>
                                 </div>
                               </div>
 
@@ -2897,13 +2964,41 @@ export function RealEstateFormModal({
                                           <Info className="h-3.5 w-3.5" />
                                         </span>
                                       </PopoverTrigger>
-                                      <PopoverContent className="w-80 text-xs">
-                                        {
-                                          t.realEstate.popovers.loans
-                                            .principalOutstandingInfo
-                                        }
+                                      <PopoverContent className="w-80 text-xs space-y-1.5">
+                                        <p>
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .principalOutstandingInfo
+                                          }
+                                        </p>
+                                        <p className="flex items-start gap-1.5 text-muted-foreground">
+                                          <Calculator className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .calculatedHint
+                                          }
+                                        </p>
+                                        <p>
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .principalOutstandingManualNote
+                                          }
+                                        </p>
                                       </PopoverContent>
                                     </Popover>
+                                    <span
+                                      title={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      aria-label={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      className="inline-flex items-center text-gray-400"
+                                    >
+                                      <Calculator className="h-3.5 w-3.5" />
+                                    </span>
                                   </Label>
                                   <div className="relative">
                                     <DecimalInput
@@ -3174,6 +3269,198 @@ export function RealEstateFormModal({
                                         : ""
                                     } ${isLinked ? "opacity-60" : ""}`}
                                   />
+                                  {!isLinked && (
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                      <span className="text-xs text-muted-foreground">
+                                        {t.realEstate.loans.termShortcut}
+                                      </span>
+                                      {[20, 25, 30].map(years => (
+                                        <button
+                                          key={years}
+                                          type="button"
+                                          disabled={!flow.periodic_flow?.since}
+                                          onClick={() =>
+                                            setLoanUntilFromTerm(
+                                              originalIndex,
+                                              years,
+                                            )
+                                          }
+                                          className="px-2 py-0.5 text-xs rounded-md border border-border hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {years}
+                                          {t.realEstate.loans.yearsShort}
+                                        </button>
+                                      ))}
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder={
+                                          t.realEstate.loans
+                                            .customYearsPlaceholder
+                                        }
+                                        disabled={!flow.periodic_flow?.since}
+                                        onKeyDown={e => {
+                                          if (
+                                            !/[0-9]/.test(e.key) &&
+                                            e.key !== "Backspace" &&
+                                            e.key !== "Delete" &&
+                                            e.key !== "ArrowLeft" &&
+                                            e.key !== "ArrowRight" &&
+                                            e.key !== "Tab" &&
+                                            e.key !== "Enter"
+                                          ) {
+                                            e.preventDefault()
+                                            return
+                                          }
+                                          if (e.key === "Enter") {
+                                            e.preventDefault()
+                                            const n = parseInt(
+                                              e.currentTarget.value,
+                                              10,
+                                            )
+                                            if (n > 0)
+                                              setLoanUntilFromTerm(
+                                                originalIndex,
+                                                n,
+                                              )
+                                          }
+                                        }}
+                                        onBlur={e => {
+                                          const n = parseInt(e.target.value, 10)
+                                          if (n > 0)
+                                            setLoanUntilFromTerm(
+                                              originalIndex,
+                                              n,
+                                            )
+                                        }}
+                                        className="w-20 px-2 py-0.5 text-xs rounded-md border border-border bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                  <Label className="inline-flex items-center gap-1">
+                                    {t.realEstate.labels.monthlyPayment}
+                                    <span className="text-gray-400">*</span>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <span
+                                          aria-label={t.common.viewDetails}
+                                          title={t.common.viewDetails}
+                                          className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                        >
+                                          <Info className="h-3.5 w-3.5" />
+                                        </span>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-80 text-xs space-y-1.5">
+                                        <p>
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .currentInstallmentInfo
+                                          }
+                                        </p>
+                                        <p className="flex items-start gap-1.5 text-muted-foreground">
+                                          <Calculator className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .calculatedHint
+                                          }
+                                        </p>
+                                      </PopoverContent>
+                                    </Popover>
+                                    <span
+                                      title={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      aria-label={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      className="inline-flex items-center text-gray-400"
+                                    >
+                                      <Calculator className="h-3.5 w-3.5" />
+                                    </span>
+                                  </Label>
+                                  <div className="relative">
+                                    <DecimalInput
+                                      value={flow.periodic_flow?.amount || ""}
+                                      onValueChange={v =>
+                                        updateFlowAmount(originalIndex, v ?? 0)
+                                      }
+                                      disabled={isLinked}
+                                      className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""} ${isLinked ? "opacity-60" : ""}`}
+                                    />
+                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                                      {getCurrencySymbol(formData.currency)}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="inline-flex items-center gap-1">
+                                    {t.realEstate.labels.monthlyInterest}
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <span
+                                          aria-label={t.common.viewDetails}
+                                          title={t.common.viewDetails}
+                                          className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                        >
+                                          <Info className="h-3.5 w-3.5" />
+                                        </span>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-80 text-xs space-y-1.5">
+                                        <p>
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .monthlyInterestInfo
+                                          }
+                                        </p>
+                                        <p className="flex items-start gap-1.5 text-muted-foreground">
+                                          <Calculator className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                          {
+                                            t.realEstate.popovers.loans
+                                              .calculatedHint
+                                          }
+                                        </p>
+                                      </PopoverContent>
+                                    </Popover>
+                                    <span
+                                      title={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      aria-label={
+                                        t.realEstate.popovers.loans
+                                          .calculatedHint
+                                      }
+                                      className="inline-flex items-center text-gray-400"
+                                    >
+                                      <Calculator className="h-3.5 w-3.5" />
+                                    </span>
+                                  </Label>
+                                  <div className="relative">
+                                    <DecimalInput
+                                      value={
+                                        loanPayload.monthly_interests || ""
+                                      }
+                                      onValueChange={v =>
+                                        updateFlowPayload(
+                                          originalIndex,
+                                          "monthly_interests",
+                                          v,
+                                        )
+                                      }
+                                      disabled={isLinked}
+                                      className={`pr-12 ${isLinked ? "opacity-60" : ""}`}
+                                    />
+                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                                      {getCurrencySymbol(formData.currency)}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -3404,7 +3691,7 @@ export function RealEstateFormModal({
                           return (
                             <div
                               key={originalIndex}
-                              className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                              className="-mx-4 px-4 py-4 border-y border-x-0 rounded-none border-gray-200 dark:border-gray-700 bg-muted/30 dark:bg-white/[0.03] sm:mx-0 sm:border sm:rounded-lg"
                             >
                               <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-end gap-2 flex-1 mr-2">
@@ -3988,7 +4275,7 @@ export function RealEstateFormModal({
                           return (
                             <div
                               key={originalIndex}
-                              className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                              className="-mx-4 px-4 py-4 border-y border-x-0 rounded-none border-gray-200 dark:border-gray-700 bg-muted/30 dark:bg-white/[0.03] sm:mx-0 sm:border sm:rounded-lg"
                             >
                               <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-end gap-2 flex-1 mr-2">
@@ -4477,7 +4764,7 @@ export function RealEstateFormModal({
                             return (
                               <div
                                 key={originalIndex}
-                                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                                className="-mx-4 px-4 py-4 border-y border-x-0 rounded-none border-gray-200 dark:border-gray-700 bg-muted/30 dark:bg-white/[0.03] sm:mx-0 sm:border sm:rounded-lg"
                               >
                                 <div className="flex items-center justify-between mb-3">
                                   <div className="flex items-end gap-2 flex-1 mr-2">
@@ -4719,7 +5006,7 @@ export function RealEstateFormModal({
                           (a, idx) => (
                             <div
                               key={idx}
-                              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2 items-end"
+                              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2 items-end -mx-4 px-4 py-4 border-y border-x-0 rounded-none border-gray-200 dark:border-gray-700 bg-muted/30 dark:bg-white/[0.03] sm:mx-0 sm:border sm:rounded-lg"
                             >
                               <div className="col-span-12 md:col-span-4">
                                 <Label>

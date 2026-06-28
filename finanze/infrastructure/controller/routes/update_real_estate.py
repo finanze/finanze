@@ -1,7 +1,11 @@
 import json
 from uuid import UUID
 
-from domain.exception.exceptions import FlowNotFound, RealEstateNotFound
+from domain.exception.exceptions import (
+    FlowNotFound,
+    MarketValueValuationRequired,
+    RealEstateNotFound,
+)
 from domain.file_upload import FileUpload
 from domain.real_estate import UpdateRealEstateRequest
 from domain.use_cases.update_real_estate import UpdateRealEstate
@@ -65,7 +69,7 @@ async def update_real_estate(update_real_estate_uc: UpdateRealEstate):
 
     try:
         await update_real_estate_uc.execute(update_request)
-    except FlowNotFound as e:
+    except (FlowNotFound, MarketValueValuationRequired) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
     except RealEstateNotFound as e:
         return jsonify({"code": "NOT_FOUND", "message": str(e)}), 404

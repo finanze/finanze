@@ -69,6 +69,7 @@ def _serialize_real_estate(real_estate: RealEstate) -> dict:
                     "date": valuation.date.isoformat(),
                     "amount": valuation.amount,
                     "notes": valuation.notes,
+                    "market_value": valuation.market_value,
                 }
                 for valuation in real_estate.valuation_info.valuations
             ],

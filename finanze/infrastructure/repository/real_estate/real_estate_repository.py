@@ -55,6 +55,7 @@ def _serialize_valuation(valuation: Valuation) -> dict:
         "date": valuation.date.isoformat(),
         "amount": str(valuation.amount),
         "notes": valuation.notes,
+        "market_value": valuation.market_value,
     }
 
 
@@ -63,6 +64,7 @@ def _deserialize_valuation(data: dict) -> Valuation:
         date=data["date"],
         amount=Dezimal(data["amount"]),
         notes=data.get("notes"),
+        market_value=bool(data.get("market_value", False)),
     )
 
 

@@ -1,6 +1,6 @@
 import json
 
-from domain.exception.exceptions import FlowNotFound
+from domain.exception.exceptions import FlowNotFound, MarketValueValuationRequired
 from domain.file_upload import FileUpload
 from domain.real_estate import CreateRealEstateRequest
 from domain.use_cases.create_real_estate import CreateRealEstate
@@ -56,7 +56,13 @@ async def create_real_estate(create_real_estate_uc: CreateRealEstate):
 
         await create_real_estate_uc.execute(create_request)
 
-    except (KeyError, ValueError, TypeError, FlowNotFound) as e:
+    except (
+        KeyError,
+        ValueError,
+        TypeError,
+        FlowNotFound,
+        MarketValueValuationRequired,
+    ) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     return "", 201

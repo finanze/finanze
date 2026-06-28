@@ -157,6 +157,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_1_recompute_loan_hashes i
 from infrastructure.repository.db.versions.v0.v09.v090_2_tracked_updates import (
     V0902TrackedUpdates,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_3_valuation_market_value import (
+    V0903ValuationMarketValue,
+)
 
 versions = [
     V0Genesis(),
@@ -222,4 +225,5 @@ versions = [
     V0900NetworthTimeline(),
     V0901RecomputeLoanHashes(),
     V0902TrackedUpdates(),
+    V0903ValuationMarketValue(),
 ]

@@ -64,49 +64,38 @@ class TestGetMultiplePricesBySymbol:
 
         assert result == {"AAA": {"EUR": Dezimal("10")}}
         client._coingecko_client.get_prices.assert_awaited_once()
-        client._cc_client.get_prices.assert_not_awaited()
+        client._dataset_client.load_coingecko.assert_not_awaited()
+        client._cmc_client.get_prices.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_cryptocompare_fills_missing_symbols(self):
+    async def test_partial_cg_result_no_further_fallback(self):
         client = _build_client()
         client._coingecko_client.get_prices.return_value = {
             "BBB": {"EUR": Dezimal("20")}
         }
-        client._cc_client.get_prices.return_value = {"CCC": {"EUR": Dezimal("30")}}
 
         result = await client.get_multiple_prices_by_symbol(["BBB", "CCC"], ["EUR"])
 
-        assert result == {
-            "BBB": {"EUR": Dezimal("20")},
-            "CCC": {"EUR": Dezimal("30")},
-        }
-        client._cc_client.get_prices.assert_awaited_once_with(["CCC"], ["EUR"], None)
+        assert result == {"BBB": {"EUR": Dezimal("20")}}
+        client._dataset_client.load_coingecko.assert_not_awaited()
+        client._cmc_client.get_prices.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_coingecko_failure_falls_back_to_cryptocompare(self):
+    async def test_coingecko_failure_uses_cg_snapshot(self):
         client = _build_client()
         client._coingecko_client.get_prices.side_effect = RuntimeError("boom")
-        client._cc_client.get_prices.return_value = {"DDD": {"EUR": Dezimal("40")}}
+        client._dataset_client.load_coingecko.return_value = _dataset_with_coin(
+            "ddd4", "DDD4", {"EUR": Dezimal("40")}
+        )
 
-        result = await client.get_multiple_prices_by_symbol(["DDD"], ["EUR"])
+        result = await client.get_multiple_prices_by_symbol(["DDD4"], ["EUR"])
 
-        assert result == {"DDD": {"EUR": Dezimal("40")}}
-        client._cc_client.get_prices.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_cryptocompare_failure_is_swallowed(self):
-        client = _build_client()
-        client._coingecko_client.get_prices.return_value = {
-            "EEE": {"EUR": Dezimal("50")}
-        }
-        client._cc_client.get_prices.side_effect = RuntimeError("no key")
-
-        result = await client.get_multiple_prices_by_symbol(["EEE", "FFF"], ["EUR"])
-
-        assert result == {"EEE": {"EUR": Dezimal("50")}}
+        assert result == {"DDD4": {"EUR": Dezimal("40")}}
+        client._dataset_client.load_coingecko.assert_awaited_once()
+        client._cmc_client.get_prices.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_coingecko_snapshot_fills_before_cmc(self):
+    async def test_coingecko_empty_uses_cg_snapshot(self):
         client = _build_client()
         client._coingecko_client.get_prices.return_value = {}
         client._dataset_client.load_coingecko.return_value = _dataset_with_coin(
@@ -116,37 +105,60 @@ class TestGetMultiplePricesBySymbol:
         result = await client.get_multiple_prices_by_symbol(["SNP"], ["EUR"])
 
         assert result == {"SNP": {"EUR": Dezimal("7")}}
+        client._dataset_client.load_coingecko.assert_awaited_once()
         client._cmc_client.get_prices.assert_not_awaited()
-        client._cc_client.get_prices.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_cmc_fills_missing_before_cryptocompare(self):
-        client = _build_client()
-        client._coingecko_client.get_prices.return_value = {
-            "AAA": {"EUR": Dezimal("1")}
-        }
-        client._cmc_client.get_prices.return_value = {"BBB": {"EUR": Dezimal("2")}}
-
-        result = await client.get_multiple_prices_by_symbol(["AAA", "BBB"], ["EUR"])
-
-        assert result == {
-            "AAA": {"EUR": Dezimal("1")},
-            "BBB": {"EUR": Dezimal("2")},
-        }
-        client._cmc_client.get_prices.assert_awaited_once_with(["BBB"], ["EUR"])
-        client._cc_client.get_prices.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_full_chain_to_cryptocompare(self):
+    async def test_cmc_fills_when_cg_snapshot_unavailable(self):
         client = _build_client()
         client._coingecko_client.get_prices.return_value = {}
+        client._dataset_client.load_coingecko.return_value = None
+        client._cmc_client.get_prices.return_value = {"MNO": {"EUR": Dezimal("2")}}
+
+        result = await client.get_multiple_prices_by_symbol(["MNO"], ["EUR"])
+
+        assert result == {"MNO": {"EUR": Dezimal("2")}}
+        client._dataset_client.load_coingecko.assert_awaited_once()
+        client._cmc_client.get_prices.assert_awaited_once_with(["MNO"], ["EUR"])
+
+    @pytest.mark.asyncio
+    async def test_partial_cg_result_no_snapshot_no_cmc(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.return_value = {
+            "PPP": {"EUR": Dezimal("1")}
+        }
+
+        result = await client.get_multiple_prices_by_symbol(["PPP", "QQQ"], ["EUR"])
+
+        assert result == {"PPP": {"EUR": Dezimal("1")}}
+        client._dataset_client.load_coingecko.assert_not_awaited()
+        client._cmc_client.get_prices.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_coingecko_raises_snapshot_consulted(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.side_effect = RuntimeError("timeout")
+        client._dataset_client.load_coingecko.return_value = _dataset_with_coin(
+            "snap2", "SNP2", {"EUR": Dezimal("7")}
+        )
+
+        result = await client.get_multiple_prices_by_symbol(["SNP2"], ["EUR"])
+
+        assert result == {"SNP2": {"EUR": Dezimal("7")}}
+        client._dataset_client.load_coingecko.assert_awaited_once()
+        client._cmc_client.get_prices.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_cg_empty_snapshot_fails_result_empty(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.return_value = {}
+        client._dataset_client.load_coingecko.return_value = None
         client._cmc_client.get_prices.return_value = {}
-        client._cc_client.get_prices.return_value = {"ZZZ": {"EUR": Dezimal("9")}}
 
         result = await client.get_multiple_prices_by_symbol(["ZZZ"], ["EUR"])
 
-        assert result == {"ZZZ": {"EUR": Dezimal("9")}}
-        client._cc_client.get_prices.assert_awaited_once_with(["ZZZ"], ["EUR"], None)
+        assert result == {}
+        client._cmc_client.get_prices.assert_awaited_once_with(["ZZZ"], ["EUR"])
 
 
 class TestGetPricesByAddresses:
@@ -188,6 +200,35 @@ class TestGetPricesByAddresses:
         result = await client.get_prices_by_addresses(["0xFFF"], ["EUR"])
 
         assert result == {"0xfff": {"EUR": Dezimal("5")}}
+        client._cmc_client.get_prices_by_addresses.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_partial_cg_result_skips_snapshot_uses_cmc(self):
+        client = _build_client()
+        client._coingecko_client.get_prices_by_addresses.return_value = {
+            "0xaaa": {"EUR": Dezimal("3")}
+        }
+
+        result = await client.get_prices_by_addresses(["0xAAA", "0xBBB"], ["EUR"])
+
+        assert result == {"0xaaa": {"EUR": Dezimal("3")}}
+        client._dataset_client.load_coingecko.assert_not_awaited()
+        client._cmc_client.get_prices_by_addresses.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_coingecko_raises_snapshot_consulted(self):
+        client = _build_client()
+        client._coingecko_client.get_prices_by_addresses.side_effect = RuntimeError(
+            "down"
+        )
+        client._dataset_client.load_coingecko.return_value = _dataset_with_coin(
+            "tok2", "TOK2", {"EUR": Dezimal("5")}, platforms={"ethereum": "0xeee"}
+        )
+
+        result = await client.get_prices_by_addresses(["0xEEE"], ["EUR"])
+
+        assert result == {"0xeee": {"EUR": Dezimal("5")}}
+        client._dataset_client.load_coingecko.assert_awaited_once()
         client._cmc_client.get_prices_by_addresses.assert_not_awaited()
 
 
