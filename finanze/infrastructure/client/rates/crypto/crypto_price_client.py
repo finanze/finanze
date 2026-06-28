@@ -79,43 +79,34 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     ) -> dict[str, dict[str, Dezimal]]:
         timeout = kwargs.get("timeout")
         result = {}
+        cg_unavailable = False
 
         try:
             cg_prices = await self._coingecko_client.get_prices(
                 symbols, fiat_isos, timeout
             )
+            if not cg_prices:
+                cg_unavailable = True
             for sym, prices in cg_prices.items():
                 result[sym] = prices
         except Exception as e:
             self._log.warning(f"CoinGecko prices fetch failed: {e}")
+            cg_unavailable = True
 
-        missing_symbols = [s for s in symbols if s not in result]
-        if missing_symbols:
-            snapshot = await self._coingecko_snapshot_prices(missing_symbols, fiat_isos)
-            for sym, prices in snapshot.items():
-                result.setdefault(sym, prices)
-
-        missing_symbols = [s for s in symbols if s not in result]
-        if missing_symbols:
-            try:
-                cmc_prices = await self._cmc_client.get_prices(
-                    missing_symbols, fiat_isos
-                )
-                for sym, prices in cmc_prices.items():
+        if cg_unavailable:
+            cg_dataset = await self._safe_cg_dataset(CryptoDatasetClient.PRICE_MAX_AGE)
+            if cg_dataset is not None:
+                for sym, prices in cg_dataset.prices_by_symbols(
+                    symbols, fiat_isos
+                ).items():
                     result.setdefault(sym, prices)
-            except Exception as e:
-                self._log.warning(f"CoinMarketCap prices fetch failed: {e}")
-
-        missing_symbols = [s for s in symbols if s not in result]
-        if missing_symbols:
-            try:
-                missing_prices = await self._cc_client.get_prices(
-                    missing_symbols, fiat_isos, timeout
-                )
-                for sym, prices in missing_prices.items():
-                    result.setdefault(sym, prices)
-            except Exception as e:
-                self._log.warning(f"CryptoCompare prices fetch failed: {e}")
+            else:
+                try:
+                    cmc_prices = await self._cmc_client.get_prices(symbols, fiat_isos)
+                    for sym, prices in cmc_prices.items():
+                        result.setdefault(sym, prices)
+                except Exception as e:
+                    self._log.warning(f"CoinMarketCap prices fetch failed: {e}")
 
         # { crypto_symbol: { fiat_iso: Dezimal(price) } }
         return result
@@ -132,33 +123,34 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     ) -> dict[str, dict[str, Dezimal]]:
         timeout = kwargs.get("timeout")
         result: dict[str, dict[str, Dezimal]] = {}
+        cg_unavailable = False
         try:
             result = await self._coingecko_client.get_prices_by_addresses(
                 addresses, fiat_isos, timeout or self._coingecko_client.TIMEOUT
             )
+            if not result:
+                cg_unavailable = True
         except Exception as e:
             self._log.warning(f"CoinGecko address prices fetch failed: {e}")
             result = {}
+            cg_unavailable = True
 
-        missing = self._missing_addresses(addresses, result)
-        if missing:
+        if cg_unavailable:
             cg_dataset = await self._safe_cg_dataset(CryptoDatasetClient.PRICE_MAX_AGE)
             if cg_dataset is not None:
                 for addr, prices in cg_dataset.prices_by_addresses(
-                    missing, fiat_isos
+                    addresses, fiat_isos
                 ).items():
                     result.setdefault(addr, prices)
-
-        missing = self._missing_addresses(addresses, result)
-        if missing:
-            try:
-                cmc_prices = await self._cmc_client.get_prices_by_addresses(
-                    missing, fiat_isos
-                )
-                for addr, prices in cmc_prices.items():
-                    result.setdefault(addr, prices)
-            except Exception as e:
-                self._log.warning(f"CoinMarketCap address prices fetch failed: {e}")
+            else:
+                try:
+                    cmc_prices = await self._cmc_client.get_prices_by_addresses(
+                        addresses, fiat_isos
+                    )
+                    for addr, prices in cmc_prices.items():
+                        result.setdefault(addr, prices)
+                except Exception as e:
+                    self._log.warning(f"CoinMarketCap address prices fetch failed: {e}")
 
         return result
 
