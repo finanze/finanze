@@ -1,7 +1,6 @@
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sharedConfig } from './wdio.shared.conf.js'
-import type { Options } from '@wdio/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -23,7 +22,7 @@ const APP_PATH =
         'app-full-debug.apk',
     )
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
     ...sharedConfig,
     specFileRetries: 2,
     connectionRetryTimeout: 600_000,
@@ -66,6 +65,6 @@ export const config: Options.Testrunner = {
             'appium:suppressKillServer': true,
             'appium:newCommandTimeout': 120,
             'appium:uiautomator2ServerLaunchTimeout': 90_000,
-        },
+        } as WebdriverIO.Capabilities,
     ],
-} satisfies Options.Testrunner
+} satisfies WebdriverIO.Config
