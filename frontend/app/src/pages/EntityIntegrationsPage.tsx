@@ -9,13 +9,16 @@ import { PinPad } from "@/components/PinPad"
 import { ShieldCheck } from "lucide-react"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
+import { Input } from "@/components/ui/Input"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import {
   ExternalLink,
   Landmark,
@@ -23,6 +26,7 @@ import {
   Check,
   Smartphone,
   Bitcoin,
+  Search,
   X,
 } from "lucide-react"
 import {
@@ -82,6 +86,7 @@ export default function EntityIntegrationsPage() {
 
   // External entity linking state
   const [showAddExternalEntity, setShowAddExternalEntity] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [candidatesLoading, setCandidatesLoading] = useState(false)
   const [candidatesError, setCandidatesError] = useState<string | null>(null)
@@ -101,6 +106,10 @@ export default function EntityIntegrationsPage() {
   const [candidateIcons, setCandidateIcons] = useState<Record<string, string>>(
     {},
   )
+  const [institutionSearch, setInstitutionSearch] = useState("")
+  const [ebConfirmInstitutionId, setEbConfirmInstitutionId] = useState<
+    string | null
+  >(null)
   // Linking existing externally provided entity
   const [linkingExternalEntityId, setLinkingExternalEntityId] = useState<
     string | null
@@ -340,23 +349,39 @@ export default function EntityIntegrationsPage() {
   }
 
   // External integrations helpers
-  const hasProviderIntegration = externalIntegrations.some(
+  const enabledEntityProviders = externalIntegrations.filter(
     integ =>
       integ.type === ExternalIntegrationType.ENTITY_PROVIDER &&
       integ.status === ExternalIntegrationStatus.ON,
   )
 
+  const hasProviderIntegration = enabledEntityProviders.length > 0
+
   const openAddExternalEntity = () => {
     setShowAddExternalEntity(true)
     // Reset state
+    setSelectedProvider(
+      enabledEntityProviders.length === 1 ? enabledEntityProviders[0].id : null,
+    )
     setSelectedCountry(null)
     setExternalCandidates([])
     setCandidatesError(null)
+    setInstitutionSearch("")
     setAlreadyLinked(false)
   }
 
   const closeAddExternalEntity = () => {
     setShowAddExternalEntity(false)
+    setEbConfirmInstitutionId(null)
+  }
+
+  const handleSelectProvider = (providerId: string) => {
+    setSelectedProvider(providerId)
+    setSelectedCountry(null)
+    setExternalCandidates([])
+    setCandidatesError(null)
+    setInstitutionSearch("")
+    setAlreadyLinked(false)
   }
 
   const fetchCandidates = async (country: string) => {
@@ -364,9 +389,13 @@ export default function EntityIntegrationsPage() {
     setCandidatesLoading(true)
     setCandidatesError(null)
     setExternalCandidates([])
+    setInstitutionSearch("")
     try {
-      const res = await getExternalEntityCandidates(country)
-      setExternalCandidates(res.entities || [])
+      const res = await getExternalEntityCandidates(country, selectedProvider)
+      const sorted = [...(res.entities || [])].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )
+      setExternalCandidates(sorted)
     } catch (e: any) {
       setCandidatesError(e?.message || "error")
     } finally {
@@ -374,12 +403,22 @@ export default function EntityIntegrationsPage() {
     }
   }
 
+  const handleChangeCountry = () => {
+    setSelectedCountry(null)
+    setExternalCandidates([])
+    setCandidatesError(null)
+    setInstitutionSearch("")
+  }
+
   const handleConnectExternalEntity = async (institutionId: string) => {
     setConnectingInstitutionId(institutionId)
     setAlreadyLinked(false)
     try {
       const result: ExternalEntityConnectionResult =
-        await connectExternalEntity({ institution_id: institutionId })
+        await connectExternalEntity({
+          institution_id: institutionId,
+          provider: selectedProvider,
+        })
       if (result.code === ExternalEntitySetupResponseCode.ALREADY_LINKED) {
         setAlreadyLinked(true)
         await fetchEntities()
@@ -493,6 +532,76 @@ export default function EntityIntegrationsPage() {
       setCompletingConnection(false)
     }
   }
+
+  const handleExternalCompleteUrl = useCallback(
+    async (url: string) => {
+      if (!url.startsWith("finanze://external/complete")) return
+      let code: string | null
+      let state: string | null
+      let error: string | null
+      try {
+        const urlObj = new URL(url)
+        code = urlObj.searchParams.get("code")
+        state = urlObj.searchParams.get("state")
+        error = urlObj.searchParams.get("error")
+      } catch {
+        return
+      }
+
+      const entityId = state || externalEntityId
+      if (error || !entityId) {
+        setShowCompleteExternalModal(false)
+        showToast(t.entities.externalLinkError, "error")
+        return
+      }
+
+      setCompletingConnection(true)
+      try {
+        await completeExternalEntityConnection(entityId, code)
+        await fetchEntities()
+        setShowCompleteExternalModal(false)
+        setView("entities")
+        showToast(t.entities.externalLinkSuccess, "success")
+      } catch {
+        showToast(t.entities.externalLinkError, "error")
+      } finally {
+        setCompletingConnection(false)
+      }
+    },
+    [externalEntityId, fetchEntities, setView, showToast, t],
+  )
+
+  // Listen for the external entity completion deep link (desktop)
+  useEffect(() => {
+    if (!window.ipcAPI?.onExternalCompleteUrl) return
+    const unsubscribe = window.ipcAPI.onExternalCompleteUrl(async payload => {
+      await handleExternalCompleteUrl(payload.url)
+    })
+    return () => unsubscribe?.()
+  }, [handleExternalCompleteUrl])
+
+  // Listen for the external entity completion deep link (mobile)
+  useEffect(() => {
+    if (!isNativeMobile()) return
+
+    let cleanup: (() => void) | undefined
+    let mounted = true
+
+    import("@capacitor/app").then(({ App }) => {
+      if (!mounted) return
+      const listener = App.addListener("appUrlOpen", ({ url }) => {
+        void handleExternalCompleteUrl(url)
+      })
+      cleanup = () => {
+        listener.then(l => l.remove())
+      }
+    })
+
+    return () => {
+      mounted = false
+      cleanup?.()
+    }
+  }, [handleExternalCompleteUrl])
 
   // Load candidate icons when list changes
   useEffect(() => {
@@ -1191,7 +1300,7 @@ export default function EntityIntegrationsPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[85vh] flex flex-col"
+              className="bg-white dark:bg-black rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[85vh] flex flex-col"
             >
               <div className="flex flex-col h-full min-h-0">
                 <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
@@ -1200,30 +1309,77 @@ export default function EntityIntegrationsPage() {
                   </h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 min-h-0">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">
-                      {t.entities.selectCountry}
-                    </h4>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                      {AVAILABLE_COUNTRIES.filter(code => code !== "XX").map(
-                        code => (
+                  {enabledEntityProviders.length > 1 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">
+                        {t.entities.selectProvider}
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {enabledEntityProviders.map(provider => (
                           <button
-                            key={code}
-                            onClick={() => fetchCandidates(code)}
-                            className={`border rounded-md py-2 text-sm flex flex-col items-center justify-center gap-1 transition-colors ${selectedCountry === code ? "bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500" : "hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"}`}
+                            key={provider.id}
+                            onClick={() => handleSelectProvider(provider.id)}
+                            className={`border rounded-md py-3 px-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${selectedProvider === provider.id ? "bg-gray-200 dark:bg-gray-800 border-gray-400 dark:border-gray-600" : "hover:bg-gray-100 dark:hover:bg-gray-900 border-gray-200 dark:border-gray-700"}`}
                           >
-                            <span className="text-xl leading-none">
-                              {getCountryFlag(code)}
-                            </span>
-                            <span className="text-[10px] font-medium">
-                              {code}
-                            </span>
+                            <AdaptiveLogo
+                              src={`icons/external-integrations/${provider.id}.png`}
+                              alt={provider.name}
+                              className="w-6 h-6 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
+                              imgClassName="w-6 h-6 object-contain"
+                              lightBgClassName="bg-white p-0.5"
+                            />
+                            <span className="truncate">{provider.name}</span>
                           </button>
-                        ),
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedProvider && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">
+                        {t.entities.selectCountry}
+                      </h4>
+                      {selectedCountry ? (
+                        <div className="flex items-center justify-between gap-2 border rounded-md px-3 py-2 border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xl leading-none">
+                              {getCountryFlag(selectedCountry)}
+                            </span>
+                            <span className="text-sm font-medium">
+                              {selectedCountry}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleChangeCountry}
+                          >
+                            {t.entities.changeCountry}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                          {AVAILABLE_COUNTRIES.filter(
+                            code => code !== "XX",
+                          ).map(code => (
+                            <button
+                              key={code}
+                              onClick={() => fetchCandidates(code)}
+                              className="border rounded-md py-2 text-sm flex flex-col items-center justify-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
+                            >
+                              <span className="text-xl leading-none">
+                                {getCountryFlag(code)}
+                              </span>
+                              <span className="text-[10px] font-medium">
+                                {code}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                  {selectedCountry && (
+                  )}
+                  {selectedProvider && selectedCountry && (
                     <div>
                       <h4 className="text-sm font-medium mb-2">
                         {t.entities.selectInstitution}
@@ -1238,65 +1394,100 @@ export default function EntityIntegrationsPage() {
                           {candidatesError}
                         </div>
                       )}
-                      {!candidatesLoading && !candidatesError && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {externalCandidates.length === 0 && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 col-span-full">
-                              {t.entities.noInstitutionsFound}
+                      {!candidatesLoading &&
+                        !candidatesError &&
+                        externalCandidates.length > 0 && (
+                          <div className="relative mb-3">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                            <Input
+                              value={institutionSearch}
+                              onChange={e =>
+                                setInstitutionSearch(e.target.value)
+                              }
+                              placeholder={t.entities.searchInstitutions}
+                              className="pl-9"
+                            />
+                          </div>
+                        )}
+                      {!candidatesLoading &&
+                        !candidatesError &&
+                        (() => {
+                          const query = institutionSearch.trim().toLowerCase()
+                          const filteredCandidates = query
+                            ? externalCandidates.filter(
+                                c =>
+                                  c.name.toLowerCase().includes(query) ||
+                                  (c.bic || "").toLowerCase().includes(query),
+                              )
+                            : externalCandidates
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {filteredCandidates.length === 0 && (
+                                <div className="text-sm text-gray-500 dark:text-gray-400 col-span-full">
+                                  {t.entities.noInstitutionsFound}
+                                </div>
+                              )}
+                              {filteredCandidates.map(c => {
+                                const isConnecting =
+                                  connectingInstitutionId === c.id
+                                const iconSrc = candidateIcons[c.id]
+                                return (
+                                  <Card
+                                    key={c.id}
+                                    className={`p-4 cursor-pointer flex items-center gap-4 h-20 border border-gray-200 dark:border-gray-700 hover:border-primary/60 dark:hover:border-primary/60 transition-colors group`}
+                                    onClick={() => {
+                                      if (
+                                        connectingInstitutionId &&
+                                        connectingInstitutionId !== c.id
+                                      )
+                                        return
+                                      if (
+                                        selectedProvider === "ENABLE_BANKING"
+                                      ) {
+                                        setEbConfirmInstitutionId(c.id)
+                                        return
+                                      }
+                                      handleConnectExternalEntity(c.id)
+                                    }}
+                                  >
+                                    {isConnecting ? (
+                                      <div className="w-full flex flex-col items-center justify-center gap-2">
+                                        <LoadingSpinner size="sm" />
+                                        <span className="text-xs text-gray-600 dark:text-gray-300">
+                                          {t.entities.connecting}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
+                                          {iconSrc ? (
+                                            <AdaptiveLogo
+                                              src={iconSrc}
+                                              alt={c.name}
+                                              className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden"
+                                              imgClassName="w-10 h-10 object-contain"
+                                              lightBgClassName="bg-white p-0.5"
+                                            />
+                                          ) : (
+                                            <Landmark className="h-5 w-5 text-gray-500" />
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="font-medium truncate group-hover:text-primary">
+                                            {c.name}
+                                          </div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                                            {c.bic}
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </Card>
+                                )
+                              })}
                             </div>
-                          )}
-                          {externalCandidates.map(c => {
-                            const isConnecting =
-                              connectingInstitutionId === c.id
-                            const iconSrc = candidateIcons[c.id]
-                            return (
-                              <Card
-                                key={c.id}
-                                className={`p-4 cursor-pointer flex items-center gap-4 h-20 border border-gray-200 dark:border-gray-700 hover:border-primary/60 dark:hover:border-primary/60 transition-colors group`}
-                                onClick={() => {
-                                  if (
-                                    connectingInstitutionId &&
-                                    connectingInstitutionId !== c.id
-                                  )
-                                    return
-                                  handleConnectExternalEntity(c.id)
-                                }}
-                              >
-                                {isConnecting ? (
-                                  <div className="w-full flex flex-col items-center justify-center gap-2">
-                                    <LoadingSpinner size="sm" />
-                                    <span className="text-xs text-gray-600 dark:text-gray-300">
-                                      {t.entities.connecting}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
-                                      {iconSrc ? (
-                                        <img
-                                          src={iconSrc}
-                                          alt={c.name}
-                                          className="w-10 h-10 object-contain"
-                                        />
-                                      ) : (
-                                        <Landmark className="h-5 w-5 text-gray-500" />
-                                      )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="font-medium truncate group-hover:text-primary">
-                                        {c.name}
-                                      </div>
-                                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-                                        {c.bic}
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
-                              </Card>
-                            )
-                          })}
-                        </div>
-                      )}
+                          )
+                        })()}
                       {alreadyLinked && (
                         <div className="mt-4 text-sm flex items-center gap-2 text-green-600 dark:text-green-400">
                           <Check className="h-4 w-4" />
@@ -1321,6 +1512,34 @@ export default function EntityIntegrationsPage() {
         )}
       </AnimatePresence>
 
+      <ConfirmationDialog
+        isOpen={!!ebConfirmInstitutionId}
+        title={t.entities.enableBankingPrelinkTitle}
+        message={
+          <span>
+            {t.entities.enableBankingPrelinkMessageBefore}{" "}
+            <a
+              href="https://enablebanking.com/cp/applications"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              {t.entities.enableBankingPrelinkMessageLinkLabel}
+            </a>
+            {t.entities.enableBankingPrelinkMessageAfter}
+          </span>
+        }
+        warning={<span>{t.entities.enableBankingPrelinkWarning}</span>}
+        confirmText={t.common.confirm}
+        cancelText={t.common.cancel}
+        onConfirm={() => {
+          const id = ebConfirmInstitutionId
+          setEbConfirmInstitutionId(null)
+          if (id) handleConnectExternalEntity(id)
+        }}
+        onCancel={() => setEbConfirmInstitutionId(null)}
+      />
+
       {/* Complete External Entity Connection Modal */}
       <AnimatePresence>
         {showCompleteExternalModal && (
@@ -1334,7 +1553,7 @@ export default function EntityIntegrationsPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden"
+              className="bg-white dark:bg-black rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden"
             >
               <div className="p-6 space-y-4">
                 <h3 className="text-lg font-semibold">

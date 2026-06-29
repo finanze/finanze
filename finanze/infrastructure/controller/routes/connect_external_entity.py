@@ -2,6 +2,7 @@ from uuid import UUID
 
 from domain.exception.exceptions import ProviderInstitutionNotFound
 from domain.external_entity import ConnectExternalEntityRequest
+from domain.external_integration import ExternalIntegrationId
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
 from quart import jsonify, request
 
@@ -23,11 +24,19 @@ async def connect_external_entity(connect_external_entity_uc: ConnectExternalEnt
             {"message": "Error: missing institution_id or external_entity_id"}
         ), 400
 
+    provider = None
+    raw_provider = body.get("provider")
+    if raw_provider:
+        try:
+            provider = ExternalIntegrationId(raw_provider)
+        except ValueError:
+            return jsonify({"message": "Error: invalid provider"}), 400
+
     connect_request = ConnectExternalEntityRequest(
         institution_id=institution_id,
         external_entity_id=external_entity_id,
         relink=body.get("relink", False),
-        provider=None,
+        provider=provider,
         redirect_host=redirect_host,
         user_language=accept_language,
     )

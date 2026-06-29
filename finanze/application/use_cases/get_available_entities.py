@@ -98,6 +98,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             status = None
             wallets = None
             external_entity_id = None
+            provider = None
             products = None
             accounts = None
 
@@ -126,6 +127,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                         else FinancialEntityStatus.REQUIRES_LOGIN
                     )
                     external_entity_id = external_entity.id
+                    provider = external_entity.provider
                     dict_entity["features"] = EXTERNAL_ENTITY_FEATURES
 
             elif (
@@ -213,6 +215,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     connected=wallets,
                     last_fetch=last_fetch,
                     external_entity_id=external_entity_id,
+                    provider=provider,
                     virtual_features=virtual_features,
                     natively_supported_products=products,
                     accounts=accounts,

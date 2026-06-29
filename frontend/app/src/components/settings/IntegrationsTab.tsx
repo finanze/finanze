@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { motion } from "framer-motion"
-import { ChevronDown, ChevronUp, Info, Link2, Link2Off } from "lucide-react"
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clipboard,
+  Info,
+  Link2,
+  Link2Off,
+  Upload,
+} from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
@@ -23,6 +32,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { setupIntegration, disableIntegration } from "@/services/api"
 import { cn } from "@/lib/utils"
+import { copyToClipboard } from "@/lib/clipboard"
 import {
   PlatformType,
   ExternalIntegrationStatus,
@@ -31,7 +41,9 @@ import {
 import { getPlatformType } from "@/lib/platform"
 
 type IntegrationHintPart =
-  { type: "text"; value: string } | { type: "link"; label: string; url: string }
+  | { type: "text"; value: string }
+  | { type: "link"; label: string; url: string }
+  | { type: "copylink"; label: string; url: string }
 
 const parseIntegrationHintParts = (
   rawParts: unknown,
@@ -53,6 +65,12 @@ const parseIntegrationHintParts = (
       const data = part as Record<string, unknown>
       const type = typeof data.type === "string" ? data.type : undefined
 
+      if (type === "copylink") {
+        const label = typeof data.label === "string" ? data.label.trim() : ""
+        const url = typeof data.url === "string" ? data.url.trim() : ""
+        return label && url ? ({ type: "copylink", label, url } as const) : null
+      }
+
       if (type === "link") {
         const label = typeof data.label === "string" ? data.label.trim() : ""
         const url = typeof data.url === "string" ? data.url.trim() : ""
@@ -66,6 +84,152 @@ const parseIntegrationHintParts = (
     .filter(Boolean) as IntegrationHintPart[]
 
   return parsed.length > 0 ? parsed : undefined
+}
+
+const PRIVATE_KEY_PEM_REGEX =
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]+-----END [A-Z0-9 ]*PRIVATE KEY-----/
+
+function PrivateKeyField({
+  id,
+  label,
+  value,
+  hasError,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  hasError: boolean
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const { t } = useI18n()
+  const copy = t.settings.privateKeyField
+  const [manual, setManual] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      setFileError(null)
+      try {
+        const text = (await file.text()).trim()
+        if (!PRIVATE_KEY_PEM_REGEX.test(text)) {
+          setFileName(null)
+          setFileError(copy.invalid)
+          onChange("")
+          return
+        }
+        onChange(text)
+        setFileName(file.name)
+      } catch {
+        setFileName(null)
+        setFileError(copy.readError)
+      }
+    },
+    [copy.invalid, copy.readError, onChange],
+  )
+
+  const inputId = `${id}-file`
+
+  return (
+    <div className="space-y-2">
+      {!manual ? (
+        <>
+          <label
+            htmlFor={inputId}
+            onDragOver={event => {
+              event.preventDefault()
+              if (!disabled) setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={event => {
+              event.preventDefault()
+              setDragOver(false)
+              if (disabled) return
+              const file = event.dataTransfer.files?.[0]
+              if (file) void handleFile(file)
+            }}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-6 text-center text-sm transition-colors",
+              disabled
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer hover:bg-muted/50",
+              dragOver ? "border-primary bg-primary/5" : "border-input",
+              hasError ? "border-red-500" : undefined,
+            )}
+          >
+            <Upload className="h-5 w-5 text-muted-foreground" />
+            {fileName && value ? (
+              <span className="font-medium text-green-600 dark:text-green-400">
+                {copy.loaded.replace("{file}", fileName)}
+              </span>
+            ) : (
+              <>
+                <span className="font-medium">{copy.dropHint}</span>
+                <span className="text-xs text-muted-foreground">
+                  {copy.browse}
+                </span>
+              </>
+            )}
+          </label>
+          <input
+            id={inputId}
+            type="file"
+            accept=".pem,.key,.txt,application/x-pem-file"
+            className="hidden"
+            disabled={disabled}
+            onChange={event => {
+              const file = event.target.files?.[0]
+              if (file) void handleFile(file)
+              event.target.value = ""
+            }}
+          />
+          {fileError && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {fileError}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              setManual(true)
+              setFileError(null)
+            }}
+            className="text-xs text-muted-foreground underline"
+          >
+            {copy.manualToggle}
+          </button>
+        </>
+      ) : (
+        <>
+          <textarea
+            id={id}
+            value={value}
+            disabled={disabled}
+            onChange={event => onChange(event.target.value)}
+            placeholder={copy.manualPlaceholder || String(label)}
+            rows={6}
+            className={cn(
+              "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+              hasError ? "border-red-500" : undefined,
+            )}
+          />
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setManual(false)}
+            className="text-xs text-muted-foreground underline"
+          >
+            {copy.uploadToggle}
+          </button>
+        </>
+      )}
+    </div>
+  )
 }
 
 export function IntegrationsTab() {
@@ -116,13 +280,20 @@ export function IntegrationsTab() {
       const hintTitleRaw =
         typeof hintRaw?.title === "string" ? hintRaw.title.trim() : ""
       const hintParts = parseIntegrationHintParts(hintRaw?.parts)
+      const hintStepsRaw = Array.isArray(hintRaw?.steps)
+        ? hintRaw.steps
+        : undefined
+      const hintSteps = hintStepsRaw
+        ?.map(step => parseIntegrationHintParts(step))
+        .filter(Boolean) as IntegrationHintPart[][] | undefined
 
       const hint =
-        hintParts || hintText
+        hintParts || hintText || (hintSteps && hintSteps.length > 0)
           ? {
               title: hintTitleRaw || integration.name,
               text: hintText || undefined,
               parts: hintParts,
+              steps: hintSteps && hintSteps.length > 0 ? hintSteps : undefined,
             }
           : undefined
 
@@ -142,6 +313,24 @@ export function IntegrationsTab() {
         .replace(/\{entity\}/g, integrationName)
         .replace(/\{integration\}/g, integrationName),
     [],
+  )
+
+  const [copiedHintUrl, setCopiedHintUrl] = useState<string | null>(null)
+
+  const handleCopyHintUrl = useCallback(
+    async (url: string) => {
+      const ok = await copyToClipboard(url)
+      if (ok) {
+        setCopiedHintUrl(url)
+        setTimeout(
+          () => setCopiedHintUrl(prev => (prev === url ? null : prev)),
+          1500,
+        )
+      } else {
+        showToast(t.common.error, "error")
+      }
+    },
+    [showToast, t],
   )
 
   const handleIntegrationFieldChange = useCallback(
@@ -443,30 +632,83 @@ export function IntegrationsTab() {
         return null
       }
 
+      const renderText = (value: string, keyPrefix: string) =>
+        value.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment, segIndex) => {
+          const boldMatch = segment.match(/^\*\*([^*]+)\*\*$/)
+          if (boldMatch) {
+            return (
+              <strong key={`${keyPrefix}-b-${segIndex}`}>{boldMatch[1]}</strong>
+            )
+          }
+          const italicMatch = segment.match(/^\*([^*]+)\*$/)
+          if (italicMatch) {
+            return <em key={`${keyPrefix}-i-${segIndex}`}>{italicMatch[1]}</em>
+          }
+          return <span key={`${keyPrefix}-t-${segIndex}`}>{segment}</span>
+        })
+
+      const renderParts = (parts: IntegrationHintPart[], keyPrefix: string) =>
+        parts.map((part, index) => {
+          if (part.type === "link") {
+            return (
+              <a
+                key={`${keyPrefix}-link-${index}`}
+                href={part.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                {part.label}
+              </a>
+            )
+          }
+
+          if (part.type === "copylink") {
+            const isCopied = copiedHintUrl === part.url
+            return (
+              <button
+                key={`${keyPrefix}-copy-${index}`}
+                type="button"
+                onClick={() => handleCopyHintUrl(part.url)}
+                title={t.common.copy}
+                className={cn(
+                  "inline-flex items-center gap-1 align-baseline underline break-all transition-colors duration-200",
+                  isCopied ? "text-green-500" : "text-primary",
+                )}
+              >
+                {part.label}
+                {isCopied ? (
+                  <Check className="h-3 w-3 flex-shrink-0" />
+                ) : (
+                  <Clipboard className="h-3 w-3 flex-shrink-0" />
+                )}
+              </button>
+            )
+          }
+
+          return (
+            <span key={`${keyPrefix}-text-${index}`}>
+              {renderText(part.value, `${keyPrefix}-text-${index}`)}
+            </span>
+          )
+        })
+
+      if (hint.steps) {
+        return (
+          <ol className="text-sm leading-relaxed list-decimal pl-5 space-y-1.5">
+            {hint.steps.map((step, sIdx) => (
+              <li key={`${integration.id}-hint-step-${sIdx}`}>
+                {renderParts(step, `${integration.id}-hint-step-${sIdx}`)}
+              </li>
+            ))}
+          </ol>
+        )
+      }
+
       if (hint.parts) {
         return (
           <p className="text-sm leading-relaxed">
-            {hint.parts.map((part, index) => {
-              if (part.type === "link") {
-                return (
-                  <a
-                    key={`${integration.id}-hint-link-${index}`}
-                    href={part.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-primary"
-                  >
-                    {part.label}
-                  </a>
-                )
-              }
-
-              return (
-                <span key={`${integration.id}-hint-text-${index}`}>
-                  {part.value}
-                </span>
-              )
-            })}
+            {renderParts(hint.parts, `${integration.id}-hint`)}
           </p>
         )
       }
@@ -513,14 +755,14 @@ export function IntegrationsTab() {
                 }
               }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain"
+                  className="h-12 w-12 object-contain flex-shrink-0"
                 />
-                <div>
-                  <CardTitle className="text-lg">{title}</CardTitle>
+                <div className="min-w-0">
+                  <CardTitle className="text-lg break-words">{title}</CardTitle>
                   {isUnavailable && (
                     <p className="text-xs text-muted-foreground">
                       {t.common.notAvailableOnPlatform}
@@ -528,9 +770,10 @@ export function IntegrationsTab() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 flex-shrink-0">
                 <Badge
                   className={cn(
+                    "hidden sm:flex",
                     isEnabled
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
                       : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
@@ -538,6 +781,12 @@ export function IntegrationsTab() {
                 >
                   {isEnabled ? t.common.enabled : t.common.disabled}
                 </Badge>
+                <span
+                  className={cn(
+                    "sm:hidden h-2.5 w-2.5 rounded-full flex-shrink-0",
+                    isEnabled ? "bg-green-500" : "bg-red-500",
+                  )}
+                />
                 {isExpanded ? (
                   <ChevronUp className="h-4 w-4" />
                 ) : (
@@ -563,7 +812,7 @@ export function IntegrationsTab() {
 
                 return (
                   <div key={field} className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
                       <Label
                         htmlFor={`${integration.id}-${field}`}
                         className="leading-tight"
@@ -593,7 +842,11 @@ export function IntegrationsTab() {
                               ) : undefined}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-80 p-3 space-y-2">
+                          <PopoverContent
+                            align="start"
+                            collisionPadding={12}
+                            className="w-80 p-3 space-y-2 overflow-y-auto max-h-[min(70vh,var(--radix-popover-content-available-height))]"
+                          >
                             <h4 className="text-sm font-medium">
                               {hint?.title ?? title}
                             </h4>
@@ -602,21 +855,38 @@ export function IntegrationsTab() {
                         </Popover>
                       )}
                     </div>
-                    <Input
-                      id={`${integration.id}-${field}`}
-                      type={inputType}
-                      value={value}
-                      onChange={event =>
-                        handleIntegrationFieldChange(
-                          integration.id,
-                          field,
-                          event.target.value,
-                        )
-                      }
-                      placeholder={String(label)}
-                      disabled={isUnavailable || disabledForPlatform}
-                      className={cn(hasError ? "border-red-500" : undefined)}
-                    />
+                    {field === "private_key" ? (
+                      <PrivateKeyField
+                        id={`${integration.id}-${field}`}
+                        label={String(label)}
+                        value={value}
+                        hasError={hasError}
+                        disabled={isUnavailable || disabledForPlatform}
+                        onChange={newValue =>
+                          handleIntegrationFieldChange(
+                            integration.id,
+                            field,
+                            newValue,
+                          )
+                        }
+                      />
+                    ) : (
+                      <Input
+                        id={`${integration.id}-${field}`}
+                        type={inputType}
+                        value={value}
+                        onChange={event =>
+                          handleIntegrationFieldChange(
+                            integration.id,
+                            field,
+                            event.target.value,
+                          )
+                        }
+                        placeholder={String(label)}
+                        disabled={isUnavailable || disabledForPlatform}
+                        className={cn(hasError ? "border-red-500" : undefined)}
+                      />
+                    )}
                   </div>
                 )
               })
@@ -646,8 +916,10 @@ export function IntegrationsTab() {
                     </>
                   ) : (
                     <>
-                      <Link2Off className="mr-2 h-4 w-4" />
-                      {t.entities.disconnect}
+                      <Link2Off className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        {t.entities.disconnect}
+                      </span>
                     </>
                   )}
                 </Button>

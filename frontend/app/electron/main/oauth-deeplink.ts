@@ -132,6 +132,13 @@ export function setupOAuthDeepLinking(options: {
   const handleUrl = (url: string) => {
     console.debug("[OAuth] Handling OAuth URL callback")
 
+    if (url.startsWith(`${OAUTH_PROTOCOL_NAME}://external/complete`)) {
+      console.debug("[OAuth] External entity completion callback")
+      sendToAllWindows("external-complete-url", { url })
+      focusWindow(getMainWindow())
+      return
+    }
+
     // Always forward the full URL to the renderer so Supabase can parse it.
     // This avoids mixing flows (oauth, recovery, signup confirmation) and keeps
     // parsing logic in one place.

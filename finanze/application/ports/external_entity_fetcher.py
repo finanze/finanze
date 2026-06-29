@@ -2,8 +2,10 @@ import abc
 
 from domain.exception.exceptions import FeatureNotSupported
 from domain.external_entity import (
+    ExternalEntity,
     ExternalEntityConnectionResult,
     ExternalEntityFetchRequest,
+    ExternalEntityLinkCompletion,
     ExternalEntityLoginRequest,
     ProviderExternalEntityDetails,
 )
@@ -25,6 +27,12 @@ class ExternalEntityFetcher(metaclass=abc.ABCMeta):
 
     async def is_linked(self, provider_instance_id: str) -> bool:
         raise NotImplementedError
+
+    async def complete_link(
+        self, external_entity: ExternalEntity, callback_payload: dict
+    ) -> ExternalEntityLinkCompletion:
+        linked = await self.is_linked(external_entity.provider_instance_id)
+        return ExternalEntityLinkCompletion(linked=linked)
 
     async def get_entity(
         self, provider_entity_id: str

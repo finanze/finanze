@@ -108,6 +108,7 @@ export interface Entity {
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
   external_entity_id?: string | null
+  provider?: string | null
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
   fetchable?: boolean
@@ -714,6 +715,10 @@ declare global {
       onOAuthCallbackUrl: (
         callback: (payload: { url: string }) => void,
       ) => () => void
+
+      onExternalCompleteUrl: (
+        callback: (payload: { url: string }) => void,
+      ) => () => void
     }
   }
 }
@@ -817,6 +822,11 @@ export interface EtherscanIntegrationData {
 export interface GoCardlessIntegrationCredentials {
   secret_id: string
   secret_key: string
+}
+
+export interface EnableBankingIntegrationCredentials {
+  application_id: string
+  private_key: string
 }
 
 export enum FlowType {

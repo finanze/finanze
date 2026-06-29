@@ -670,8 +670,12 @@ export async function getCryptoAssets(
 // External entity endpoints
 export async function getExternalEntityCandidates(
   country: string,
+  provider?: string | null,
 ): Promise<ExternalEntityCandidates> {
   const params = new URLSearchParams({ country })
+  if (provider) {
+    params.set("provider", provider)
+  }
   return (await getApiClient()).get(
     `/entities/external/candidates?${params.toString()}`,
   )
@@ -693,13 +697,21 @@ export async function connectExternalEntity(
 
 export async function completeExternalEntityConnection(
   externalEntityId: string,
+  code?: string | null,
 ): Promise<void> {
   const params = new URLSearchParams({
     external_entity_id: externalEntityId,
   })
-  return (await getApiClient()).get(
-    `/entities/external/complete?${params.toString()}`,
-  )
+  if (code) {
+    params.set("code", code)
+  }
+  // The endpoint responds with an HTML body (browser-redirect friendly), so
+  // request it as text to avoid the JSON parser throwing on a successful call.
+  await (
+    await getApiClient()
+  ).get(`/entities/external/complete?${params.toString()}`, {
+    responseType: "text",
+  })
 }
 
 export async function disconnectExternalEntity(

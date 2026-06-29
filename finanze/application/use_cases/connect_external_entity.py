@@ -71,6 +71,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             None,
         )
         migrate_existing_manual_entity = False
+        provider_id = None
         if request.external_entity_id:
             external_entity_id = request.external_entity_id
             external_entity = await self._external_entity_port.get_by_id(
@@ -84,7 +85,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             provider = await self._setup_provider(provider_id)
 
         else:
-            provider = await self._setup_provider(self.DEFAULT_PROVIDER)
+            provider_id = request.provider or self.DEFAULT_PROVIDER
+            provider = await self._setup_provider(provider_id)
 
             institution_details = await provider.get_entity(request.institution_id)
             if not institution_details:
@@ -148,7 +150,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     id=uuid4(),
                     entity_id=entity.id,
                     status=ExternalEntityStatus.UNLINKED,
-                    provider=self.DEFAULT_PROVIDER,
+                    provider=provider_id,
                 )
 
             fetch_request = ExternalEntityLoginRequest(

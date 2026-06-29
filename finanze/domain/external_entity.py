@@ -80,6 +80,13 @@ class ExternalEntityConnectionResult:
 
 
 @dataclass
+class ExternalEntityLinkCompletion:
+    linked: bool
+    provider_instance_id: Optional[str] = None
+    payload: Optional[dict] = None
+
+
+@dataclass
 class ExternalFetchRequest:
     external_entity_id: UUID
 
