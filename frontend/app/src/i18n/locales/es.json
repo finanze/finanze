@@ -937,7 +937,7 @@
         }
       },
       "GOCARDLESS": {
-        "description": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente.",
+        "description": "Configura GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente. Úsalo SOLO si ya tienes una cuenta de GoCardless.",
         "help": "Cómo generar las credenciales",
         "hint": {
           "title": "Crear credenciales de GoCardless",
@@ -1031,7 +1031,13 @@
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
-    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes."
+    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
+    "integrationCategories": {
+      "ENTITY_PROVIDER": "Proveedores bancarios",
+      "CRYPTO_PROVIDER": "Proveedores de cripto",
+      "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
+      "DATA_SOURCE": "Fuentes de datos"
+    }
   },
   "dashboard": {
     "title": "Panel Principal",

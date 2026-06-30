@@ -939,7 +939,7 @@
         }
       },
       "GOCARDLESS": {
-        "description": "Configure GoCardless so you can connect bank accounts from any unsupported banks.",
+        "description": "Configure GoCardless so you can connect bank accounts from any unsupported banks. Use ONLY if you already have GoCardless account.",
         "help": "How to generate credentials",
         "hint": {
           "title": "Create GoCardless credentials",
@@ -1033,7 +1033,13 @@
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
-    "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings."
+    "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
+    "integrationCategories": {
+      "ENTITY_PROVIDER": "Banking providers",
+      "CRYPTO_PROVIDER": "Crypto providers",
+      "CRYPTO_MARKET_PROVIDER": "Crypto market data",
+      "DATA_SOURCE": "Data sources"
+    }
   },
   "dashboard": {
     "title": "Dashboard",

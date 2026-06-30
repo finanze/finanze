@@ -14,11 +14,19 @@ import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect, useRef } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Badge } from "@/components/ui/Badge"
 import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover"
+import {
+  AlertCircle,
   ExternalLink,
   Landmark,
+  Settings,
   Wallet,
   Smartphone,
   Bitcoin,
@@ -37,11 +45,17 @@ import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import {
   useExternalEntityConnection,
   ExternalEntityConnectionModals,
+  ENABLE_BANKING_PROVIDER,
 } from "@/components/ExternalEntityConnection"
 
 export default function EntityIntegrationsPage() {
-  const { entities, isLoadingEntities, fetchEntities, showToast } =
-    useAppContext()
+  const {
+    entities,
+    isLoadingEntities,
+    fetchEntities,
+    showToast,
+    externalIntegrations,
+  } = useAppContext()
   const {
     isLoggingIn,
     selectedEntity,
@@ -74,6 +88,15 @@ export default function EntityIntegrationsPage() {
     handleDisconnectExternalProvided,
     handleRelinkExternalProvided,
   } = conn
+
+  const navigate = useNavigate()
+
+  const enableBankingIntegration = externalIntegrations?.find(
+    integ => integ.id === ENABLE_BANKING_PROVIDER,
+  )
+  const enableBankingName = enableBankingIntegration?.name ?? "Enable Banking"
+  const goToEnableBankingSetup = () =>
+    navigate(`/settings?tab=integrations&focus=${ENABLE_BANKING_PROVIDER}`)
 
   useModalBackHandler(showManageAccounts, () => setShowManageAccounts(false))
   useModalBackHandler(showAddWallet, () => setShowAddWallet(false))
@@ -507,17 +530,15 @@ export default function EntityIntegrationsPage() {
                       variants={fadeListContainer}
                     >
                       {/* Add External Entity Card */}
-                      {hasProviderIntegration && (
+                      {hasAvailableEntityProvider && (
                         <motion.div variants={fadeListItem}>
                           <Card
-                            className={`transition-all border-l-4 border-l-gray-300 ${
-                              !hasAvailableEntityProvider
-                                ? "opacity-60 cursor-not-allowed"
-                                : "opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
-                            }`}
+                            className="transition-all border-l-4 border-l-gray-300 opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
                             onClick={() => {
-                              if (hasAvailableEntityProvider) {
+                              if (hasProviderIntegration) {
                                 openAddExternalEntity()
+                              } else {
+                                goToEnableBankingSetup()
                               }
                             }}
                           >
@@ -572,10 +593,47 @@ export default function EntityIntegrationsPage() {
                                     {t.entities.moreFinancialInstitutionsCard}
                                   </span>
                                 </div>
-                                {!hasAvailableEntityProvider && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {t.common.notAvailableOnPlatform}
-                                  </span>
+                                {!hasProviderIntegration && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Badge
+                                        variant="outline"
+                                        className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                        onClick={e => e.stopPropagation()}
+                                      >
+                                        {t.entities.requiresProviderIntegration}
+                                      </Badge>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      className="w-80"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <AlertCircle className="h-9 w-9 text-red-500" />
+                                          <h4 className="font-medium text-sm">
+                                            {
+                                              t.entities
+                                                .setupIntegrationsMessage
+                                            }
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="text-sm ml-8">
+                                            • {enableBankingName}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          className="w-full mt-8"
+                                          onClick={goToEnableBankingSetup}
+                                        >
+                                          <Settings className="mr-2 h-3 w-3" />
+                                          {t.entities.goToSettings}
+                                        </Button>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 )}
                               </CardTitle>
                             </CardHeader>

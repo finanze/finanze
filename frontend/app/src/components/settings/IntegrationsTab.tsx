@@ -36,9 +36,17 @@ import { copyToClipboard } from "@/lib/clipboard"
 import {
   PlatformType,
   ExternalIntegrationStatus,
+  ExternalIntegrationType,
   type ExternalIntegration,
 } from "@/types"
 import { getPlatformType } from "@/lib/platform"
+
+const INTEGRATION_CATEGORY_ORDER: ExternalIntegrationType[] = [
+  ExternalIntegrationType.ENTITY_PROVIDER,
+  ExternalIntegrationType.CRYPTO_PROVIDER,
+  ExternalIntegrationType.CRYPTO_MARKET_PROVIDER,
+  ExternalIntegrationType.DATA_SOURCE,
+]
 
 type IntegrationHintPart =
   | { type: "text"; value: string }
@@ -965,19 +973,36 @@ export function IntegrationsTab() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"
+      className="space-y-8"
     >
       {externalIntegrations.length === 0 ? (
-        <Card className="col-span-full">
+        <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10">
             <LoadingSpinner size="md" />
             <p className="text-sm text-muted-foreground">{t.common.loading}</p>
           </CardContent>
         </Card>
       ) : (
-        externalIntegrations.map(integration =>
-          renderIntegrationCard(integration),
-        )
+        INTEGRATION_CATEGORY_ORDER.map(category => {
+          const items = externalIntegrations.filter(
+            integration => integration.type === category,
+          )
+
+          if (items.length === 0) {
+            return null
+          }
+
+          return (
+            <div key={category} className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                {t.settings.integrationCategories[category]}
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+                {items.map(integration => renderIntegrationCard(integration))}
+              </div>
+            </div>
+          )
+        })
       )}
     </motion.div>
   )
