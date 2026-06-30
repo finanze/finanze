@@ -688,17 +688,20 @@ export function ExternalEntityConnectionModals({
                               {filteredCandidates.map(c => {
                                 const isConnecting =
                                   connectingInstitutionId === c.id
+                                const isOtherConnecting =
+                                  !!connectingInstitutionId &&
+                                  connectingInstitutionId !== c.id
                                 const iconSrc = candidateIcons[c.id]
                                 return (
                                   <Card
                                     key={c.id}
-                                    className={`p-4 cursor-pointer flex items-center gap-4 h-20 border border-gray-200 dark:border-gray-700 hover:border-primary/60 dark:hover:border-primary/60 transition-colors group`}
+                                    className={`p-4 flex items-center gap-4 h-20 border transition-colors group ${
+                                      isOtherConnecting
+                                        ? "opacity-40 cursor-not-allowed border-gray-200 dark:border-gray-700"
+                                        : "cursor-pointer border-gray-200 dark:border-gray-700 hover:border-primary/60 dark:hover:border-primary/60"
+                                    }`}
                                     onClick={() => {
-                                      if (
-                                        connectingInstitutionId &&
-                                        connectingInstitutionId !== c.id
-                                      )
-                                        return
+                                      if (isOtherConnecting) return
                                       if (
                                         selectedProvider ===
                                         ENABLE_BANKING_PROVIDER
