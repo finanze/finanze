@@ -57,7 +57,11 @@ export function EntityRefreshDropdown() {
       entities?.filter(
         entity =>
           entity.status !== EntityStatus.DISCONNECTED &&
-          entity.origin !== "MANUAL",
+          entity.origin !== "MANUAL" &&
+          !(
+            entity.origin === EntityOrigin.EXTERNALLY_PROVIDED &&
+            entity.status !== EntityStatus.CONNECTED
+          ),
       ) || [],
     [entities],
   )

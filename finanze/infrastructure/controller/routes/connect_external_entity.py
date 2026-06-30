@@ -39,6 +39,7 @@ async def connect_external_entity(connect_external_entity_uc: ConnectExternalEnt
         provider=provider,
         redirect_host=redirect_host,
         user_language=accept_language,
+        completion_url=body.get("completion_url"),
     )
     try:
         result = await connect_external_entity_uc.execute(connect_request)

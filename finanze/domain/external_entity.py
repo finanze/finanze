@@ -57,6 +57,7 @@ class ExternalEntityLoginRequest:
     relink: bool = False
     institution_id: Optional[str] = None
     user_language: Optional[str] = None
+    completion_url: Optional[str] = None
 
 
 @dataclass
@@ -99,6 +100,7 @@ class ConnectExternalEntityRequest:
     relink: bool = False
     redirect_host: Optional[str] = None
     user_language: Optional[str] = None
+    completion_url: Optional[str] = None
 
 
 @dataclass

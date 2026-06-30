@@ -1,3 +1,4 @@
+import base64
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -57,6 +58,17 @@ ACCOUNT_TYPE_MAP = {
 BALANCE_TYPE_PREFERENCE = ["CLAV", "ITAV", "CLBD", "XPCD", "OTHR"]
 
 
+def _build_auth_state(external_entity_id: str, completion_url: Optional[str]) -> str:
+    if not completion_url:
+        return external_entity_id
+    encoded = (
+        base64.urlsafe_b64encode(completion_url.encode("utf-8"))
+        .decode("ascii")
+        .rstrip("=")
+    )
+    return f"{external_entity_id}~{encoded}"
+
+
 class EnableBankingFetcher(ExternalEntityFetcher):
     def __init__(self, client: EnableBankingClient):
         self._client = client
@@ -91,7 +103,7 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         auth = await self._client.start_auth(
             aspsp_name=aspsp["name"],
             aspsp_country=aspsp["country"],
-            state=str(external_entity.id),
+            state=_build_auth_state(str(external_entity.id), request.completion_url),
             valid_until=valid_until,
         )
 

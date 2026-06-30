@@ -433,6 +433,7 @@ class FinanzeServer:
         get_available_entities = GetAvailableEntitiesImpl(
             entity_repository,
             external_entity_repository,
+            external_integration_repository,
             credentials_port,
             crypto_wallet_repository,
             last_fetches_repository,

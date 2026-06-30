@@ -9,6 +9,7 @@ from application.ports.crypto_wallet_port import CryptoWalletPort
 from application.ports.entity_account_port import EntityAccountPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
@@ -20,6 +21,7 @@ from domain.available_sources import (
 )
 from domain.entity import EntityOrigin, EntityType, Feature, Entity
 from domain.external_entity import EXTERNAL_ENTITY_FEATURES, ExternalEntityStatus
+from domain.external_integration import ExternalIntegrationType
 from domain.global_position import ProductType
 from domain.native_entities import NATIVE_ENTITIES
 from domain.use_cases.get_available_entities import GetAvailableEntities
@@ -50,6 +52,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self,
         entity_port: EntityPort,
         external_entity_port: ExternalEntityPort,
+        external_integration_port: ExternalIntegrationPort,
         credentials_port: CredentialsPort,
         crypto_wallet_port: CryptoWalletPort,
         last_fetches_port: LastFetchesPort,
@@ -61,6 +64,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
+        self._external_integration_port = external_integration_port
         self._credentials_port = credentials_port
         self._crypto_wallet_port = crypto_wallet_port
         self._last_fetches_port = last_fetches_port
@@ -90,6 +94,13 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
         last_virtual_imported_entities = await self.get_last_virtual_imports_by_entity()
 
+        enabled_provider_payloads = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
+            )
+        )
+        enabled_provider_ids = set(enabled_provider_payloads.keys())
+
         entities = []
         for entity in all_entities:
             if entity.type not in self.LISTED_ENTITY_TYPES:
@@ -116,10 +127,10 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 external_entity = await self._external_entity_port.get_by_entity_id(
                     entity.id
                 )
-                dict_entity["fetchable"] = bool(self._external_entity_fetchers)
                 if not external_entity:
                     status = FinancialEntityStatus.DISCONNECTED
                     dict_entity["features"] = []
+                    dict_entity["fetchable"] = bool(self._external_entity_fetchers)
                 else:
                     status = (
                         FinancialEntityStatus.CONNECTED
@@ -129,6 +140,10 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     external_entity_id = external_entity.id
                     provider = external_entity.provider
                     dict_entity["features"] = EXTERNAL_ENTITY_FEATURES
+                    dict_entity["fetchable"] = (
+                        provider in enabled_provider_ids
+                        and self._external_entity_fetchers.get(provider) is not None
+                    )
 
             elif (
                 entity.type == EntityType.FINANCIAL_INSTITUTION

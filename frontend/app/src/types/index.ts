@@ -808,6 +808,7 @@ export interface ConnectExternalEntityRequest {
   external_entity_id?: string | null
   provider?: string | null
   relink?: boolean
+  completion_url?: string | null
 }
 
 export interface GoogleIntegrationCredentials {

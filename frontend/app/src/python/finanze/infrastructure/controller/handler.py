@@ -166,9 +166,15 @@ async def handle_request(router, method, path, body, headers):
             data = {"code": "INTEGRATION_NOT_FOUND", "message": str(e)}
         elif isinstance(e, IntegrationSetupError):
             status = (
-                401 if e.code == IntegrationSetupErrorCode.INVALID_CREDENTIALS else 500
+                401
+                if e.code
+                in (
+                    IntegrationSetupErrorCode.INVALID_CREDENTIALS,
+                    IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
+                )
+                else 500
             )
-            data = {}
+            data = {"code": e.code.value}
         elif isinstance(e, ExternalIntegrationRequired):
             status = 409
             data = {

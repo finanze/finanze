@@ -423,6 +423,13 @@ export function IntegrationsTab() {
           delete rest[integrationId]
           return rest
         })
+        setIntegrationPayloads(prev => {
+          const clearedFields: Record<string, string> = {}
+          requiredFields.forEach(field => {
+            clearedFields[field] = ""
+          })
+          return { ...prev, [integrationId]: clearedFields }
+        })
         const successMessage = formatIntegrationMessage(
           t.settings.integrationEnabledSuccess,
           integrationName,
@@ -936,7 +943,7 @@ export function IntegrationsTab() {
               >
                 {isLoading ? (
                   <>
-                    <LoadingSpinner size="sm" className="mr-2" />
+                    <LoadingSpinner size="sm" color="invert" className="mr-2" />
                     {t.common.loading}
                   </>
                 ) : (

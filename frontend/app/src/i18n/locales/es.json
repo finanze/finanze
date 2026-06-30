@@ -439,6 +439,7 @@
   "errors": {
     "INVALID_CODE": "Código inválido",
     "INVALID_CREDENTIALS": "Credenciales inválidas de {entity}",
+    "INVALID_PRIVATE_KEY": "La clave privada proporcionada para {integration} no es válida.",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
     "UNEXPECTED_ERROR": "Error inesperado en {entity}",
     "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
@@ -504,6 +505,7 @@
     "moreFinancialInstitutionsCard": "Más bancos",
     "addExternalEntity": "Instituciones financieras",
     "requiresProviderIntegration": "Requiere integración",
+    "via": "vía {provider}",
     "selectProvider": "Seleccionar proveedor",
     "selectCountry": "Seleccionar país",
     "selectInstitution": "Seleccionar institución",

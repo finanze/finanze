@@ -441,6 +441,7 @@
   "errors": {
     "INVALID_CODE": "Invalid code provided",
     "INVALID_CREDENTIALS": "Invalid credentials for {entity}",
+    "INVALID_PRIVATE_KEY": "The provided private key for {integration} is invalid.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -506,6 +507,7 @@
     "moreFinancialInstitutionsCard": "More Banks",
     "addExternalEntity": "Financial institutions",
     "requiresProviderIntegration": "Requires integration",
+    "via": "via {provider}",
     "selectProvider": "Select Provider",
     "selectCountry": "Select Country",
     "selectInstitution": "Select Institution",

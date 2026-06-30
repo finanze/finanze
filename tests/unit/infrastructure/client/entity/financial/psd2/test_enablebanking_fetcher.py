@@ -1,3 +1,4 @@
+import base64
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -116,6 +117,59 @@ class TestCreateOrLink:
         assert result.provider_instance_id == "auth-1"
         assert result.payload["aspsp"] == {"name": "Bank", "country": "ES"}
         client.start_auth.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_state_is_plain_entity_id_without_completion_url(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[
+                {"name": "Bank", "country": "ES", "maximum_consent_validity": 7776000}
+            ]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        external_entity = _external_entity()
+        request = ExternalEntityLoginRequest(
+            external_entity=external_entity,
+            institution_id="ES:Bank",
+        )
+
+        await fetcher.create_or_link(request)
+
+        assert client.start_auth.await_args.kwargs["state"] == str(external_entity.id)
+
+    @pytest.mark.asyncio
+    async def test_state_encodes_completion_url_when_present(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[
+                {"name": "Bank", "country": "ES", "maximum_consent_validity": 7776000}
+            ]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        external_entity = _external_entity()
+        completion_url = "https://my-host.example/#/entities"
+        request = ExternalEntityLoginRequest(
+            external_entity=external_entity,
+            institution_id="ES:Bank",
+            completion_url=completion_url,
+        )
+
+        await fetcher.create_or_link(request)
+
+        state = client.start_auth.await_args.kwargs["state"]
+        entity_part, _, encoded = state.partition("~")
+        assert entity_part == str(external_entity.id)
+        assert encoded != ""
+
+        padding = "=" * (-len(encoded) % 4)
+        decoded = base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
+        assert decoded == completion_url
 
 
 class TestCompleteLink:

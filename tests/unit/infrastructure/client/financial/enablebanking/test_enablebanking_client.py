@@ -81,6 +81,15 @@ class TestBuildJwt:
         assert decoded["aud"] == "api.enablebanking.com"
         assert decoded["exp"] > decoded["iat"]
 
+    def test_invalid_private_key_raises_invalid_private_key(self):
+        client = EnableBankingClient()
+        client._application_id = "app-123"
+        client._private_key = "not-a-valid-private-key"
+
+        with pytest.raises(IntegrationSetupError) as exc:
+            client._build_jwt()
+        assert exc.value.code == IntegrationSetupErrorCode.INVALID_PRIVATE_KEY
+
 
 class TestSetup:
     @pytest.mark.asyncio

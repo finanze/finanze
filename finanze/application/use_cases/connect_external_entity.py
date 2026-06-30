@@ -159,6 +159,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                 institution_id=institution_id,
                 relink=request.relink,
                 user_language=request.user_language,
+                completion_url=request.completion_url,
             )
 
             try:

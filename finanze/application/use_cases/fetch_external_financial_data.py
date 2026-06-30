@@ -77,6 +77,9 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         if not entity or entity.origin != EntityOrigin.EXTERNALLY_PROVIDED:
             raise EntityNotFound(entity_id)
 
+        if external_entity.status != ExternalEntityStatus.LINKED:
+            return FetchResult(FetchResultCode.LINK_EXPIRED)
+
         if self._lock.locked():
             raise ExecutionConflict()
 

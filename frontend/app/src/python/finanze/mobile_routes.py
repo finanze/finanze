@@ -176,6 +176,41 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
                 "cancel_entity_login",
                 lz.cancel_entity_login,
             ),
+            (
+                "GET",
+                "/api/v1/entities/external/candidates",
+                "get_available_external_entities",
+                "get_available_external_entities",
+                lz.get_external_candidates,
+            ),
+            (
+                "POST",
+                "/api/v1/entities/external",
+                "connect_external_entity",
+                "connect_external_entity",
+                lz.conn_external_entity,
+            ),
+            (
+                "GET",
+                "/api/v1/entities/external/complete",
+                "complete_external_entity_connection",
+                "complete_external_entity_connection",
+                lz.complete_external_entity,
+            ),
+            (
+                "DELETE",
+                "/api/v1/entities/external/<external_entity_id>",
+                "delete_external_entity",
+                "delete_external_entity",
+                lz.del_external_entity,
+            ),
+            (
+                "POST",
+                "/api/v1/data/fetch/external/<external_entity_id>",
+                "fetch_external_financial_data",
+                "fetch_external_financial_data",
+                lz.fetch_external,
+            ),
         ]
 
     routes += [

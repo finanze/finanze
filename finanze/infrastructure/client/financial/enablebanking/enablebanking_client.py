@@ -77,7 +77,7 @@ class EnableBankingClient(ConnectableIntegration):
         except Exception as e:
             self._log.error("Failed to build Enable Banking JWT: %s", e)
             raise IntegrationSetupError(
-                IntegrationSetupErrorCode.INVALID_CREDENTIALS
+                IntegrationSetupErrorCode.INVALID_PRIVATE_KEY
             ) from e
 
     def _auth_headers(self) -> dict:

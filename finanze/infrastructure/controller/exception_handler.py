@@ -73,10 +73,13 @@ def handle_integration_not_found(e):
 
 
 def handle_integration_setup_error(e):
-    if e.code == IntegrationSetupErrorCode.INVALID_CREDENTIALS:
-        return jsonify({}), 401
+    if e.code in (
+        IntegrationSetupErrorCode.INVALID_CREDENTIALS,
+        IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
+    ):
+        return jsonify({"code": e.code.value}), 401
 
-    return jsonify({}), 500
+    return jsonify({"code": e.code.value}), 500
 
 
 def handle_required_integration(e: ExternalIntegrationRequired):

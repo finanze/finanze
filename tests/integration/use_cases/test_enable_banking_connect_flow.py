@@ -239,3 +239,28 @@ class TestEnableBankingConnectFlow:
                     external_entity_id=str(external_entity.id),
                 )
             )
+
+    @pytest.mark.asyncio
+    async def test_completion_url_is_encoded_in_auth_state(self, setup):
+        connect_uc, _, _, external_entity_port, client = setup
+
+        completion_url = "https://my-host.example/#/entities"
+        await connect_uc.execute(
+            ConnectExternalEntityRequest(
+                institution_id="ES:Test Bank",
+                external_entity_id=None,
+                provider=ExternalIntegrationId.ENABLE_BANKING,
+                completion_url=completion_url,
+            )
+        )
+
+        external_entity = (await external_entity_port.get_all())[0]
+        state = client.start_auth.await_args.kwargs["state"]
+        entity_part, _, encoded = state.partition("~")
+        assert entity_part == str(external_entity.id)
+
+        import base64
+
+        padding = "=" * (-len(encoded) % 4)
+        decoded = base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
+        assert decoded == completion_url
