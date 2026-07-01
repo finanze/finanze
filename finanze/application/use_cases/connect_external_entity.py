@@ -70,7 +70,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             None,
             None,
         )
-        migrate_existing_manual_entity = False
+        update_entity = False
         provider_id = None
         if request.external_entity_id:
             external_entity_id = request.external_entity_id
@@ -111,6 +111,9 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     return ExternalEntityConnectionResult(
                         ExternalEntitySetupResponseCode.ALREADY_LINKED
                     )
+
+                entity.icon_url = institution_details.icon
+                update_entity = True
             else:
                 existing_entity_by_name = await self._entity_port.get_by_name(
                     institution_details.name
@@ -127,7 +130,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     existing_entity_by_name.natural_id = natural_id
 
                     entity = existing_entity_by_name
-                    migrate_existing_manual_entity = True
+                    update_entity = True
 
         if self._lock.locked():
             raise ExecutionConflict()
@@ -178,8 +181,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
 
                     await self._external_entity_port.upsert(external_entity)
 
-                    if migrate_existing_manual_entity:
-                        await self._entity_port.update(existing_entity_by_name)
+                    if update_entity:
+                        await self._entity_port.update(entity)
 
                     response.id = external_entity.id
 
