@@ -273,6 +273,24 @@ IBKR = NativeFinancialEntity(
     icon_url=None,
 )
 
+B100 = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000014"),
+    name="B100",
+    natural_id="CAGLESMM100",
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.CARD],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    pin=PinDetails(positions=6),
+    credentials_template={
+        "user": CredentialType.ID,
+        "password": CredentialType.PIN,
+    },
+    icon_url=None,
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -343,6 +361,7 @@ NATIVE_ENTITIES = [
     CAJAMAR,
     DEGIRO,
     IBKR,
+    B100,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

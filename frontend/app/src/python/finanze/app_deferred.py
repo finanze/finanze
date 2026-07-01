@@ -193,6 +193,7 @@ class DeferredComponents:
                     domain.native_entities.CAJAMAR,
                     domain.native_entities.UNICAJA,
                     domain.native_entities.IBKR,
+                    domain.native_entities.B100,
                     domain.native_entities.BINANCE,
                 ]
             }
