@@ -1,6 +1,6 @@
 from typing import Optional
 from unittest.mock import AsyncMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -8,7 +8,7 @@ from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
 )
 from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
-from domain.entity import Entity
+from domain.entity import Entity, EntityOrigin, EntityType
 from domain.external_entity import (
     CompleteExternalEntityLinkRequest,
     ConnectExternalEntityRequest,
@@ -264,3 +264,35 @@ class TestEnableBankingConnectFlow:
         padding = "=" * (-len(encoded) % 4)
         decoded = base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
         assert decoded == completion_url
+
+    @pytest.mark.asyncio
+    async def test_connect_updates_icon_of_existing_externally_provided_entity(
+        self, setup
+    ):
+        connect_uc, _, entity_port, external_entity_port, _ = setup
+
+        existing_entity = Entity(
+            id=None,
+            name="Test Bank",
+            natural_id="TESTESMMXXX",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url="https://old-provider.example/logo.png",
+        )
+        existing_entity.id = uuid4()
+        await entity_port.insert(existing_entity)
+
+        result = await connect_uc.execute(
+            ConnectExternalEntityRequest(
+                institution_id="ES:Test Bank",
+                external_entity_id=None,
+                provider=ExternalIntegrationId.ENABLE_BANKING,
+            )
+        )
+
+        assert result.code == ExternalEntitySetupResponseCode.CONTINUE_WITH_LINK
+
+        entities = await entity_port.get_all()
+        assert len(entities) == 1
+        assert entities[0].id == existing_entity.id
+        assert entities[0].icon_url == ASPSP["logo"]
