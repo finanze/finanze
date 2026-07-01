@@ -57,6 +57,7 @@ class ExternalEntityLoginRequest:
     relink: bool = False
     institution_id: Optional[str] = None
     user_language: Optional[str] = None
+    completion_url: Optional[str] = None
 
 
 @dataclass
@@ -80,6 +81,13 @@ class ExternalEntityConnectionResult:
 
 
 @dataclass
+class ExternalEntityLinkCompletion:
+    linked: bool
+    provider_instance_id: Optional[str] = None
+    payload: Optional[dict] = None
+
+
+@dataclass
 class ExternalFetchRequest:
     external_entity_id: UUID
 
@@ -92,6 +100,7 @@ class ConnectExternalEntityRequest:
     relink: bool = False
     redirect_host: Optional[str] = None
     user_language: Optional[str] = None
+    completion_url: Optional[str] = None
 
 
 @dataclass

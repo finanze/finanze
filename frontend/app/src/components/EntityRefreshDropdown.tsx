@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
 import { formatTimeAgoAbbr } from "@/lib/timeUtils"
 import { getImageUrl } from "@/services/api"
 import {
@@ -56,7 +57,11 @@ export function EntityRefreshDropdown() {
       entities?.filter(
         entity =>
           entity.status !== EntityStatus.DISCONNECTED &&
-          entity.origin !== "MANUAL",
+          entity.origin !== "MANUAL" &&
+          !(
+            entity.origin === EntityOrigin.EXTERNALLY_PROVIDED &&
+            entity.status !== EntityStatus.CONNECTED
+          ),
       ) || [],
     [entities],
   )
@@ -323,17 +328,14 @@ export function EntityRefreshDropdown() {
                         className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-5 w-5 flex-shrink-0 overflow-hidden rounded">
-                            <img
-                              src={entityImages[entity.id]}
-                              alt={entity.name}
-                              className="h-full w-full object-contain"
-                              onError={e =>
-                                (e.currentTarget.src =
-                                  "entities/entity_placeholder.png")
-                              }
-                            />
-                          </div>
+                          <AdaptiveLogo
+                            src={entityImages[entity.id]}
+                            alt={entity.name}
+                            fallbackSrc="entities/entity_placeholder.png"
+                            className="h-5 w-5 flex-shrink-0 overflow-hidden rounded flex items-center justify-center"
+                            imgClassName="h-full w-full object-contain"
+                            lightBgClassName="bg-white p-0.5"
+                          />
                           <div className="min-w-0">
                             <span className="truncate block">
                               {entity.name}
@@ -429,20 +431,15 @@ export function EntityRefreshDropdown() {
                             {activeCryptoEntities
                               .slice(0, 3)
                               .map(cryptoEntity => (
-                                <div
+                                <AdaptiveLogo
                                   key={cryptoEntity.id}
-                                  className="h-5 w-5 overflow-hidden rounded"
-                                >
-                                  <img
-                                    src={entityImages[cryptoEntity.id]}
-                                    alt={cryptoEntity.name}
-                                    className="h-full w-full object-contain"
-                                    onError={e =>
-                                      (e.currentTarget.src =
-                                        "entities/entity_placeholder.png")
-                                    }
-                                  />
-                                </div>
+                                  src={entityImages[cryptoEntity.id]}
+                                  alt={cryptoEntity.name}
+                                  fallbackSrc="entities/entity_placeholder.png"
+                                  className="h-5 w-5 overflow-hidden rounded flex items-center justify-center"
+                                  imgClassName="h-full w-full object-contain"
+                                  lightBgClassName="bg-white p-0.5"
+                                />
                               ))}
                           </div>
                           <div className="min-w-0">

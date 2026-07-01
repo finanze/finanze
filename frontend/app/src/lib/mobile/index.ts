@@ -243,3 +243,15 @@ export async function saveBlobToDevice(params: {
     return false
   }
 }
+
+export async function openInAppBrowser(url: string): Promise<void> {
+  if (!isNativeMobile()) return
+  const { Browser } = await import("@capacitor/browser")
+  await Browser.open({ url })
+}
+
+export async function closeInAppBrowser(): Promise<void> {
+  if (!isNativeMobile()) return
+  const { Browser } = await import("@capacitor/browser")
+  await Browser.close()
+}

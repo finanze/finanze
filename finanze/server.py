@@ -129,6 +129,9 @@ from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetche
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
 from infrastructure.client.entity.financial.mintos.mintos_fetcher import MintosFetcher
 from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
+from infrastructure.client.entity.financial.psd2.enablebanking_fetcher import (
+    EnableBankingFetcher,
+)
 from infrastructure.client.entity.financial.psd2.gocardless_fetcher import (
     GoCardlessFetcher,
 )
@@ -148,6 +151,9 @@ from infrastructure.client.interests.ecb_client import ECBClient
 from infrastructure.client.keychain.public_keychain_client import PublicKeychainClient
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
+)
+from infrastructure.client.financial.enablebanking.enablebanking_client import (
+    EnableBankingClient,
 )
 from infrastructure.client.instrument.instrument_provider_adapter import (
     InstrumentProviderAdapter,
@@ -272,6 +278,7 @@ class FinanzeServer:
         etherscan_client = EtherscanClient()
         ethplorer_client = EthplorerClient()
         gocardless_client = GoCardlessClient(port=args.port)
+        enablebanking_client = EnableBankingClient()
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -308,12 +315,16 @@ class FinanzeServer:
 
         external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),
+            ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
+                enablebanking_client
+            ),
         }
 
         external_integrations = {
             ExternalIntegrationId.GOOGLE_SHEETS: sheets_initiator,
             ExternalIntegrationId.ETHERSCAN: etherscan_client,
             ExternalIntegrationId.GOCARDLESS: gocardless_client,
+            ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
         }
 
@@ -422,6 +433,7 @@ class FinanzeServer:
         get_available_entities = GetAvailableEntitiesImpl(
             entity_repository,
             external_entity_repository,
+            external_integration_repository,
             credentials_port,
             crypto_wallet_repository,
             last_fetches_repository,

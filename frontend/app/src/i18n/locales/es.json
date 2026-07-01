@@ -439,6 +439,7 @@
   "errors": {
     "INVALID_CODE": "Código inválido",
     "INVALID_CREDENTIALS": "Credenciales inválidas de {entity}",
+    "INVALID_PRIVATE_KEY": "La clave privada proporcionada para {integration} no es válida.",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
     "UNEXPECTED_ERROR": "Error inesperado en {entity}",
     "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
@@ -504,12 +505,22 @@
     "moreFinancialInstitutionsCard": "Más bancos",
     "addExternalEntity": "Instituciones financieras",
     "requiresProviderIntegration": "Requiere integración",
+    "via": "vía {provider}",
+    "selectProvider": "Seleccionar proveedor",
     "selectCountry": "Seleccionar país",
     "selectInstitution": "Seleccionar institución",
     "loadingInstitutions": "Cargando instituciones...",
     "noInstitutionsFound": "No se encontraron instituciones",
+    "searchInstitutions": "Buscar por nombre o BIC...",
+    "changeCountry": "Cambiar",
+    "providedBy": "Proporcionado por {provider}",
     "connecting": "Conectando...",
     "alreadyLinked": "Ya vinculada",
+    "enableBankingPrelinkTitle": "¿Ya has vinculado este banco en Enable Banking?",
+    "enableBankingPrelinkMessageBefore": "Enable Banking solo devuelve datos de las instituciones que ya hayas vinculado en tu",
+    "enableBankingPrelinkMessageLinkLabel": "panel de Enable Banking",
+    "enableBankingPrelinkMessageAfter": ".",
+    "enableBankingPrelinkWarning": "Asegúrate de que este banco ya está vinculado en el panel de Enable Banking antes de continuar; de lo contrario no se devolverán datos.",
     "confirmConnection": "Completar conexión",
     "providerLinkInstructions": "Finaliza el proceso en la ventana abierta y luego confirma la conexión.",
     "openLink": "Abrir enlace",
@@ -518,7 +529,9 @@
     "relink": "Re-enlazar",
     "confirmRelink": "Confirmar re-enlace",
     "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}. ¿Quieres continuar?",
-    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas."
+    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas.",
+    "externalLinkSuccess": "Conexión bancaria completada correctamente.",
+    "externalLinkError": "No se pudo completar la conexión bancaria. Inténtalo de nuevo."
   },
   "features": {
     "POSITION": "Posiciones",
@@ -860,6 +873,16 @@
       "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     },
     "integrationHintButton": "Ver instrucciones",
+    "privateKeyField": {
+      "dropHint": "Arrastra aquí tu archivo de clave privada",
+      "browse": "o haz clic para seleccionar (.pem)",
+      "loaded": "Cargado: {file}",
+      "invalid": "Archivo de clave privada inválido. Se esperaba una clave privada PEM.",
+      "readError": "No se pudo leer el archivo. Inténtalo de nuevo.",
+      "manualToggle": "Introducir manualmente",
+      "uploadToggle": "Subir un archivo",
+      "manualPlaceholder": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+    },
     "integration": {
       "GOOGLE_SHEETS": {
         "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
@@ -914,7 +937,7 @@
         }
       },
       "GOCARDLESS": {
-        "description": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente.",
+        "description": "Configura GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente. Úsalo SOLO si ya tienes una cuenta de GoCardless.",
         "help": "Cómo generar las credenciales",
         "hint": {
           "title": "Crear credenciales de GoCardless",
@@ -943,12 +966,78 @@
             }
           ]
         }
+      },
+      "ENABLE_BANKING": {
+        "description": "Conecta cuentas bancarias de toda Europa mediante el acceso PSD2 de Enable Banking.",
+        "help": "Cómo configurar Enable Banking",
+        "hint": {
+          "title": "Configurar Enable Banking",
+          "steps": [
+            [
+              "Crea una cuenta o accede desde ",
+              {
+                "type": "link",
+                "label": "Enable Banking",
+                "url": "https://enablebanking.com/sign-in/"
+              },
+              ", y registra una nueva aplicación en el ",
+              {
+                "type": "link",
+                "label": "panel de aplicaciones API",
+                "url": "https://enablebanking.com/cp/applications"
+              },
+              "."
+            ],
+            [
+              "Al crear la aplicación, elige **PRODUCCIÓN** y mantén la opción de clave por defecto."
+            ],
+            [
+              "Añade esta URL a las URLs de redirección permitidas: ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/eb/v1/entity/callback/",
+                "url": "https://finanze.me/eb/v1/entity/callback/"
+              },
+              ". Este campo es **imprescindible**."
+            ],
+            [
+              "Como URL de Privacidad puedes usar ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/privacy/",
+                "url": "https://finanze.me/privacy/"
+              },
+              " y como URL de Términos ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/terms/",
+                "url": "https://finanze.me/terms/"
+              },
+              "."
+            ],
+            [
+              "La clave privada de la aplicación en formato PEM se descargará automáticamente, ¡guárdala en un lugar seguro!"
+            ],
+            [
+              "Copia el **Application ID** de tu aplicación (código alfanumérico con guiones en la parte superior) y pégalo en el campo de abajo, luego sube el archivo de la clave privada abajo y guarda."
+            ],
+            [
+              "*Recuerda: antes de vincular un banco en la app, primero debes vincular esa institución en el panel de aplicaciones de Enable Banking para que devuelva datos.*"
+            ]
+          ]
+        }
       }
     },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
-    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes."
+    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
+    "integrationCategories": {
+      "ENTITY_PROVIDER": "Proveedores bancarios",
+      "CRYPTO_PROVIDER": "Proveedores de cripto",
+      "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
+      "DATA_SOURCE": "Fuentes de datos"
+    }
   },
   "dashboard": {
     "title": "Panel Principal",

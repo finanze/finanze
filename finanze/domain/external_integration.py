@@ -20,6 +20,7 @@ class ExternalIntegrationId(str, Enum):
     ETHERSCAN = "ETHERSCAN"
     ETHPLORER = "ETHPLORER"
     GOCARDLESS = "GOCARDLESS"
+    ENABLE_BANKING = "ENABLE_BANKING"
     COINGECKO = "COINGECKO"
     COINMARKETCAP = "COINMARKETCAP"
     CRYPTOCOMPARE = "CRYPTOCOMPARE"
@@ -71,5 +72,9 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
     ExternalIntegrationId.GOCARDLESS: {
         "secret_id": "Secret ID",
         "secret_key": "Secret Key",
+    },
+    ExternalIntegrationId.ENABLE_BANKING: {
+        "application_id": "Application ID",
+        "private_key": "Private Key (PEM)",
     },
 }

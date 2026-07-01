@@ -75,6 +75,12 @@ class LazyComponents:
             from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
                 BinanceFetcher,
             )
+            from infrastructure.client.financial.enablebanking.enablebanking_client import (
+                EnableBankingClient,
+            )
+            from infrastructure.client.entity.financial.psd2.enablebanking_fetcher import (
+                EnableBankingFetcher,
+            )
         from infrastructure.crypto.public_key_derivation_adapter import (
             PublicKeyDerivationAdapter,
         )
@@ -126,9 +132,24 @@ class LazyComponents:
             from application.use_cases.fetch_financial_data import (
                 FetchFinancialDataImpl,
             )
+            from application.use_cases.fetch_external_financial_data import (
+                FetchExternalFinancialDataImpl,
+            )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
             from application.use_cases.cancel_entity_login import (
                 CancelEntityLoginImpl,
+            )
+            from application.use_cases.connect_external_entity import (
+                ConnectExternalEntityImpl,
+            )
+            from application.use_cases.complete_external_entity_connection import (
+                CompleteExternalEntityConnectionImpl,
+            )
+            from application.use_cases.delete_external_entity import (
+                DeleteExternalEntityImpl,
+            )
+            from application.use_cases.get_available_external_entities import (
+                GetAvailableExternalEntitiesImpl,
             )
         from application.use_cases.export_file import ExportFileImpl
         from application.use_cases.import_file import ImportFileImpl
@@ -198,6 +219,13 @@ class LazyComponents:
             etherscan_client = EtherscanClient()
             ethplorer_client = EthplorerClient()
 
+            enablebanking_client = EnableBankingClient()
+            external_entity_fetchers = {
+                ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
+                    enablebanking_client
+                ),
+            }
+
             crypto_entity_fetchers = {
                 domain.native_entities.BITCOIN: BitcoinFetcher(),
                 domain.native_entities.ETHEREUM: EthereumFetcher(
@@ -230,6 +258,10 @@ class LazyComponents:
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
         }
+        if INCLUDE_CONNECTIONS:
+            external_integrations[ExternalIntegrationId.ENABLE_BANKING] = (
+                enablebanking_client
+            )
 
         csv_tsv_adapter = CSVFileTableAdapter()
         table_rw_adapter = TableRWDispatcher(
@@ -317,6 +349,38 @@ class LazyComponents:
                 historic_repo,
             )
             self.cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
+
+            self.conn_external_entity = ConnectExternalEntityImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.complete_external_entity = CompleteExternalEntityConnectionImpl(
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.del_external_entity = DeleteExternalEntityImpl(
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.get_external_candidates = GetAvailableExternalEntitiesImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.fetch_external = FetchExternalFinancialDataImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                d.position_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+                d.last_fetches_repo,
+                d.tx_handler,
+            )
 
         self.derive_crypto = DeriveCryptoAddressesImpl(
             public_key_derivation, d.entity_repo

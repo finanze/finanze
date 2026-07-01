@@ -249,6 +249,7 @@ async def app(tmp_path):
     crypto_wallet_port = AsyncMock(spec=CryptoWalletPort)
     crypto_entity_fetchers: dict[Entity, CryptoEntityFetcher] = {}
     external_integration_port = AsyncMock(spec=ExternalIntegrationPort)
+    external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
     public_key_derivation = MagicMock(spec=PublicKeyDerivation)
 
     entity_port = AsyncMock(spec=EntityPort)
@@ -400,6 +401,7 @@ async def app(tmp_path):
     get_available_entities_uc = GetAvailableEntitiesImpl(
         entity_port,
         external_entity_port,
+        external_integration_port,
         credentials_port,
         crypto_wallet_port,
         last_fetches_port,

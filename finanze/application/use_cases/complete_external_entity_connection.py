@@ -64,9 +64,14 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
         )
         await provider.setup(enabled_integrations)
 
-        is_linked = await provider.is_linked(external_entity.provider_instance_id)
-        if not is_callback and not is_linked:
-            raise ExternalEntityLinkError(details="Entity noy properly linked.")
+        completion = await provider.complete_link(external_entity, request.payload)
+        if not is_callback and not completion.linked:
+            raise ExternalEntityLinkError(details="Entity not properly linked.")
+
+        if completion.provider_instance_id is not None:
+            external_entity.provider_instance_id = completion.provider_instance_id
+        if completion.payload is not None:
+            external_entity.payload = completion.payload
 
         external_entity.status = ExternalEntityStatus.LINKED
 

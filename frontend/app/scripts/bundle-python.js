@@ -85,6 +85,9 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/client/entity/exchange/",
   "finanze/infrastructure/client/crypto/",
   "finanze/infrastructure/crypto/",
+  // Enable Banking external entity client (scoped subdir only; the sibling
+  // gocardless/ depends on nordigen/requests and is NOT Pyodide-compatible)
+  "finanze/infrastructure/client/financial/enablebanking/",
   // Infrastructure - table, templating, interests, keychain, backup processor, file storage (mobile)
   "finanze/infrastructure/table/xlsx_file_table_adapter.py",
   "finanze/infrastructure/templating/",
@@ -126,6 +129,10 @@ const LAZY_PATTERNS = [
   "finanze/application/use_cases/save_commodities.py",
   "finanze/application/use_cases/connect_external_integration.py",
   "finanze/application/use_cases/disconnect_external_integration.py",
+  "finanze/application/use_cases/connect_external_entity.py",
+  "finanze/application/use_cases/complete_external_entity_connection.py",
+  "finanze/application/use_cases/delete_external_entity.py",
+  "finanze/application/use_cases/get_available_external_entities.py",
   "finanze/application/use_cases/save_periodic_flow.py",
   "finanze/application/use_cases/update_periodic_flow.py",
   "finanze/application/use_cases/delete_periodic_flow.py",
@@ -171,6 +178,10 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/save_commodities.py",
   "finanze/infrastructure/controller/routes/connect_external_integration.py",
   "finanze/infrastructure/controller/routes/disconnect_external_integration.py",
+  "finanze/infrastructure/controller/routes/connect_external_entity.py",
+  "finanze/infrastructure/controller/routes/complete_external_entity_connection.py",
+  "finanze/infrastructure/controller/routes/delete_external_entity.py",
+  "finanze/infrastructure/controller/routes/get_available_external_entities.py",
   "finanze/infrastructure/controller/routes/save_periodic_flow.py",
   "finanze/infrastructure/controller/routes/update_periodic_flow.py",
   "finanze/infrastructure/controller/routes/delete_periodic_flow.py",

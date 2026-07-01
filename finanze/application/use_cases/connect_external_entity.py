@@ -70,7 +70,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             None,
             None,
         )
-        migrate_existing_manual_entity = False
+        update_entity = False
+        provider_id = None
         if request.external_entity_id:
             external_entity_id = request.external_entity_id
             external_entity = await self._external_entity_port.get_by_id(
@@ -84,7 +85,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
             provider = await self._setup_provider(provider_id)
 
         else:
-            provider = await self._setup_provider(self.DEFAULT_PROVIDER)
+            provider_id = request.provider or self.DEFAULT_PROVIDER
+            provider = await self._setup_provider(provider_id)
 
             institution_details = await provider.get_entity(request.institution_id)
             if not institution_details:
@@ -109,6 +111,9 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     return ExternalEntityConnectionResult(
                         ExternalEntitySetupResponseCode.ALREADY_LINKED
                     )
+
+                entity.icon_url = institution_details.icon
+                update_entity = True
             else:
                 existing_entity_by_name = await self._entity_port.get_by_name(
                     institution_details.name
@@ -125,7 +130,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     existing_entity_by_name.natural_id = natural_id
 
                     entity = existing_entity_by_name
-                    migrate_existing_manual_entity = True
+                    update_entity = True
 
         if self._lock.locked():
             raise ExecutionConflict()
@@ -148,7 +153,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     id=uuid4(),
                     entity_id=entity.id,
                     status=ExternalEntityStatus.UNLINKED,
-                    provider=self.DEFAULT_PROVIDER,
+                    provider=provider_id,
                 )
 
             fetch_request = ExternalEntityLoginRequest(
@@ -157,6 +162,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                 institution_id=institution_id,
                 relink=request.relink,
                 user_language=request.user_language,
+                completion_url=request.completion_url,
             )
 
             try:
@@ -175,8 +181,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
 
                     await self._external_entity_port.upsert(external_entity)
 
-                    if migrate_existing_manual_entity:
-                        await self._entity_port.update(existing_entity_by_name)
+                    if update_entity:
+                        await self._entity_port.update(entity)
 
                     response.id = external_entity.id
 

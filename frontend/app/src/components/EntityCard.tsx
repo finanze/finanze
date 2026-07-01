@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { FeaturesBadge } from "@/components/ui/FeaturesBadge"
+import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
 import {
   Popover,
   PopoverContent,
@@ -277,6 +278,11 @@ export function EntityCard({
   const isExternallyProvided =
     entity.origin === EntityOrigin.EXTERNALLY_PROVIDED
   const isLinkingExternal = linkingExternalEntityId === entity.id
+  const providerName =
+    (entity.provider &&
+      externalIntegrations.find(i => i.id === entity.provider)?.name) ||
+    entity.provider ||
+    ""
 
   // Image source handling (external vs internal)
   const [imageSrc, setImageSrc] = useState<string>(`entities/${entity.id}.png`)
@@ -319,38 +325,53 @@ export function EntityCard({
         <CardHeader className={isDisconnected ? "pb-0" : "pb-2"}>
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
-              <div
-                className={`${isDisconnected ? "w-8 h-8 mr-2" : "w-10 h-10 mr-3"} flex-shrink-0 overflow-hidden rounded-md`}
-              >
-                <img
-                  src={imageSrc}
-                  alt={entity.name}
-                  className="w-full h-full object-contain"
-                  onError={e =>
-                    (e.currentTarget.src = "entities/entity_placeholder.png")
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="truncate max-sm:text-center">
-                  {entity.name}
-                </span>
-                {!entity.fetchable && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground"
-                        aria-label={t.common.notAvailableOnPlatform}
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 text-sm">
-                      {t.common.notAvailableOnPlatform}
-                    </PopoverContent>
-                  </Popover>
+              <AdaptiveLogo
+                src={imageSrc}
+                alt={entity.name}
+                fallbackSrc="entities/entity_placeholder.png"
+                className={`${isDisconnected ? "w-8 h-8 mr-2" : "w-10 h-10 mr-3"} flex-shrink-0 overflow-hidden rounded-md flex items-center justify-center`}
+                imgClassName="w-full h-full object-contain"
+                lightBgClassName="bg-white p-0.5"
+              />
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate max-sm:text-center">
+                    {entity.name}
+                  </span>
+                  {!entity.fetchable && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground"
+                          aria-label={t.common.notAvailableOnPlatform}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 text-sm">
+                        {t.common.notAvailableOnPlatform}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {isExternallyProvided && entity.provider && (
+                  <span className="flex items-center gap-1 mt-0.5 text-[10px] font-normal text-muted-foreground max-sm:justify-center">
+                    <AdaptiveLogo
+                      src={`icons/external-integrations/${entity.provider}.png`}
+                      alt={providerName}
+                      className="w-3 h-3 rounded-sm flex items-center justify-center overflow-hidden flex-shrink-0"
+                      imgClassName="w-3 h-3 object-contain"
+                      lightBgClassName="bg-white"
+                    />
+                    <span className="truncate">
+                      {t.entities.providedBy.replace(
+                        "{provider}",
+                        providerName,
+                      )}
+                    </span>
+                  </span>
                 )}
               </div>
             </div>
@@ -412,18 +433,18 @@ export function EntityCard({
             <>
               {/* Show connected wallets info for crypto entities */}
               {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
-                <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Wallet className="h-3 w-3 text-gray-500 dark:text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-300 font-medium">
+                <div className="mt-3 -mx-6 px-6 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Wallet className="h-3 w-3 text-gray-400 dark:text-gray-500" />
+                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {entity.connected?.length === 1
-                          ? `${entity.connected.length} wallet`
+                          ? `1 wallet`
                           : `${entity.connected?.length} wallets`}
                       </span>
                     </div>
                     {entity.connected && entity.connected.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
+                      <div className="flex gap-1 flex-wrap flex-1">
                         {entity.connected.slice(0, 3).map((wallet, index) =>
                           (() => {
                             const isDerived =
@@ -439,7 +460,7 @@ export function EntityCard({
                               <Badge
                                 key={index}
                                 variant="secondary"
-                                className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                                className="font-mono font-normal text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 tracking-tight"
                               >
                                 {displayKey
                                   ? `•••${displayKey.slice(-6)}${extraAddresses > 0 ? ` +${extraAddresses}` : ""}`
@@ -451,7 +472,7 @@ export function EntityCard({
                         {entity.connected.length > 3 && (
                           <Badge
                             variant="secondary"
-                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                            className="font-mono font-normal text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300"
                           >
                             +{entity.connected.length - 3}
                           </Badge>
@@ -467,17 +488,17 @@ export function EntityCard({
                 effectiveStatus === EntityStatus.CONNECTED &&
                 entity.accounts &&
                 entity.accounts.length > 0 && (
-                  <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Users className="h-3 w-3 text-gray-500 dark:text-gray-400" />
-                        <span className="text-gray-600 dark:text-gray-300 font-medium">
+                  <div className="mt-3 -mx-6 px-6 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Users className="h-3 w-3 text-gray-400 dark:text-gray-500" />
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           {entity.accounts.length === 1
                             ? `1 ${t.entities.account}`
                             : `${entity.accounts.length} ${t.entities.account}s`}
                         </span>
                       </div>
-                      <div className="flex gap-1 flex-wrap">
+                      <div className="flex gap-1 flex-wrap flex-1">
                         {entity.accounts.slice(0, 3).map((account, index) => (
                           <Badge
                             key={account.id}

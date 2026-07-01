@@ -160,6 +160,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_2_tracked_updates import 
 from infrastructure.repository.db.versions.v0.v09.v090_3_valuation_market_value import (
     V0903ValuationMarketValue,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_4_enable_banking_provider import (
+    V0904EnableBankingProvider,
+)
 
 versions = [
     V0Genesis(),
@@ -226,4 +229,5 @@ versions = [
     V0901RecomputeLoanHashes(),
     V0902TrackedUpdates(),
     V0903ValuationMarketValue(),
+    V0904EnableBankingProvider(),
 ]

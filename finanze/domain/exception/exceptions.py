@@ -84,6 +84,7 @@ class TooManyRequests(Exception):
 class IntegrationSetupErrorCode(str, Enum):
     UNKNOWN = "UNKNOWN"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    INVALID_PRIVATE_KEY = "INVALID_PRIVATE_KEY"
 
 
 class IntegrationSetupError(Exception):

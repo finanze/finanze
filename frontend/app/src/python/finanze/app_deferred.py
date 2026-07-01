@@ -206,13 +206,19 @@ class DeferredComponents:
                     domain.native_entities.BSC,
                 ]
             }
+            external_entity_fetcher_stubs = {
+                ExternalIntegrationId.ENABLE_BANKING: True,
+            }
         else:
             financial_entity_fetcher_stubs = {}
             crypto_entity_fetcher_stubs = {}
+            external_entity_fetcher_stubs = {}
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
         }
+        if INCLUDE_CONNECTIONS:
+            external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True
 
         self.position_repo = PositionRepository(client=db_client)
         self.manual_repo = ManualPositionDataSQLRepository(client=db_client)
@@ -226,7 +232,7 @@ class DeferredComponents:
         self.period_repo = PeriodicFlowRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)
         self.re_repo = RealEstateRepository(client=db_client)
-        ext_ent_repo = ExternalEntityRepository(client=db_client)
+        self.ext_ent_repo = ExternalEntityRepository(client=db_client)
         self.creds_repo = CredentialsRepository(client=db_client)
         self.entity_account_repo = EntityAccountRepository(client=db_client)
         self.ex_storage = PreferenceExchangeRateStorage()
@@ -249,13 +255,14 @@ class DeferredComponents:
 
         self.get_avail_sources = GetAvailableEntitiesImpl(
             self.entity_repo,
-            ext_ent_repo,
+            self.ext_ent_repo,
+            self.ext_int_repo,
             self.creds_repo,
             self.wallet_repo,
             self.last_fetches_repo,
             self.virtual_repo,
             financial_entity_fetcher_stubs,
-            {},
+            external_entity_fetcher_stubs,
             self.entity_account_repo,
             crypto_entity_fetcher_stubs,
         )

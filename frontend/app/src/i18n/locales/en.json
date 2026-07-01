@@ -441,6 +441,7 @@
   "errors": {
     "INVALID_CODE": "Invalid code provided",
     "INVALID_CREDENTIALS": "Invalid credentials for {entity}",
+    "INVALID_PRIVATE_KEY": "The provided private key for {integration} is invalid.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -506,12 +507,22 @@
     "moreFinancialInstitutionsCard": "More Banks",
     "addExternalEntity": "Financial institutions",
     "requiresProviderIntegration": "Requires integration",
+    "via": "via {provider}",
+    "selectProvider": "Select Provider",
     "selectCountry": "Select Country",
     "selectInstitution": "Select Institution",
     "loadingInstitutions": "Loading institutions...",
     "noInstitutionsFound": "No institutions found",
+    "searchInstitutions": "Search by name or BIC...",
+    "changeCountry": "Change",
+    "providedBy": "Provided by {provider}",
     "connecting": "Connecting...",
     "alreadyLinked": "Already linked",
+    "enableBankingPrelinkTitle": "Have you already linked this bank in Enable Banking?",
+    "enableBankingPrelinkMessageBefore": "Enable Banking only returns data for institutions you have already linked in your",
+    "enableBankingPrelinkMessageLinkLabel": "Enable Banking dashboard",
+    "enableBankingPrelinkMessageAfter": ".",
+    "enableBankingPrelinkWarning": "Make sure this bank is already linked in the Enable Banking dashboard before continuing, otherwise no data will be returned.",
     "confirmConnection": "Complete Connection",
     "providerLinkInstructions": "Finish the process in the opened window then confirm the connection.",
     "openLink": "Open Link",
@@ -520,7 +531,9 @@
     "relink": "Relink",
     "confirmRelink": "Confirm Relink",
     "confirmRelinkMessage": "Relinking will refresh the external connection for {entity}. Continue?",
-    "sessionExpiredHint": "Session expired. Please log in again to enable automatic updates."
+    "sessionExpiredHint": "Session expired. Please log in again to enable automatic updates.",
+    "externalLinkSuccess": "Bank connection completed successfully.",
+    "externalLinkError": "Could not complete the bank connection. Please try again."
   },
   "features": {
     "POSITION": "Positions",
@@ -862,6 +875,16 @@
     },
     "googleSheetsWebDisabled": "Use desktop app",
     "integrationHintButton": "View instructions",
+    "privateKeyField": {
+      "dropHint": "Drop your private key file here",
+      "browse": "or click to browse (.pem)",
+      "loaded": "Loaded: {file}",
+      "invalid": "Invalid private key file. Expected a PEM private key.",
+      "readError": "Could not read the file. Please try again.",
+      "manualToggle": "Enter manually instead",
+      "uploadToggle": "Upload a file instead",
+      "manualPlaceholder": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+    },
     "integration": {
       "GOOGLE_SHEETS": {
         "description": "Configure your Google Sheets API to enable data import and export."
@@ -916,7 +939,7 @@
         }
       },
       "GOCARDLESS": {
-        "description": "Configure GoCardless so you can connect bank accounts from any unsupported banks.",
+        "description": "Configure GoCardless so you can connect bank accounts from any unsupported banks. Use ONLY if you already have GoCardless account.",
         "help": "How to generate credentials",
         "hint": {
           "title": "Create GoCardless credentials",
@@ -945,12 +968,78 @@
             }
           ]
         }
+      },
+      "ENABLE_BANKING": {
+        "description": "Connect bank accounts across Europe through Enable Banking's PSD2 access.",
+        "help": "How to set up Enable Banking",
+        "hint": {
+          "title": "Set up Enable Banking",
+          "steps": [
+            [
+              "Create an account or log in at ",
+              {
+                "type": "link",
+                "label": "Enable Banking",
+                "url": "https://enablebanking.com/sign-in/"
+              },
+              ", then register a new application in the ",
+              {
+                "type": "link",
+                "label": "API Applications panel",
+                "url": "https://enablebanking.com/cp/applications"
+              },
+              "."
+            ],
+            [
+              "When creating the application, choose **PRODUCTION** and keep the default key option."
+            ],
+            [
+              "Add this URL to the allowed redirect URLs ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/eb/v1/entity/callback/",
+                "url": "https://finanze.me/eb/v1/entity/callback/"
+              },
+              ". This field is **so important**."
+            ],
+            [
+              "As Privacy URL you can use ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/privacy/",
+                "url": "https://finanze.me/privacy/"
+              },
+              " and as Terms URL ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/terms/",
+                "url": "https://finanze.me/terms/"
+              },
+              "."
+            ],
+            [
+              "The application's private key in PEM format will be downloaded automatically, keep it safe!"
+            ],
+            [
+              "Copy the **Application ID** (top alphanumeric dashed string) of your application and paste it in the field below, then upload the private key file below and save."
+            ],
+            [
+              "*Remember: before linking a bank in the app, you must first link that institution in the Enable Banking application panel so it returns data.*"
+            ]
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
-    "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings."
+    "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
+    "integrationCategories": {
+      "ENTITY_PROVIDER": "Banking providers",
+      "CRYPTO_PROVIDER": "Crypto providers",
+      "CRYPTO_MARKET_PROVIDER": "Crypto market data",
+      "DATA_SOURCE": "Data sources"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
