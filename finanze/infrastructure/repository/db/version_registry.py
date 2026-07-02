@@ -163,6 +163,7 @@ from infrastructure.repository.db.versions.v0.v09.v090_3_valuation_market_value 
 from infrastructure.repository.db.versions.v0.v09.v090_4_enable_banking_provider import (
     V0904EnableBankingProvider,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_5_b100 import V0905B100
 
 versions = [
     V0Genesis(),
@@ -230,4 +231,5 @@ versions = [
     V0902TrackedUpdates(),
     V0903ValuationMarketValue(),
     V0904EnableBankingProvider(),
+    V0905B100(),
 ]

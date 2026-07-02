@@ -89,6 +89,7 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 | Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
 | DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
 | Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
+| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                     |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
@@ -127,6 +128,7 @@ Not all entities support the same features, in general we can group data in the 
 | Grupo Cajamar       | ✅              | -                         | ❌                             | -                      |
 | DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
+| B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
