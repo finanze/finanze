@@ -95,10 +95,14 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 | --------------- | ----------------- | -------- |
 | Binance         | ✅ Spot & Futures | Futures  |
 
+#### Enable Banking Integration
+
+Provides a way to connect to EU banks that are not natively supported by the app, via PSD2 compliant bank account information.
+Instructions to set it up can be found in the app Settings/Integrations tab.
+
 #### GoCardless Integration
 
-GoCardless provides PSD2 compliant bank account information for many EU/UK banks, for institutions not natively
-supported this is the way to get account related data.
+Only if you already have an account, another option is GoCardless, which also provides PSD2 compliant bank account information for many EU/UK banks.
 
 ### Financial Entity & Crypto Exchanges Features
 

@@ -835,6 +835,12 @@ export enum FlowType {
   EXPENSE = "EXPENSE",
 }
 
+export enum FlowStatus {
+  ACTIVE = "ACTIVE",
+  DISABLED = "DISABLED",
+  COMPLETED = "COMPLETED",
+}
+
 export enum FlowFrequency {
   DAILY = "DAILY",
   WEEKLY = "WEEKLY",
@@ -875,7 +881,8 @@ export interface PendingFlow {
   amount: number
   flow_type: FlowType
   category?: string
-  enabled: boolean
+  status: FlowStatus
+  status_changed_at?: string | null
   date?: string
   currency: string
   icon?: string
@@ -915,15 +922,71 @@ export interface CreatePendingFlowRequest {
   amount: number
   flow_type: FlowType
   category?: string
-  enabled: boolean
+  status: FlowStatus
   date?: string
   currency: string
   icon?: string
-  max_amount?: number
 }
 
-export interface SavePendingFlowsRequest {
-  flows: CreatePendingFlowRequest[]
+export interface UpdatePendingFlowRequest {
+  id: string
+  name: string
+  amount: number
+  flow_type: FlowType
+  category?: string
+  status: FlowStatus
+  date?: string
+  currency: string
+  icon?: string
+}
+
+export enum FlowSortField {
+  AMOUNT = "amount",
+  DATE = "date",
+}
+
+export enum SortOrder {
+  ASC = "asc",
+  DESC = "desc",
+}
+
+export interface PendingFlowsQuery {
+  status?: FlowStatus[]
+  flow_type?: FlowType
+  category?: string[]
+  sort_by?: FlowSortField
+  order?: SortOrder
+  page?: number
+  limit?: number
+  stats?: boolean
+  categories?: boolean
+}
+
+export interface FlowCategoryStat {
+  category: string | null
+  name: string | null
+  amounts: Record<string, number>
+}
+
+export interface FlowTypeStat {
+  totals: Record<string, number>
+  by_category: FlowCategoryStat[]
+  count: number
+}
+
+export interface PendingFlowStats {
+  earning: FlowTypeStat
+  expense: FlowTypeStat
+}
+
+export interface PendingFlowsPage {
+  entries: PendingFlow[]
+  total: number
+  page: number | null
+  limit: number | null
+  has_more: boolean
+  categories: string[] | null
+  stats: PendingFlowStats | null
 }
 
 export enum RealEstateFlowSubtype {

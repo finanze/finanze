@@ -2046,6 +2046,18 @@
     "noPendingExpenses": "No hay gastos pendientes",
     "addFirstPendingEarning": "Haz clic en '+' para añadir ingresos pendientes.",
     "addFirstPendingExpense": "Haz clic en '+' para añadir gastos pendientes.",
+    "markCompleted": "Marcar como completado",
+    "markCompletedTitle": "Completar {type}",
+    "markCompletedConfirm": "¿Marcar este {type} como completado? Dejará de contarse en tus totales pendientes.",
+    "markActive": "Reactivar",
+    "statusFilter": "Estado",
+    "filters": "Filtros",
+    "loadMore": "Cargar más",
+    "flowStatus": {
+      "ACTIVE": "Activo",
+      "DISABLED": "Desactivado",
+      "COMPLETED": "Completado"
+    },
     "unsavedChanges": "Tienes cambios sin guardar",
     "requiredFields": "Campos requeridos",
     "sortBy": "Ordenar por",

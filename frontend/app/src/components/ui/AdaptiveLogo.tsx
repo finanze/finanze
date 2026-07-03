@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 
 import { cn } from "@/lib/utils"
 import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
@@ -42,7 +42,14 @@ export function AdaptiveLogo({
         src={currentSrc}
         alt={alt}
         crossOrigin={useCors ? "anonymous" : undefined}
-        className={imgClassName}
+        className={cn(imgClassName, "pointer-events-none select-none")}
+        draggable={false}
+        style={
+          {
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+          } as CSSProperties
+        }
         onLoad={event => {
           const image = event.currentTarget
           if (image.naturalWidth === 0) return

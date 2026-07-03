@@ -1,4 +1,10 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react"
+import {
+  useState,
+  useEffect,
+  useMemo,
+  type ReactNode,
+  type CSSProperties,
+} from "react"
 import { Check, Landmark, Wallet, ArrowLeftRight, Package } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -82,7 +88,13 @@ function EntityIcon({
         alt={entity.name}
         draggable={false}
         crossOrigin={useCors ? "anonymous" : undefined}
-        className="h-full w-full object-contain select-none"
+        className="h-full w-full object-contain select-none pointer-events-none"
+        style={
+          {
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+          } as CSSProperties
+        }
         onLoad={event => {
           const image = event.currentTarget
           if (image.naturalWidth === 0) return

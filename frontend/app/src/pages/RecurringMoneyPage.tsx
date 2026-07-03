@@ -996,12 +996,10 @@ export default function RecurringMoneyPage() {
                       >
                         <div className="min-w-0 flex-1 space-y-1.5">
                           <h3 className="flex items-center gap-2 text-base sm:text-lg font-semibold leading-tight flex-wrap">
-                            {flow.icon && (
-                              <Icon
-                                name={flow.icon as IconName}
-                                className="w-5 h-5 shrink-0"
-                              />
-                            )}
+                            <Icon
+                              name={(flow.icon as IconName) || "circle-dashed"}
+                              className="w-5 h-5 shrink-0"
+                            />
                             <span>{flow.name}</span>
                             {flow.linked && (
                               <Link2

@@ -17,7 +17,11 @@ import {
   PendingFlow,
   CreatePeriodicFlowRequest,
   UpdatePeriodicFlowRequest,
-  SavePendingFlowsRequest,
+  CreatePendingFlowRequest,
+  UpdatePendingFlowRequest,
+  PendingFlowsQuery,
+  PendingFlowsPage,
+  FlowStatus,
   RealEstate,
   CreateRealEstateRequest,
   UpdateRealEstateRequest,
@@ -548,14 +552,42 @@ export async function deletePeriodicFlow(flowId: string): Promise<void> {
   return (await getApiClient()).delete(`/flows/periodic/${flowId}`)
 }
 
-export async function savePendingFlows(
-  request: SavePendingFlowsRequest,
+export async function createPendingFlow(
+  request: CreatePendingFlowRequest,
 ): Promise<void> {
   return (await getApiClient()).post("/flows/pending", request)
 }
 
+export async function updatePendingFlow(
+  request: UpdatePendingFlowRequest,
+): Promise<void> {
+  return (await getApiClient()).put("/flows/pending", request)
+}
+
+export async function deletePendingFlow(flowId: string): Promise<void> {
+  return (await getApiClient()).delete(`/flows/pending/${flowId}`)
+}
+
+export async function getPendingFlows(
+  query: PendingFlowsQuery = {},
+): Promise<PendingFlowsPage> {
+  const params = new URLSearchParams()
+  query.status?.forEach(s => params.append("status", s))
+  if (query.flow_type) params.append("flow_type", query.flow_type)
+  query.category?.forEach(c => params.append("category", c))
+  if (query.sort_by) params.append("sort_by", query.sort_by)
+  if (query.order) params.append("order", query.order)
+  if (query.page !== undefined) params.append("page", String(query.page))
+  if (query.limit !== undefined) params.append("limit", String(query.limit))
+  if (query.stats) params.append("stats", "true")
+  if (query.categories) params.append("categories", "true")
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/flows/pending${queryString}`)
+}
+
 export async function getAllPendingFlows(): Promise<PendingFlow[]> {
-  return (await getApiClient()).get("/flows/pending")
+  const page = await getPendingFlows({ status: [FlowStatus.ACTIVE] })
+  return page.entries
 }
 
 export async function getAllRealEstate(): Promise<RealEstate[]> {

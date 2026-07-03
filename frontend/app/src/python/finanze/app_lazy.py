@@ -69,6 +69,9 @@ class LazyComponents:
             from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import (
                 IBKRFetcher,
             )
+            from infrastructure.client.entity.financial.b100.b100_fetcher import (
+                B100Fetcher,
+            )
             from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
                 WecityFetcher,
             )
@@ -175,7 +178,9 @@ class LazyComponents:
         from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
         from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
         from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
-        from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+        from application.use_cases.save_pending_flow import SavePendingFlowImpl
+        from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+        from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
         from application.use_cases.create_real_estate import CreateRealEstateImpl
         from application.use_cases.update_real_estate import UpdateRealEstateImpl
         from application.use_cases.delete_real_estate import DeleteRealEstateImpl
@@ -250,6 +255,7 @@ class LazyComponents:
                 domain.native_entities.CAJAMAR: CajamarFetcher(),
                 domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
                 domain.native_entities.IBKR: IBKRFetcher(),
+                domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
             }
 
@@ -446,7 +452,9 @@ class LazyComponents:
         self.save_periodic = SavePeriodicFlowImpl(d.period_repo)
         self.up_periodic = UpdatePeriodicFlowImpl(d.period_repo)
         self.del_periodic = DeletePeriodicFlowImpl(d.period_repo)
-        self.save_pending = SavePendingFlowsImpl(d.pending_repo, d.tx_handler)
+        self.save_pending = SavePendingFlowImpl(d.pending_repo)
+        self.up_pending = UpdatePendingFlowImpl(d.pending_repo)
+        self.del_pending = DeletePendingFlowImpl(d.pending_repo)
 
         self.create_re = CreateRealEstateImpl(
             d.re_repo, d.period_repo, d.tx_handler, file_storage

@@ -20,7 +20,7 @@ from domain.auto_contributions import (
 )
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
-from domain.earnings_expenses import FlowFrequency, FlowType
+from domain.earnings_expenses import FlowFrequency, FlowStatus, FlowType
 from domain.forecast import (
     CashDelta,
     ForecastRequest,
@@ -258,7 +258,7 @@ class ForecastImpl(Forecast):
         # Pending flows
         pending_flows = await self._pending_flow_port.get_all()
         for pf in pending_flows:
-            if not pf.enabled:
+            if pf.status != FlowStatus.ACTIVE:
                 continue
             when = pf.date or today
             if when > target:

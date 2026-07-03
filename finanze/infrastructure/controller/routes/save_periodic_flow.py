@@ -25,7 +25,7 @@ async def save_periodic_flow(save_periodic_flow_uc: SavePeriodicFlow):
             currency=body["currency"],
             flow_type=FlowType(body["flow_type"]),
             frequency=FlowFrequency(body["frequency"]),
-            category=body.get("category"),
+            category=body.get("category") or None,
             enabled=body.get("enabled", True),
             since=since_date,
             until=until_date,

@@ -164,6 +164,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_4_enable_banking_provider
     V0904EnableBankingProvider,
 )
 from infrastructure.repository.db.versions.v0.v09.v090_5_b100 import V0905B100
+from infrastructure.repository.db.versions.v0.v09.v090_6_pending_flow_status import (
+    V0906PendingFlowStatus,
+)
 
 versions = [
     V0Genesis(),
@@ -232,4 +235,5 @@ versions = [
     V0903ValuationMarketValue(),
     V0904EnableBankingProvider(),
     V0905B100(),
+    V0906PendingFlowStatus(),
 ]

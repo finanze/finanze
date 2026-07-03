@@ -544,13 +544,13 @@ export default function EntityIntegrationsPage() {
                           >
                             <CardHeader className="pb-0 p-4">
                               <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                                <div className="flex items-center min-w-0">
-                                  <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
+                                <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
+                                  <div className="w-12 h-12 mr-3 flex-shrink-0 relative select-none">
                                     <div className="absolute inset-0">
                                       <img
                                         src="icons/santander.png"
                                         alt=""
-                                        className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                        className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
                                         style={{
                                           transform:
                                             "translate(-50%,-10%) rotate(-10deg)",
@@ -560,7 +560,7 @@ export default function EntityIntegrationsPage() {
                                       <img
                                         src="icons/sabadell.png"
                                         alt=""
-                                        className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                        className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
                                         style={{
                                           transform:
                                             "translate(0,-45%) rotate(6deg)",
@@ -570,7 +570,7 @@ export default function EntityIntegrationsPage() {
                                       <img
                                         src="icons/n26.png"
                                         alt=""
-                                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
                                         style={{
                                           transform:
                                             "translate(-55%,10%) rotate(9deg)",
@@ -580,7 +580,7 @@ export default function EntityIntegrationsPage() {
                                       <img
                                         src="icons/vivid.png"
                                         alt=""
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
                                         style={{
                                           transform:
                                             "translate(0%,-45%) rotate(-7deg)",
@@ -594,46 +594,51 @@ export default function EntityIntegrationsPage() {
                                   </span>
                                 </div>
                                 {!hasProviderIntegration && (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Badge
-                                        variant="outline"
-                                        className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                  <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Badge
+                                          variant="outline"
+                                          className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                          onClick={e => e.stopPropagation()}
+                                        >
+                                          {
+                                            t.entities
+                                              .requiresProviderIntegration
+                                          }
+                                        </Badge>
+                                      </PopoverTrigger>
+                                      <PopoverContent
+                                        className="w-80"
                                         onClick={e => e.stopPropagation()}
                                       >
-                                        {t.entities.requiresProviderIntegration}
-                                      </Badge>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-80"
-                                      onClick={e => e.stopPropagation()}
-                                    >
-                                      <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                          <AlertCircle className="h-9 w-9 text-red-500" />
-                                          <h4 className="font-medium text-sm">
-                                            {
-                                              t.entities
-                                                .setupIntegrationsMessage
-                                            }
-                                          </h4>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <div className="text-sm ml-8">
-                                            • {enableBankingName}
+                                        <div className="space-y-2">
+                                          <div className="flex items-center gap-2">
+                                            <AlertCircle className="h-9 w-9 text-red-500" />
+                                            <h4 className="font-medium text-sm">
+                                              {
+                                                t.entities
+                                                  .setupIntegrationsMessage
+                                              }
+                                            </h4>
                                           </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm ml-8">
+                                              • {enableBankingName}
+                                            </div>
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            className="w-full mt-8"
+                                            onClick={goToEnableBankingSetup}
+                                          >
+                                            <Settings className="mr-2 h-3 w-3" />
+                                            {t.entities.goToSettings}
+                                          </Button>
                                         </div>
-                                        <Button
-                                          size="sm"
-                                          className="w-full mt-8"
-                                          onClick={goToEnableBankingSetup}
-                                        >
-                                          <Settings className="mr-2 h-3 w-3" />
-                                          {t.entities.goToSettings}
-                                        </Button>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
                                 )}
                               </CardTitle>
                             </CardHeader>

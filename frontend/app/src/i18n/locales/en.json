@@ -2047,6 +2047,18 @@
     "noPendingExpenses": "No pending expenses",
     "addFirstPendingEarning": "Click '+' to add pending earnings.",
     "addFirstPendingExpense": "Click '+' to add pending expenses.",
+    "markCompleted": "Mark as completed",
+    "markCompletedTitle": "Complete {type}",
+    "markCompletedConfirm": "Mark this {type} as completed? It will no longer be counted in your pending totals.",
+    "markActive": "Reactivate",
+    "statusFilter": "Status",
+    "filters": "Filters",
+    "loadMore": "Load more",
+    "flowStatus": {
+      "ACTIVE": "Active",
+      "DISABLED": "Disabled",
+      "COMPLETED": "Completed"
+    },
     "unsavedChanges": "You have unsaved changes",
     "requiredFields": "Required fields",
     "sortBy": "Sort by",
