@@ -74,14 +74,20 @@ class HttpSession:
         return resp
 
 
+DEFAULT_TIMEOUT = 30.0
+
+
 def get_http_session() -> HttpSession:
     global _httpx_singleton_client
     if _httpx_singleton_client is None:
-        _httpx_singleton_client = httpx.AsyncClient(transport=NoCookieTransport())
+        _httpx_singleton_client = httpx.AsyncClient(
+            transport=NoCookieTransport(), timeout=DEFAULT_TIMEOUT
+        )
     return HttpSession(_httpx_singleton_client)
 
 
 def new_http_session(**kwargs) -> HttpSession:
+    kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
     return HttpSession(httpx.AsyncClient(**kwargs))
 
 
