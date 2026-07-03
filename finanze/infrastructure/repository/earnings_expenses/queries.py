@@ -35,9 +35,18 @@ class PeriodicFlowsQueries(str, Enum):
 
 class PendingFlowsQueries(str, Enum):
     INSERT = """
-        INSERT INTO pending_flows (id, name, amount, currency, flow_type, category, enabled, date, icon)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO pending_flows (id, name, amount, currency, flow_type, category, status, status_changed_at, date, icon)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
-    DELETE_ALL = "DELETE FROM pending_flows"
+    UPDATE = """
+        UPDATE pending_flows
+        SET name = ?, amount = ?, currency = ?, flow_type = ?, category = ?, status = ?, status_changed_at = ?, date = ?, icon = ?
+        WHERE id = ?
+    """
+
+    DELETE_BY_ID = "DELETE FROM pending_flows WHERE id = ?"
+
     GET_ALL = "SELECT * FROM pending_flows"
+
+    GET_BY_ID = "SELECT * FROM pending_flows WHERE id = ?"

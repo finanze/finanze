@@ -18,6 +18,7 @@ import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
 import {
   ExchangeRates,
   PendingFlow,
+  FlowStatus,
   RealEstate,
   RealEstateFlowSubtype,
   LoanPayload,
@@ -3047,7 +3048,7 @@ export const calculatePendingEarningsTotal = (
   const now = new Date()
 
   return pendingFlows
-    .filter(flow => flow.enabled)
+    .filter(flow => flow.status === FlowStatus.ACTIVE)
     .filter(flow => {
       // Only include future or current flows
       if (!flow.date) return true

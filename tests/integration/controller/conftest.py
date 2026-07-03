@@ -62,7 +62,9 @@ from infrastructure.controller.routes.delete_periodic_flow import delete_periodi
 from infrastructure.controller.routes.get_periodic_flows import (
     get_periodic_flows as get_periodic_flows_route,
 )
-from infrastructure.controller.routes.save_pending_flows import save_pending_flows
+from infrastructure.controller.routes.save_pending_flow import save_pending_flow
+from infrastructure.controller.routes.update_pending_flow import update_pending_flow
+from infrastructure.controller.routes.delete_pending_flow import delete_pending_flow
 from infrastructure.controller.routes.get_pending_flows import (
     get_pending_flows as get_pending_flows_route,
 )
@@ -162,8 +164,10 @@ from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
-from application.use_cases.save_pending_flows import SavePendingFlowsImpl
-from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+from application.use_cases.save_pending_flow import SavePendingFlowImpl
+from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from infrastructure.calculations.loan_calculator import LoanCalculator
@@ -435,14 +439,14 @@ async def app(tmp_path):
     update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
     delete_periodic_flow_uc = DeletePeriodicFlowImpl(periodic_flow_repo)
     get_periodic_flows_uc = GetPeriodicFlowsImpl(periodic_flow_repo)
-    save_pending_flows_uc = SavePendingFlowsImpl(
-        pending_flow_repo, transaction_handler_port
-    )
-    get_pending_flows_uc = GetPendingFlowsImpl(pending_flow_repo)
+    save_pending_flow_uc = SavePendingFlowImpl(pending_flow_repo)
+    update_pending_flow_uc = UpdatePendingFlowImpl(pending_flow_repo)
+    delete_pending_flow_uc = DeletePendingFlowImpl(pending_flow_repo)
+    query_pending_flows_uc = QueryPendingFlowsImpl(pending_flow_repo)
     get_money_events_uc = GetMoneyEventsImpl(
         get_contributions_uc,
         get_periodic_flows_uc,
-        get_pending_flows_uc,
+        query_pending_flows_uc,
         entity_port,
         position_port,
     )
@@ -599,12 +603,20 @@ async def app(tmp_path):
         return await get_periodic_flows_route(get_periodic_flows_uc)
 
     @test_app.route("/api/v1/flows/pending", methods=["POST"])
-    async def save_pending_flows_route():
-        return await save_pending_flows(save_pending_flows_uc)
+    async def save_pending_flow_route():
+        return await save_pending_flow(save_pending_flow_uc)
+
+    @test_app.route("/api/v1/flows/pending", methods=["PUT"])
+    async def update_pending_flow_route():
+        return await update_pending_flow(update_pending_flow_uc)
+
+    @test_app.route("/api/v1/flows/pending/<flow_id>", methods=["DELETE"])
+    async def delete_pending_flow_route(flow_id: str):
+        return await delete_pending_flow(delete_pending_flow_uc, flow_id)
 
     @test_app.route("/api/v1/flows/pending", methods=["GET"])
     async def get_pending_flows_route_handler():
-        return await get_pending_flows_route(get_pending_flows_uc)
+        return await get_pending_flows_route(query_pending_flows_uc)
 
     @test_app.route("/api/v1/events", methods=["GET"])
     async def get_money_events_route_handler():

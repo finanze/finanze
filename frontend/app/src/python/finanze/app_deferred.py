@@ -131,7 +131,7 @@ class DeferredComponents:
             GetExternalIntegrationsImpl,
         )
         from application.use_cases.get_money_events import GetMoneyEventsImpl
-        from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+        from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
         from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
         from application.use_cases.get_position import GetPositionImpl
         from application.use_cases.get_transactions import GetTransactionsImpl
@@ -280,10 +280,11 @@ class DeferredComponents:
             port_call_runner=_pyodide_port_call_runner,
             job_scheduler=_pyodide_job_scheduler,
         )
+        self.query_pending = QueryPendingFlowsImpl(self.pending_repo)
         self.get_events = GetMoneyEventsImpl(
             self.get_contrib,
             GetPeriodicFlowsImpl(self.period_repo),
-            GetPendingFlowsImpl(self.pending_repo),
+            self.query_pending,
             self.entity_repo,
             self.position_repo,
         )
@@ -293,7 +294,6 @@ class DeferredComponents:
         )
 
         self.get_periodic = GetPeriodicFlowsImpl(self.period_repo)
-        self.get_pending = GetPendingFlowsImpl(self.pending_repo)
 
         self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
 

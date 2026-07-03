@@ -95,7 +95,7 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
             "/api/v1/flows/pending",
             "get_pending_flows",
             "get_pending_flows",
-            d.get_pending,
+            d.query_pending,
         ),
         (
             "GET",
@@ -322,9 +322,23 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         (
             "POST",
             "/api/v1/flows/pending",
-            "save_pending_flows",
-            "save_pending_flows",
+            "save_pending_flow",
+            "save_pending_flow",
             lz.save_pending,
+        ),
+        (
+            "PUT",
+            "/api/v1/flows/pending",
+            "update_pending_flow",
+            "update_pending_flow",
+            lz.up_pending,
+        ),
+        (
+            "DELETE",
+            "/api/v1/flows/pending/<flow_id>",
+            "delete_pending_flow",
+            "delete_pending_flow",
+            lz.del_pending,
         ),
         (
             "POST",

@@ -62,7 +62,6 @@ from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
-from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
@@ -78,7 +77,10 @@ from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
-from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+from application.use_cases.save_pending_flow import SavePendingFlowImpl
+from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
@@ -644,14 +646,14 @@ class FinanzeServer:
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
         get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
-        save_pending_flows = SavePendingFlowsImpl(
-            pending_flow_repository, transaction_handler
-        )
-        get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
+        save_pending_flow = SavePendingFlowImpl(pending_flow_repository)
+        update_pending_flow = UpdatePendingFlowImpl(pending_flow_repository)
+        delete_pending_flow = DeletePendingFlowImpl(pending_flow_repository)
+        query_pending_flows = QueryPendingFlowsImpl(pending_flow_repository)
         get_money_events = GetMoneyEventsImpl(
             get_contributions,
             get_periodic_flows,
-            get_pending_flows,
+            query_pending_flows,
             entity_repository,
             position_repository,
         )
@@ -850,8 +852,10 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
-            save_pending_flows,
-            get_pending_flows,
+            save_pending_flow,
+            update_pending_flow,
+            delete_pending_flow,
+            query_pending_flows,
             create_real_estate,
             update_real_estate,
             delete_real_estate,

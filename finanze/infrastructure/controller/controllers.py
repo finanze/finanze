@@ -47,7 +47,7 @@ from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
-from domain.use_cases.get_pending_flows import GetPendingFlows
+from domain.use_cases.query_pending_flows import QueryPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
@@ -63,7 +63,9 @@ from domain.use_cases.list_real_estate import ListRealEstate
 from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_backup_settings import SaveBackupSettings
 from domain.use_cases.save_commodities import SaveCommodities
-from domain.use_cases.save_pending_flows import SavePendingFlows
+from domain.use_cases.save_pending_flow import SavePendingFlow
+from domain.use_cases.update_pending_flow import UpdatePendingFlow
+from domain.use_cases.delete_pending_flow import DeletePendingFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
 from domain.use_cases.update_contributions import UpdateContributions
@@ -168,7 +170,9 @@ from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.save_backup_settings import save_backup_settings
 from infrastructure.controller.routes.save_commodities import save_commodities
-from infrastructure.controller.routes.save_pending_flows import save_pending_flows
+from infrastructure.controller.routes.save_pending_flow import save_pending_flow
+from infrastructure.controller.routes.update_pending_flow import update_pending_flow
+from infrastructure.controller.routes.delete_pending_flow import delete_pending_flow
 from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
 from infrastructure.controller.routes.transactions import transactions
 from infrastructure.controller.routes.update_contributions import update_contributions
@@ -232,8 +236,10 @@ async def register_routes(
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
     get_periodic_flows_uc: GetPeriodicFlows,
-    save_pending_flows_uc: SavePendingFlows,
-    get_pending_flows_uc: GetPendingFlows,
+    save_pending_flow_uc: SavePendingFlow,
+    update_pending_flow_uc: UpdatePendingFlow,
+    delete_pending_flow_uc: DeletePendingFlow,
+    query_pending_flows_uc: QueryPendingFlows,
     create_real_estate_uc: CreateRealEstate,
     update_real_estate_uc: UpdateRealEstate,
     delete_real_estate_uc: DeleteRealEstate,
@@ -437,12 +443,20 @@ async def register_routes(
         return await get_periodic_flows(get_periodic_flows_uc)
 
     @app.route("/api/v1/flows/pending", methods=["POST"])
-    async def save_pending_flows_route():
-        return await save_pending_flows(save_pending_flows_uc)
+    async def save_pending_flow_route():
+        return await save_pending_flow(save_pending_flow_uc)
+
+    @app.route("/api/v1/flows/pending", methods=["PUT"])
+    async def update_pending_flow_route():
+        return await update_pending_flow(update_pending_flow_uc)
+
+    @app.route("/api/v1/flows/pending/<flow_id>", methods=["DELETE"])
+    async def delete_pending_flow_route(flow_id: str):
+        return await delete_pending_flow(delete_pending_flow_uc, flow_id)
 
     @app.route("/api/v1/flows/pending", methods=["GET"])
     async def get_pending_flows_route():
-        return await get_pending_flows(get_pending_flows_uc)
+        return await get_pending_flows(query_pending_flows_uc)
 
     @app.route("/api/v1/real-estate", methods=["GET"])
     async def list_real_estate_route():
