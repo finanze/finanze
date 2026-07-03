@@ -65,10 +65,17 @@ class RequestWrapper:
     def args(self):
         return self
 
-    def get(self, key, default=None):
+    def get(self, key, default=None, type=None):
         vals = self._args.get(key)
-        # Handle '1' or 1
-        return vals[0] if vals else default
+        if not vals:
+            return default
+        value = vals[0]
+        if type is not None:
+            try:
+                return type(value)
+            except (ValueError, TypeError):
+                return default
+        return value
 
     def getlist(self, key):
         return self._args.get(key, [])
