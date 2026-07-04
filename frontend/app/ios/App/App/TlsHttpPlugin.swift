@@ -124,6 +124,9 @@ public class TlsHttpPlugin: CAPPlugin, CAPBridgedPlugin {
         if let data = data {
             requestDict["body"] = data
         }
+        if let cookies = call.getArray("cookies") {
+            requestDict["cookies"] = cookies
+        }
         if !profile.isEmpty {
             requestDict["profile"] = profile
         }

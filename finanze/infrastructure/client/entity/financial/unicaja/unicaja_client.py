@@ -46,10 +46,23 @@ def _encrypt_password(key: str, password: str) -> str:
     raise ValueError("Unsupported key length for encryption")
 
 
-def _create_mobile_client():
-    from infrastructure.client.http.http_session import new_http_session
+def _create_mobile_client(retrying: bool):
+    from infrastructure.client.http.http_session import new_impersonated_http_session
 
-    return new_http_session()
+    if retrying:
+        session = new_impersonated_http_session(impersonate="firefox135")
+        session.headers["User-Agent"] = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) "
+            "Gecko/20100101 Firefox/135.0"
+        )
+        return session
+
+    session = new_impersonated_http_session(impersonate="chrome146")
+    session.headers["User-Agent"] = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+    )
+    return session
 
 
 def _create_desktop_client(retrying: bool):
@@ -61,7 +74,7 @@ def _create_desktop_client(retrying: bool):
 
 def _create_client(mobile: bool, retrying: bool):
     if mobile:
-        return _create_mobile_client()
+        return _create_mobile_client(retrying)
     else:
         return _create_desktop_client(retrying)
 
@@ -144,7 +157,7 @@ class UnicajaClient:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         elif auth_response.status == 403:
-            if not retrying and not self._use_mobile_client:
+            if not retrying:
                 self._log.error(
                     "Login failed with 403, retrying with different browser impersonation..."
                 )
