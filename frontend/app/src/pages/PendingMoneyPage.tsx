@@ -21,6 +21,7 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
+  ArrowRight,
   Ban,
   Banknote,
   BanknoteArrowDown,
@@ -83,6 +84,7 @@ export default function PendingMoneyPage() {
     DEFAULT_STATUS_FILTER,
   )
   const [sortBy, setSortBy] = useState<FlowSortField>(FlowSortField.AMOUNT)
+  const [sortOrder, setSortOrder] = useState<SortOrder>(SortOrder.DESC)
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [groupByCategory, setGroupByCategory] = useState(() => {
     try {
@@ -178,7 +180,7 @@ export default function PendingMoneyPage() {
           status: statusFilter.length ? statusFilter : undefined,
           category: categoryFilter.length ? categoryFilter : undefined,
           sort_by: sortBy,
-          order: SortOrder.DESC,
+          order: sortOrder,
           page: groupByCategory ? undefined : nextPage,
           limit: groupByCategory ? undefined : PAGE_SIZE,
           stats: !append,
@@ -213,6 +215,7 @@ export default function PendingMoneyPage() {
       statusFilter,
       categoryFilter,
       sortBy,
+      sortOrder,
       groupByCategory,
       showToast,
       t.management.loadError,
@@ -429,7 +432,8 @@ export default function PendingMoneyPage() {
     categoryFilter.length +
     (groupByCategory ? 1 : 0) +
     (isDefaultStatusFilter ? 0 : 1) +
-    (sortBy !== FlowSortField.AMOUNT ? 1 : 0)
+    (sortBy !== FlowSortField.AMOUNT ? 1 : 0) +
+    (sortOrder !== SortOrder.DESC ? 1 : 0)
 
   const sumTotals = (totals: Record<string, number>) =>
     Object.entries(totals).reduce(
@@ -1110,6 +1114,27 @@ export default function PendingMoneyPage() {
                     <CalendarDays size={16} />
                   </button>
                 </div>
+                <button
+                  onClick={() =>
+                    setSortOrder(
+                      sortOrder === SortOrder.ASC
+                        ? SortOrder.DESC
+                        : SortOrder.ASC,
+                    )
+                  }
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                  aria-label={
+                    sortOrder === SortOrder.ASC
+                      ? "Sort descending"
+                      : "Sort ascending"
+                  }
+                >
+                  {sortOrder === SortOrder.ASC ? (
+                    <ArrowRight size={16} className="rotate-[-90deg]" />
+                  ) : (
+                    <ArrowRight size={16} className="rotate-90" />
+                  )}
+                </button>
               </div>
 
               <div className="flex items-center gap-2">

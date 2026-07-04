@@ -23,6 +23,7 @@ from domain.exception.exceptions import (
     BackupConflict,
     BackupTransferFailed,
     ExternalIntegrationRequired,
+    ExternalProviderAppNotLinked,
     IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
@@ -211,6 +212,9 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, PermissionDenied):
             status = 403
             data = {"code": "PERMISSION_DENIED", "message": str(e)}
+        elif isinstance(e, ExternalProviderAppNotLinked):
+            status = 409
+            data = {"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}
 
         router.logger.exception(f"Error handling {method} {path}")
         return {

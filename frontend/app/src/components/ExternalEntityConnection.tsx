@@ -9,7 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
-import { Search, Landmark, Check } from "lucide-react"
+import { Search, Landmark, Check, X } from "lucide-react"
 import {
   ExternalEntityConnectionResult,
   ExternalEntitySetupResponseCode,
@@ -87,6 +87,8 @@ export function useExternalEntityConnection() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [candidatesLoading, setCandidatesLoading] = useState(false)
   const [candidatesError, setCandidatesError] = useState<string | null>(null)
+  const [candidatesNoLinkedAccounts, setCandidatesNoLinkedAccounts] =
+    useState(false)
   const [externalCandidates, setExternalCandidates] = useState<
     ExternalCandidate[]
   >([])
@@ -150,6 +152,7 @@ export function useExternalEntityConnection() {
     setSelectedCountry(null)
     setExternalCandidates([])
     setCandidatesError(null)
+    setCandidatesNoLinkedAccounts(false)
     setInstitutionSearch("")
     setAlreadyLinked(false)
   }
@@ -164,6 +167,7 @@ export function useExternalEntityConnection() {
     setSelectedCountry(null)
     setExternalCandidates([])
     setCandidatesError(null)
+    setCandidatesNoLinkedAccounts(false)
     setInstitutionSearch("")
     setAlreadyLinked(false)
   }
@@ -172,6 +176,7 @@ export function useExternalEntityConnection() {
     setSelectedCountry(country)
     setCandidatesLoading(true)
     setCandidatesError(null)
+    setCandidatesNoLinkedAccounts(false)
     setExternalCandidates([])
     setInstitutionSearch("")
     try {
@@ -181,7 +186,11 @@ export function useExternalEntityConnection() {
       )
       setExternalCandidates(sorted)
     } catch (e: any) {
-      setCandidatesError(e?.message || "error")
+      if (e?.code === "EXTERNAL_PROVIDER_APP_NOT_LINKED") {
+        setCandidatesNoLinkedAccounts(true)
+      } else {
+        setCandidatesError(e?.message || "error")
+      }
     } finally {
       setCandidatesLoading(false)
     }
@@ -191,6 +200,7 @@ export function useExternalEntityConnection() {
     setSelectedCountry(null)
     setExternalCandidates([])
     setCandidatesError(null)
+    setCandidatesNoLinkedAccounts(false)
     setInstitutionSearch("")
   }
 
@@ -458,6 +468,7 @@ export function useExternalEntityConnection() {
     selectedCountry,
     candidatesLoading,
     candidatesError,
+    candidatesNoLinkedAccounts,
     externalCandidates,
     connectingInstitutionId,
     candidateIcons,
@@ -505,6 +516,7 @@ export function ExternalEntityConnectionModals({
     selectedCountry,
     candidatesLoading,
     candidatesError,
+    candidatesNoLinkedAccounts,
     externalCandidates,
     connectingInstitutionId,
     candidateIcons,
@@ -544,10 +556,17 @@ export function ExternalEntityConnectionModals({
               className="bg-white dark:bg-black rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[85vh] flex flex-col"
             >
               <div className="flex flex-col h-full min-h-0">
-                <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-semibold">
                     {t.entities.addExternalEntity}
                   </h3>
+                  <button
+                    onClick={closeAddExternalEntity}
+                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
+                    aria-label={t.common.close}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 min-h-0">
                   {enabledEntityProviders.length > 1 && (
@@ -652,8 +671,23 @@ export function ExternalEntityConnectionModals({
                           {candidatesError}
                         </div>
                       )}
+                      {candidatesNoLinkedAccounts && (
+                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                          {t.entities.enableBankingNoLinkedAccountsBefore}{" "}
+                          <a
+                            href="https://enablebanking.com/cp/applications"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline text-primary"
+                          >
+                            {t.entities.enableBankingNoLinkedAccountsLinkLabel}
+                          </a>
+                          {t.entities.enableBankingNoLinkedAccountsAfter}
+                        </div>
+                      )}
                       {!candidatesLoading &&
                         !candidatesError &&
+                        !candidatesNoLinkedAccounts &&
                         externalCandidates.length > 0 && (
                           <div className="relative mb-3">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -669,6 +703,7 @@ export function ExternalEntityConnectionModals({
                         )}
                       {!candidatesLoading &&
                         !candidatesError &&
+                        !candidatesNoLinkedAccounts &&
                         (() => {
                           const query = institutionSearch.trim().toLowerCase()
                           const filteredCandidates = query
@@ -759,15 +794,6 @@ export function ExternalEntityConnectionModals({
                     </div>
                   )}
                 </div>
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={closeAddExternalEntity}
-                  >
-                    {t.common.close}
-                  </Button>
-                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -815,12 +841,21 @@ export function ExternalEntityConnectionModals({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-black rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden"
+              className="relative bg-white dark:bg-black rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden"
             >
-              <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between gap-4 p-6 pb-0">
                 <h3 className="text-lg font-semibold">
                   {t.entities.confirmConnection}
                 </h3>
+                <button
+                  onClick={dismissCompleteModal}
+                  className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
+                  aria-label={t.entities.dismiss}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6 pt-4 space-y-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   {t.entities.providerLinkInstructions}
                 </p>
@@ -851,13 +886,6 @@ export function ExternalEntityConnectionModals({
                         : t.entities.confirmConnection}
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={dismissCompleteModal}
-                  >
-                    {t.entities.dismiss}
-                  </Button>
                 </div>
               </div>
             </motion.div>

@@ -824,7 +824,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     if (isConflictRef.current) {
       window.dispatchEvent(
         new CustomEvent("backup-auto-sync-complete", {
-          detail: { hadTransfer: false },
+          detail: { hadTransfer: false, conflict: true },
         }),
       )
       return
@@ -855,7 +855,7 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       if (hasConflict) {
         window.dispatchEvent(
           new CustomEvent("backup-auto-sync-complete", {
-            detail: { hadTransfer: false },
+            detail: { hadTransfer: false, conflict: true },
           }),
         )
         return
@@ -962,11 +962,13 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           if (!backupsRef.current) {
             fetchBackups(false)
           }
-          window.dispatchEvent(
-            new CustomEvent("backup-auto-sync-complete", {
-              detail: { hadTransfer: false },
-            }),
-          )
+          if (!globalAutoSyncInFlight && !globalManualSyncInFlight) {
+            window.dispatchEvent(
+              new CustomEvent("backup-auto-sync-complete", {
+                detail: { hadTransfer: false },
+              }),
+            )
+          }
           return
         }
       }

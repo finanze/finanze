@@ -8,6 +8,7 @@ from aiocache import Cache
 from aiocache.serializers import PickleSerializer
 from application.ports.connectable_integration import ConnectableIntegration
 from domain.exception.exceptions import (
+    ExternalProviderAppNotLinked,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
     TooManyRequests,
@@ -128,7 +129,17 @@ class EnableBankingClient(ConnectableIntegration):
         if cached is not None:
             return cached
 
-        data = await self._request("GET", "/aspsps", params={"country": country})
+        try:
+            data = await self._request("GET", "/aspsps", params={"country": country})
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403:
+                self._log.warning(
+                    "Enable Banking app not linked to any account for country %s",
+                    country,
+                )
+                raise ExternalProviderAppNotLinked() from e
+            raise
+
         aspsps = data.get("aspsps", [])
         await self._cache.set(cache_key, aspsps, ttl=self.ASPSPS_TTL)
         return aspsps

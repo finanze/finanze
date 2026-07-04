@@ -1578,13 +1578,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (backupMode !== BackupMode.AUTO) return
-    const handler = () => setBackupSyncCompleted(true)
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail?.conflict === true) {
+        cancelAutoRefresh()
+        return
+      }
+      setBackupSyncCompleted(true)
+    }
     window.addEventListener("backup-auto-sync-complete", handler, {
       once: true,
     })
     return () =>
       window.removeEventListener("backup-auto-sync-complete", handler)
-  }, [backupMode])
+  }, [backupMode, cancelAutoRefresh])
 
   useEffect(() => {
     if (autoRefreshCountdown === null || autoRefreshCountdown < 0) return

@@ -1023,16 +1023,18 @@ function CryptoInvestmentContent({
 
   const walletFilterOptions = useMemo<MultiSelectOption[]>(() => {
     return entityFilteredWalletGroups.flatMap(group =>
-      group.wallets.map(walletGroup => {
-        const wallet = walletGroup.wallet
-        const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
-        const walletName =
-          wallet.name ?? walletDisplayValue ?? group.entity.name
-        return {
-          value: getWalletIdentifier(wallet),
-          label: `${group.entity.name} - ${walletName}`,
-        }
-      }),
+      group.wallets
+        .filter(walletGroup => !isWalletlessEntry(walletGroup.wallet))
+        .map(walletGroup => {
+          const wallet = walletGroup.wallet
+          const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
+          const walletName =
+            wallet.name ?? walletDisplayValue ?? group.entity.name
+          return {
+            value: getWalletIdentifier(wallet),
+            label: `${group.entity.name} - ${walletName}`,
+          }
+        }),
     )
   }, [entityFilteredWalletGroups])
 
@@ -2735,6 +2737,7 @@ function CryptoInvestmentContent({
           <Button
             variant="default"
             size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
             onClick={() => {
               if (isEditMode && hasLocalChanges) {
                 setShowConnectConfirm(true)

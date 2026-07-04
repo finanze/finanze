@@ -74,7 +74,7 @@ class HttpSession:
         return resp
 
 
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 15.0
 
 
 def get_http_session() -> HttpSession:

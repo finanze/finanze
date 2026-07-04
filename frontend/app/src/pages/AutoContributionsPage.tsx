@@ -1499,47 +1499,59 @@ export default function AutoContributionsPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
               onClick={handleOpenCreateModal}
               disabled={financialEntities.length === 0}
             >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              {t.management.manualContributions.add}
+              <Plus className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">
+                {t.management.manualContributions.add}
+              </span>
             </Button>
             {isEditMode ? (
               <>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
                   onClick={handleRequestCancelEdit}
                   disabled={isSaving}
                 >
-                  <X className="h-3.5 w-3.5 mr-1" />
-                  {t.common.cancel}
+                  <X className="h-3.5 w-3.5 sm:mr-1" />
+                  <span className="hidden sm:inline">{t.common.cancel}</span>
                 </Button>
                 <Button
                   size="sm"
+                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
                   onClick={handleSaveAll}
                   disabled={isSaving || !hasLocalChanges}
                 >
                   {isSaving ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {t.common.saving}
+                      <span className="hidden sm:inline">
+                        {t.common.saving}
+                      </span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
                       <Save className="h-3.5 w-3.5" />
-                      {t.common.save}
+                      <span className="hidden sm:inline">{t.common.save}</span>
                     </span>
                   )}
                 </Button>
               </>
             ) : (
-              <Button variant="default" size="sm" onClick={handleEnterEditMode}>
-                <Pencil className="h-3.5 w-3.5 mr-1" />
-                {t.common.edit}
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+                onClick={handleEnterEditMode}
+              >
+                <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">{t.common.edit}</span>
               </Button>
             )}
           </div>
@@ -1566,7 +1578,7 @@ export default function AutoContributionsPage() {
         <motion.div variants={fadeListItem}>
           {chartData.length > 0 && (
             <Card className="-mx-6 rounded-none border-x-0">
-              <CardContent className="pt-6">
+              <CardContent className="pt-4">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -1577,6 +1589,8 @@ export default function AutoContributionsPage() {
                   variant="bare"
                   orbitBubbles={chartData}
                   orbitBubblesCollapsedHidden
+                  maxOuterRadius={150}
+                  chartHeightClassName="min-h-[260px] h-[300px]"
                   toggleConfig={{
                     activeView: "target",
                     onViewChange: () => {},

@@ -297,11 +297,11 @@
       "showToggle": "See completed",
       "hideToggle": "Hide completed",
       "toggleShort": {
-        "show": "See completed",
-        "hide": "Hide completed"
+        "show": "Completed",
+        "hide": "Completed"
       },
-      "empty": "No completed {type} projects available.",
-      "emptyFiltered": "No completed {type} projects for the selected entities.",
+      "empty": "No completed projects available.",
+      "emptyFiltered": "No completed projects for the selected entities.",
       "invested": "Invested",
       "returned": "Returned",
       "repaid": "Repaid",
@@ -523,6 +523,9 @@
     "enableBankingPrelinkMessageLinkLabel": "Enable Banking dashboard",
     "enableBankingPrelinkMessageAfter": ".",
     "enableBankingPrelinkWarning": "Make sure this bank is already linked in the Enable Banking dashboard before continuing, otherwise no data will be returned.",
+    "enableBankingNoLinkedAccountsBefore": "You may not have linked this bank yet in the",
+    "enableBankingNoLinkedAccountsLinkLabel": "Enable Banking dashboard",
+    "enableBankingNoLinkedAccountsAfter": ". Link it there first, then try again.",
     "confirmConnection": "Complete Connection",
     "providerLinkInstructions": "Finish the process in the opened window then confirm the connection.",
     "openLink": "Open Link",
@@ -579,7 +582,8 @@
     "biometricCredentialsClearError": "Failed to disable biometric login",
     "applicationLanguageOptions": {
       "en-US": "English",
-      "es-ES": "Spanish"
+      "es-ES": "Spanish",
+      "it-IT": "Italian"
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
@@ -1987,7 +1991,7 @@
     "recurringMoneyDescription": "Manage your recurring income and expenses",
     "pendingMoney": "Pending Money",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
-    "autoContributions": "Auto Contributions",
+    "autoContributions": "Contributions",
     "autoContributionsDescription": "Review your periodic investment contributions",
     "earnings": "Earnings",
     "expenses": "Expenses",

@@ -6,6 +6,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from domain.exception.exceptions import (
+    ExternalProviderAppNotLinked,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
     TooManyRequests,
@@ -143,6 +144,18 @@ class TestRequests:
 
         assert first == second == aspsps
         assert client._session.request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_aspsps_forbidden_raises_provider_app_not_linked(
+        self, rsa_private_key_pem
+    ):
+        client = _make_client(
+            FakeResponse(ok=False, status=403, text_data="forbidden"),
+            rsa_private_key_pem,
+        )
+
+        with pytest.raises(ExternalProviderAppNotLinked):
+            await client.get_aspsps("ES")
 
     @pytest.mark.asyncio
     async def test_start_auth_body(self, rsa_private_key_pem):

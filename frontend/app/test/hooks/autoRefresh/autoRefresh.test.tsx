@@ -279,6 +279,41 @@ describe("countdown in AUTO backup mode", () => {
 
     expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(1)
   })
+
+  it("aborts auto-refresh when backup sync reports a conflict", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false, conflict: true },
+        }),
+      )
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(0)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
 })
 
 describe("cancel all auto-refresh", () => {
