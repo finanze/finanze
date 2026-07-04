@@ -64,7 +64,7 @@ async function navigateToAutoContributions(page: Page) {
     await page.waitForTimeout(500)
     await page
         .getByRole('navigation')
-        .getByRole('button', { name: 'Auto Contributions' })
+        .getByRole('button', { name: 'Contributions' })
         .click()
     await page.waitForTimeout(1_000)
 }

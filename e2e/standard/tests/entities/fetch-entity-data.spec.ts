@@ -107,7 +107,7 @@ async function navigateToAutoContributions(page: Page) {
     // Click Auto Contributions sub-item (scoped to nav to avoid matching page buttons)
     await page
         .getByRole('navigation')
-        .getByRole('button', { name: 'Auto Contributions' })
+        .getByRole('button', { name: 'Contributions' })
         .click()
     // Wait for page to load
     await page.waitForTimeout(1_000)
