@@ -7,6 +7,7 @@ import {
   mockFetchFinancialEntity,
   setEntities,
   setBackupMode,
+  setCloudInitialized,
   setAutoRefreshSettings,
   renderDropdown,
   renderContextOnly,
@@ -27,6 +28,81 @@ afterEach(() => {
 })
 
 describe("auto-refresh pending state", () => {
+  it("does not start countdown while cloud is not initialized", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("starts countdown once cloud initializes with non-AUTO mode", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    setCloudInitialized(true)
+    await act(async () => {
+      rerenderView()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
+  it("waits for backup sync when cloud initializes into AUTO mode", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    setCloudInitialized(true)
+    setBackupMode(BackupMode.AUTO)
+    await act(async () => {
+      rerenderView()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false },
+        }),
+      )
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
   it("sets pending candidates immediately when auto-refresh is configured", async () => {
     const entity = buildEntity({ id: "e1", name: "Bank A" })
     const candidates = [buildCandidate({ id: "e1", name: "Bank A" })]

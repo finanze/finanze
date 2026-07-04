@@ -30,6 +30,7 @@ let currentEntities: Entity[] = []
 let currentBackupMode = BackupMode.OFF
 let currentAutoRefreshSettings = buildAutoRefreshSettings()
 let currentEntitiesLoaded = true
+let currentCloudInitialized = true
 
 export function setEntities(entities: Entity[]) {
   currentEntities = entities
@@ -37,6 +38,10 @@ export function setEntities(entities: Entity[]) {
 
 export function setBackupMode(mode: BackupMode) {
   currentBackupMode = mode
+}
+
+export function setCloudInitialized(initialized: boolean) {
+  currentCloudInitialized = initialized
 }
 
 export function setAutoRefreshSettings(
@@ -92,7 +97,7 @@ vi.mock("@/context/CloudContext", () => ({
   useCloud: () => ({
     backupMode: currentBackupMode,
     permissions: [],
-    isInitialized: true,
+    isInitialized: currentCloudInitialized,
   }),
 }))
 
@@ -206,6 +211,7 @@ export function resetAllMocks() {
     data: { autoRefresh: currentAutoRefreshSettings },
   }
   currentEntitiesLoaded = true
+  currentCloudInitialized = true
   capturedContext = null
   lastRenderResult = null
 

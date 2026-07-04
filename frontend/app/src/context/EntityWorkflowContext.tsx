@@ -156,7 +156,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     entities,
     entitiesLoaded,
   } = useAppContext()
-  const { backupMode } = useCloud()
+  const { backupMode, isInitialized: cloudInitialized } = useCloud()
 
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -1577,7 +1577,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const [backupSyncCompleted, setBackupSyncCompleted] = useState(false)
 
   useEffect(() => {
-    if (backupMode !== BackupMode.AUTO) return
     const handler = (e: Event) => {
       if ((e as CustomEvent).detail?.conflict === true) {
         cancelAutoRefresh()
@@ -1590,7 +1589,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     })
     return () =>
       window.removeEventListener("backup-auto-sync-complete", handler)
-  }, [backupMode, cancelAutoRefresh])
+  }, [cancelAutoRefresh])
 
   useEffect(() => {
     if (autoRefreshCountdown === null || autoRefreshCountdown < 0) return
@@ -1655,6 +1654,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     setPendingAutoRefreshCandidates(candidates)
     autoRefreshCancelledRef.current = false
 
+    if (!cloudInitialized) {
+      return
+    }
+
     if (backupMode === BackupMode.AUTO && !backupSyncCompleted) {
       return
     }
@@ -1665,6 +1668,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     entities,
     settings,
     backupMode,
+    cloudInitialized,
     backupSyncCompleted,
     startAutoRefreshCountdown,
   ])
