@@ -890,6 +890,108 @@ export default function PendingMoneyPage() {
     )
   }
 
+  const renderDetailedControls = () => (
+    <>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {t.management.sortBy}
+          </span>
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setSortBy(FlowSortField.AMOUNT)}
+              title={t.management.sortByAmount}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                sortBy === FlowSortField.AMOUNT
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Banknote size={16} />
+            </button>
+            <button
+              onClick={() => setSortBy(FlowSortField.DATE)}
+              title={t.management.sortByDate}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                sortBy === FlowSortField.DATE
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays size={16} />
+            </button>
+          </div>
+          <button
+            onClick={() =>
+              setSortOrder(
+                sortOrder === SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC,
+              )
+            }
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            aria-label={
+              sortOrder === SortOrder.ASC ? "Sort descending" : "Sort ascending"
+            }
+          >
+            {sortOrder === SortOrder.ASC ? (
+              <ArrowRight size={16} className="rotate-[-90deg]" />
+            ) : (
+              <ArrowRight size={16} className="rotate-90" />
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {t.management.statusFilter}
+          </span>
+          <div className="flex items-center gap-1 flex-wrap">
+            {statusChips.map(chip => (
+              <button
+                key={chip.status}
+                onClick={() => toggleStatusFilter(chip.status)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium rounded-full transition-all border",
+                  statusFilter.includes(chip.status)
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-muted text-muted-foreground border-transparent hover:text-foreground",
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:ml-auto flex-wrap max-w-full sm:justify-end">
+        <span className="text-sm text-muted-foreground">
+          {t.management.groupBy}
+        </span>
+        <button
+          onClick={() => setGroupByCategory(prev => !prev)}
+          title={t.management.groupByCategory}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+            groupByCategory
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Tag size={14} />
+          <span className="hidden sm:inline">
+            {t.management.groupByCategory}
+          </span>
+        </button>
+        <MultiSelect
+          options={categoryOptions}
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          className="hidden sm:block min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
+        />
+      </div>
+    </>
+  )
+
   return (
     <>
       <motion.div
@@ -1078,114 +1180,27 @@ export default function PendingMoneyPage() {
             />
           </div>
 
-          {/* Detailed controls: always on desktop, toggle on mobile */}
-          <div
-            className={cn(
-              "items-center justify-between gap-3 flex-wrap",
-              showMobileFilters ? "flex" : "hidden sm:flex",
-            )}
-          >
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {t.management.sortBy}
-                </span>
-                <div className="flex items-center bg-muted rounded-lg p-1">
-                  <button
-                    onClick={() => setSortBy(FlowSortField.AMOUNT)}
-                    title={t.management.sortByAmount}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      sortBy === FlowSortField.AMOUNT
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Banknote size={16} />
-                  </button>
-                  <button
-                    onClick={() => setSortBy(FlowSortField.DATE)}
-                    title={t.management.sortByDate}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      sortBy === FlowSortField.DATE
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <CalendarDays size={16} />
-                  </button>
-                </div>
-                <button
-                  onClick={() =>
-                    setSortOrder(
-                      sortOrder === SortOrder.ASC
-                        ? SortOrder.DESC
-                        : SortOrder.ASC,
-                    )
-                  }
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                  aria-label={
-                    sortOrder === SortOrder.ASC
-                      ? "Sort descending"
-                      : "Sort ascending"
-                  }
+          {/* Detailed controls: always on desktop, animated toggle on mobile */}
+          <div className="hidden sm:flex items-center justify-between gap-3 flex-wrap">
+            {renderDetailedControls()}
+          </div>
+
+          <div className="sm:hidden">
+            <AnimatePresence initial={false}>
+              {showMobileFilters && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  className="overflow-hidden"
                 >
-                  {sortOrder === SortOrder.ASC ? (
-                    <ArrowRight size={16} className="rotate-[-90deg]" />
-                  ) : (
-                    <ArrowRight size={16} className="rotate-90" />
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {t.management.statusFilter}
-                </span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {statusChips.map(chip => (
-                    <button
-                      key={chip.status}
-                      onClick={() => toggleStatusFilter(chip.status)}
-                      className={cn(
-                        "px-2.5 py-1 text-xs font-medium rounded-full transition-all border",
-                        statusFilter.includes(chip.status)
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-muted text-muted-foreground border-transparent hover:text-foreground",
-                      )}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:ml-auto flex-wrap max-w-full sm:justify-end">
-              <span className="text-sm text-muted-foreground">
-                {t.management.groupBy}
-              </span>
-              <button
-                onClick={() => setGroupByCategory(prev => !prev)}
-                title={t.management.groupByCategory}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
-                  groupByCategory
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Tag size={14} />
-                <span className="hidden sm:inline">
-                  {t.management.groupByCategory}
-                </span>
-              </button>
-              <MultiSelect
-                options={categoryOptions}
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                className="hidden sm:block min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
-              />
-            </div>
+                  <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+                    {renderDetailedControls()}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 

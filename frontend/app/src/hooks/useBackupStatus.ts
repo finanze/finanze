@@ -54,6 +54,7 @@ let globalAutoSyncInFlight = false
 let globalManualSyncInFlight = false
 let globalSyncCooldownUntil: number | null = null
 let globalSkipFastCheckUntil = 0
+let globalPostScrapeUploadClaimed = false
 
 export function resetBackupStatusCache(): void {
   globalFetchInFlight = false
@@ -65,6 +66,7 @@ export function resetBackupStatusCache(): void {
   globalManualSyncInFlight = false
   globalSyncCooldownUntil = null
   globalSkipFastCheckUntil = 0
+  globalPostScrapeUploadClaimed = false
   localStorage.removeItem(LAST_BACKUP_FETCH_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_KEY)
   localStorage.removeItem(LAST_AUTO_SYNC_HAD_TRANSFER_KEY)
@@ -1036,11 +1038,17 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
       return
 
     const handleScrapesDone = () => {
-      const timeout = window.setTimeout(async () => {
-        if (globalAutoSyncInFlight || globalManualSyncInFlight) return
-        if (isConflictRef.current) return
+      // Multiple useBackupStatus instances are mounted at once; claim the
+      // post-scrape upload synchronously (listeners run during dispatchEvent)
+      // so only one instance performs the info fetch + upload.
+      if (globalPostScrapeUploadClaimed) return
+      globalPostScrapeUploadClaimed = true
 
+      window.setTimeout(async () => {
         try {
+          if (globalAutoSyncInFlight || globalManualSyncInFlight) return
+          if (isConflictRef.current) return
+
           const info = normalizeBackupsInfo(await getBackupsInfo())
           setBackups(info)
           setPersistedBackupData(info)
@@ -1067,10 +1075,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
           }
         } catch {
           // silently ignore — next auto-sync cycle will handle it
+        } finally {
+          globalPostScrapeUploadClaimed = false
         }
       }, POST_SCRAPE_UPLOAD_DELAY_MS)
-
-      return () => window.clearTimeout(timeout)
     }
 
     window.addEventListener("auto-refresh-scrapes-complete", handleScrapesDone)

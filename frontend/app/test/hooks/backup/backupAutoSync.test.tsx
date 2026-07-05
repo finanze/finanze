@@ -8,6 +8,7 @@ import {
   mockImportBackup,
   mockShowToast,
   renderBackupUI,
+  renderDualBackupUI,
   resetAllMocks,
   setBackupMode,
   setPermissions,
@@ -342,6 +343,45 @@ describe("post-scrape auto-upload", () => {
         types: [BackupFileType.DATA],
       })
     })
+
+    unmount()
+  })
+
+  it("performs the post-scrape upload only once with multiple hook instances", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(syncInfo)
+
+    const { unmount } = renderDualBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    mockGetBackupsInfo.mockClear()
+    mockUploadBackup.mockClear()
+
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(pendingInfo)
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("auto-refresh-scrapes-complete"))
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + 100)
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGetBackupsInfo).toHaveBeenCalledTimes(1)
 
     unmount()
   })

@@ -1624,39 +1624,64 @@ export default function TransactionsPage() {
                                           </div>
                                         </div>
                                       </div>
-                                      {hasDetails && isExpanded && (
-                                        <div className="px-3 pb-3 ml-0">
-                                          <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
-                                            {renderTransactionDetails(tx)}
-                                            {tx.source ===
-                                              DataSource.MANUAL && (
-                                              <div className="flex flex-wrap gap-2 pt-3">
-                                                <Button
-                                                  variant="outline"
-                                                  size="sm"
-                                                  onClick={() =>
-                                                    handleEditTransaction(tx)
-                                                  }
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  <Pencil className="h-4 w-4" />
-                                                  {t.common.edit}
-                                                </Button>
-                                                <Button
-                                                  variant="destructive"
-                                                  size="sm"
-                                                  onClick={() =>
-                                                    handleRequestDelete(tx)
-                                                  }
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  <Trash2 className="h-4 w-4" />
-                                                  {t.common.delete}
-                                                </Button>
+                                      {hasDetails && (
+                                        <AnimatePresence initial={false}>
+                                          {isExpanded && (
+                                            <motion.div
+                                              initial={{
+                                                height: 0,
+                                                opacity: 0,
+                                              }}
+                                              animate={{
+                                                height: "auto",
+                                                opacity: 1,
+                                              }}
+                                              exit={{ height: 0, opacity: 0 }}
+                                              transition={{
+                                                duration: 0.2,
+                                                ease: "easeInOut",
+                                              }}
+                                              className="overflow-hidden"
+                                            >
+                                              <div className="px-3 pb-3 ml-0">
+                                                <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                                  {renderTransactionDetails(tx)}
+                                                  {tx.source ===
+                                                    DataSource.MANUAL && (
+                                                    <div className="flex flex-wrap gap-2 pt-3">
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          handleEditTransaction(
+                                                            tx,
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                      >
+                                                        <Pencil className="h-4 w-4" />
+                                                        {t.common.edit}
+                                                      </Button>
+                                                      <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          handleRequestDelete(
+                                                            tx,
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                      >
+                                                        <Trash2 className="h-4 w-4" />
+                                                        {t.common.delete}
+                                                      </Button>
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
-                                            )}
-                                          </div>
-                                        </div>
+                                            </motion.div>
+                                          )}
+                                        </AnimatePresence>
                                       )}
                                     </div>
                                   )
@@ -1849,38 +1874,57 @@ export default function TransactionsPage() {
                                       </div>
                                     </div>
                                   </div>
-                                  {hasDetails && isExpanded && (
-                                    <div className="px-3 pb-3 ml-0">
-                                      <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
-                                        {renderTransactionDetails(tx)}
-                                        {tx.source === DataSource.MANUAL && (
-                                          <div className="flex flex-wrap gap-2 pt-3">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() =>
-                                                handleEditTransaction(tx)
-                                              }
-                                              className="flex items-center gap-2"
-                                            >
-                                              <Pencil className="h-4 w-4" />
-                                              {t.common.edit}
-                                            </Button>
-                                            <Button
-                                              variant="destructive"
-                                              size="sm"
-                                              onClick={() =>
-                                                handleRequestDelete(tx)
-                                              }
-                                              className="flex items-center gap-2"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                              {t.common.delete}
-                                            </Button>
+                                  {hasDetails && (
+                                    <AnimatePresence initial={false}>
+                                      {isExpanded && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{
+                                            height: "auto",
+                                            opacity: 1,
+                                          }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{
+                                            duration: 0.2,
+                                            ease: "easeInOut",
+                                          }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="px-3 pb-3 ml-0">
+                                            <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                              {renderTransactionDetails(tx)}
+                                              {tx.source ===
+                                                DataSource.MANUAL && (
+                                                <div className="flex flex-wrap gap-2 pt-3">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      handleEditTransaction(tx)
+                                                    }
+                                                    className="flex items-center gap-2"
+                                                  >
+                                                    <Pencil className="h-4 w-4" />
+                                                    {t.common.edit}
+                                                  </Button>
+                                                  <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      handleRequestDelete(tx)
+                                                    }
+                                                    className="flex items-center gap-2"
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                    {t.common.delete}
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
                                   )}
                                 </div>
                               )
