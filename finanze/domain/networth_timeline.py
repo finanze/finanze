@@ -35,6 +35,7 @@ class NetworthTimelineQuery:
     from_date: Optional[date] = None
     to_date: Optional[date] = None
     no_calculation: bool = False
+    recalculate: bool = False
 
 
 @dataclass
@@ -61,17 +62,16 @@ class PositionSnapshot:
 
     For per-account sources (bank fetches), one snapshot is produced per
     account and the holder is that account. For sources whose every import
-    fully re-declares the portfolio (manual entries, Sheets), a single
-    ``redeclaring`` snapshot is produced per import: the holder is the source
-    itself and the holdings are the whole portfolio declared by that import, so
-    the latest import on or before a day fully replaces the previous one.
+    fully re-declares the portfolio (manual entries, Sheets), a single snapshot
+    is produced per import: the holder is the source itself and the holdings are
+    the whole portfolio declared by that import, so the latest import on or
+    before a day fully replaces the previous one.
     """
 
     holder: str
     moment: datetime
     holdings: list[HoldingValuation] = field(default_factory=list)
     holder_deleted_at: Optional[date] = None
-    redeclaring: bool = False
 
 
 @dataclass

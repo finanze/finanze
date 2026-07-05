@@ -167,6 +167,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_5_b100 import V0905B100
 from infrastructure.repository.db.versions.v0.v09.v090_6_pending_flow_status import (
     V0906PendingFlowStatus,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_7_rebuild_networth_timeline import (
+    V0907RebuildNetworthTimeline,
+)
 
 versions = [
     V0Genesis(),
@@ -236,4 +239,5 @@ versions = [
     V0904EnableBankingProvider(),
     V0905B100(),
     V0906PendingFlowStatus(),
+    V0907RebuildNetworthTimeline(),
 ]

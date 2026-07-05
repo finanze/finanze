@@ -62,13 +62,12 @@ def _historic(days, prices):
     )
 
 
-def _snapshot(holder, day, holdings, hour=12, deleted_at=None, redeclaring=False):
+def _snapshot(holder, day, holdings, hour=12, deleted_at=None):
     return PositionSnapshot(
         holder=holder,
         moment=datetime(day.year, day.month, day.day, hour, 0, 0),
         holdings=holdings,
         holder_deleted_at=deleted_at,
-        redeclaring=redeclaring,
     )
 
 
@@ -372,13 +371,11 @@ class TestCompute:
                 "SHEETS",
                 date(2025, 9, 11),
                 [_holding("LOAN", "148500"), _holding("LOAN", "12718")],
-                redeclaring=True,
             ),
             _snapshot(
                 "SHEETS",
                 date(2025, 11, 19),
                 [_holding("LOAN", "12718")],
-                redeclaring=True,
             ),
         ]
         use_case, port = _build(snapshots=snapshots)
@@ -404,13 +401,11 @@ class TestCompute:
                 "MANUAL",
                 date(2026, 1, 30),
                 [_holding("FACTORING", "1111"), _holding("DEPOSIT", "2000")],
-                redeclaring=True,
             ),
             _snapshot(
                 "MANUAL",
                 date(2026, 4, 12),
                 [_holding("FACTORING", "1100"), _holding("DEPOSIT", "2000")],
-                redeclaring=True,
             ),
         ]
         use_case, port = _build(snapshots=snapshots)
@@ -448,6 +443,25 @@ class TestControlFlow:
         await use_case.execute(NetworthTimelineQuery())
 
         port.persist.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_recalculate_forces_full_rebuild(self):
+        # A matching signature would normally short-circuit; recalculate=True
+        # forces a wipe and full recomputation from scratch.
+        snapshots = [
+            _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")])
+        ]
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
+        state = NetworthTimelineState(
+            inputs_signature=signature, last_computed_date=date(2025, 1, 1)
+        )
+        use_case, port = _build(snapshots=snapshots, state=state)
+
+        await use_case.execute(NetworthTimelineQuery(recalculate=True))
+
+        result = _persisted(port)
+        assert result["wipe"] is True
+        assert [p.date for p in result["points"]] == [date(2025, 1, 1)]
 
     @pytest.mark.asyncio
     async def test_signature_change_wipes(self):

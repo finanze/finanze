@@ -153,7 +153,9 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
         params = []
         if excluded_entity_ids:
             placeholders = ", ".join("?" for _ in excluded_entity_ids)
-            sql += f" AND gp.entity_id NOT IN ({placeholders})"
+            sql += (
+                f" AND (vdi.entity_id IS NULL OR vdi.entity_id NOT IN ({placeholders}))"
+            )
             params.extend(excluded_entity_ids)
 
         async with self._db_client.read() as cursor:
@@ -166,7 +168,9 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
         # Each import of a re-declaring source (manual/sheets) carries the whole
         # portfolio for that source: collapse all of its positions into a single
         # snapshot held by the source, so the latest import on or before a day
-        # fully replaces the previous one.
+        # fully replaces the previous one. An import that re-declared no
+        # positions (empty marker row, null global_position_id) yields an empty
+        # snapshot that supersedes the source's stale holdings.
         imports: dict[str, dict] = {}
         for row in import_rows:
             entry = imports.get(row["import_id"])
@@ -177,7 +181,8 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
                     "gp_ids": [],
                 }
                 imports[row["import_id"]] = entry
-            entry["gp_ids"].append(row["gp_id"])
+            if row["gp_id"] is not None:
+                entry["gp_ids"].append(row["gp_id"])
 
         snapshots: list[PositionSnapshot] = []
         for entry in imports.values():
@@ -189,7 +194,6 @@ class NetworthTimelineSQLRepository(NetworthTimelinePort):
                     holder=entry["source"],
                     moment=datetime.fromisoformat(entry["date"]),
                     holdings=holdings,
-                    redeclaring=True,
                 )
             )
         return snapshots
