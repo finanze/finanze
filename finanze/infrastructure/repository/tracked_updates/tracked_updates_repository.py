@@ -27,7 +27,7 @@ class TrackedUpdatesRepository(TrackedUpdatesPort):
     async def update_last_executed(
         self, use_case_name: str, executed_at: datetime
     ) -> None:
-        async with self._db_client.tx() as cursor:
+        async with self._db_client.tx(skip_last_update=True) as cursor:
             await cursor.execute(
                 TrackedUpdatesQueries.UPSERT,
                 (str(uuid4()), use_case_name, executed_at.isoformat()),

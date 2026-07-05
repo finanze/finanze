@@ -78,3 +78,18 @@ class TestTrackedUpdatesRepository:
 
         assert await repo.get_last_executed("TRACKED_QUOTES") == quotes_at
         assert await repo.get_last_executed("TRACKED_LOANS") == loans_at
+
+    @pytest.mark.asyncio
+    async def test_update_last_executed_does_not_touch_last_update(self, setup):
+        db_client, conn = setup
+        repo = TrackedUpdatesRepository(client=db_client)
+
+        conn.execute("DELETE FROM sys_config WHERE key = 'last_update'")
+        conn.commit()
+
+        await repo.update_last_executed("TRACKED_QUOTES", datetime.now(tzlocal()))
+
+        row = conn.execute(
+            "SELECT value FROM sys_config WHERE key = 'last_update'"
+        ).fetchone()
+        assert row is None
