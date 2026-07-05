@@ -424,6 +424,7 @@
       "dontCloseApp": "Please don't close the app during this process",
       "invalidEncryptionKey": "Invalid encryption key. Please check and try again.",
       "restoreFailed": "Restore failed. Please try again.",
+      "tooManyRequests": "Too many attempts. Wait a moment and try again.",
       "guestCreationFailed": "Failed to prepare account. Please try again.",
       "loginAfterRestoreFailed": "Data restored but login failed. Please try logging in manually.",
       "backToSignup": "Back to sign up"

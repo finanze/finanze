@@ -424,6 +424,7 @@
       "dontCloseApp": "Non chiudere l'app durante questo processo",
       "invalidEncryptionKey": "Chiave di crittografia non valida. Controllala e riprova.",
       "restoreFailed": "Ripristino non riuscito. Riprova.",
+      "tooManyRequests": "Troppi tentativi. Attendi un momento e riprova.",
       "guestCreationFailed": "Impossibile preparare l'account. Riprova.",
       "loginAfterRestoreFailed": "Dati ripristinati ma l'accesso non è riuscito. Prova ad accedere manualmente.",
       "backToSignup": "Torna alla registrazione"

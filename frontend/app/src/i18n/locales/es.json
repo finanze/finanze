@@ -422,6 +422,7 @@
       "dontCloseApp": "Por favor, no cierres la app durante este proceso",
       "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
       "restoreFailed": "Error al restaurar. Inténtalo de nuevo.",
+      "tooManyRequests": "Demasiados intentos. Espera un momento e inténtalo otra vez.",
       "guestCreationFailed": "Error al preparar la cuenta. Inténtalo de nuevo.",
       "loginAfterRestoreFailed": "Datos restaurados pero el inicio de sesión falló. Intenta iniciar sesión manualmente.",
       "backToSignup": "Volver al registro"

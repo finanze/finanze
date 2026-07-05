@@ -386,6 +386,8 @@ export function CloudRestore({
 
       if (maybeCode === "INVALID_BACKUP_CREDENTIALS") {
         setError(t.login.cloudRestore.invalidEncryptionKey)
+      } else if (maybeCode === "TOO_MANY_REQUESTS") {
+        setError(t.login.cloudRestore.tooManyRequests)
       } else {
         setError(t.login.cloudRestore.restoreFailed)
       }
