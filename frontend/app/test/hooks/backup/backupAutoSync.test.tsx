@@ -88,6 +88,31 @@ describe("canAutoSync derivation", () => {
 })
 
 describe("auto-sync interval (AUTO mode, Plus)", () => {
+  it("fetches backups info only once on AUTO bootstrap", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(info)
+
+    const { unmount } = renderBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockGetBackupsInfo).toHaveBeenCalledTimes(1)
+    expect(mockUploadBackup).not.toHaveBeenCalled()
+    expect(mockImportBackup).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
   it("runs auto-sync after interval elapses with PENDING pieces", async () => {
     setPermissions(ALL_PLUS_PERMISSIONS)
     setBackupMode(BackupMode.AUTO)

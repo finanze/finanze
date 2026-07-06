@@ -346,8 +346,16 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, isCloudEnabled, user, refreshSessionIfNeeded])
 
-  // When cloud feature is disabled, mark as initialized immediately
+  // When cloud feature is disabled, mark as initialized immediately.
+  // Feature flags start empty until the auth status loads, so only trust
+  // `isCloudEnabled === false` once the user is authenticated (flags are set
+  // in the same commit as authentication). Before that, keep isInitialized
+  // false so consumers don't act on a transient OFF backup mode.
   useEffect(() => {
+    if (!isAuthenticated) {
+      setIsInitialized(false)
+      return
+    }
     if (!isCloudEnabled) {
       setUser(null)
       setRole(null)
@@ -356,7 +364,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       lastBackupSettingsUserIdRef.current = null
       setIsInitialized(true)
     }
-  }, [isCloudEnabled])
+  }, [isAuthenticated, isCloudEnabled])
 
   useEffect(() => {
     if (!isAuthenticated || !isCloudEnabled) {

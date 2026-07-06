@@ -842,7 +842,10 @@ export function useBackupStatus(options: UseBackupStatusOptions = {}) {
     try {
       globalAutoSyncInFlight = true
       setIsSyncing(true)
-      const info = normalizeBackupsInfo(await getBackupsInfo())
+      const info = normalizeBackupsInfo(
+        (globalFetchPromise ? await globalFetchPromise : null) ??
+          (await getBackupsInfo()),
+      )
       registerNetworkSuccess()
       setBackups(info)
       setPersistedBackupData(info)
