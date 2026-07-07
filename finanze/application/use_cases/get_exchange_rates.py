@@ -90,7 +90,7 @@ async def _default_job_scheduler(
 
 
 class GetExchangeRatesImpl(GetExchangeRates):
-    BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB", "USDT", "USDC"]
+    BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB"]
     IGNORED_CRYPTO_SYMBOLS = {"BNFCR"}
     DEFAULT_TIMEOUT = 8
     CACHE_TTL_SECONDS = 300
@@ -155,6 +155,11 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
     def _init_empty_matrix(self):
         return {c: {} for c in SUPPORTED_CURRENCIES}
+
+    def _sync_base_fiat_rates_to_crypto_provider(self):
+        if not self._fiat_matrix:
+            return
+        self._crypto_asset_info_provider.set_base_fiat_rates(self._fiat_matrix)
 
     def _consume_future(
         self, future, futures_map, commodity_rates, crypto_rates, refreshed_base
@@ -254,6 +259,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 for quote, rate in quotes.items():
                     self._fiat_matrix[base][quote] = rate
 
+        self._sync_base_fiat_rates_to_crypto_provider()
         return self._fiat_matrix
 
     async def _get_exchange_rates(self, initial_load: bool) -> ExchangeRates:
@@ -273,6 +279,8 @@ class GetExchangeRatesImpl(GetExchangeRates):
         if self._fiat_matrix is None:
             self._last_base_refresh_ts = _now()
             self._fiat_matrix = self._init_empty_matrix()
+
+        self._sync_base_fiat_rates_to_crypto_provider()
 
         commodity_rates = {}
         crypto_rates = {}
@@ -324,6 +332,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                     )
             if not initial_load:
                 self._last_base_refresh_ts = _now()
+            self._sync_base_fiat_rates_to_crypto_provider()
 
         self._apply_rates(commodity_rates, crypto_rates)
         # Save to storage if not initial load (logged in) or not stored (new)

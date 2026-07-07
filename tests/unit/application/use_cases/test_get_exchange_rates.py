@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -71,6 +71,7 @@ def _build_use_case(
         exchange_rates_provider.get_matrix = AsyncMock(return_value={})
     if crypto_asset_info_provider is None:
         crypto_asset_info_provider = AsyncMock()
+        crypto_asset_info_provider.set_base_fiat_rates = MagicMock()
     if metal_price_provider is None:
         metal_price_provider = AsyncMock()
     if exchange_rates_storage is None:
@@ -112,6 +113,7 @@ class TestIgnoredCryptoSymbols:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
             return_value={"BTC": {"EUR": Dezimal("50000")}}
         )
@@ -159,6 +161,7 @@ class TestIgnoredCryptoSymbols:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
 
         captured_jobs = []
 
@@ -208,6 +211,7 @@ class TestCryptoRateKeying:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
             return_value={"BTC": {"EUR": Dezimal("50000")}}
         )
@@ -243,6 +247,7 @@ class TestCryptoRateKeying:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(return_value={})
         crypto_provider.get_prices_by_addresses = AsyncMock(
             return_value={"0xabc123": {"EUR": Dezimal("50000")}}
@@ -282,6 +287,7 @@ class TestCryptoRateKeying:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(return_value={})
         crypto_provider.get_prices_by_addresses = AsyncMock(
             return_value={
@@ -323,6 +329,7 @@ class TestCryptoRateKeying:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
 
         crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
             return_value={"BTC": {"EUR": Dezimal("50000")}}
         )
