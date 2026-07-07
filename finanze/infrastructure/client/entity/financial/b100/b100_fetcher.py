@@ -1,6 +1,7 @@
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from hashlib import sha1
 from typing import Optional
 from uuid import uuid4
 
@@ -193,20 +194,32 @@ class B100Fetcher(FinancialEntityFetcher):
                 pass
         return datetime.now(tzlocal())
 
+    @staticmethod
+    def _calc_tx_id(
+        detail: str, amount: Dezimal, currency: str, tx_date: datetime
+    ) -> str:
+        utc_date = tx_date.astimezone(timezone.utc)
+        return sha1(
+            f"{detail}_{amount}_{currency}_{utc_date.isoformat()}".encode("UTF-8")
+        ).hexdigest()
+
     def _map_interest_tx(self, movement: dict) -> AccountTx:
         amount = movement.get("amount") or {}
         net = Dezimal(amount.get("quantity") or 0)
         gross = net / (1 - CAPITAL_GAINS_BASE_TAX)
         retentions = gross - net
+        detail = movement.get("detail") or "INTERESES"
+        tx_date = self._parse_date(movement.get("transactionDate"))
+        ref = self._calc_tx_id(detail, net, amount.get("currency"), tx_date)
 
         return AccountTx(
             id=uuid4(),
-            ref=movement["id"],
-            name=movement.get("detail") or "INTERESES",
+            ref=ref,
+            name=detail,
             amount=round(gross, 2),
             currency=amount.get("currency"),
             type=TxType.INTEREST,
-            date=self._parse_date(movement.get("transactionDate")),
+            date=tx_date,
             entity=B100,
             source=DataSource.REAL,
             product_type=ProductType.ACCOUNT,
@@ -237,7 +250,14 @@ class B100Fetcher(FinancialEntityFetcher):
                 for movement in movements:
                     if not self._is_interest(movement):
                         continue
-                    if movement["id"] in registered_txs:
+                    amount = movement.get("amount") or {}
+                    ref = self._calc_tx_id(
+                        movement.get("detail") or "INTERESES",
+                        Dezimal(amount.get("quantity") or 0),
+                        amount.get("currency"),
+                        self._parse_date(movement.get("transactionDate")),
+                    )
+                    if ref in registered_txs:
                         if not options.deep:
                             stop = True
                             break

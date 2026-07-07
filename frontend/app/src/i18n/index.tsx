@@ -7,14 +7,18 @@ import {
 } from "react"
 import enTranslations from "./locales/en.json"
 import esTranslationsRaw from "./locales/es.json"
+import itTranslationsRaw from "./locales/it.json"
 
-export type Locale = "en-US" | "es-ES"
+export type Locale = "en-US" | "es-ES" | "it-IT"
 export type Translations = typeof enTranslations
 
 const translations: Record<Locale, Translations> = {
   "en-US": enTranslations,
   "es-ES": esTranslationsRaw as unknown as Translations,
+  "it-IT": itTranslationsRaw as unknown as Translations,
 }
+
+const VALID_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
 
 interface I18nContextType {
   locale: Locale
@@ -36,7 +40,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const savedLocale = localStorage.getItem("locale") as Locale
-    if (savedLocale && (savedLocale === "en-US" || savedLocale === "es-ES")) {
+    if (savedLocale && VALID_LOCALES.includes(savedLocale)) {
       setLocale(savedLocale)
       setT(translations[savedLocale])
     }

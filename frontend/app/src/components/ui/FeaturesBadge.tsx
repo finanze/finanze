@@ -49,6 +49,7 @@ export function FeaturesBadge({
           className={`text-xs cursor-pointer hover:opacity-80 transition-opacity ${className}`}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
+          onClick={e => e.stopPropagation()}
         >
           <Sparkles className="h-3 w-3 mr-1" />
           {features.length}
@@ -59,6 +60,7 @@ export function FeaturesBadge({
         sideOffset={4}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={e => e.stopPropagation()}
       >
         <div className="space-y-3">
           <div>

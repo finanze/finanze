@@ -8,6 +8,7 @@ import {
   mockImportBackup,
   mockShowToast,
   renderBackupUI,
+  renderDualBackupUI,
   resetAllMocks,
   setBackupMode,
   setPermissions,
@@ -87,6 +88,31 @@ describe("canAutoSync derivation", () => {
 })
 
 describe("auto-sync interval (AUTO mode, Plus)", () => {
+  it("fetches backups info only once on AUTO bootstrap", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(info)
+
+    const { unmount } = renderBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockGetBackupsInfo).toHaveBeenCalledTimes(1)
+    expect(mockUploadBackup).not.toHaveBeenCalled()
+    expect(mockImportBackup).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
   it("runs auto-sync after interval elapses with PENDING pieces", async () => {
     setPermissions(ALL_PLUS_PERMISSIONS)
     setBackupMode(BackupMode.AUTO)
@@ -342,6 +368,45 @@ describe("post-scrape auto-upload", () => {
         types: [BackupFileType.DATA],
       })
     })
+
+    unmount()
+  })
+
+  it("performs the post-scrape upload only once with multiple hook instances", async () => {
+    setPermissions(ALL_PLUS_PERMISSIONS)
+    setBackupMode(BackupMode.AUTO)
+    setRole(CloudRole.PLUS)
+
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(syncInfo)
+
+    const { unmount } = renderDualBackupUI()
+
+    await waitFor(() => {
+      expect(mockGetBackupsInfo).toHaveBeenCalled()
+    })
+
+    mockGetBackupsInfo.mockClear()
+    mockUploadBackup.mockClear()
+
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    mockGetBackupsInfo.mockResolvedValue(pendingInfo)
+    mockUploadBackup.mockResolvedValue(
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
+    )
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("auto-refresh-scrapes-complete"))
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + 100)
+    })
+
+    await waitFor(() => {
+      expect(mockUploadBackup).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGetBackupsInfo).toHaveBeenCalledTimes(1)
 
     unmount()
   })

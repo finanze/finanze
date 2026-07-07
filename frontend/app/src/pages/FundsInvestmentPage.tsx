@@ -863,10 +863,12 @@ function FundsInvestmentPageContent({
               </CardContent>
             </Card>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
                 <ArrowUpDown size={14} />
-                {t.investments.sortBy}
+                <span className="hidden min-[400px]:inline">
+                  {t.investments.sortBy}
+                </span>
               </span>
               <div className="flex items-center bg-muted rounded-lg p-1">
                 {(
@@ -885,7 +887,7 @@ function FundsInvestmentPageContent({
                   <button
                     key={option.value}
                     onClick={() => setSortBy(option.value)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    className={`px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
                       sortBy === option.value
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -899,7 +901,7 @@ function FundsInvestmentPageContent({
                 onClick={() =>
                   setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                 }
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                 aria-label={
                   sortOrder === "asc" ? "Sort descending" : "Sort ascending"
                 }
@@ -1895,7 +1897,7 @@ function FundPortfolioDraftList({
           )}
         </div>
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
           onClick={e => {
             e.stopPropagation()

@@ -181,12 +181,9 @@ export function EntityCard({
 
     switch (effectiveStatus) {
       case EntityStatus.CONNECTED:
-        return {
-          style:
-            "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300",
-          text: t.entities.connected,
-          isMissingIntegrations: false,
-        }
+        // Connected entities without missing integrations don't need a badge;
+        // this keeps the icon/name/features badge on a single line more often.
+        return null
       case EntityStatus.REQUIRES_LOGIN:
         return {
           style:
@@ -317,12 +314,14 @@ export function EntityCard({
   return (
     <>
       <Card
-        className={`transition-all hover:shadow-md ${getCardStyle()} ${
+        className={`@container transition-all hover:shadow-md ${getCardStyle()} ${
           canConnect ? "cursor-pointer hover:opacity-100" : ""
         }`}
         onClick={canConnect ? onSelect : undefined}
       >
-        <CardHeader className={isDisconnected ? "pb-0" : "pb-2"}>
+        <CardHeader
+          className={`${isDisconnected ? "pb-0" : "pb-2 max-sm:p-4"}`}
+        >
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
               <AdaptiveLogo
@@ -334,10 +333,17 @@ export function EntityCard({
                 lightBgClassName="bg-white p-0.5"
               />
               <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 max-sm:flex-wrap max-sm:justify-center">
                   <span className="truncate max-sm:text-center">
                     {entity.name}
                   </span>
+                  <FeaturesBadge
+                    features={entity.features}
+                    nativelySupportedProducts={
+                      entity.natively_supported_products
+                    }
+                    className="sm:hidden"
+                  />
                   {!entity.fetchable && (
                     <Popover>
                       <PopoverTrigger asChild>
@@ -375,10 +381,11 @@ export function EntityCard({
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
+            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-center w-full @xs:w-auto @sm:flex-nowrap @xs:justify-end">
               <FeaturesBadge
                 features={entity.features}
                 nativelySupportedProducts={entity.natively_supported_products}
+                className="hidden sm:inline-flex"
               />
               {badgeInfo &&
                 (badgeInfo.isMissingIntegrations ? (
@@ -428,12 +435,12 @@ export function EntityCard({
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className={isDisconnected ? "pt-0" : ""}>
+        <CardContent className={`${isDisconnected ? "pt-0" : "px-5 pb-4"}`}>
           {entity.fetchable ? (
             <>
               {/* Show connected wallets info for crypto entities */}
               {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
-                <div className="mt-3 -mx-6 px-6 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
+                <div className="mt-3 -mx-5 px-5 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <Wallet className="h-3 w-3 text-gray-400 dark:text-gray-500" />
@@ -488,7 +495,7 @@ export function EntityCard({
                 effectiveStatus === EntityStatus.CONNECTED &&
                 entity.accounts &&
                 entity.accounts.length > 0 && (
-                  <div className="mt-3 -mx-6 px-6 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
+                  <div className="mt-3 -mx-5 px-5 py-2.5 border-t border-b border-gray-200/60 dark:border-gray-700/60 bg-gray-50/40 dark:bg-gray-800/25">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Users className="h-3 w-3 text-gray-400 dark:text-gray-500" />
@@ -660,7 +667,7 @@ export function EntityCard({
               {effectiveStatus === EntityStatus.CONNECTED &&
                 !entityFetching &&
                 !isExternallyProvided && (
-                  <div className="flex flex-col gap-2 mt-4 items-center w-full">
+                  <div className="flex flex-col gap-2 mt-2 items-center w-full">
                     {/* Financial institution buttons */}
                     {isFinancialInstitution && (
                       <div className="flex gap-2 flex-wrap justify-center w-full">

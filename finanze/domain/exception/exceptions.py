@@ -81,6 +81,10 @@ class TooManyRequests(Exception):
         self.completed = completed
 
 
+class ExternalProviderAppNotLinked(Exception):
+    pass
+
+
 class IntegrationSetupErrorCode(str, Enum):
     UNKNOWN = "UNKNOWN"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"

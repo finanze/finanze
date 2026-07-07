@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
@@ -33,6 +34,7 @@ import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
+import { cn } from "@/lib/utils"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
 import { getSourceIcon } from "@/components/ui/SourceBadge"
@@ -51,6 +53,7 @@ import {
   Layers,
   ArrowLeftRight,
   Landmark,
+  SlidersHorizontal,
 } from "lucide-react"
 import {
   getIconForTxType,
@@ -115,6 +118,7 @@ export default function TransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>("list")
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const today = new Date()
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth())
@@ -155,6 +159,13 @@ export default function TransactionsPage() {
       ) || []
     )
   }, [entities])
+
+  const activeFilterCount =
+    filters.entities.length +
+    filters.product_types.length +
+    filters.types.length +
+    (filters.from_date ? 1 : 0) +
+    (filters.to_date ? 1 : 0)
 
   const productTypeOptions: MultiSelectOption[] = useMemo(() => {
     const supportedTypes = [
@@ -1218,6 +1229,116 @@ export default function TransactionsPage() {
     return result
   }, [transactions, locale])
 
+  const renderFilterFields = () => (
+    <>
+      <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
+        <Label
+          htmlFor="entities"
+          className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+        >
+          <Landmark className="h-3 w-3" />
+          <span>{t.transactions.entities}</span>
+        </Label>
+        <EntitySelector
+          entities={filteredEntities}
+          selectedEntityIds={filters.entities}
+          onSelectionChange={value => handleFilterChange("entities", value)}
+          className="w-full"
+        />
+      </div>
+
+      <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
+        <Label
+          htmlFor="product-types"
+          className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+        >
+          <Layers className="h-3 w-3" />
+          <span>{t.transactions.productTypes}</span>
+        </Label>
+        <MultiSelect
+          options={productTypeOptions}
+          value={filters.product_types}
+          onChange={value => handleFilterChange("product_types", value)}
+          placeholder={t.transactions.selectProductTypes}
+          className="w-full"
+        />
+      </div>
+
+      <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
+        <Label
+          htmlFor="transaction-types"
+          className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+        >
+          <ArrowLeftRight className="h-3 w-3" />
+          <span>{t.transactions.transactionTypes}</span>
+        </Label>
+        <MultiSelect
+          options={transactionTypeOptions}
+          value={filters.types}
+          onChange={value => handleFilterChange("types", value)}
+          placeholder={t.transactions.selectTransactionTypes}
+          className="w-full"
+        />
+      </div>
+
+      {viewMode === "list" && (
+        <>
+          <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
+            <Label
+              htmlFor="from-date"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+            >
+              <Calendar className="h-3 w-3" />
+              {t.transactions.fromDate}
+            </Label>
+            <DatePicker
+              id="from-date"
+              value={filters.from_date}
+              onChange={value => handleFilterChange("from_date", value)}
+              placeholder={t.transactions.fromDate}
+            />
+          </div>
+
+          <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
+            <Label
+              htmlFor="to-date"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+            >
+              <Calendar className="h-3 w-3" />
+              {t.transactions.toDate}
+            </Label>
+            <DatePicker
+              id="to-date"
+              value={filters.to_date}
+              onChange={value => handleFilterChange("to_date", value)}
+              placeholder={t.transactions.toDate}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <Button
+          onClick={handleApplyFilters}
+          disabled={loadingTxs}
+          size="icon"
+          title={t.transactions.search}
+        >
+          <Search className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleClearFilters}
+          disabled={loadingTxs}
+          size="icon"
+          title={t.transactions.clear}
+        >
+          <Eraser className="h-4 w-4" />
+        </Button>
+      </div>
+    </>
+  )
+
   return (
     <>
       <div className="space-y-6">
@@ -1229,26 +1350,26 @@ export default function TransactionsPage() {
             <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:p-1">
               <button
                 onClick={() => handleViewModeChange("list")}
-                className={`flex items-center gap-1 px-2.5 py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                   viewMode === "list"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
               >
-                <List className="h-4 w-4" />
+                <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">
                   {t.transactions.calendar.listView}
                 </span>
               </button>
               <button
                 onClick={() => handleViewModeChange("calendar")}
-                className={`flex items-center gap-1 px-2.5 py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                   viewMode === "calendar"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
               >
-                <CalendarDays className="h-4 w-4" />
+                <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">
                   {t.transactions.calendar.calendarView}
                 </span>
@@ -1257,9 +1378,9 @@ export default function TransactionsPage() {
             <Button
               onClick={handleOpenCreateDialog}
               size="sm"
-              className="flex items-center gap-1.5 px-3"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 h-8 sm:h-9"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">
                 {t.transactions.addManualTransaction}
               </span>
@@ -1267,115 +1388,50 @@ export default function TransactionsPage() {
           </div>
         </div>
 
-        <Card className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
-              <Label
-                htmlFor="entities"
-                className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-              >
-                <Landmark className="h-3 w-3" />
-                <span>{t.transactions.entities}</span>
-              </Label>
-              <EntitySelector
-                entities={filteredEntities}
-                selectedEntityIds={filters.entities}
-                onSelectionChange={value =>
-                  handleFilterChange("entities", value)
-                }
-                className="w-full"
-              />
-            </div>
-
-            <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
-              <Label
-                htmlFor="product-types"
-                className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-              >
-                <Layers className="h-3 w-3" />
-                <span>{t.transactions.productTypes}</span>
-              </Label>
-              <MultiSelect
-                options={productTypeOptions}
-                value={filters.product_types}
-                onChange={value => handleFilterChange("product_types", value)}
-                placeholder={t.transactions.selectProductTypes}
-                className="w-full"
-              />
-            </div>
-
-            <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
-              <Label
-                htmlFor="transaction-types"
-                className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-              >
-                <ArrowLeftRight className="h-3 w-3" />
-                <span>{t.transactions.transactionTypes}</span>
-              </Label>
-              <MultiSelect
-                options={transactionTypeOptions}
-                value={filters.types}
-                onChange={value => handleFilterChange("types", value)}
-                placeholder={t.transactions.selectTransactionTypes}
-                className="w-full"
-              />
-            </div>
-
-            {viewMode === "list" && (
-              <>
-                <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
-                  <Label
-                    htmlFor="from-date"
-                    className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-                  >
-                    <Calendar className="h-3 w-3" />
-                    {t.transactions.fromDate}
-                  </Label>
-                  <DatePicker
-                    id="from-date"
-                    value={filters.from_date}
-                    onChange={value => handleFilterChange("from_date", value)}
-                    placeholder={t.transactions.fromDate}
-                  />
-                </div>
-
-                <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
-                  <Label
-                    htmlFor="to-date"
-                    className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-                  >
-                    <Calendar className="h-3 w-3" />
-                    {t.transactions.toDate}
-                  </Label>
-                  <DatePicker
-                    id="to-date"
-                    value={filters.to_date}
-                    onChange={value => handleFilterChange("to_date", value)}
-                    placeholder={t.transactions.toDate}
-                  />
-                </div>
-              </>
+        <div className="sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMobileFilters(prev => !prev)}
+            className="flex items-center gap-2 h-8"
+          >
+            <SlidersHorizontal size={14} />
+            <span>{t.transactions.filters}</span>
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center rounded-full bg-foreground text-background text-[0.65rem] font-semibold h-5 min-w-5 px-1">
+                {activeFilterCount}
+              </span>
             )}
+            <ChevronDown
+              size={14}
+              className={cn(
+                "transition-transform",
+                showMobileFilters && "rotate-180",
+              )}
+            />
+          </Button>
+          <AnimatePresence initial={false}>
+            {showMobileFilters && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="overflow-hidden -mx-6"
+              >
+                <Card className="mt-3 rounded-none border-x-0 p-4">
+                  <div className="flex flex-wrap items-end gap-3">
+                    {renderFilterFields()}
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <Button
-                onClick={handleApplyFilters}
-                disabled={loadingTxs}
-                size="icon"
-                title={t.transactions.search}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleClearFilters}
-                disabled={loadingTxs}
-                size="icon"
-                title={t.transactions.clear}
-              >
-                <Eraser className="h-4 w-4" />
-              </Button>
-            </div>
+        <Card className="hidden sm:block p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            {renderFilterFields()}
           </div>
         </Card>
 
@@ -1568,39 +1624,64 @@ export default function TransactionsPage() {
                                           </div>
                                         </div>
                                       </div>
-                                      {hasDetails && isExpanded && (
-                                        <div className="px-3 pb-3 ml-0">
-                                          <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
-                                            {renderTransactionDetails(tx)}
-                                            {tx.source ===
-                                              DataSource.MANUAL && (
-                                              <div className="flex flex-wrap gap-2 pt-3">
-                                                <Button
-                                                  variant="outline"
-                                                  size="sm"
-                                                  onClick={() =>
-                                                    handleEditTransaction(tx)
-                                                  }
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  <Pencil className="h-4 w-4" />
-                                                  {t.common.edit}
-                                                </Button>
-                                                <Button
-                                                  variant="destructive"
-                                                  size="sm"
-                                                  onClick={() =>
-                                                    handleRequestDelete(tx)
-                                                  }
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  <Trash2 className="h-4 w-4" />
-                                                  {t.common.delete}
-                                                </Button>
+                                      {hasDetails && (
+                                        <AnimatePresence initial={false}>
+                                          {isExpanded && (
+                                            <motion.div
+                                              initial={{
+                                                height: 0,
+                                                opacity: 0,
+                                              }}
+                                              animate={{
+                                                height: "auto",
+                                                opacity: 1,
+                                              }}
+                                              exit={{ height: 0, opacity: 0 }}
+                                              transition={{
+                                                duration: 0.2,
+                                                ease: "easeInOut",
+                                              }}
+                                              className="overflow-hidden"
+                                            >
+                                              <div className="px-3 pb-3 ml-0">
+                                                <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                                  {renderTransactionDetails(tx)}
+                                                  {tx.source ===
+                                                    DataSource.MANUAL && (
+                                                    <div className="flex flex-wrap gap-2 pt-3">
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          handleEditTransaction(
+                                                            tx,
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                      >
+                                                        <Pencil className="h-4 w-4" />
+                                                        {t.common.edit}
+                                                      </Button>
+                                                      <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          handleRequestDelete(
+                                                            tx,
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                      >
+                                                        <Trash2 className="h-4 w-4" />
+                                                        {t.common.delete}
+                                                      </Button>
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
-                                            )}
-                                          </div>
-                                        </div>
+                                            </motion.div>
+                                          )}
+                                        </AnimatePresence>
                                       )}
                                     </div>
                                   )
@@ -1793,38 +1874,57 @@ export default function TransactionsPage() {
                                       </div>
                                     </div>
                                   </div>
-                                  {hasDetails && isExpanded && (
-                                    <div className="px-3 pb-3 ml-0">
-                                      <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
-                                        {renderTransactionDetails(tx)}
-                                        {tx.source === DataSource.MANUAL && (
-                                          <div className="flex flex-wrap gap-2 pt-3">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() =>
-                                                handleEditTransaction(tx)
-                                              }
-                                              className="flex items-center gap-2"
-                                            >
-                                              <Pencil className="h-4 w-4" />
-                                              {t.common.edit}
-                                            </Button>
-                                            <Button
-                                              variant="destructive"
-                                              size="sm"
-                                              onClick={() =>
-                                                handleRequestDelete(tx)
-                                              }
-                                              className="flex items-center gap-2"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                              {t.common.delete}
-                                            </Button>
+                                  {hasDetails && (
+                                    <AnimatePresence initial={false}>
+                                      {isExpanded && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{
+                                            height: "auto",
+                                            opacity: 1,
+                                          }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{
+                                            duration: 0.2,
+                                            ease: "easeInOut",
+                                          }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="px-3 pb-3 ml-0">
+                                            <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                              {renderTransactionDetails(tx)}
+                                              {tx.source ===
+                                                DataSource.MANUAL && (
+                                                <div className="flex flex-wrap gap-2 pt-3">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      handleEditTransaction(tx)
+                                                    }
+                                                    className="flex items-center gap-2"
+                                                  >
+                                                    <Pencil className="h-4 w-4" />
+                                                    {t.common.edit}
+                                                  </Button>
+                                                  <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      handleRequestDelete(tx)
+                                                    }
+                                                    className="flex items-center gap-2"
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                    {t.common.delete}
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
                                   )}
                                 </div>
                               )

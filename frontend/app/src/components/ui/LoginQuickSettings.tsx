@@ -54,6 +54,7 @@ export function LoginQuickSettings({
   const languages: { code: Locale; label: string }[] = [
     { code: "en-US", label: "EN" },
     { code: "es-ES", label: "ES" },
+    { code: "it-IT", label: "IT" },
   ]
 
   return (

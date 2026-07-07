@@ -85,7 +85,12 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         if not query.no_calculation and not self._lock.locked():
             async with self._lock:
                 await self._compute_and_persist(
-                    target_currency, excluded_ids, mortgage_refs, rates, yesterday
+                    target_currency,
+                    excluded_ids,
+                    mortgage_refs,
+                    rates,
+                    yesterday,
+                    query.recalculate,
                 )
 
         memo_points = await self._port.get_points(None, query.to_date)
@@ -107,6 +112,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         mortgage_refs: set[str],
         rates: ExchangeRates,
         yesterday: date,
+        recalculate: bool = False,
     ):
         snapshots = await self._port.get_position_snapshots(excluded_ids)
         snapshots = [s for s in snapshots if s.moment.date() <= yesterday]
@@ -116,12 +122,12 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             target_currency, excluded_ids, mortgage_refs, snapshots
         )
         historic, historic_part = await self._resolve_historic_rates(
-            snapshots, state, base_signature, yesterday
+            snapshots, state, base_signature, yesterday, force=recalculate
         )
         signature = (
             f"{base_signature}|{historic_part}" if historic_part else base_signature
         )
-        wipe = state.inputs_signature != signature
+        wipe = recalculate or state.inputs_signature != signature
         last_computed = None if wipe else state.last_computed_date
 
         if not snapshots:
@@ -210,6 +216,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         state: NetworthTimelineState,
         base_signature: str,
         yesterday: date,
+        force: bool = False,
     ) -> tuple[_HistoricRates, str]:
         types = sorted(
             {
@@ -232,7 +239,8 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         complete_part = ",".join(f"{t.value}:present" for t in types)
         upper = min(yesterday, COMMODITY_HISTORIC_CUTOFF - timedelta(days=1))
         if (
-            state.inputs_signature == f"{base_signature}|{complete_part}"
+            not force
+            and state.inputs_signature == f"{base_signature}|{complete_part}"
             and state.last_computed_date is not None
             and state.last_computed_date >= upper
         ):
@@ -738,19 +746,12 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             for s in snapshots
             if s.holder_deleted_at is not None
         )
-        # A re-declaring import retroactively defines the portfolio of its
-        # source from its day on, so changes to the set of imports must force a
-        # full recomputation.
-        import_markers = sorted(
-            f"{s.holder}:{s.moment.isoformat()}" for s in snapshots if s.redeclaring
-        )
         raw = "|".join(
             [
                 target_currency,
                 ",".join(excluded_ids),
                 ",".join(sorted(mortgage_refs)),
                 ",".join(deleted_holders),
-                ",".join(import_markers),
             ]
         )
         return hashlib.sha256(raw.encode()).hexdigest()

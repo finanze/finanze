@@ -298,8 +298,8 @@
         "show": "Ver completadas",
         "hide": "Ocultar completadas"
       },
-      "empty": "No hay proyectos de {type} completados.",
-      "emptyFiltered": "No hay proyectos de {type} completados para las entidades seleccionadas.",
+      "empty": "No hay proyectos completados.",
+      "emptyFiltered": "No hay proyectos completados para las entidades seleccionadas.",
       "invested": "Invertido",
       "returned": "Retornado",
       "repaid": "Reembolsado",
@@ -422,6 +422,7 @@
       "dontCloseApp": "Por favor, no cierres la app durante este proceso",
       "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
       "restoreFailed": "Error al restaurar. Inténtalo de nuevo.",
+      "tooManyRequests": "Demasiados intentos. Espera un momento e inténtalo otra vez.",
       "guestCreationFailed": "Error al preparar la cuenta. Inténtalo de nuevo.",
       "loginAfterRestoreFailed": "Datos restaurados pero el inicio de sesión falló. Intenta iniciar sesión manualmente.",
       "backToSignup": "Volver al registro"
@@ -521,6 +522,9 @@
     "enableBankingPrelinkMessageLinkLabel": "panel de Enable Banking",
     "enableBankingPrelinkMessageAfter": ".",
     "enableBankingPrelinkWarning": "Asegúrate de que este banco ya está vinculado en el panel de Enable Banking antes de continuar; de lo contrario no se devolverán datos.",
+    "enableBankingNoLinkedAccountsBefore": "Puede que todavía no hayas vinculado este banco en el",
+    "enableBankingNoLinkedAccountsLinkLabel": "panel de Enable Banking",
+    "enableBankingNoLinkedAccountsAfter": ". Vincúlalo allí primero y vuelve a intentarlo.",
     "confirmConnection": "Completar conexión",
     "providerLinkInstructions": "Finaliza el proceso en la ventana abierta y luego confirma la conexión.",
     "openLink": "Abrir enlace",
@@ -578,7 +582,8 @@
     "biometricCredentialsActionTitle": "Desactivar inicio biométrico",
     "applicationLanguageOptions": {
       "en-US": "Inglés",
-      "es-ES": "Español"
+      "es-ES": "Español",
+      "it-IT": "Italiano"
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
@@ -1986,7 +1991,7 @@
     "recurringMoneyDescription": "Gestiona tus ingresos y gastos recurrentes",
     "pendingMoney": "Dinero Pendiente",
     "pendingMoneyDescription": "Gestiona tus ingresos y gastos puntuales",
-    "autoContributions": "Aportaciones automáticas",
+    "autoContributions": "Aportaciones",
     "autoContributionsDescription": "Revisa tus aportaciones periódicas de inversión",
     "earnings": "Ingresos",
     "expenses": "Gastos",

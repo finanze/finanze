@@ -31,7 +31,7 @@ _SCHEMA = """
     CREATE TABLE fund_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
     CREATE TABLE deposit_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), amount TEXT);
     CREATE TABLE factoring_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), amount TEXT);
-    CREATE TABLE real_estate_cf_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), amount TEXT);
+    CREATE TABLE real_estate_cf_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), amount TEXT, pending_amount TEXT);
     CREATE TABLE crowdlending_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), total TEXT);
     CREATE TABLE crypto_currency_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
     CREATE TABLE commodity_positions (
@@ -122,6 +122,15 @@ def _insert_position_import(conn, import_id, gp_id, day, entity_id, source):
             f"{day}T12:00:00",
             str(entity_id),
         ),
+    )
+
+
+def _insert_empty_import(conn, import_id, day, source="SHEETS"):
+    conn.execute(
+        "INSERT INTO virtual_data_imports "
+        "(id, import_id, global_position_id, source, date, feature, entity_id) "
+        "VALUES (?, ?, NULL, ?, ?, NULL, NULL)",
+        (str(uuid4()), str(import_id), source, f"{day}T12:00:00"),
     )
 
 
@@ -416,6 +425,65 @@ class TestNetworthTimelineRepositoryIntegration:
         assert by_day["2025-09-11"].breakdown["LOAN"] == Dezimal(-161218)
         # Second import fully replaces the first → only the 12718 loan remains.
         assert by_day["2025-11-19"].breakdown["LOAN"] == Dezimal(-12718)
+
+    @pytest.mark.asyncio
+    async def test_empty_sheets_import_drops_stale_positions(self, setup):
+        # A re-declaring source that later imports an empty portfolio (e.g. a
+        # crowdfunding investment matured and was removed from the sheet) writes
+        # a marker row with no positions. That empty re-declaration must
+        # supersede the stale snapshot so the position stops contributing.
+        repository, conn = setup
+        entity = uuid4()
+        import1 = uuid4()
+        import2 = uuid4()
+        account = uuid4()
+
+        gp = _insert_gp(conn, entity, "2025-09-11", source="SHEETS", account_id=account)
+        _insert(
+            conn,
+            "real_estate_cf_positions",
+            gp,
+            "amount",
+            "100",
+            pending_amount="100",
+        )
+        _insert_sheets_import(conn, import1, gp, "2025-09-11", entity)
+
+        # Later empty import: the investment is gone from the sheet.
+        _insert_empty_import(conn, import2, "2025-11-19")
+        conn.commit()
+
+        result = await _use_case(repository).execute(NetworthTimelineQuery())
+        by_day = {p.date.isoformat(): p for p in result.points}
+
+        assert by_day["2025-09-11"].breakdown["REAL_ESTATE_CF"] == Dezimal(100)
+        # The empty re-import drops the matured investment.
+        assert "REAL_ESTATE_CF" not in by_day["2025-11-19"].breakdown
+        assert by_day["2025-11-19"].total == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_real_estate_cf_uses_pending_amount(self, setup):
+        # The invested value of a crowdfunding position is its pending amount
+        # (still deployed), matching the net worth calculation, not the original
+        # subscribed amount.
+        repository, conn = setup
+        entity = uuid4()
+        gp = _insert_gp(conn, entity, "2025-09-11")
+        _insert(
+            conn,
+            "real_estate_cf_positions",
+            gp,
+            "amount",
+            "500",
+            pending_amount="359",
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(NetworthTimelineQuery())
+        by_day = {p.date.isoformat(): p for p in result.points}
+
+        assert by_day["2025-09-11"].breakdown["REAL_ESTATE_CF"] == Dezimal(359)
+        assert by_day["2025-09-11"].total == Dezimal(359)
 
     @pytest.mark.asyncio
     async def test_manual_redeclaring_import_keeps_and_drops_holders(self, setup):

@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from dateutil.tz import tzlocal
 from tzlocal import get_localzone_name
 
@@ -261,9 +263,10 @@ class B100Client:
         salt = (
             f"{self._customer_id}{self._license_id}{self._device_id}{d1}{d2}{d3}"
         ).encode("utf-8")
-        return hashlib.pbkdf2_hmac(
-            "sha256", self._shared_key.encode("utf-8"), salt, 65536, 32
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(), length=32, salt=salt, iterations=65536
         )
+        return kdf.derive(self._shared_key.encode("utf-8"))
 
     def _sign(self, method: str, url: str, body: Optional[str]) -> str:
         text = f"{method}//{url}"

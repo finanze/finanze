@@ -57,12 +57,8 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         serializer=PickleSerializer(),
     )
     async def get_price(self, symbol: str, fiat_iso: str, **kwargs) -> Dezimal:
-        timeout = kwargs.get("timeout")
-        if self._p2s_client.supports_symbol(symbol):
-            return await self._p2s_client.get_price(symbol, fiat_iso, timeout)
-
         return (
-            (await self.get_multiple_prices_by_symbol([symbol], [fiat_iso]))
+            (await self.get_multiple_prices_by_symbol([symbol], [fiat_iso], **kwargs))
             .get(symbol, {})
             .get(fiat_iso, Dezimal(1))
         )
@@ -78,6 +74,20 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         self, symbols: list[str], fiat_isos: list[str], **kwargs
     ) -> dict[str, dict[str, Dezimal]]:
         timeout = kwargs.get("timeout")
+
+        if len(symbols) == 1 and self._p2s_client.supports_symbol(symbols[0]):
+            symbol = symbols[0]
+            try:
+                prices = {
+                    fiat_iso: await self._p2s_client.get_price(
+                        symbol, fiat_iso, timeout
+                    )
+                    for fiat_iso in fiat_isos
+                }
+                return {symbol: prices}
+            except Exception as e:
+                self._log.warning(f"P2S price fetch failed for {symbol}: {e}")
+
         result = {}
         cg_unavailable = False
 

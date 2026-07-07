@@ -795,6 +795,19 @@ export default function NetWorthTimelineCard({
           <span className="hidden sm:inline">
             {t.netWorthTimeline.dateRange}
           </span>
+          {(customFrom || customTo) && (
+            <span
+              onClick={e => {
+                e.stopPropagation()
+                setCustomFrom("")
+                setCustomTo("")
+              }}
+              className="ml-1.5 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
+              aria-label={t.netWorthTimeline.clear}
+            >
+              ×
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 z-[18050]" align="end">

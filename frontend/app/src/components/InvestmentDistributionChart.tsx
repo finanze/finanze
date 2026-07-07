@@ -91,6 +91,7 @@ interface InvestmentDistributionChartProps {
   badges?: DonutBadge[]
   orbitBubbles?: OrbitBubbleItem[]
   orbitBubblesCollapsedHidden?: boolean
+  chartHeightClassName?: string
 }
 
 const RADIAN = Math.PI / 180
@@ -199,6 +200,7 @@ export const InvestmentDistributionChart: React.FC<
   badges,
   orbitBubbles,
   orbitBubblesCollapsedHidden,
+  chartHeightClassName,
 }) => {
   const { t } = useI18n()
   const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
@@ -330,9 +332,10 @@ export const InvestmentDistributionChart: React.FC<
             ref={chartAreaRef}
             className={cn(
               "flex-1 flex items-center justify-center p-0 overflow-visible relative",
-              centerContent
-                ? "min-h-[320px] h-[380px]"
-                : "min-h-[360px] h-[420px]",
+              chartHeightClassName ??
+                (centerContent
+                  ? "min-h-[320px] h-[380px]"
+                  : "min-h-[360px] h-[420px]"),
             )}
           >
             <ResponsiveContainer width="100%" height="100%">

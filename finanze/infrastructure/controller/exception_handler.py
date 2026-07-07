@@ -8,6 +8,7 @@ from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
+    ExternalProviderAppNotLinked,
     IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
@@ -121,6 +122,10 @@ def handle_permission_denied(e):
     return jsonify({"code": "PERMISSION_DENIED", "message": str(e)}), 403
 
 
+def handle_external_provider_app_not_linked(e):
+    return jsonify({"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}), 409
+
+
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
@@ -143,6 +148,9 @@ def register_exception_handlers(app):
     app.register_error_handler(BackupConflict, handle_backup_conflict)
     app.register_error_handler(BackupTransferFailed, handle_backup_transfer_failed)
     app.register_error_handler(PermissionDenied, handle_permission_denied)
+    app.register_error_handler(
+        ExternalProviderAppNotLinked, handle_external_provider_app_not_linked
+    )
 
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

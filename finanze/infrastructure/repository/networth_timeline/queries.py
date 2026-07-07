@@ -34,15 +34,13 @@ class NetworthTimelineQueries(str, Enum):
     """
 
     GET_BATCHED_IMPORTS = """
-        SELECT gp.source AS source,
+        SELECT vdi.source AS source,
                vdi.import_id AS import_id,
                vdi.date AS import_date,
                vdi.global_position_id AS gp_id
         FROM virtual_data_imports vdi
-            JOIN global_positions gp ON gp.id = vdi.global_position_id
-        WHERE vdi.feature = 'POSITION'
-          AND vdi.global_position_id IS NOT NULL
-          AND gp.source IN ('MANUAL', 'SHEETS')
+        WHERE vdi.source IN ('MANUAL', 'SHEETS')
+          AND (vdi.feature = 'POSITION' OR vdi.feature IS NULL)
     """
 
     GET_HOLDING_VALUATIONS = """
@@ -57,7 +55,7 @@ class NetworthTimelineQueries(str, Enum):
         UNION ALL
         SELECT global_position_id, 'FACTORING', currency, amount, NULL, NULL, NULL, NULL FROM factoring_positions
         UNION ALL
-        SELECT global_position_id, 'REAL_ESTATE_CF', currency, amount, NULL, NULL, NULL, NULL FROM real_estate_cf_positions
+        SELECT global_position_id, 'REAL_ESTATE_CF', currency, pending_amount, NULL, NULL, NULL, NULL FROM real_estate_cf_positions
         UNION ALL
         SELECT global_position_id, 'CROWDLENDING', currency, total, NULL, NULL, NULL, NULL FROM crowdlending_positions
         UNION ALL
