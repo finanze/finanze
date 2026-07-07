@@ -7,7 +7,7 @@
 
 <p align="center">
 <a href="https://finanze.me">Finanze</a> is a private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
-It connects to real financial entities via disclosed source ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
+It connects to real financial entities via public ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
 </p>
 
 <h3 align="center">Available On</h3>
