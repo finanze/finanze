@@ -47,8 +47,9 @@ def _build_client() -> CryptoAssetInfoClient:
     client._cmc_client.search.return_value = []
     client._cmc_client.asset_lookup.return_value = []
     client._cmc_client.get_asset_platforms.return_value = {}
-    client._p2s_client = MagicMock()
-    client._p2s_client.supports_symbol.return_value = False
+    client._dia_client = AsyncMock()
+    client._dia_client.supports_symbol = MagicMock(return_value=True)
+    client._dia_client.get_price.side_effect = Exception("DIA disabled in test")
     return client
 
 
@@ -159,6 +160,71 @@ class TestGetMultiplePricesBySymbol:
 
         assert result == {}
         client._cmc_client.get_prices.assert_awaited_once_with(["ZZZ"], ["EUR"])
+
+
+class TestDiaSingleSymbolPath:
+    @pytest.mark.asyncio
+    async def test_dia_success_usd(self):
+        client = _build_client()
+        client._dia_client.get_price.side_effect = None
+        client._dia_client.get_price.return_value = Dezimal("100")
+
+        result = await client.get_multiple_prices_by_symbol(["DIA1"], ["USD"])
+
+        assert result == {"DIA1": {"USD": Dezimal("100")}}
+        client._coingecko_client.get_prices.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_dia_success_with_eur_conversion(self):
+        client = _build_client()
+        client._dia_client.get_price.side_effect = None
+        client._dia_client.get_price.return_value = Dezimal("100")
+        client.set_base_fiat_rates({"USD": {"EUR": Dezimal("0.9")}})
+
+        result = await client.get_multiple_prices_by_symbol(["DIA2"], ["USD", "EUR"])
+
+        assert result == {"DIA2": {"USD": Dezimal("100"), "EUR": Dezimal("90.0")}}
+        client._coingecko_client.get_prices.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_dia_success_without_provider_falls_back_for_non_usd(self):
+        client = _build_client()
+        client._dia_client.get_price.side_effect = None
+        client._dia_client.get_price.return_value = Dezimal("100")
+        client._coingecko_client.get_prices.return_value = {
+            "DIA3": {"EUR": Dezimal("95")}
+        }
+
+        result = await client.get_multiple_prices_by_symbol(["DIA3"], ["EUR"])
+
+        assert result == {"DIA3": {"EUR": Dezimal("95")}}
+        client._coingecko_client.get_prices.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_dia_failure_falls_back_to_coingecko(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.return_value = {
+            "DIA4": {"USD": Dezimal("99")}
+        }
+
+        result = await client.get_multiple_prices_by_symbol(["DIA4"], ["USD"])
+
+        assert result == {"DIA4": {"USD": Dezimal("99")}}
+        client._dia_client.get_price.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_dia_skipped_for_unsupported_symbol(self):
+        client = _build_client()
+        client._dia_client.supports_symbol = MagicMock(return_value=False)
+        client._coingecko_client.get_prices.return_value = {
+            "UNKNOWN": {"USD": Dezimal("5")}
+        }
+
+        result = await client.get_multiple_prices_by_symbol(["UNKNOWN"], ["USD"])
+
+        assert result == {"UNKNOWN": {"USD": Dezimal("5")}}
+        client._dia_client.get_price.assert_not_awaited()
+        client._coingecko_client.get_prices.assert_awaited_once()
 
 
 class TestGetPricesByAddresses:

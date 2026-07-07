@@ -14,6 +14,12 @@ from domain.external_integration import ExternalIntegrationId
 
 class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
+    def set_base_fiat_rates(
+        self, base_fiat_matrix: dict[str, dict[str, Dezimal]]
+    ) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_price(self, symbol: str, fiat_iso: str, **kwargs) -> Dezimal:
         raise NotImplementedError
 

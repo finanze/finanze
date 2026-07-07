@@ -22,7 +22,7 @@ from infrastructure.client.rates.crypto.coinmarketcap_dataset_client import (
     CoinMarketCapDatasetClient,
 )
 from infrastructure.client.rates.crypto.cryptocompare_client import CryptoCompareClient
-from infrastructure.client.rates.crypto.p2s_client import P2SClient
+from infrastructure.client.rates.crypto.dia_client import DIAClient
 
 
 from infrastructure.client.rates.crypto.crypto_dataset_client import (
@@ -38,7 +38,8 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     PRICE_CACHE_TTL = 20 * 60
 
     def __init__(self, dataset_store: Optional[CryptoDatasetStore] = None):
-        self._p2s_client = P2SClient()
+        self._dia_client = DIAClient()
+        self._base_fiat_matrix: dict[str, dict[str, Dezimal]] = {}
         self._dataset_client = CryptoDatasetClient(store=dataset_store)
         self._coingecko_client = CoinGeckoClient(dataset_client=self._dataset_client)
         self._cmc_client = CoinMarketCapDatasetClient(self._dataset_client)
@@ -48,6 +49,11 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
 
     async def initialize(self):
         await self._coingecko_client.initialize()
+
+    def set_base_fiat_rates(
+        self, base_fiat_matrix: dict[str, dict[str, Dezimal]]
+    ) -> None:
+        self._base_fiat_matrix = base_fiat_matrix
 
     @cached(
         ttl=PRICE_CACHE_TTL,
@@ -75,18 +81,19 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     ) -> dict[str, dict[str, Dezimal]]:
         timeout = kwargs.get("timeout")
 
-        if len(symbols) == 1 and self._p2s_client.supports_symbol(symbols[0]):
+        if len(symbols) == 1 and self._dia_client.supports_symbol(symbols[0]):
             symbol = symbols[0]
             try:
-                prices = {
-                    fiat_iso: await self._p2s_client.get_price(
-                        symbol, fiat_iso, timeout
-                    )
-                    for fiat_iso in fiat_isos
-                }
+                usd_price = await self._dia_client.get_price(symbol, timeout)
+                prices = {}
+                for fiat_iso in fiat_isos:
+                    converted = self._convert_from_usd(usd_price, fiat_iso)
+                    if converted is None:
+                        raise ValueError(f"No USD conversion available for {fiat_iso}")
+                    prices[fiat_iso] = converted
                 return {symbol: prices}
             except Exception as e:
-                self._log.warning(f"P2S price fetch failed for {symbol}: {e}")
+                self._log.warning(f"DIA price fetch failed for {symbol}: {e}")
 
         result = {}
         cg_unavailable = False
@@ -301,6 +308,14 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         except Exception as e:
             self._log.warning(f"CoinGecko cloud dataset unavailable: {e}")
             return None
+
+    def _convert_from_usd(self, amount: Dezimal, fiat_iso: str) -> Optional[Dezimal]:
+        if fiat_iso.upper() == "USD":
+            return amount
+        rate = self._base_fiat_matrix.get("USD", {}).get(fiat_iso.upper())
+        if rate is None:
+            return None
+        return amount * rate
 
     async def _coingecko_snapshot_prices(
         self, symbols: list[str], fiat_isos: list[str]
