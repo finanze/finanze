@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -123,6 +124,9 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         if state == "FORMALIZED":
             state = "IN_PROGRESS"
 
+        elif state == "CLOSED":
+            state = "COMPLETED"
+
         amount = round(Dezimal(inv["investedQuantity"]), 2)
         pending_amount = round(Dezimal(inv["investedQuantityActive"]), 2)
 
@@ -155,13 +159,18 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                 break
             page += 1
 
+        investments_by_name = await self._investments_by_name()
+
         txs = []
         for tx in raw_txs:
             ref = tx["id"]
-            if ref in registered_txs:
+
+            tx_status = tx.get("status")
+            if tx_status != "COMPLETED":
+                self._log.debug(f"Skipping tx {ref} with status {tx_status}")
                 continue
 
-            tx_type_raw = tx["type"]
+            tx_type_raw = tx.get("type")
             if tx_type_raw in INVESTMENT_TXS:
                 tx_type = TxType.INVESTMENT
             elif tx_type_raw in REFUND_TXS:
@@ -178,12 +187,72 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
             currency = tx["externalProviderData"]["currency"]
             name = tx["externalProviderData"]["argumentValue"]
-
-            amount = round(Dezimal(tx["amount"]), 2)
             fee = round(Dezimal(tx["fee"]), 2)
+            tx_date = datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT)
+            net_amount = round(Dezimal(tx["amount"]), 2)
 
+            if tx_type_raw == "RENTS":
+                payout_split = self._split_return_payout(
+                    net_amount, investments_by_name.get(name)
+                )
+
+                if payout_split is None:
+                    self._log.warning(
+                        f"Could not match RENTS tx {ref} to investment '{name}', "
+                        f"skipping it"
+                    )
+                    continue
+
+                repaid_amount, gross_interest, net_interest = payout_split
+
+                repayment_ref = f"{ref}-REPAYMENT"
+                interest_ref = f"{ref}-INTEREST"
+
+                if repayment_ref not in registered_txs:
+                    txs.append(
+                        RealEstateCFTx(
+                            id=uuid4(),
+                            ref=repayment_ref,
+                            name=name,
+                            amount=repaid_amount,
+                            currency=currency,
+                            type=TxType.REPAYMENT,
+                            date=tx_date,
+                            entity=URBANITAE,
+                            product_type=ProductType.REAL_ESTATE_CF,
+                            fees=Dezimal(0),
+                            retentions=Dezimal(0),
+                            net_amount=repaid_amount,
+                            source=DataSource.REAL,
+                        )
+                    )
+
+                if interest_ref not in registered_txs:
+                    txs.append(
+                        RealEstateCFTx(
+                            id=uuid4(),
+                            ref=interest_ref,
+                            name=name,
+                            amount=gross_interest,
+                            currency=currency,
+                            type=TxType.INTEREST,
+                            date=tx_date,
+                            entity=URBANITAE,
+                            product_type=ProductType.REAL_ESTATE_CF,
+                            fees=fee,
+                            retentions=gross_interest - net_interest,
+                            net_amount=net_interest,
+                            source=DataSource.REAL,
+                        )
+                    )
+
+                continue
+
+            if ref in registered_txs:
+                continue
+
+            amount = net_amount
             retentions = Dezimal(0)
-            net_amount = amount
 
             if tx_type == TxType.INTEREST:
                 amount = net_amount / (1 - CAPITAL_GAINS_BASE_TAX)
@@ -197,7 +266,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                     amount=amount,
                     currency=currency,
                     type=tx_type,
-                    date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
+                    date=tx_date,
                     entity=URBANITAE,
                     product_type=ProductType.REAL_ESTATE_CF,
                     fees=fee,
@@ -208,6 +277,51 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             )
 
         return Transactions(investment=txs)
+
+    async def _investments_by_name(self) -> dict:
+        investments = await self._client.get_investments()
+        by_name = {}
+        for inv in investments:
+            name = inv.get("projectName")
+            if name is None:
+                continue
+            by_name[name] = inv
+        return by_name
+
+    def _split_return_payout(
+        self, net_amount: Dezimal, inv: Optional[dict]
+    ) -> Optional[tuple]:
+        if not inv:
+            return None
+
+        invested_raw = inv.get("investedQuantity")
+        returned_raw = inv.get("returnQuantity")
+        if invested_raw is None or returned_raw is None:
+            return None
+
+        invested = round(Dezimal(invested_raw), 2)
+        returned = round(Dezimal(returned_raw), 2)
+
+        gross_interest_total = round(returned - invested, 2)
+        if gross_interest_total <= 0:
+            return None
+
+        net_interest_total = round(
+            gross_interest_total * (1 - CAPITAL_GAINS_BASE_TAX), 2
+        )
+        total_net_expected = invested + net_interest_total
+        if total_net_expected <= 0:
+            return None
+
+        share = net_amount / total_net_expected
+        if share <= 0 or share > Dezimal("1.02"):
+            return None
+
+        repaid = round(invested * share, 2)
+        gross_interest = round(gross_interest_total * share, 2)
+        net_interest = round(net_amount - repaid, 2)
+
+        return repaid, gross_interest, net_interest
 
     async def historical_position(self) -> HistoricalPosition:
         investments_data = await self._client.get_investments()
