@@ -1,13 +1,13 @@
-<a href="https://github.com/finanze/finanze/releases/latest">
-  <img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest Release">
-</a>
+<p align="center">
+  <a href="https://github.com/finanze/finanze/releases/latest"><img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest release of Finanze"></a>
+</p>
 
-<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
-<h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
+<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze logo — self-hosted personal finance and net worth tracker" width="220px"></p>
+<h1 align="center">Finanze — Self-hosted Personal Finance & Net Worth Tracker</h1>
 
 <p align="center">
-<a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
-platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
+<a href="https://finanze.me">Finanze</a> is a private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
+It connects to real financial entities via disclosed source ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
 </p>
 
 <h3 align="center">Available On</h3>
@@ -40,13 +40,13 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 <h2 align="center"></h2>
 
 <p align="middle">
-  <img src="resources/dashboard.png" width="49%" />
-  <img src="resources/m-stocks.png" width="19%" /> 
-  <img src="resources/entitiespage.png" width="49%" /> 
-  <img src="resources/earningsexpenses.png" width="49%" /> 
-  <img src="resources/realestate.png" width="49%" />
-  <img src="resources/savingscalculator.png" width="49%" /> 
-  <img src="resources/crypto.png" width="49%" /> 
+  <img src="resources/dashboard.png" alt="Finanze net worth dashboard aggregating banks, investments and crypto" width="49%" />
+  <img src="resources/m-stocks.png" alt="Finanze mobile stocks and ETFs portfolio view" width="19%" /> 
+  <img src="resources/entitiespage.png" alt="Finanze connected financial entities and open banking accounts" width="49%" /> 
+  <img src="resources/earningsexpenses.png" alt="Finanze earnings and expenses tracking with contribution forecasting" width="49%" /> 
+  <img src="resources/realestate.png" alt="Finanze real estate investment tracking with KPIs and metrics" width="49%" />
+  <img src="resources/savingscalculator.png" alt="Finanze savings and retirement calculator with multiple scenarios" width="49%" /> 
+  <img src="resources/crypto.png" alt="Finanze crypto portfolio tracking across wallets and exchanges" width="49%" /> 
 </p>
 
 ## Table of Contents
