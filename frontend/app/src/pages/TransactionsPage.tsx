@@ -727,6 +727,21 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
+            {stockTx.retentions != null && stockTx.retentions > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.retentions}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    stockTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
             {stockTx.market && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
@@ -1094,7 +1109,7 @@ export default function TransactionsPage() {
           stockTx.shares ||
           Number(stockTx.price || 0) !== 0 ||
           (stockTx.fees && stockTx.fees > 0) ||
-          (stockTx.retentions && stockTx.retentions > 0) ||
+          (stockTx.retentions != null && stockTx.retentions > 0) ||
           stockTx.market
         )
       }
