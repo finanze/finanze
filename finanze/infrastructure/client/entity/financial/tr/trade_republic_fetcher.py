@@ -462,7 +462,11 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "INTEREST_PAYOUT_CREATED",
     ]
 
-    DIVIDEND_TX_TYPES = ["SSP_CORPORATE_ACTION_INVOICE_CASH", "CREDIT"]
+    DIVIDEND_TX_TYPES = [
+        "SSP_CORPORATE_ACTION_INVOICE_CASH",
+        "CREDIT",
+        "SSP_CORPORATE_ACTION_CASH",
+    ]
 
     OTHER_TX_TYPES = [
         "TIMELINE_LEGACY_MIGRATED_EVENTS",
@@ -808,10 +812,18 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
 
     @staticmethod
-    def _get_tx_isin(raw_tx, sections: list[dict]) -> Optional[str]:
-        isin = raw_tx.get("icon", "")
-        isin = isin[isin.find("/") + 1 :]
+    def _extract_isin_from_asset(asset: str | dict) -> Optional[str]:
+        if isinstance(asset, dict):
+            asset = asset.get("asset")
+        if not asset:
+            return None
+        isin = asset[asset.find("/") + 1 :]
         isin = isin[: isin.find("/")]
+        return isin or None
+
+    @classmethod
+    def _get_tx_isin(cls, raw_tx, sections: list[dict]) -> Optional[str]:
+        isin = cls._extract_isin_from_asset(raw_tx.get("icon", ""))
         isin2 = None
         for section in sections:
             action = section.get("action", None)
@@ -819,9 +831,9 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 isin2 = section.get("action", {}).get("payload")
                 break
             if section.get("type", {}) == "header":
-                isin2 = section.get("data", {}).get("icon")
-                isin2 = isin2[isin2.find("/") + 1 :]
-                isin2 = isin2[: isin2.find("/")]
+                isin2 = cls._extract_isin_from_asset(
+                    section.get("data", {}).get("icon")
+                )
                 break
 
         return isin2 if isin2 else isin
