@@ -1,6 +1,6 @@
 {
   "name": "finanze",
-  "version": "0.8.7",
+  "version": "0.9.0",
   "description": "Self-hosted personal finance and net worth tracker that aggregates assets and investments across banks, brokers, crypto and real estate.",
   "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.32.1",
