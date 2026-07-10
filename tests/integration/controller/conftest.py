@@ -62,7 +62,9 @@ from infrastructure.controller.routes.delete_periodic_flow import delete_periodi
 from infrastructure.controller.routes.get_periodic_flows import (
     get_periodic_flows as get_periodic_flows_route,
 )
-from infrastructure.controller.routes.save_pending_flows import save_pending_flows
+from infrastructure.controller.routes.save_pending_flow import save_pending_flow
+from infrastructure.controller.routes.update_pending_flow import update_pending_flow
+from infrastructure.controller.routes.delete_pending_flow import delete_pending_flow
 from infrastructure.controller.routes.get_pending_flows import (
     get_pending_flows as get_pending_flows_route,
 )
@@ -162,11 +164,14 @@ from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
-from application.use_cases.save_pending_flows import SavePendingFlowsImpl
-from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+from application.use_cases.save_pending_flow import SavePendingFlowImpl
+from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from infrastructure.calculations.loan_calculator import LoanCalculator
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 
 from domain.entity import Entity
 from domain.backup import BackupFileType
@@ -248,6 +253,7 @@ async def app(tmp_path):
     crypto_wallet_port = AsyncMock(spec=CryptoWalletPort)
     crypto_entity_fetchers: dict[Entity, CryptoEntityFetcher] = {}
     external_integration_port = AsyncMock(spec=ExternalIntegrationPort)
+    external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
     public_key_derivation = MagicMock(spec=PublicKeyDerivation)
 
     entity_port = AsyncMock(spec=EntityPort)
@@ -265,6 +271,8 @@ async def app(tmp_path):
     pending_flow_repo = PendingFlowRepository(client=db_client)
     real_estate_repo = RealEstateRepository(client=db_client)
     transaction_handler = TransactionHandler(client=db_client)
+    tracked_updates_port = AsyncMock(spec=TrackedUpdatesPort)
+    tracked_updates_port.get_last_executed.return_value = None
 
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
@@ -397,6 +405,7 @@ async def app(tmp_path):
     get_available_entities_uc = GetAvailableEntitiesImpl(
         entity_port,
         external_entity_port,
+        external_integration_port,
         credentials_port,
         crypto_wallet_port,
         last_fetches_port,
@@ -430,14 +439,14 @@ async def app(tmp_path):
     update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
     delete_periodic_flow_uc = DeletePeriodicFlowImpl(periodic_flow_repo)
     get_periodic_flows_uc = GetPeriodicFlowsImpl(periodic_flow_repo)
-    save_pending_flows_uc = SavePendingFlowsImpl(
-        pending_flow_repo, transaction_handler_port
-    )
-    get_pending_flows_uc = GetPendingFlowsImpl(pending_flow_repo)
+    save_pending_flow_uc = SavePendingFlowImpl(pending_flow_repo)
+    update_pending_flow_uc = UpdatePendingFlowImpl(pending_flow_repo)
+    delete_pending_flow_uc = DeletePendingFlowImpl(pending_flow_repo)
+    query_pending_flows_uc = QueryPendingFlowsImpl(pending_flow_repo)
     get_money_events_uc = GetMoneyEventsImpl(
         get_contributions_uc,
         get_periodic_flows_uc,
-        get_pending_flows_uc,
+        query_pending_flows_uc,
         entity_port,
         position_port,
     )
@@ -447,6 +456,7 @@ async def app(tmp_path):
         manual_position_data_port=manual_position_data_port,
         loan_calculator=loan_calc,
         snapshot_writer=manual_position_snapshot_writer,
+        throttle_port=tracked_updates_port,
         transaction_handler_port=transaction_handler,
     )
 
@@ -593,12 +603,20 @@ async def app(tmp_path):
         return await get_periodic_flows_route(get_periodic_flows_uc)
 
     @test_app.route("/api/v1/flows/pending", methods=["POST"])
-    async def save_pending_flows_route():
-        return await save_pending_flows(save_pending_flows_uc)
+    async def save_pending_flow_route():
+        return await save_pending_flow(save_pending_flow_uc)
+
+    @test_app.route("/api/v1/flows/pending", methods=["PUT"])
+    async def update_pending_flow_route():
+        return await update_pending_flow(update_pending_flow_uc)
+
+    @test_app.route("/api/v1/flows/pending/<flow_id>", methods=["DELETE"])
+    async def delete_pending_flow_route(flow_id: str):
+        return await delete_pending_flow(delete_pending_flow_uc, flow_id)
 
     @test_app.route("/api/v1/flows/pending", methods=["GET"])
     async def get_pending_flows_route_handler():
-        return await get_pending_flows_route(get_pending_flows_uc)
+        return await get_pending_flows_route(query_pending_flows_uc)
 
     @test_app.route("/api/v1/events", methods=["GET"])
     async def get_money_events_route_handler():

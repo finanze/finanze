@@ -81,9 +81,14 @@ class TooManyRequests(Exception):
         self.completed = completed
 
 
+class ExternalProviderAppNotLinked(Exception):
+    pass
+
+
 class IntegrationSetupErrorCode(str, Enum):
     UNKNOWN = "UNKNOWN"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    INVALID_PRIVATE_KEY = "INVALID_PRIVATE_KEY"
 
 
 class IntegrationSetupError(Exception):
@@ -98,6 +103,11 @@ class IntegrationNotFound(Exception):
 
 class RealEstateNotFound(Exception):
     pass
+
+
+class MarketValueValuationRequired(Exception):
+    def __init__(self):
+        super().__init__("At least one valuation must be marked as market value")
 
 
 class FlowNotFound(Exception):

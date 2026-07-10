@@ -58,10 +58,10 @@ from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
-from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
@@ -77,7 +77,10 @@ from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
-from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+from application.use_cases.save_pending_flow import SavePendingFlowImpl
+from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
@@ -119,6 +122,7 @@ from infrastructure.client.entity.exchange.binance.binance_fetcher import (
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
+from infrastructure.client.entity.financial.b100.b100_fetcher import B100Fetcher
 from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
 from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import IBKRFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
@@ -128,6 +132,9 @@ from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetche
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
 from infrastructure.client.entity.financial.mintos.mintos_fetcher import MintosFetcher
 from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
+from infrastructure.client.entity.financial.psd2.enablebanking_fetcher import (
+    EnableBankingFetcher,
+)
 from infrastructure.client.entity.financial.psd2.gocardless_fetcher import (
     GoCardlessFetcher,
 )
@@ -148,14 +155,20 @@ from infrastructure.client.keychain.public_keychain_client import PublicKeychain
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
 )
+from infrastructure.client.financial.enablebanking.enablebanking_client import (
+    EnableBankingClient,
+)
 from infrastructure.client.instrument.instrument_provider_adapter import (
     InstrumentProviderAdapter,
 )
 from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetInfoClient
-from infrastructure.client.rates.crypto.file_coingecko_strategy import (
-    FileCoinGeckoCacheStrategy,
+from infrastructure.client.rates.crypto.file_crypto_dataset_store import (
+    FileCryptoDatasetStore,
 )
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.rates.metal.historic_metal_price_client import (
+    HistoricMetalPriceClient,
+)
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.cloud.backup.backup_processor_adapter import (
     BackupProcessorAdapter,
@@ -221,8 +234,14 @@ from infrastructure.repository.position.manual_position_data_repository import (
 from infrastructure.repository.real_estate.real_estate_repository import (
     RealEstateRepository,
 )
+from infrastructure.repository.networth_timeline.networth_timeline_repository import (
+    NetworthTimelineSQLRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
+from infrastructure.repository.tracked_updates.tracked_updates_repository import (
+    TrackedUpdatesRepository,
+)
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
@@ -262,6 +281,7 @@ class FinanzeServer:
         etherscan_client = EtherscanClient()
         ethplorer_client = EthplorerClient()
         gocardless_client = GoCardlessClient(port=args.port)
+        enablebanking_client = EnableBankingClient()
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -293,17 +313,22 @@ class FinanzeServer:
                 domain.native_entities.CAJAMAR: CajamarFetcher(),
                 domain.native_entities.DEGIRO: DegiroFetcher(),
                 domain.native_entities.IBKR: IBKRFetcher(),
+                domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
             }
 
         external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),
+            ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
+                enablebanking_client
+            ),
         }
 
         external_integrations = {
             ExternalIntegrationId.GOOGLE_SHEETS: sheets_initiator,
             ExternalIntegrationId.ETHERSCAN: etherscan_client,
             ExternalIntegrationId.GOCARDLESS: gocardless_client,
+            ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
         }
 
@@ -333,12 +358,14 @@ class FinanzeServer:
         crypto_wallet_repository = CryptoWalletRepository(client=db_client)
         crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repository = LastFetchesRepository(client=db_client)
+        tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=db_client
         )
         periodic_flow_repository = PeriodicFlowRepository(client=db_client)
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
+        networth_timeline_repository = NetworthTimelineSQLRepository(client=db_client)
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
@@ -358,9 +385,10 @@ class FinanzeServer:
         exchange_rate_client = ExchangeRateClient()
         ecb_client = ECBClient()
         crypto_asset_info_client = CryptoAssetInfoClient(
-            coingecko_strategy=FileCoinGeckoCacheStrategy(str(args.data_dir))
+            dataset_store=FileCryptoDatasetStore(str(args.data_dir))
         )
         metal_price_client = MetalPriceClient()
+        historic_metal_price_client = HistoricMetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
         public_key_derivation = PublicKeyDerivationAdapter()
 
@@ -409,6 +437,7 @@ class FinanzeServer:
         get_available_entities = GetAvailableEntitiesImpl(
             entity_repository,
             external_entity_repository,
+            external_integration_repository,
             credentials_port,
             crypto_wallet_repository,
             last_fetches_repository,
@@ -529,6 +558,13 @@ class FinanzeServer:
             auto_contrib_repository, entity_repository
         )
         get_historic = GetHistoricImpl(historic_repository, entity_repository)
+        get_networth_timeline = GetNetworthTimelineImpl(
+            networth_timeline_repository,
+            exchange_rate_storage,
+            entity_repository,
+            real_estate_repository,
+            historic_metal_price_client,
+        )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
@@ -610,14 +646,14 @@ class FinanzeServer:
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
         get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
-        save_pending_flows = SavePendingFlowsImpl(
-            pending_flow_repository, transaction_handler
-        )
-        get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
+        save_pending_flow = SavePendingFlowImpl(pending_flow_repository)
+        update_pending_flow = UpdatePendingFlowImpl(pending_flow_repository)
+        delete_pending_flow = DeletePendingFlowImpl(pending_flow_repository)
+        query_pending_flows = QueryPendingFlowsImpl(pending_flow_repository)
         get_money_events = GetMoneyEventsImpl(
             get_contributions,
             get_periodic_flows,
-            get_pending_flows,
+            query_pending_flows,
             entity_repository,
             position_repository,
         )
@@ -701,6 +737,7 @@ class FinanzeServer:
             exchange_rate_storage=exchange_rate_storage,
             virtual_import_registry=virtual_import_registry,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
@@ -708,6 +745,7 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
             snapshot_writer=manual_position_snapshot_writer,
+            throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
@@ -793,6 +831,7 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_historic,
+            get_networth_timeline,
             get_transactions,
             get_exchange_rates,
             get_money_events,
@@ -813,8 +852,10 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
-            save_pending_flows,
-            get_pending_flows,
+            save_pending_flow,
+            update_pending_flow,
+            delete_pending_flow,
+            query_pending_flows,
             create_real_estate,
             update_real_estate,
             delete_real_estate,

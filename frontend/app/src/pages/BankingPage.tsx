@@ -742,8 +742,7 @@ export default function BankingPage() {
         }
 
         const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
+          { entries?: Account[] } | undefined
         if (!product?.entries?.length) return []
 
         const entityId = entityPosition.entity.id
@@ -777,8 +776,7 @@ export default function BankingPage() {
         }
 
         const product = entityPosition.products[ProductType.CARD] as
-          | { entries?: CardModel[] }
-          | undefined
+          { entries?: CardModel[] } | undefined
         if (!product?.entries?.length) return []
 
         const entityId = entityPosition.entity.id
@@ -812,8 +810,7 @@ export default function BankingPage() {
         }
 
         const product = entityPosition.products[ProductType.LOAN] as
-          | { entries?: Loan[] }
-          | undefined
+          { entries?: Loan[] } | undefined
         if (!product?.entries?.length) return []
 
         const entityId = entityPosition.entity.id
@@ -847,8 +844,7 @@ export default function BankingPage() {
         }
 
         const product = entityPosition.products[ProductType.CREDIT] as
-          | { entries?: CreditDetail[] }
-          | undefined
+          { entries?: CreditDetail[] } | undefined
         if (!product?.entries?.length) return []
 
         const entityId = entityPosition.entity.id

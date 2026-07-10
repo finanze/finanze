@@ -298,8 +298,8 @@
         "show": "Ver completadas",
         "hide": "Ocultar completadas"
       },
-      "empty": "No hay proyectos de {type} completados.",
-      "emptyFiltered": "No hay proyectos de {type} completados para las entidades seleccionadas.",
+      "empty": "No hay proyectos completados.",
+      "emptyFiltered": "No hay proyectos completados para las entidades seleccionadas.",
       "invested": "Invertido",
       "returned": "Retornado",
       "repaid": "Reembolsado",
@@ -422,6 +422,7 @@
       "dontCloseApp": "Por favor, no cierres la app durante este proceso",
       "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
       "restoreFailed": "Error al restaurar. Inténtalo de nuevo.",
+      "tooManyRequests": "Demasiados intentos. Espera un momento e inténtalo otra vez.",
       "guestCreationFailed": "Error al preparar la cuenta. Inténtalo de nuevo.",
       "loginAfterRestoreFailed": "Datos restaurados pero el inicio de sesión falló. Intenta iniciar sesión manualmente.",
       "backToSignup": "Volver al registro"
@@ -439,6 +440,7 @@
   "errors": {
     "INVALID_CODE": "Código inválido",
     "INVALID_CREDENTIALS": "Credenciales inválidas de {entity}",
+    "INVALID_PRIVATE_KEY": "La clave privada proporcionada para {integration} no es válida.",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
     "UNEXPECTED_ERROR": "Error inesperado en {entity}",
     "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
@@ -504,12 +506,25 @@
     "moreFinancialInstitutionsCard": "Más bancos",
     "addExternalEntity": "Instituciones financieras",
     "requiresProviderIntegration": "Requiere integración",
+    "via": "vía {provider}",
+    "selectProvider": "Seleccionar proveedor",
     "selectCountry": "Seleccionar país",
     "selectInstitution": "Seleccionar institución",
     "loadingInstitutions": "Cargando instituciones...",
     "noInstitutionsFound": "No se encontraron instituciones",
+    "searchInstitutions": "Buscar por nombre o BIC...",
+    "changeCountry": "Cambiar",
+    "providedBy": "Proporcionado por {provider}",
     "connecting": "Conectando...",
     "alreadyLinked": "Ya vinculada",
+    "enableBankingPrelinkTitle": "¿Ya has vinculado este banco en Enable Banking?",
+    "enableBankingPrelinkMessageBefore": "Enable Banking solo devuelve datos de las instituciones que ya hayas vinculado en tu",
+    "enableBankingPrelinkMessageLinkLabel": "panel de Enable Banking",
+    "enableBankingPrelinkMessageAfter": ".",
+    "enableBankingPrelinkWarning": "Asegúrate de que este banco ya está vinculado en el panel de Enable Banking antes de continuar; de lo contrario no se devolverán datos.",
+    "enableBankingNoLinkedAccountsBefore": "Puede que todavía no hayas vinculado este banco en el",
+    "enableBankingNoLinkedAccountsLinkLabel": "panel de Enable Banking",
+    "enableBankingNoLinkedAccountsAfter": ". Vincúlalo allí primero y vuelve a intentarlo.",
     "confirmConnection": "Completar conexión",
     "providerLinkInstructions": "Finaliza el proceso en la ventana abierta y luego confirma la conexión.",
     "openLink": "Abrir enlace",
@@ -518,7 +533,9 @@
     "relink": "Re-enlazar",
     "confirmRelink": "Confirmar re-enlace",
     "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}. ¿Quieres continuar?",
-    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas."
+    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas.",
+    "externalLinkSuccess": "Conexión bancaria completada correctamente.",
+    "externalLinkError": "No se pudo completar la conexión bancaria. Inténtalo de nuevo."
   },
   "features": {
     "POSITION": "Posiciones",
@@ -565,7 +582,8 @@
     "biometricCredentialsActionTitle": "Desactivar inicio biométrico",
     "applicationLanguageOptions": {
       "en-US": "Inglés",
-      "es-ES": "Español"
+      "es-ES": "Español",
+      "it-IT": "Italiano"
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
@@ -860,6 +878,16 @@
       "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     },
     "integrationHintButton": "Ver instrucciones",
+    "privateKeyField": {
+      "dropHint": "Arrastra aquí tu archivo de clave privada",
+      "browse": "o haz clic para seleccionar (.pem)",
+      "loaded": "Cargado: {file}",
+      "invalid": "Archivo de clave privada inválido. Se esperaba una clave privada PEM.",
+      "readError": "No se pudo leer el archivo. Inténtalo de nuevo.",
+      "manualToggle": "Introducir manualmente",
+      "uploadToggle": "Subir un archivo",
+      "manualPlaceholder": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+    },
     "integration": {
       "GOOGLE_SHEETS": {
         "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
@@ -914,7 +942,7 @@
         }
       },
       "GOCARDLESS": {
-        "description": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente.",
+        "description": "Configura GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente. Úsalo SOLO si ya tienes una cuenta de GoCardless.",
         "help": "Cómo generar las credenciales",
         "hint": {
           "title": "Crear credenciales de GoCardless",
@@ -943,12 +971,78 @@
             }
           ]
         }
+      },
+      "ENABLE_BANKING": {
+        "description": "Conecta cuentas bancarias de toda Europa mediante el acceso PSD2 de Enable Banking.",
+        "help": "Cómo configurar Enable Banking",
+        "hint": {
+          "title": "Configurar Enable Banking",
+          "steps": [
+            [
+              "Crea una cuenta o accede desde ",
+              {
+                "type": "link",
+                "label": "Enable Banking",
+                "url": "https://enablebanking.com/sign-in/"
+              },
+              ", y registra una nueva aplicación en el ",
+              {
+                "type": "link",
+                "label": "panel de aplicaciones API",
+                "url": "https://enablebanking.com/cp/applications"
+              },
+              "."
+            ],
+            [
+              "Al crear la aplicación, elige **PRODUCCIÓN** y mantén la opción de clave por defecto."
+            ],
+            [
+              "Añade esta URL a las URLs de redirección permitidas: ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/eb/v1/entity/callback/",
+                "url": "https://finanze.me/eb/v1/entity/callback/"
+              },
+              ". Este campo es **imprescindible**."
+            ],
+            [
+              "Como URL de Privacidad puedes usar ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/privacy/",
+                "url": "https://finanze.me/privacy/"
+              },
+              " y como URL de Términos ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/terms/",
+                "url": "https://finanze.me/terms/"
+              },
+              "."
+            ],
+            [
+              "La clave privada de la aplicación en formato PEM se descargará automáticamente, ¡guárdala en un lugar seguro!"
+            ],
+            [
+              "Copia el **Application ID** de tu aplicación (código alfanumérico con guiones en la parte superior) y pégalo en el campo de abajo, luego sube el archivo de la clave privada abajo y guarda."
+            ],
+            [
+              "*Recuerda: antes de vincular un banco en la app, primero debes vincular esa institución en el panel de aplicaciones de Enable Banking para que devuelva datos.*"
+            ]
+          ]
+        }
       }
     },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
-    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes."
+    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
+    "integrationCategories": {
+      "ENTITY_PROVIDER": "Proveedores bancarios",
+      "CRYPTO_PROVIDER": "Proveedores de cripto",
+      "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
+      "DATA_SOURCE": "Fuentes de datos"
+    }
   },
   "dashboard": {
     "title": "Panel Principal",
@@ -1042,6 +1136,32 @@
     "negativeCashWarningTitle": "Proyección inviable",
     "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible.",
     "includeRealEstateTaxes": "Incluir impuestos inmobiliarios"
+  },
+  "netWorthTimeline": {
+    "title": "Patrimonio",
+    "noData": "Aún no hay datos de evolución disponibles",
+    "buildingHistory": "En unos días verás aquí la evolución de tu patrimonio",
+    "expand": "Ampliar",
+    "collapse": "Reducir",
+    "dateRange": "Rango de fechas",
+    "from": "Desde",
+    "to": "Hasta",
+    "clear": "Limpiar",
+    "productTypes": "Productos",
+    "options": "Opciones",
+    "stacked": "Apilado",
+    "lines": "Líneas",
+    "showTotal": "Total",
+    "selectAll": "Seleccionar todo",
+    "clearAll": "Limpiar todo",
+    "ranges": {
+      "ALL": "Todo",
+      "1Y": "1A",
+      "6M": "6M",
+      "3M": "3M",
+      "1M": "1M",
+      "1W": "1S"
+    }
   },
   "export": {
     "title": "Exportar e Importar",
@@ -1545,6 +1665,7 @@
       "FACTORING": "Factoring",
       "REAL_ESTATE_CF": "Cf. Inmobiliario",
       "REAL_ESTATE": "Inmobiliario",
+      "REAL_ESTATE_RESIDENCE": "Residencia",
       "DEPOSIT": "Depósitos",
       "CASH": "Efectivo",
       "CROWDLENDING": "Crowdlending",
@@ -1871,7 +1992,7 @@
     "recurringMoneyDescription": "Gestiona tus ingresos y gastos recurrentes",
     "pendingMoney": "Dinero Pendiente",
     "pendingMoneyDescription": "Gestiona tus ingresos y gastos puntuales",
-    "autoContributions": "Aportaciones automáticas",
+    "autoContributions": "Aportaciones",
     "autoContributionsDescription": "Revisa tus aportaciones periódicas de inversión",
     "earnings": "Ingresos",
     "expenses": "Gastos",
@@ -1931,6 +2052,18 @@
     "noPendingExpenses": "No hay gastos pendientes",
     "addFirstPendingEarning": "Haz clic en '+' para añadir ingresos pendientes.",
     "addFirstPendingExpense": "Haz clic en '+' para añadir gastos pendientes.",
+    "markCompleted": "Marcar como completado",
+    "markCompletedTitle": "Completar {type}",
+    "markCompletedConfirm": "¿Marcar este {type} como completado? Dejará de contarse en tus totales pendientes.",
+    "markActive": "Reactivar",
+    "statusFilter": "Estado",
+    "filters": "Filtros",
+    "loadMore": "Cargar más",
+    "flowStatus": {
+      "ACTIVE": "Activo",
+      "DISABLED": "Desactivado",
+      "COMPLETED": "Completado"
+    },
     "unsavedChanges": "Tienes cambios sin guardar",
     "requiredFields": "Campos requeridos",
     "sortBy": "Ordenar por",
@@ -2169,6 +2302,9 @@
           "fixedYears": "Años a tipo fijo",
           "creation": "Fecha de inicio",
           "maturity": "Vencimiento",
+          "termShortcut": "Plazo",
+          "yearsShort": "a",
+          "customYearsPlaceholder": "Años",
           "installmentFrequency": "Frecuencia de cuota",
           "fixedInterestRate": "Tipo de interés fijo",
           "trackLoan": "Actualizar préstamo automáticamente",
@@ -2595,6 +2731,9 @@
     },
     "valuation": {
       "estimatedMarketValue": "Valor estimado de mercado",
+      "estimatedMarketValueHint": "Se obtiene de la última tasación marcada como valor de mercado.",
+      "noMarketValue": "Marca una tasación como valor de mercado",
+      "useAsMarketValue": "Usar como valor de mercado",
       "valuations": "Tasaciones",
       "addValuation": "Añadir",
       "date": "Fecha",
@@ -2625,6 +2764,10 @@
       "monthlyInterest": "Intereses de la cuota",
       "fromLabel": "Desde",
       "untilLabel": "Hasta",
+      "termShortcut": "Plazo",
+      "yearsShort": "a",
+      "customYears": "Otro",
+      "customYearsPlaceholder": "Años",
       "existingLoan": "Préstamo Existente",
       "standard": "Estándar",
       "mortgage": "Hipoteca",
@@ -2823,7 +2966,10 @@
       "loans": {
         "principalOutstandingInfo": "Necesario para calcular el patrimonio neto y algunos KPIs (p. ej., ROE y distribución inmobiliaria).",
         "totalLoanAmountInfo": "Se usa para calcular el capital aportado y el ratio de financiación. Indícalo para KPIs de CoC precisos.",
-        "monthlyInterestInfo": "Se usa para estimar impuestos y el retorno total (se excluye la amortización de capital)."
+        "monthlyInterestInfo": "Se usa para estimar impuestos y el retorno total (se excluye la amortización de capital).",
+        "currentInstallmentInfo": "La cuota periódica actual que se paga por este préstamo.",
+        "calculatedHint": "Se puede calcular automáticamente a partir del importe total del préstamo, la fecha de inicio y el tipo de interés usando Calcular datos.",
+        "principalOutstandingManualNote": "Si has hecho amortizaciones anticipadas, es mejor introducir este importe manualmente."
       }
     },
     "amortizations": {

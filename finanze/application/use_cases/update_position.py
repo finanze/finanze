@@ -26,6 +26,7 @@ from domain.exception.exceptions import (
     RelatedAccountNotFound,
     RelatedFundPortfolioNotFound,
 )
+from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import DataSource
 from domain.global_position import (
     AccountType,
@@ -375,6 +376,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     if provider is None or provider_id is None:
                         self._log.warning(
                             f"Cannot fetch crypto asset details for asset with symbol {asset.symbol} due to missing external IDs."
+                        )
+                        continue
+                    try:
+                        provider = ExternalIntegrationId(provider)
+                    except ValueError:
+                        self._log.warning(
+                            f"Cannot fetch crypto asset details for asset with symbol {asset.symbol} due to unknown provider '{provider}'."
                         )
                         continue
                     asset_extended_details = (

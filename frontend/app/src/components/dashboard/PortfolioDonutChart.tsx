@@ -280,7 +280,14 @@ export function PortfolioDonutChart({
             <img
               src={entityIcon.url}
               alt={label}
-              className="w-full h-full object-contain"
+              draggable={false}
+              className="w-full h-full object-contain pointer-events-none select-none"
+              style={
+                {
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                } as React.CSSProperties
+              }
               onError={e => (e.currentTarget.style.display = "none")}
             />
           </div>
@@ -390,7 +397,14 @@ export function PortfolioDonutChart({
               <img
                 src={entityIcon.url}
                 alt=""
-                className="w-full h-full object-contain"
+                draggable={false}
+                className="w-full h-full object-contain pointer-events-none select-none"
+                style={
+                  {
+                    WebkitUserSelect: "none",
+                    WebkitTouchCallout: "none",
+                  } as React.CSSProperties
+                }
                 onError={e => (e.currentTarget.style.display = "none")}
               />
             </div>

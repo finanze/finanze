@@ -74,14 +74,20 @@ class HttpSession:
         return resp
 
 
+DEFAULT_TIMEOUT = 15.0
+
+
 def get_http_session() -> HttpSession:
     global _httpx_singleton_client
     if _httpx_singleton_client is None:
-        _httpx_singleton_client = httpx.AsyncClient(transport=NoCookieTransport())
+        _httpx_singleton_client = httpx.AsyncClient(
+            transport=NoCookieTransport(), timeout=DEFAULT_TIMEOUT
+        )
     return HttpSession(_httpx_singleton_client)
 
 
 def new_http_session(**kwargs) -> HttpSession:
+    kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
     return HttpSession(httpx.AsyncClient(**kwargs))
 
 
@@ -121,12 +127,38 @@ class _TlsHttpResponse:
         return self._data.encode("utf-8")
 
 
+class _TlsCookieJar:
+    def __init__(self):
+        self._cookies = httpx.Cookies()
+        self._pending: list[dict] = []
+
+    @property
+    def jar(self):
+        return self._cookies.jar
+
+    def set(self, name, value, domain="", path="/"):
+        self._cookies.set(name, value, domain=domain, path=path)
+        self._pending.append({"name": name, "value": value})
+
+    def drain_pending(self) -> list[dict]:
+        pending = self._pending
+        self._pending = []
+        return pending
+
+
 class ImpersonatedHttpSession:
     _PROFILE_MAP = {
         "firefox135": "firefox_135",
+        "firefox147": "firefox_147",
+        "firefox147_psk": "firefox_147_PSK",
+        "firefox148": "firefox_148",
         "chrome133": "chrome_133",
-        "safari_ios_18_0": "safari_ios_18_0",
-        "safari_ios_18_5": "safari_ios_18_5",
+        "chrome146": "chrome_146",
+        "chrome146_psk": "chrome_146_PSK",
+        "safari180_ios": "safari_ios_18_0",
+        "safari184_ios": "safari_ios_18_5",
+        "safari260_ios": "safari_ios_26_0",
+        "okhttp4_android_13": "okhttp4_android_13",
     }
 
     def __init__(
@@ -137,6 +169,7 @@ class ImpersonatedHttpSession:
     ):
         self._session_id = f"tls-{id(self)}"
         self._headers = {}
+        self._cookies = _TlsCookieJar()
         self._profile = self._PROFILE_MAP.get(impersonate, impersonate)
         self._force_http1 = force_http1
         self._disable_http3 = disable_http3
@@ -147,11 +180,11 @@ class ImpersonatedHttpSession:
 
     @property
     def cookies(self):
-        return httpx.Cookies()
+        return self._cookies
 
     @property
     def cookie_jar(self):
-        return self.cookies.jar
+        return self._cookies.jar
 
     async def request(self, method: str, url: str, **kwargs) -> _TlsHttpResponse:
         headers = kwargs.pop("headers", None)
@@ -196,6 +229,9 @@ class ImpersonatedHttpSession:
         }
         if body:
             options["data"] = body
+        pending_cookies = self._cookies.drain_pending()
+        if pending_cookies:
+            options["cookies"] = pending_cookies
         if self._force_http1:
             options["forceHttp1"] = True
         if self._disable_http3:

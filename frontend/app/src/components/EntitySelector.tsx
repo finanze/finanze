@@ -1,4 +1,10 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react"
+import {
+  useState,
+  useEffect,
+  useMemo,
+  type ReactNode,
+  type CSSProperties,
+} from "react"
 import { Check, Landmark, Wallet, ArrowLeftRight, Package } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -11,6 +17,7 @@ import { useI18n } from "@/i18n"
 import { getImageUrl } from "@/services/api"
 import { EntityOrigin, EntityType, type Entity } from "@/types"
 import { cn } from "@/lib/utils"
+import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
 
 const ENTITY_TYPE_ICONS: Record<string, typeof Landmark> = {
   [EntityType.FINANCIAL_INSTITUTION]: Landmark,
@@ -45,9 +52,13 @@ function EntityIcon({
   className?: string
 }) {
   const [failed, setFailed] = useState(false)
+  const [useCors, setUseCors] = useState(true)
+  const [needsLightBg, setNeedsLightBg] = useState(false)
 
   useEffect(() => {
     setFailed(false)
+    setUseCors(true)
+    setNeedsLightBg(false)
   }, [src])
 
   if (!src || failed) {
@@ -65,13 +76,43 @@ function EntityIcon({
   }
 
   return (
-    <img
-      src={src}
-      alt={entity.name}
-      draggable={false}
-      className={cn("object-contain select-none", className)}
-      onError={() => setFailed(true)}
-    />
+    <div
+      className={cn(
+        "flex items-center justify-center overflow-hidden",
+        needsLightBg && "bg-white p-0.5",
+        className,
+      )}
+    >
+      <img
+        src={src}
+        alt={entity.name}
+        draggable={false}
+        crossOrigin={useCors ? "anonymous" : undefined}
+        className="h-full w-full object-contain select-none pointer-events-none"
+        style={
+          {
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+          } as CSSProperties
+        }
+        onLoad={event => {
+          const image = event.currentTarget
+          if (image.naturalWidth === 0) return
+          try {
+            if (isMostlyBlackLogo(image)) setNeedsLightBg(true)
+          } catch {
+            // Cross-origin image without CORS headers taints the canvas; skip.
+          }
+        }}
+        onError={() => {
+          if (useCors) {
+            setUseCors(false)
+            return
+          }
+          setFailed(true)
+        }}
+      />
+    </div>
   )
 }
 

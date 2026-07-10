@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
@@ -21,15 +21,21 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
+  ArrowRight,
+  Ban,
   Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
   Calendar,
   CalendarDays,
+  ChevronDown,
+  CircleCheckBig,
   Edit,
   Plus,
+  SlidersHorizontal,
   Tag,
   Trash2,
+  Undo2,
   X,
 } from "lucide-react"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
@@ -37,21 +43,49 @@ import { formatCurrency, formatDate } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import { FlowType, PendingFlow, CreatePendingFlowRequest } from "@/types"
-import { savePendingFlows } from "@/services/api"
+import {
+  FlowType,
+  FlowStatus,
+  FlowSortField,
+  SortOrder,
+  PendingFlow,
+  PendingFlowStats,
+  CreatePendingFlowRequest,
+} from "@/types"
+import {
+  createPendingFlow,
+  updatePendingFlow,
+  deletePendingFlow,
+  getPendingFlows,
+} from "@/services/api"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
-type PendingFlowFormState = CreatePendingFlowRequest & { icon?: IconName }
+type PendingFlowFormState = Omit<CreatePendingFlowRequest, "status"> & {
+  status: FlowStatus
+  icon?: IconName
+}
+
+const PAGE_SIZE = 20
+
+const DEFAULT_STATUS_FILTER: FlowStatus[] = [
+  FlowStatus.ACTIVE,
+  FlowStatus.DISABLED,
+]
 
 export default function PendingMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
-  const { pendingFlows, refreshPendingFlows } = useFinancialData()
+  const { refreshPendingFlows } = useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
-  const [existingCategories, setExistingCategories] = useState<string[]>([])
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
+
+  const [activeTab, setActiveTab] = useState<FlowType>(FlowType.EARNING)
+  const [statusFilter, setStatusFilter] = useState<FlowStatus[]>(
+    DEFAULT_STATUS_FILTER,
+  )
+  const [sortBy, setSortBy] = useState<FlowSortField>(FlowSortField.AMOUNT)
+  const [sortOrder, setSortOrder] = useState<SortOrder>(SortOrder.DESC)
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [groupByCategory, setGroupByCategory] = useState(() => {
     try {
       return sessionStorage.getItem("pendingGroupByCategory") === "true"
@@ -59,21 +93,43 @@ export default function PendingMoneyPage() {
       return false
     }
   })
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const [entries, setEntries] = useState<PendingFlow[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [stats, setStats] = useState<PendingFlowStats | null>(null)
+  const [allCategories, setAllCategories] = useState<string[]>([])
+  const [dataVersion, setDataVersion] = useState(0)
+
+  const [existingCategories, setExistingCategories] = useState<string[]>([])
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PendingFlow | null>(null)
   const [deletingFlow, setDeletingFlow] = useState<PendingFlow | null>(null)
+  const [completingFlow, setCompletingFlow] = useState<PendingFlow | null>(null)
+
+  const pageRef = useRef(1)
+  const loadingRef = useRef(false)
+  const fetchIdRef = useRef(0)
+  const observerRef = useRef<IntersectionObserver | null>(null)
 
   useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
   useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
+  useModalBackHandler(isCompleteDialogOpen, () =>
+    setIsCompleteDialogOpen(false),
+  )
+
   const [formData, setFormData] = useState<PendingFlowFormState>({
     name: "",
     amount: 0,
     flow_type: FlowType.EARNING,
     category: "",
-    enabled: true,
+    status: FlowStatus.ACTIVE,
     date: "",
     currency: defaultCurrency,
   })
@@ -87,15 +143,10 @@ export default function PendingMoneyPage() {
   }, [groupByCategory])
 
   useEffect(() => {
-    const categories = pendingFlows
-      .map(flow => flow.category)
-      .filter((category): category is string => Boolean(category))
-      .filter((category, index, arr) => arr.indexOf(category) === index)
-    setExistingCategories(categories)
-  }, [pendingFlows])
+    setExistingCategories(allCategories)
+  }, [allCategories])
 
   useEffect(() => {
-    // Delay disabling animation to allow entrance animation to complete
     const timer = setTimeout(() => {
       setRunEntranceAnimation(false)
     }, 1000)
@@ -109,41 +160,117 @@ export default function PendingMoneyPage() {
     }))
   }, [defaultCurrency])
 
-  const sortedFlows = useMemo(() => {
-    const flows = pendingFlows.filter(flow =>
-      categoryFilter.length
-        ? flow.category
-          ? categoryFilter.includes(flow.category)
-          : false
-        : true,
-    )
+  const fetchEntries = useCallback(
+    async (append: boolean) => {
+      if (loadingRef.current) return
+      loadingRef.current = true
 
-    const sorted = [...flows].sort((a, b) => {
-      if (a.enabled !== b.enabled) {
-        return a.enabled ? -1 : 1
-      }
-      if (sortBy === "amount") {
-        return b.amount - a.amount
-      }
-      if (!a.date && !b.date) return 0
-      if (!a.date) return 1
-      if (!b.date) return -1
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    })
+      const fetchId = ++fetchIdRef.current
+      const nextPage = append ? pageRef.current + 1 : 1
 
-    return {
-      earnings: sorted.filter(flow => flow.flow_type === FlowType.EARNING),
-      expenses: sorted.filter(flow => flow.flow_type === FlowType.EXPENSE),
+      if (append) {
+        setIsLoadingMore(true)
+      } else {
+        setIsLoading(true)
+      }
+
+      try {
+        const response = await getPendingFlows({
+          flow_type: activeTab,
+          status: statusFilter.length ? statusFilter : undefined,
+          category: categoryFilter.length ? categoryFilter : undefined,
+          sort_by: sortBy,
+          order: sortOrder,
+          page: groupByCategory ? undefined : nextPage,
+          limit: groupByCategory ? undefined : PAGE_SIZE,
+          stats: !append,
+          categories: !append,
+        })
+
+        if (fetchIdRef.current !== fetchId) return
+
+        setEntries(prev =>
+          append ? [...prev, ...response.entries] : response.entries,
+        )
+        setHasMore(groupByCategory ? false : response.has_more)
+        pageRef.current = nextPage
+        if (!append) {
+          setStats(response.stats)
+          setAllCategories(response.categories ?? [])
+        }
+      } catch (error) {
+        if (fetchIdRef.current !== fetchId) return
+        console.error("Error loading pending flows:", error)
+        showToast(t.management.loadError, "error")
+      } finally {
+        if (fetchIdRef.current === fetchId) {
+          setIsLoading(false)
+          setIsLoadingMore(false)
+          loadingRef.current = false
+        }
+      }
+    },
+    [
+      activeTab,
+      statusFilter,
+      categoryFilter,
+      sortBy,
+      sortOrder,
+      groupByCategory,
+      showToast,
+      t.management.loadError,
+    ],
+  )
+
+  useEffect(() => {
+    pageRef.current = 1
+    loadingRef.current = false
+    fetchEntries(false)
+  }, [fetchEntries, dataVersion])
+
+  const loadMore = useCallback(() => {
+    if (loadingRef.current || !hasMore) return
+    fetchEntries(true)
+  }, [fetchEntries, hasMore])
+
+  const sentinelRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = null
+      }
+      if (!node) return
+      observerRef.current = new IntersectionObserver(
+        observed => {
+          if (observed[0]?.isIntersecting && !loadingRef.current && hasMore) {
+            loadMore()
+          }
+        },
+        { rootMargin: "200px" },
+      )
+      observerRef.current.observe(node)
+    },
+    [loadMore, hasMore],
+  )
+
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect()
     }
-  }, [pendingFlows, sortBy, categoryFilter])
+  }, [])
+
+  const refreshAll = () => {
+    setDataVersion(v => v + 1)
+    void refreshPendingFlows()
+  }
 
   const resetForm = () => {
     setFormData({
       name: "",
       amount: 0,
-      flow_type: FlowType.EARNING,
+      flow_type: activeTab,
       category: "",
-      enabled: true,
+      status: FlowStatus.ACTIVE,
       date: "",
       currency: defaultCurrency,
     })
@@ -151,61 +278,35 @@ export default function PendingMoneyPage() {
     setValidationErrors([])
   }
 
-  const toRequestFlow = (
-    flow:
-      | PendingFlow
-      | (PendingFlowFormState & {
-          icon?: IconName
-        }),
-  ) => ({
-    name: flow.name,
-    amount: Number(flow.amount),
-    flow_type: flow.flow_type,
-    category: flow.category,
-    enabled: flow.enabled,
-    date: flow.date,
-    currency: flow.currency || defaultCurrency,
-    icon: (flow as any).icon,
-  })
-
   const handleSubmit = async () => {
     const errors: string[] = []
     if (!formData.name.trim()) errors.push("name")
     if (!formData.amount) errors.push("amount")
 
     setValidationErrors(errors)
+    if (errors.length > 0) return
 
-    if (errors.length > 0) {
-      return
-    }
-
-    const sanitizedFormData: PendingFlowFormState = {
-      ...formData,
+    const payload = {
+      name: formData.name.trim(),
       amount: Number(formData.amount),
+      flow_type: formData.flow_type,
+      category: formData.category || undefined,
+      status: formData.status,
+      date: formData.date || undefined,
       currency: formData.currency || defaultCurrency,
+      icon: formData.icon,
     }
-
-    const flowsPayload = editingFlow
-      ? pendingFlows.map(flow =>
-          flow.id === editingFlow.id
-            ? toRequestFlow({
-                ...flow,
-                ...sanitizedFormData,
-                icon: sanitizedFormData.icon,
-              })
-            : toRequestFlow(flow),
-        )
-      : [
-          ...pendingFlows.map(flow => toRequestFlow(flow)),
-          toRequestFlow(sanitizedFormData),
-        ]
 
     try {
-      await savePendingFlows({ flows: flowsPayload })
+      if (editingFlow) {
+        await updatePendingFlow({ id: editingFlow.id, ...payload })
+      } else {
+        await createPendingFlow(payload)
+      }
       showToast(t.management.saveSuccess, "success")
       setIsDialogOpen(false)
       resetForm()
-      await refreshPendingFlows()
+      refreshAll()
     } catch (error) {
       console.error("Error saving pending flow:", error)
       showToast(t.management.saveError, "error")
@@ -214,26 +315,66 @@ export default function PendingMoneyPage() {
 
   const handleDelete = async () => {
     if (!deletingFlow) return
-
-    const flowsPayload = pendingFlows
-      .filter(flow => flow.id !== deletingFlow.id)
-      .map(flow => toRequestFlow(flow))
-
     try {
-      await savePendingFlows({ flows: flowsPayload })
+      await deletePendingFlow(deletingFlow.id)
       showToast(t.management.deleteSuccess, "success")
       setIsDeleteDialogOpen(false)
       setDeletingFlow(null)
-      await refreshPendingFlows()
+      refreshAll()
     } catch (error) {
       console.error("Error deleting pending flow:", error)
       showToast(t.management.deleteError, "error")
     }
   }
 
-  const openCreateDialog = (flowType: FlowType) => {
+  const handleComplete = async () => {
+    if (!completingFlow) return
+    try {
+      await updatePendingFlow({
+        id: completingFlow.id,
+        name: completingFlow.name,
+        amount: Number(completingFlow.amount),
+        flow_type: completingFlow.flow_type,
+        category: completingFlow.category || undefined,
+        status: FlowStatus.COMPLETED,
+        date: completingFlow.date || undefined,
+        currency: completingFlow.currency || defaultCurrency,
+        icon: (completingFlow as { icon?: IconName }).icon,
+      })
+      showToast(t.management.saveSuccess, "success")
+      setIsCompleteDialogOpen(false)
+      setCompletingFlow(null)
+      refreshAll()
+    } catch (error) {
+      console.error("Error completing pending flow:", error)
+      showToast(t.management.saveError, "error")
+    }
+  }
+
+  const handleReactivate = async (flow: PendingFlow) => {
+    try {
+      await updatePendingFlow({
+        id: flow.id,
+        name: flow.name,
+        amount: Number(flow.amount),
+        flow_type: flow.flow_type,
+        category: flow.category || undefined,
+        status: FlowStatus.ACTIVE,
+        date: flow.date || undefined,
+        currency: flow.currency || defaultCurrency,
+        icon: (flow as { icon?: IconName }).icon,
+      })
+      showToast(t.management.saveSuccess, "success")
+      refreshAll()
+    } catch (error) {
+      console.error("Error reactivating pending flow:", error)
+      showToast(t.management.saveError, "error")
+    }
+  }
+
+  const openCreateDialog = () => {
     resetForm()
-    setFormData(prev => ({ ...prev, flow_type: flowType }))
+    setFormData(prev => ({ ...prev, flow_type: activeTab }))
     setIsDialogOpen(true)
   }
 
@@ -245,10 +386,10 @@ export default function PendingMoneyPage() {
       amount: flow.amount,
       flow_type: flow.flow_type,
       category: flow.category || "",
-      enabled: flow.enabled,
+      status: flow.status,
       date: flow.date || "",
       currency: flow.currency || defaultCurrency,
-      icon: (flow as any).icon,
+      icon: (flow as { icon?: IconName }).icon,
     })
     setIsDialogOpen(true)
   }
@@ -258,8 +399,10 @@ export default function PendingMoneyPage() {
     setIsDeleteDialogOpen(true)
   }
 
-  const earnings = sortedFlows.earnings
-  const expenses = sortedFlows.expenses
+  const openCompleteDialog = (flow: PendingFlow) => {
+    setCompletingFlow(flow)
+    setIsCompleteDialogOpen(true)
+  }
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -269,45 +412,44 @@ export default function PendingMoneyPage() {
     )
   }
 
+  const toggleStatusFilter = (status: FlowStatus) => {
+    setStatusFilter(prev =>
+      prev.includes(status)
+        ? prev.filter(s => s !== status)
+        : [...prev, status],
+    )
+  }
+
   const categoryOptions: MultiSelectOption[] = useMemo(
-    () => existingCategories.map(c => ({ value: c, label: c })),
-    [existingCategories],
+    () => allCategories.map(c => ({ value: c, label: c })),
+    [allCategories],
   )
 
-  const kpiEarningsSource = useMemo(() => earnings, [earnings])
-  const kpiExpensesSource = useMemo(() => expenses, [expenses])
+  const isDefaultStatusFilter =
+    statusFilter.length === DEFAULT_STATUS_FILTER.length &&
+    DEFAULT_STATUS_FILTER.every(s => statusFilter.includes(s))
+  const activeFilterCount =
+    categoryFilter.length +
+    (groupByCategory ? 1 : 0) +
+    (isDefaultStatusFilter ? 0 : 1) +
+    (sortBy !== FlowSortField.AMOUNT ? 1 : 0) +
+    (sortOrder !== SortOrder.DESC ? 1 : 0)
 
-  const totalPendingEarnings = kpiEarningsSource
-    .filter(flow => flow.enabled)
-    .reduce((sum, flow) => {
-      const amount = flow.amount
-      const convertedAmount = convertCurrency(
-        amount,
-        flow.currency,
-        defaultCurrency,
-        exchangeRates,
-      )
-      return sum + convertedAmount
-    }, 0)
+  const sumTotals = (totals: Record<string, number>) =>
+    Object.entries(totals).reduce(
+      (sum, [currency, amount]) =>
+        sum + convertCurrency(amount, currency, defaultCurrency, exchangeRates),
+      0,
+    )
 
-  const totalPendingExpenses = kpiExpensesSource
-    .filter(flow => flow.enabled)
-    .reduce((sum, flow) => {
-      const amount = flow.amount
-      const convertedAmount = convertCurrency(
-        amount,
-        flow.currency,
-        defaultCurrency,
-        exchangeRates,
-      )
-      return sum + convertedAmount
-    }, 0)
+  const totalPendingEarnings = stats ? sumTotals(stats.earning.totals) : 0
+  const totalPendingExpenses = stats ? sumTotals(stats.expense.totals) : 0
+  const earningsCount = stats?.earning.count ?? 0
+  const expensesCount = stats?.expense.count ?? 0
 
-  // Color functions for different shades - traditional red/green palette
-  // Darker colors for bigger amounts (lower index), lighter for smaller amounts
   const getEarningsColor = (index: number) => {
     const greenShades = [
-      "bg-green-800", // Darkest for biggest
+      "bg-green-800",
       "bg-green-700",
       "bg-green-600",
       "bg-green-500",
@@ -320,7 +462,7 @@ export default function PendingMoneyPage() {
 
   const getExpensesColor = (index: number) => {
     const redShades = [
-      "bg-red-800", // Darkest for biggest
+      "bg-red-800",
       "bg-red-700",
       "bg-red-600",
       "bg-red-500",
@@ -331,94 +473,77 @@ export default function PendingMoneyPage() {
     return redShades[index % redShades.length]
   }
 
-  // Calculate flow distribution for the horizontal bar charts
   const flowDistribution = useMemo(() => {
-    const enabledEarnings = kpiEarningsSource.filter(flow => flow.enabled)
-    const enabledExpenses = kpiExpensesSource.filter(flow => flow.enabled)
+    const MAX_SLICES = 8
+    const build = (
+      byCategory: {
+        category: string | null
+        name: string | null
+        amounts: Record<string, number>
+      }[],
+      total: number,
+      type: "earning" | "expense",
+    ) => {
+      const mapped = byCategory
+        .map(entry => {
+          const amount = Object.entries(entry.amounts).reduce(
+            (sum, [currency, value]) =>
+              sum +
+              convertCurrency(value, currency, defaultCurrency, exchangeRates),
+            0,
+          )
+          return {
+            category: entry.category,
+            label: entry.name ?? entry.category ?? t.management.uncategorized,
+            amount,
+            percentage: total > 0 ? (amount / total) * 100 : 0,
+            type,
+          }
+        })
+        .sort((a, b) => b.amount - a.amount)
 
-    // Group earnings by category
-    const earningsGroups = enabledEarnings.reduce(
-      (groups, flow) => {
-        const category = flow.category || flow.name
-        const amount = convertCurrency(
-          flow.amount,
-          flow.currency,
-          defaultCurrency,
-          exchangeRates,
-        )
+      let shown = mapped
+      if (mapped.length > MAX_SLICES) {
+        const top = mapped.slice(0, MAX_SLICES - 1)
+        const rest = mapped.slice(MAX_SLICES - 1)
+        const otherAmount = rest.reduce((sum, entry) => sum + entry.amount, 0)
+        shown = [
+          ...top,
+          {
+            category: null,
+            label: t.management.other,
+            amount: otherAmount,
+            percentage: total > 0 ? (otherAmount / total) * 100 : 0,
+            type,
+          },
+        ]
+      }
 
-        if (!groups[category]) {
-          groups[category] = { amount: 0, flows: [] }
-        }
-        groups[category].amount += amount
-        groups[category].flows.push(flow)
-        return groups
-      },
-      {} as Record<string, { amount: number; flows: PendingFlow[] }>,
-    )
-
-    // Group expenses by category
-    const expensesGroups = enabledExpenses.reduce(
-      (groups, flow) => {
-        const category = flow.category || flow.name
-        const amount = convertCurrency(
-          flow.amount,
-          flow.currency,
-          defaultCurrency,
-          exchangeRates,
-        )
-
-        if (!groups[category]) {
-          groups[category] = { amount: 0, flows: [] }
-        }
-        groups[category].amount += amount
-        groups[category].flows.push(flow)
-        return groups
-      },
-      {} as Record<string, { amount: number; flows: PendingFlow[] }>,
-    )
-
-    // Convert to arrays with percentages for earnings
-    const earningsData = Object.entries(earningsGroups).map(
-      ([category, data], index) => ({
-        category,
-        amount: data.amount,
-        percentage:
-          totalPendingEarnings > 0
-            ? (data.amount / totalPendingEarnings) * 100
-            : 0,
-        flows: data.flows,
-        type: "earning" as const,
-        color: getEarningsColor(index),
-      }),
-    )
-
-    // Convert to arrays with percentages for expenses
-    const expensesData = Object.entries(expensesGroups).map(
-      ([category, data], index) => ({
-        category,
-        amount: data.amount,
-        percentage:
-          totalPendingExpenses > 0
-            ? (data.amount / totalPendingExpenses) * 100
-            : 0,
-        flows: data.flows,
-        type: "expense" as const,
-        color: getExpensesColor(index),
-      }),
-    )
+      return shown.map((entry, index) => ({
+        ...entry,
+        color:
+          type === "earning"
+            ? getEarningsColor(index)
+            : getExpensesColor(index),
+      }))
+    }
 
     return {
-      earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first
-      expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first
+      earnings: stats
+        ? build(stats.earning.by_category, totalPendingEarnings, "earning")
+        : [],
+      expenses: stats
+        ? build(stats.expense.by_category, totalPendingExpenses, "expense")
+        : [],
     }
   }, [
-    kpiEarningsSource,
-    kpiExpensesSource,
+    stats,
     totalPendingEarnings,
     totalPendingExpenses,
     defaultCurrency,
     exchangeRates,
+    t.management.uncategorized,
+    t.management.other,
   ])
 
   const getDateUrgencyInfo = (dateString: string | undefined) => {
@@ -458,245 +583,414 @@ export default function PendingMoneyPage() {
     return { urgencyLevel: "normal" as const, timeText: "", show: false }
   }
 
-  const renderFlowSection = ({
-    title,
-    flows,
-    flowType,
-    emptyMessage,
-    addMessage,
-  }: {
-    title: string
-    flows: PendingFlow[]
-    flowType: FlowType
-    emptyMessage: string
-    addMessage: string
-  }) => {
-    const initialVariant = runEntranceAnimation ? "hidden" : false
+  const statusChips: { status: FlowStatus; label: string }[] = [
+    { status: FlowStatus.ACTIVE, label: t.management.flowStatus.ACTIVE },
+    { status: FlowStatus.DISABLED, label: t.management.flowStatus.DISABLED },
+    { status: FlowStatus.COMPLETED, label: t.management.flowStatus.COMPLETED },
+  ]
 
+  const renderFlowCard = (flow: PendingFlow) => {
+    const isInactive = flow.status !== FlowStatus.ACTIVE
+    const icon = (flow as { icon?: IconName }).icon
     return (
       <motion.div
+        key={flow.id}
         variants={fadeListItem}
-        initial={initialVariant}
+        initial={runEntranceAnimation ? "hidden" : false}
         animate="show"
-        className="space-y-4"
+        className={cn(
+          "p-4 border rounded-lg",
+          isInactive
+            ? "opacity-60 bg-gray-50 dark:bg-black"
+            : "bg-card shadow-sm",
+        )}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {flowType === FlowType.EARNING ? (
-              <BanknoteArrowUp className="text-green-600" size={24} />
-            ) : (
-              <BanknoteArrowDown className="text-red-600" size={24} />
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Icon
+              name={(icon as IconName) || "circle-dashed"}
+              className="w-5 h-5 shrink-0"
+            />
+            <h3 className="font-medium truncate">{flow.name}</h3>
+            {flow.status === FlowStatus.DISABLED && (
+              <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full shrink-0">
+                <Ban size={13} />
+                <span className="hidden sm:inline">
+                  {t.management.flowStatus.DISABLED}
+                </span>
+              </span>
             )}
-            <h2 className="text-xl font-semibold">{title}</h2>
+            {flow.status === FlowStatus.COMPLETED && (
+              <span className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full shrink-0">
+                <CircleCheckBig size={13} />
+                <span className="hidden sm:inline">
+                  {t.management.flowStatus.COMPLETED}
+                </span>
+              </span>
+            )}
           </div>
-          <Button
-            onClick={() => openCreateDialog(flowType)}
-            size="sm"
-            className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-          >
-            <Plus size={16} />
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-mono font-semibold">
+              <Sensitive>
+                {formatCurrency(flow.amount, locale, flow.currency)}
+              </Sensitive>
+            </span>
+            <div className="hidden sm:flex items-center gap-1">
+              {flow.status === FlowStatus.COMPLETED ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={t.management.markActive}
+                  onClick={() => handleReactivate(flow)}
+                  className="text-blue-600 hover:text-blue-700 h-8 w-8 p-0"
+                >
+                  <Undo2 size={16} />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={t.management.markCompleted}
+                  onClick={() => openCompleteDialog(flow)}
+                  className="text-green-600 hover:text-green-700 h-8 w-8 p-0"
+                >
+                  <CircleCheckBig size={16} />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openEditDialog(flow)}
+                className="h-8 w-8 p-0"
+              >
+                <Edit size={16} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openDeleteDialog(flow)}
+                className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+              >
+                <Trash2 size={16} />
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {flows.length === 0 ? (
-          <motion.div
-            variants={fadeListItem}
-            initial={initialVariant}
-            animate="show"
-            className="text-center py-12 text-gray-500"
-          >
-            <div className="flex justify-center mb-4">
-              {flowType === FlowType.EARNING ? (
-                <BanknoteArrowUp className="text-green-400" size={48} />
-              ) : (
-                <BanknoteArrowDown className="text-red-400" size={48} />
-              )}
-            </div>
-            <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-            <p className="text-sm">{addMessage}</p>
-          </motion.div>
-        ) : (
-          <motion.div
-            variants={fadeListContainer}
-            initial={initialVariant}
-            animate="show"
-            className="space-y-2"
-          >
+        {((!groupByCategory && flow.category) || flow.date) && (
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            {!groupByCategory && flow.category && (
+              <Badge
+                variant="secondary"
+                onClick={() => toggleCategoryFilter(flow.category!)}
+                className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
+              >
+                <Tag size={12} />
+                {flow.category}
+              </Badge>
+            )}
             {(() => {
-              const renderFlowCard = (flow: PendingFlow) => (
-                <motion.div
-                  key={flow.id}
-                  variants={fadeListItem}
-                  initial={initialVariant}
-                  animate="show"
-                  className={cn(
-                    "p-4 border rounded-lg",
-                    !flow.enabled
-                      ? "opacity-50 bg-gray-50 dark:bg-black"
-                      : "bg-card shadow-sm",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {(flow as any).icon && (
-                        <Icon
-                          name={(flow as any).icon as IconName}
-                          className="w-5 h-5 shrink-0"
-                        />
-                      )}
-                      <h3 className="font-medium">{flow.name}</h3>
-                      {!flow.enabled && (
-                        <span className="text-[0.65rem] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
-                          {t.management.disabled}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono font-semibold">
-                        <Sensitive>
-                          {formatCurrency(flow.amount, locale, flow.currency)}
-                        </Sensitive>
-                      </span>
-                      <div className="hidden sm:flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(flow)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit size={16} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openDeleteDialog(flow)}
-                          className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {((!groupByCategory && flow.category) || flow.date) && (
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                      {!groupByCategory && flow.category && (
-                        <Badge
-                          variant="secondary"
-                          onClick={() => toggleCategoryFilter(flow.category!)}
-                          className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
-                        >
-                          <Tag size={12} />
-                          {flow.category}
-                        </Badge>
-                      )}
-                      {(() => {
-                        const urgencyInfo = getDateUrgencyInfo(flow.date)
-                        if (urgencyInfo?.show) {
-                          return (
-                            <Badge
-                              variant={
-                                urgencyInfo.urgencyLevel === "urgent"
-                                  ? "destructive"
-                                  : urgencyInfo.urgencyLevel === "soon"
-                                    ? "default"
-                                    : "outline"
-                              }
-                              className={`flex items-center gap-1 ${
-                                urgencyInfo.urgencyLevel === "urgent"
-                                  ? "bg-red-500 text-white hover:bg-red-600"
-                                  : urgencyInfo.urgencyLevel === "soon"
-                                    ? "bg-orange-500 text-white hover:bg-orange-600"
-                                    : "bg-blue-500 text-white hover:bg-blue-600"
-                              }`}
-                            >
-                              <CalendarDays size={12} />
-                              {urgencyInfo.timeText}
-                            </Badge>
-                          )
-                        } else if (flow.date) {
-                          return (
-                            <Badge
-                              variant="outline"
-                              className="flex items-center gap-1"
-                            >
-                              <Calendar size={12} />
-                              {formatDate(flow.date || "", locale)}
-                            </Badge>
-                          )
-                        }
-                      })()}
-                    </div>
-                  )}
-
-                  <div className="flex sm:hidden justify-end gap-1 mt-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(flow)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openDeleteDialog(flow)}
-                      className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                </motion.div>
-              )
-
-              if (!groupByCategory) {
-                return flows.map(renderFlowCard)
+              const urgencyInfo = getDateUrgencyInfo(flow.date)
+              if (urgencyInfo?.show) {
+                return (
+                  <Badge
+                    variant={
+                      urgencyInfo.urgencyLevel === "urgent"
+                        ? "destructive"
+                        : urgencyInfo.urgencyLevel === "soon"
+                          ? "default"
+                          : "outline"
+                    }
+                    className={`flex items-center gap-1 ${
+                      urgencyInfo.urgencyLevel === "urgent"
+                        ? "bg-red-500 text-white hover:bg-red-600"
+                        : urgencyInfo.urgencyLevel === "soon"
+                          ? "bg-orange-500 text-white hover:bg-orange-600"
+                          : "bg-blue-500 text-white hover:bg-blue-600"
+                    }`}
+                  >
+                    <CalendarDays size={12} />
+                    {urgencyInfo.timeText}
+                  </Badge>
+                )
+              } else if (flow.date) {
+                return (
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Calendar size={12} />
+                    {formatDate(flow.date || "", locale)}
+                  </Badge>
+                )
               }
-
-              const groups = flows.reduce(
-                (acc, flow) => {
-                  const key = flow.category || "__uncategorized__"
-                  if (!acc[key]) acc[key] = []
-                  acc[key].push(flow)
-                  return acc
-                },
-                {} as Record<string, PendingFlow[]>,
-              )
-
-              const sortedKeys = Object.keys(groups).sort((a, b) => {
-                if (a === "__uncategorized__") return 1
-                if (b === "__uncategorized__") return -1
-                return a.localeCompare(b)
-              })
-
-              return sortedKeys.map(key => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center gap-2 pt-2">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "flex items-center gap-1",
-                        key !== "__uncategorized__" && getColorForName(key),
-                      )}
-                    >
-                      <Tag size={12} />
-                      {key === "__uncategorized__"
-                        ? t.management.uncategorized
-                        : key}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2 pl-2 border-l-2 border-muted">
-                    {groups[key].map(renderFlowCard)}
-                  </div>
-                </div>
-              ))
             })()}
-          </motion.div>
+          </div>
         )}
+
+        <div className="flex sm:hidden justify-end gap-1 mt-2">
+          {flow.status === FlowStatus.COMPLETED ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleReactivate(flow)}
+              className="text-blue-600 hover:text-blue-700 h-8 w-8 p-0"
+            >
+              <Undo2 size={16} />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openCompleteDialog(flow)}
+              className="text-green-600 hover:text-green-700 h-8 w-8 p-0"
+            >
+              <CircleCheckBig size={16} />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openEditDialog(flow)}
+            className="h-8 w-8 p-0"
+          >
+            <Edit size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openDeleteDialog(flow)}
+            className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+          >
+            <Trash2 size={16} />
+          </Button>
+        </div>
       </motion.div>
     )
   }
+
+  const renderGroupedList = () => {
+    const groups = entries.reduce(
+      (acc, flow) => {
+        const key = flow.category || "__uncategorized__"
+        if (!acc[key]) acc[key] = []
+        acc[key].push(flow)
+        return acc
+      },
+      {} as Record<string, PendingFlow[]>,
+    )
+
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (a === "__uncategorized__") return 1
+      if (b === "__uncategorized__") return -1
+      return a.localeCompare(b)
+    })
+
+    return sortedKeys.map(key => (
+      <div key={key} className="space-y-2">
+        <div className="flex items-center gap-2 pt-2">
+          <Badge
+            variant="secondary"
+            className={cn(
+              "flex items-center gap-1",
+              key !== "__uncategorized__" && getColorForName(key),
+            )}
+          >
+            <Tag size={12} />
+            {key === "__uncategorized__" ? t.management.uncategorized : key}
+          </Badge>
+        </div>
+        <div className="space-y-2 pl-2 border-l-2 border-muted">
+          {groups[key].map(renderFlowCard)}
+        </div>
+      </div>
+    ))
+  }
+
+  const emptyMessage =
+    activeTab === FlowType.EARNING
+      ? t.management.noPendingEarnings
+      : t.management.noPendingExpenses
+  const addMessage =
+    activeTab === FlowType.EARNING
+      ? t.management.addFirstPendingEarning
+      : t.management.addFirstPendingExpense
+
+  const renderDistribution = (
+    data: typeof flowDistribution.earnings,
+    total: number,
+    tone: "earning" | "expense",
+  ) => {
+    if (data.length === 0) return null
+    const bgTone =
+      tone === "earning"
+        ? "bg-green-50 dark:bg-green-900/20"
+        : "bg-red-50 dark:bg-red-900/20"
+    return (
+      <div className="mt-4">
+        <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+          <div className="flex h-full">
+            {data.map((entry, index) => {
+              const clickable = Boolean(
+                entry.category && existingCategories.includes(entry.category),
+              )
+              return (
+                <div
+                  key={`${tone}-${index}`}
+                  className={`${entry.color} relative group ${clickable ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                  style={{ width: `${entry.percentage}%` }}
+                  title={`${entry.label}: ${formatCurrency(
+                    entry.amount,
+                    locale,
+                    defaultCurrency,
+                  )} (${entry.percentage.toFixed(1)}%)`}
+                  onClick={() =>
+                    clickable && toggleCategoryFilter(entry.category!)
+                  }
+                >
+                  <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
+          {data.map((entry, index) => {
+            const clickable = Boolean(
+              entry.category && existingCategories.includes(entry.category),
+            )
+            return (
+              <div
+                key={`${tone}-legend-${index}`}
+                className={`flex items-center gap-2 text-xs leading-tight ${bgTone} px-2 py-0 h-7 shrink-0 rounded-md flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden ${
+                  clickable ? "cursor-pointer" : "cursor-default opacity-70"
+                }`}
+                onClick={() =>
+                  clickable && toggleCategoryFilter(entry.category!)
+                }
+              >
+                <div className={`w-3 h-3 rounded ${entry.color}`}></div>
+                <span
+                  className="font-medium truncate min-w-0 flex-1"
+                  title={entry.label}
+                >
+                  {entry.label}
+                </span>
+                <span
+                  className={`font-mono shrink-0 ${
+                    tone === "earning" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  <Sensitive>
+                    {formatCurrency(entry.amount, locale, defaultCurrency)}
+                  </Sensitive>
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const renderDetailedControls = () => (
+    <>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {t.management.sortBy}
+          </span>
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setSortBy(FlowSortField.AMOUNT)}
+              title={t.management.sortByAmount}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                sortBy === FlowSortField.AMOUNT
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Banknote size={16} />
+            </button>
+            <button
+              onClick={() => setSortBy(FlowSortField.DATE)}
+              title={t.management.sortByDate}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                sortBy === FlowSortField.DATE
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays size={16} />
+            </button>
+          </div>
+          <button
+            onClick={() =>
+              setSortOrder(
+                sortOrder === SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC,
+              )
+            }
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            aria-label={
+              sortOrder === SortOrder.ASC ? "Sort descending" : "Sort ascending"
+            }
+          >
+            {sortOrder === SortOrder.ASC ? (
+              <ArrowRight size={16} className="rotate-[-90deg]" />
+            ) : (
+              <ArrowRight size={16} className="rotate-90" />
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {t.management.statusFilter}
+          </span>
+          <div className="flex items-center gap-1 flex-wrap">
+            {statusChips.map(chip => (
+              <button
+                key={chip.status}
+                onClick={() => toggleStatusFilter(chip.status)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium rounded-full transition-all border",
+                  statusFilter.includes(chip.status)
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-muted text-muted-foreground border-transparent hover:text-foreground",
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:ml-auto flex-wrap max-w-full sm:justify-end">
+        <span className="text-sm text-muted-foreground">
+          {t.management.groupBy}
+        </span>
+        <button
+          onClick={() => setGroupByCategory(prev => !prev)}
+          title={t.management.groupByCategory}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+            groupByCategory
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Tag size={14} />
+          <span className="hidden sm:inline">
+            {t.management.groupByCategory}
+          </span>
+        </button>
+        <MultiSelect
+          options={categoryOptions}
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          className="hidden sm:block min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
+        />
+      </div>
+    </>
+  )
 
   return (
     <>
@@ -749,93 +1043,19 @@ export default function PendingMoneyPage() {
             </div>
             <div className="text-2xl font-bold text-green-600">
               <Sensitive>
-                {formatCurrency(
-                  totalPendingEarnings,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                )}
+                {formatCurrency(totalPendingEarnings, locale, defaultCurrency)}
               </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
-              {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
-              {kpiEarningsSource.filter(flow => flow.enabled).length === 1
+              {earningsCount}{" "}
+              {earningsCount === 1
                 ? t.management.flowType.EARNING.toLowerCase()
                 : t.management.earnings.toLowerCase()}
             </div>
-
-            {/* Earnings Distribution Bar Chart */}
-            {flowDistribution.earnings.length > 0 && (
-              <div className="mt-4">
-                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                  <div className="flex h-full">
-                    {flowDistribution.earnings.map((earning, index) => {
-                      const isRealCategory = existingCategories.includes(
-                        earning.category,
-                      )
-                      return (
-                        <div
-                          key={`earning-${index}`}
-                          className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                          style={{ width: `${earning.percentage}%` }}
-                          title={`${earning.category}: ${formatCurrency(
-                            earning.amount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )} (${earning.percentage.toFixed(1)}%)`}
-                          onClick={() =>
-                            isRealCategory &&
-                            toggleCategoryFilter(earning.category)
-                          }
-                        >
-                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Earnings Legend */}
-                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                  {flowDistribution.earnings.map((earning, index) => {
-                    const isRealCategory = existingCategories.includes(
-                      earning.category,
-                    )
-                    return (
-                      <div
-                        key={`earning-legend-${index}`}
-                        className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                          isRealCategory
-                            ? "cursor-pointer"
-                            : "cursor-default opacity-70"
-                        }`}
-                        onClick={() =>
-                          isRealCategory &&
-                          toggleCategoryFilter(earning.category)
-                        }
-                      >
-                        <div
-                          className={`w-3 h-3 rounded-sm ${earning.color}`}
-                        ></div>
-                        <span
-                          className="truncate max-w-20"
-                          title={earning.category}
-                        >
-                          {earning.category}
-                        </span>
-                        <span className="text-gray-500">
-                          <Sensitive>
-                            {formatCurrency(
-                              earning.amount,
-                              locale,
-                              settings?.general?.defaultCurrency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+            {renderDistribution(
+              flowDistribution.earnings,
+              totalPendingEarnings,
+              "earning",
             )}
           </Card>
 
@@ -848,177 +1068,187 @@ export default function PendingMoneyPage() {
             </div>
             <div className="text-2xl font-bold text-red-600">
               <Sensitive>
-                {formatCurrency(
-                  totalPendingExpenses,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                )}
+                {formatCurrency(totalPendingExpenses, locale, defaultCurrency)}
               </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
-              {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
-              {kpiExpensesSource.filter(flow => flow.enabled).length === 1
+              {expensesCount}{" "}
+              {expensesCount === 1
                 ? t.management.flowType.EXPENSE.toLowerCase()
                 : t.management.expenses.toLowerCase()}
             </div>
-
-            {/* Expenses Distribution Bar Chart */}
-            {flowDistribution.expenses.length > 0 && (
-              <div className="mt-4">
-                <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                  <div className="flex h-full">
-                    {flowDistribution.expenses.map((expense, index) => {
-                      const isRealCategory = existingCategories.includes(
-                        expense.category,
-                      )
-                      return (
-                        <div
-                          key={`expense-${index}`}
-                          className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
-                          style={{ width: `${expense.percentage}%` }}
-                          title={`${expense.category}: ${formatCurrency(
-                            expense.amount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )} (${expense.percentage.toFixed(1)}%)`}
-                          onClick={() =>
-                            isRealCategory &&
-                            toggleCategoryFilter(expense.category)
-                          }
-                        >
-                          <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Expenses Legend */}
-                <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
-                  {flowDistribution.expenses.map((expense, index) => {
-                    const isRealCategory = existingCategories.includes(
-                      expense.category,
-                    )
-                    return (
-                      <div
-                        key={`expense-legend-${index}`}
-                        className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
-                          isRealCategory
-                            ? "cursor-pointer"
-                            : "cursor-default opacity-70"
-                        }`}
-                        onClick={() =>
-                          isRealCategory &&
-                          toggleCategoryFilter(expense.category)
-                        }
-                      >
-                        <div
-                          className={`w-3 h-3 rounded-sm ${expense.color}`}
-                        ></div>
-                        <span
-                          className="truncate max-w-20"
-                          title={expense.category}
-                        >
-                          {expense.category}
-                        </span>
-                        <span className="text-gray-500">
-                          <Sensitive>
-                            {formatCurrency(
-                              expense.amount,
-                              locale,
-                              settings?.general?.defaultCurrency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+            {renderDistribution(
+              flowDistribution.expenses,
+              totalPendingExpenses,
+              "expense",
             )}
           </Card>
         </motion.div>
 
-        {/* Sorting Controls */}
+        {/* Tab toggle */}
         <motion.div
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
           className="flex items-center justify-between gap-3 flex-wrap"
         >
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">
-              {t.management.sortBy}
-            </span>
-            <div className="flex items-center bg-muted rounded-lg p-1">
-              <button
-                onClick={() => setSortBy("amount")}
-                title={t.management.sortByAmount}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  sortBy === "amount"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Banknote size={16} />
-              </button>
-              <button
-                onClick={() => setSortBy("date")}
-                title={t.management.sortByDate}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  sortBy === "date"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <CalendarDays size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
-            <span className="text-sm text-muted-foreground">
-              {t.management.groupBy}
-            </span>
+          <div className="flex items-center bg-muted rounded-lg p-1">
             <button
-              onClick={() => setGroupByCategory(prev => !prev)}
-              title={t.management.groupByCategory}
+              onClick={() => setActiveTab(FlowType.EARNING)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
-                groupByCategory
-                  ? "bg-foreground text-background"
+                "flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                activeTab === FlowType.EARNING
+                  ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Tag size={14} />
-              <span className="hidden sm:inline">
-                {t.management.groupByCategory}
+              <BanknoteArrowUp size={16} className="text-green-600" />
+              <span
+                className={cn(
+                  activeTab !== FlowType.EARNING && "hidden min-[400px]:inline",
+                )}
+              >
+                {t.management.earnings}
               </span>
             </button>
+            <button
+              onClick={() => setActiveTab(FlowType.EXPENSE)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all",
+                activeTab === FlowType.EXPENSE
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <BanknoteArrowDown size={16} className="text-red-600" />
+              <span
+                className={cn(
+                  activeTab !== FlowType.EXPENSE && "hidden min-[400px]:inline",
+                )}
+              >
+                {t.management.expenses}
+              </span>
+            </button>
+          </div>
+
+          <Button
+            onClick={openCreateDialog}
+            size="sm"
+            className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
+          >
+            <Plus size={16} />
+          </Button>
+        </motion.div>
+
+        {/* Controls */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="space-y-3"
+        >
+          {/* Mobile: filters toggle + category select */}
+          <div className="flex items-center gap-2 sm:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMobileFilters(prev => !prev)}
+              className="flex items-center gap-2 shrink-0"
+            >
+              <SlidersHorizontal size={16} />
+              <span className="hidden min-[400px]:inline">
+                {t.management.filters}
+              </span>
+              {activeFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center rounded-full bg-foreground text-background text-[0.65rem] font-semibold h-5 min-w-5 px-1">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                size={16}
+                className={cn(
+                  "transition-transform",
+                  showMobileFilters && "rotate-180",
+                )}
+              />
+            </Button>
             <MultiSelect
               options={categoryOptions}
               value={categoryFilter}
               onChange={setCategoryFilter}
-              className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
+              className="flex-grow min-w-0"
             />
+          </div>
+
+          {/* Detailed controls: always on desktop, animated toggle on mobile */}
+          <div className="hidden sm:flex items-center justify-between gap-3 flex-wrap">
+            {renderDetailedControls()}
+          </div>
+
+          <div className="sm:hidden">
+            <AnimatePresence initial={false}>
+              {showMobileFilters && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+                    {renderDetailedControls()}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 
-        {renderFlowSection({
-          title: t.management.pendingEarnings,
-          flows: earnings,
-          flowType: FlowType.EARNING,
-          emptyMessage: t.management.noPendingEarnings,
-          addMessage: t.management.addFirstPendingEarning,
-        })}
+        {/* List */}
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="space-y-2"
+        >
+          {entries.length === 0 && !isLoading ? (
+            <div className="text-center py-12 text-gray-500">
+              <div className="flex justify-center mb-4">
+                {activeTab === FlowType.EARNING ? (
+                  <BanknoteArrowUp className="text-green-400" size={48} />
+                ) : (
+                  <BanknoteArrowDown className="text-red-400" size={48} />
+                )}
+              </div>
+              <p className="text-lg font-medium mb-2">{emptyMessage}</p>
+              <p className="text-sm">{addMessage}</p>
+            </div>
+          ) : groupByCategory ? (
+            renderGroupedList()
+          ) : (
+            <motion.div
+              variants={fadeListContainer}
+              initial={runEntranceAnimation ? "hidden" : false}
+              animate="show"
+              className="space-y-2"
+            >
+              {entries.map(renderFlowCard)}
+            </motion.div>
+          )}
 
-        {renderFlowSection({
-          title: t.management.pendingExpenses,
-          flows: expenses,
-          flowType: FlowType.EXPENSE,
-          emptyMessage: t.management.noPendingExpenses,
-          addMessage: t.management.addFirstPendingExpense,
-        })}
+          {!groupByCategory && hasMore && (
+            <div
+              ref={sentinelRef}
+              className="h-8 flex items-center justify-center"
+            >
+              {isLoadingMore && (
+                <span className="text-xs text-muted-foreground">
+                  {t.management.loadMore}…
+                </span>
+              )}
+            </div>
+          )}
+        </motion.div>
       </motion.div>
 
       <AnimatePresence>
@@ -1070,19 +1300,33 @@ export default function PendingMoneyPage() {
                     </div>
 
                     <div className="flex items-center gap-2 pb-1 shrink-0">
-                      <label
-                        htmlFor="pending-enabled"
-                        className="text-sm font-medium"
-                      >
-                        {t.management.enabled}
-                      </label>
-                      <Switch
-                        id="pending-enabled"
-                        checked={formData.enabled}
-                        onCheckedChange={checked =>
-                          setFormData(prev => ({ ...prev, enabled: checked }))
-                        }
-                      />
+                      {formData.status === FlowStatus.COMPLETED ? (
+                        <span className="text-xs font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full flex items-center gap-1">
+                          <CircleCheckBig size={12} />
+                          {t.management.flowStatus.COMPLETED}
+                        </span>
+                      ) : (
+                        <>
+                          <label
+                            htmlFor="pending-enabled"
+                            className="text-sm font-medium"
+                          >
+                            {t.management.enabled}
+                          </label>
+                          <Switch
+                            id="pending-enabled"
+                            checked={formData.status === FlowStatus.ACTIVE}
+                            onCheckedChange={checked =>
+                              setFormData(prev => ({
+                                ...prev,
+                                status: checked
+                                  ? FlowStatus.ACTIVE
+                                  : FlowStatus.DISABLED,
+                              }))
+                            }
+                          />
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1200,6 +1444,26 @@ export default function PendingMoneyPage() {
         cancelText={t.common.cancel}
         onConfirm={handleDelete}
         onCancel={() => setIsDeleteDialogOpen(false)}
+      />
+
+      <ConfirmationDialog
+        isOpen={isCompleteDialogOpen}
+        title={t.management.markCompletedTitle.replace(
+          "{type}",
+          completingFlow?.flow_type === FlowType.EARNING
+            ? t.management.flowType.EARNING.toLowerCase()
+            : t.management.flowType.EXPENSE.toLowerCase(),
+        )}
+        message={t.management.markCompletedConfirm.replace(
+          "{type}",
+          completingFlow?.flow_type === FlowType.EARNING
+            ? t.management.flowType.EARNING.toLowerCase()
+            : t.management.flowType.EXPENSE.toLowerCase(),
+        )}
+        confirmText={t.management.markCompleted}
+        cancelText={t.common.cancel}
+        onConfirm={handleComplete}
+        onCancel={() => setIsCompleteDialogOpen(false)}
       />
     </>
   )

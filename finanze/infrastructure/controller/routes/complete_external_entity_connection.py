@@ -18,7 +18,7 @@ async def complete_external_entity_connection(
     external_entity_id = args.get("external_entity_id")
 
     completion_request = CompleteExternalEntityLinkRequest(
-        payload=args, external_entity_id=external_entity_id
+        payload=args.to_dict(), external_entity_id=external_entity_id
     )
     try:
         await complete_external_entity_connection_uc.execute(completion_request)

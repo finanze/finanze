@@ -108,6 +108,7 @@ export interface Entity {
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
   external_entity_id?: string | null
+  provider?: string | null
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
   fetchable?: boolean
@@ -144,10 +145,7 @@ export enum CredentialType {
 }
 
 export type Feature =
-  | "POSITION"
-  | "AUTO_CONTRIBUTIONS"
-  | "TRANSACTIONS"
-  | "HISTORIC"
+  "POSITION" | "AUTO_CONTRIBUTIONS" | "TRANSACTIONS" | "HISTORIC"
 
 export interface AuthRequest {
   username: string
@@ -345,6 +343,7 @@ export interface UpdateTrackedResult {
   hadTracked: boolean
   changed: boolean
   changedEntities: string[]
+  throttled?: boolean
 }
 
 export enum ImportErrorType {
@@ -525,12 +524,7 @@ export interface AboutAppInfo {
 }
 
 export type BackendLogLevel =
-  | "NONE"
-  | "DEBUG"
-  | "INFO"
-  | "WARNING"
-  | "ERROR"
-  | "CRITICAL"
+  "NONE" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
 
 export interface BackendStartOptions {
   dataDir?: string
@@ -554,11 +548,7 @@ export interface BackendRuntimeArgs {
 export interface BackendOptions extends BackendStartOptions {}
 
 export type BackendState =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "error"
+  "stopped" | "starting" | "running" | "stopping" | "error"
 
 export interface BackendErrorInfo {
   message: string
@@ -725,6 +715,10 @@ declare global {
       onOAuthCallbackUrl: (
         callback: (payload: { url: string }) => void,
       ) => () => void
+
+      onExternalCompleteUrl: (
+        callback: (payload: { url: string }) => void,
+      ) => () => void
     }
   }
 }
@@ -814,6 +808,7 @@ export interface ConnectExternalEntityRequest {
   external_entity_id?: string | null
   provider?: string | null
   relink?: boolean
+  completion_url?: string | null
 }
 
 export interface GoogleIntegrationCredentials {
@@ -830,9 +825,20 @@ export interface GoCardlessIntegrationCredentials {
   secret_key: string
 }
 
+export interface EnableBankingIntegrationCredentials {
+  application_id: string
+  private_key: string
+}
+
 export enum FlowType {
   EARNING = "EARNING",
   EXPENSE = "EXPENSE",
+}
+
+export enum FlowStatus {
+  ACTIVE = "ACTIVE",
+  DISABLED = "DISABLED",
+  COMPLETED = "COMPLETED",
 }
 
 export enum FlowFrequency {
@@ -875,7 +881,8 @@ export interface PendingFlow {
   amount: number
   flow_type: FlowType
   category?: string
-  enabled: boolean
+  status: FlowStatus
+  status_changed_at?: string | null
   date?: string
   currency: string
   icon?: string
@@ -915,15 +922,71 @@ export interface CreatePendingFlowRequest {
   amount: number
   flow_type: FlowType
   category?: string
-  enabled: boolean
+  status: FlowStatus
   date?: string
   currency: string
   icon?: string
-  max_amount?: number
 }
 
-export interface SavePendingFlowsRequest {
-  flows: CreatePendingFlowRequest[]
+export interface UpdatePendingFlowRequest {
+  id: string
+  name: string
+  amount: number
+  flow_type: FlowType
+  category?: string
+  status: FlowStatus
+  date?: string
+  currency: string
+  icon?: string
+}
+
+export enum FlowSortField {
+  AMOUNT = "amount",
+  DATE = "date",
+}
+
+export enum SortOrder {
+  ASC = "asc",
+  DESC = "desc",
+}
+
+export interface PendingFlowsQuery {
+  status?: FlowStatus[]
+  flow_type?: FlowType
+  category?: string[]
+  sort_by?: FlowSortField
+  order?: SortOrder
+  page?: number
+  limit?: number
+  stats?: boolean
+  categories?: boolean
+}
+
+export interface FlowCategoryStat {
+  category: string | null
+  name: string | null
+  amounts: Record<string, number>
+}
+
+export interface FlowTypeStat {
+  totals: Record<string, number>
+  by_category: FlowCategoryStat[]
+  count: number
+}
+
+export interface PendingFlowStats {
+  earning: FlowTypeStat
+  expense: FlowTypeStat
+}
+
+export interface PendingFlowsPage {
+  entries: PendingFlow[]
+  total: number
+  page: number | null
+  limit: number | null
+  has_more: boolean
+  categories: string[] | null
+  stats: PendingFlowStats | null
 }
 
 export enum RealEstateFlowSubtype {
@@ -956,10 +1019,7 @@ export interface CostPayload {
 }
 
 export type RealEstateFlowPayload =
-  | LoanPayload
-  | RentPayload
-  | SupplyPayload
-  | CostPayload
+  LoanPayload | RentPayload | SupplyPayload | CostPayload
 
 export interface RealEstateFlow {
   periodic_flow_id?: string | null
@@ -980,6 +1040,7 @@ export interface Valuation {
   date: string
   amount: number
   notes?: string | null
+  market_value?: boolean
 }
 
 export interface Location {

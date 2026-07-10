@@ -105,6 +105,7 @@ interface AppContextType {
   setOnTrackedUpdateCompleted: (
     callback: ((entityIds: string[]) => Promise<void>) | null,
   ) => void
+  runTrackedUpdatesIfNeeded: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -247,14 +248,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const silentRatesInFlightRef = useRef<Promise<void> | null>(null)
   const onTrackedUpdateCompletedRef = useRef<
     ((entityIds: string[]) => Promise<void>) | null
   >(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
   const LAST_UPDATE_LOANS_KEY = "lastUpdateLoansTime"
-  const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
-  const LOANS_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
+  const QUOTES_UPDATE_INTERVAL_MS = 8 * 60 * 60 * 1000
+  const LOANS_UPDATE_INTERVAL_MS = 18 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   const showToast = useCallback(
@@ -280,13 +282,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const fetchExchangeRatesSilently = useCallback(async () => {
     if (!isAuthenticated) return
 
-    try {
-      setExchangeRatesError(null)
-      const rates = await getExchangeRates(false)
-      setExchangeRates(rates)
-    } catch (error) {
-      console.error("Error fetching exchange rates silently:", error)
+    if (silentRatesInFlightRef.current) {
+      return silentRatesInFlightRef.current
     }
+
+    const request = (async () => {
+      try {
+        setExchangeRatesError(null)
+        const rates = await getExchangeRates(false)
+        setExchangeRates(rates)
+      } catch (error) {
+        console.error("Error fetching exchange rates silently:", error)
+      } finally {
+        silentRatesInFlightRef.current = null
+      }
+    })()
+
+    silentRatesInFlightRef.current = request
+    return request
   }, [isAuthenticated])
 
   const startExchangeRatesTimer = useCallback(() => {
@@ -529,14 +542,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [LAST_UPDATE_LOANS_KEY, LOANS_UPDATE_INTERVAL_MS])
 
+  const runTrackedUpdatesIfNeeded = useCallback(async () => {
+    await waitForLazyInit()
+    updateQuotesIfNeeded()
+    updateLoansIfNeeded()
+  }, [updateQuotesIfNeeded, updateLoansIfNeeded])
+
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
-      waitForLazyInit().then(() => {
-        updateQuotesIfNeeded()
-        updateLoansIfNeeded()
-      })
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
@@ -544,14 +559,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       externalIntegrationsLoaded.current = false
       initialFetchDone.current = false
     }
-  }, [
-    fetchEntities,
-    fetchSettings,
-    isAuthenticated,
-    stopExchangeRatesTimer,
-    updateQuotesIfNeeded,
-    updateLoansIfNeeded,
-  ])
+  }, [fetchEntities, fetchSettings, isAuthenticated, stopExchangeRatesTimer])
 
   useEffect(() => {
     return () => {
@@ -588,6 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refreshExchangeRates,
         fetchExternalIntegrations,
         setOnTrackedUpdateCompleted,
+        runTrackedUpdatesIfNeeded,
       }}
     >
       {children}

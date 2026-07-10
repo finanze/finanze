@@ -17,7 +17,11 @@ import {
   PendingFlow,
   CreatePeriodicFlowRequest,
   UpdatePeriodicFlowRequest,
-  SavePendingFlowsRequest,
+  CreatePendingFlowRequest,
+  UpdatePendingFlowRequest,
+  PendingFlowsQuery,
+  PendingFlowsPage,
+  FlowStatus,
   RealEstate,
   CreateRealEstateRequest,
   UpdateRealEstateRequest,
@@ -73,6 +77,10 @@ import {
   UpdatePositionRequest,
 } from "../types/position"
 import type { Historic, HistoricQueryRequest } from "../types/historic"
+import type {
+  NetworthTimeline,
+  NetworthTimelineQuery,
+} from "../types/networthTimeline"
 import {
   TransactionQueryRequest,
   TransactionsResult,
@@ -86,6 +94,7 @@ import {
   isBackgroundUpdateAvailable,
   backgroundUpdateQuotes,
   backgroundUpdateLoans,
+  backgroundGetNetworthTimeline,
 } from "@/lib/mobile"
 
 export interface ApiServerInfo {
@@ -543,14 +552,42 @@ export async function deletePeriodicFlow(flowId: string): Promise<void> {
   return (await getApiClient()).delete(`/flows/periodic/${flowId}`)
 }
 
-export async function savePendingFlows(
-  request: SavePendingFlowsRequest,
+export async function createPendingFlow(
+  request: CreatePendingFlowRequest,
 ): Promise<void> {
   return (await getApiClient()).post("/flows/pending", request)
 }
 
+export async function updatePendingFlow(
+  request: UpdatePendingFlowRequest,
+): Promise<void> {
+  return (await getApiClient()).put("/flows/pending", request)
+}
+
+export async function deletePendingFlow(flowId: string): Promise<void> {
+  return (await getApiClient()).delete(`/flows/pending/${flowId}`)
+}
+
+export async function getPendingFlows(
+  query: PendingFlowsQuery = {},
+): Promise<PendingFlowsPage> {
+  const params = new URLSearchParams()
+  query.status?.forEach(s => params.append("status", s))
+  if (query.flow_type) params.append("flow_type", query.flow_type)
+  query.category?.forEach(c => params.append("category", c))
+  if (query.sort_by) params.append("sort_by", query.sort_by)
+  if (query.order) params.append("order", query.order)
+  if (query.page !== undefined) params.append("page", String(query.page))
+  if (query.limit !== undefined) params.append("limit", String(query.limit))
+  if (query.stats) params.append("stats", "true")
+  if (query.categories) params.append("categories", "true")
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/flows/pending${queryString}`)
+}
+
 export async function getAllPendingFlows(): Promise<PendingFlow[]> {
-  return (await getApiClient()).get("/flows/pending")
+  const page = await getPendingFlows({ status: [FlowStatus.ACTIVE] })
+  return page.entries
 }
 
 export async function getAllRealEstate(): Promise<RealEstate[]> {
@@ -665,8 +702,12 @@ export async function getCryptoAssets(
 // External entity endpoints
 export async function getExternalEntityCandidates(
   country: string,
+  provider?: string | null,
 ): Promise<ExternalEntityCandidates> {
   const params = new URLSearchParams({ country })
+  if (provider) {
+    params.set("provider", provider)
+  }
   return (await getApiClient()).get(
     `/entities/external/candidates?${params.toString()}`,
   )
@@ -688,13 +729,21 @@ export async function connectExternalEntity(
 
 export async function completeExternalEntityConnection(
   externalEntityId: string,
+  code?: string | null,
 ): Promise<void> {
   const params = new URLSearchParams({
     external_entity_id: externalEntityId,
   })
-  return (await getApiClient()).get(
-    `/entities/external/complete?${params.toString()}`,
-  )
+  if (code) {
+    params.set("code", code)
+  }
+  // The endpoint responds with an HTML body (browser-redirect friendly), so
+  // request it as text to avoid the JSON parser throwing on a successful call.
+  await (
+    await getApiClient()
+  ).get(`/entities/external/complete?${params.toString()}`, {
+    responseType: "text",
+  })
 }
 
 export async function disconnectExternalEntity(
@@ -744,6 +793,25 @@ export async function getMoneyEvents(
   params.append("to_date", query.to_date)
 
   return (await getApiClient()).get(`/events?${params.toString()}`)
+}
+
+export async function getNetworthTimeline(
+  query?: NetworthTimelineQuery,
+): Promise<NetworthTimeline> {
+  if (isBackgroundUpdateAvailable()) {
+    return backgroundGetNetworthTimeline<NetworthTimeline>(query)
+  }
+
+  const params = new URLSearchParams()
+  if (query?.base_currency) params.append("base_currency", query.base_currency)
+  if (query?.from_date) params.append("from_date", query.from_date)
+  if (query?.to_date) params.append("to_date", query.to_date)
+  if (query?.no_calculation) params.append("no_calculation", "true")
+
+  const queryString = params.toString()
+  return (await getApiClient()).get(
+    `/networth-timeline${queryString ? `?${queryString}` : ""}`,
+  )
 }
 
 export async function calculateSavings(

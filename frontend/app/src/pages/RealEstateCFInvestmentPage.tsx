@@ -1109,19 +1109,6 @@ function RealEstateViewContent({
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2 self-start xl:self-auto">
-            <Button
-              variant={isHistoricVisible ? "default" : "outline"}
-              size="sm"
-              className="flex items-center gap-2"
-              onClick={onToggleHistoric}
-            >
-              <History size={16} />
-              {isHistoricVisible
-                ? t.investments.historicSection.toggleShort.hide
-                : t.investments.historicSection.toggleShort.show}
-            </Button>
-          </div>
         </div>
       </motion.div>
 
@@ -1218,47 +1205,67 @@ function RealEstateViewContent({
               </CardContent>
             </Card>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <ArrowUpDown size={14} />
-                {t.investments.sortBy}
-              </span>
-              <div className="flex items-center bg-muted rounded-lg p-1">
-                {(
-                  [
-                    { value: "amount", label: t.investments.sortAmount },
-                    { value: "start", label: t.investments.sortStart },
-                    { value: "maturity", label: t.investments.sortMaturity },
-                  ] as const
-                ).map(option => (
-                  <button
-                    key={option.value}
-                    onClick={() => setSortBy(option.value)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      sortBy === option.value
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
+                  <ArrowUpDown size={14} />
+                  <span className="hidden min-[400px]:inline">
+                    {t.investments.sortBy}
+                  </span>
+                </span>
+                <div className="flex items-center bg-muted rounded-lg p-1">
+                  {(
+                    [
+                      { value: "amount", label: t.investments.sortAmount },
+                      { value: "start", label: t.investments.sortStart },
+                      {
+                        value: "maturity",
+                        label: t.investments.sortMaturity,
+                      },
+                    ] as const
+                  ).map(option => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSortBy(option.value)}
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                        sortBy === option.value
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                  aria-label={
+                    sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                  }
+                >
+                  {sortOrder === "asc" ? (
+                    <ArrowRight size={16} className="rotate-[-90deg]" />
+                  ) : (
+                    <ArrowRight size={16} className="rotate-90" />
+                  )}
+                </button>
               </div>
-              <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                aria-label={
-                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
-                }
+              <Button
+                variant={isHistoricVisible ? "default" : "outline"}
+                size="sm"
+                className="flex items-center gap-2 p-2"
+                onClick={onToggleHistoric}
               >
-                {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
-                ) : (
-                  <ArrowRight size={16} className="rotate-90" />
-                )}
-              </button>
+                <History size={16} />
+                <span className="hidden min-[450px]:inline">
+                  {isHistoricVisible
+                    ? t.investments.historicSection.toggleShort.hide
+                    : t.investments.historicSection.toggleShort.show}
+                </span>
+              </Button>
             </div>
 
             <div className="space-y-4">

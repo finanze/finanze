@@ -11,6 +11,7 @@ async def update_tracked_quotes(update_tracked_quotes_uc: UpdateTrackedQuotes):
                 "hadTracked": result.had_tracked,
                 "changed": result.changed,
                 "changedEntities": [str(eid) for eid in result.changed_entities],
+                "throttled": result.throttled,
             }
         ),
         200,

@@ -8,8 +8,10 @@ from application.use_cases.get_money_events import GetMoneyEventsImpl
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import (
     FlowFrequency,
+    FlowStatus,
     FlowType,
     PendingFlow,
+    PendingFlowPage,
     PeriodicFlow,
 )
 from domain.money_event import MoneyEventQuery, MoneyEventType
@@ -52,7 +54,7 @@ def _pending_flow(
     name: str = "Test pending",
     amount: Dezimal = Dezimal(50),
     flow_type: FlowType = FlowType.EARNING,
-    enabled: bool = True,
+    status: FlowStatus = FlowStatus.ACTIVE,
     flow_date: date | None = date(2025, 4, 15),
     **overrides,
 ) -> PendingFlow:
@@ -63,7 +65,7 @@ def _pending_flow(
         currency="EUR",
         flow_type=flow_type,
         category="general",
-        enabled=enabled,
+        status=status,
         date=flow_date,
         icon=None,
     )
@@ -86,9 +88,15 @@ def _build_use_case(
         return_value=periodic_flows if periodic_flows is not None else []
     )
 
-    get_pending_flows_uc = AsyncMock()
-    get_pending_flows_uc.execute = AsyncMock(
-        return_value=pending_flows if pending_flows is not None else []
+    query_pending_flows_uc = AsyncMock()
+    query_pending_flows_uc.execute = AsyncMock(
+        return_value=PendingFlowPage(
+            entries=pending_flows if pending_flows is not None else [],
+            total=len(pending_flows) if pending_flows is not None else 0,
+            page=None,
+            limit=None,
+            has_more=False,
+        )
     )
 
     entity_port = AsyncMock()
@@ -100,7 +108,7 @@ def _build_use_case(
     return GetMoneyEventsImpl(
         get_contributions_uc=get_contributions_uc,
         get_periodic_flows_uc=get_periodic_flows_uc,
-        get_pending_flows_uc=get_pending_flows_uc,
+        query_pending_flows_uc=query_pending_flows_uc,
         entity_port=entity_port,
         position_port=position_port,
     )
@@ -185,7 +193,7 @@ class TestPendingFlowEvents:
             name="Tax refund",
             amount=Dezimal(300),
             flow_type=FlowType.EARNING,
-            enabled=True,
+            status=FlowStatus.ACTIVE,
             flow_date=date(2025, 4, 15),
         )
         uc = _build_use_case(pending_flows=[flow])
@@ -206,7 +214,7 @@ class TestPendingFlowEvents:
     async def test_skips_disabled_pending_flow(self):
         flow = _pending_flow(
             name="Disabled flow",
-            enabled=False,
+            status=FlowStatus.DISABLED,
             flow_date=date(2025, 4, 15),
         )
         uc = _build_use_case(pending_flows=[flow])

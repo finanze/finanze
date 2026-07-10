@@ -1,12 +1,7 @@
 export type LogLevel = "NONE" | "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 export type BackendLogLevel =
-  | "NONE"
-  | "DEBUG"
-  | "INFO"
-  | "WARNING"
-  | "ERROR"
-  | "CRITICAL"
+  "NONE" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
 
 export interface LogEntry {
   timestamp: Date

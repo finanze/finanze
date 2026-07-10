@@ -50,8 +50,7 @@ export function LoginForm() {
     (!hasTransactionsHistory || isDeepFetch)
 
   const entityNote = (t.login as any).entityNotes?.[selectedEntity.id] as
-    | string
-    | undefined
+    string | undefined
 
   const handleInputChange = (key: string, value: string) => {
     setCredentials(prev => ({ ...prev, [key]: value }))

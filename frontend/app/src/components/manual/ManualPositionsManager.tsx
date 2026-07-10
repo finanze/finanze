@@ -327,8 +327,7 @@ export function ManualPositionsManager({
       const allAccountEntries: Account[] = []
       entityPositions.forEach(entityPosition => {
         const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
+          { entries?: Account[] } | undefined
         if (product?.entries?.length) {
           allAccountEntries.push(...product.entries)
         }
@@ -385,8 +384,7 @@ export function ManualPositionsManager({
       const entries: FundPortfolio[] = []
       entityPositions.forEach(entityPosition => {
         const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
+          { entries?: FundPortfolio[] } | undefined
         if (product?.entries) {
           entries.push(...product.entries)
         }
@@ -2161,7 +2159,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
         size="sm"
         onClick={() => beginCreate()}
         disabled={manualEntities.length === 0}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1.5 h-7 px-2 min-[400px]:h-9 min-[400px]:gap-2 min-[400px]:px-3"
       >
         <Plus className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{addLabel}</span>
@@ -2171,7 +2169,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
           variant="default"
           size="sm"
           onClick={enterEditMode}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5 h-7 px-2 min-[400px]:h-9 min-[400px]:gap-2 min-[400px]:px-3"
         >
           <Pencil className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{editLabel}</span>

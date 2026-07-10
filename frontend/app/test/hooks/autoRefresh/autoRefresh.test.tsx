@@ -7,6 +7,7 @@ import {
   mockFetchFinancialEntity,
   setEntities,
   setBackupMode,
+  setCloudInitialized,
   setAutoRefreshSettings,
   renderDropdown,
   renderContextOnly,
@@ -27,6 +28,81 @@ afterEach(() => {
 })
 
 describe("auto-refresh pending state", () => {
+  it("does not start countdown while cloud is not initialized", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(1)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("starts countdown once cloud initializes with non-AUTO mode", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    setCloudInitialized(true)
+    await act(async () => {
+      rerenderView()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
+  it("waits for backup sync when cloud initializes into AUTO mode", async () => {
+    const candidates = [buildCandidate({ id: "e1" })]
+    setEntities([buildEntity({ id: "e1" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    setCloudInitialized(false)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    setCloudInitialized(true)
+    setBackupMode(BackupMode.AUTO)
+    await act(async () => {
+      rerenderView()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false },
+        }),
+      )
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+  })
+
   it("sets pending candidates immediately when auto-refresh is configured", async () => {
     const entity = buildEntity({ id: "e1", name: "Bank A" })
     const candidates = [buildCandidate({ id: "e1", name: "Bank A" })]
@@ -132,6 +208,76 @@ describe("countdown in non-AUTO backup mode", () => {
     expect(ctx.pendingAutoRefreshCandidates).toHaveLength(0)
     expect(ctx.autoRefreshCountdown).toBeNull()
   })
+
+  it("skips entities that became fresh by the time countdown reaches 0", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+
+    mockGetAutoRefreshCandidates.mockReturnValue([])
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
+  })
+
+  it("scrapes only entities that are still stale at countdown 0", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.OFF)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().autoRefreshCountdown).toBe(3)
+
+    mockGetAutoRefreshCandidates.mockReturnValue([buildCandidate({ id: "e2" })])
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 0))
+    })
+
+    expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(1)
+    const callArgs = mockFetchFinancialEntity.mock.calls[0][0] as any
+    expect(callArgs.entity).toBe("e2")
+  })
 })
 
 describe("countdown in AUTO backup mode", () => {
@@ -208,6 +354,41 @@ describe("countdown in AUTO backup mode", () => {
     })
 
     expect(mockFetchFinancialEntity).toHaveBeenCalledTimes(1)
+  })
+
+  it("aborts auto-refresh when backup sync reports a conflict", async () => {
+    const candidates = [
+      buildCandidate({ id: "e1" }),
+      buildCandidate({ id: "e2" }),
+    ]
+    setEntities([buildEntity({ id: "e1" }), buildEntity({ id: "e2" })])
+    setAutoRefreshSettings({ mode: AutoRefreshMode.NO_2FA })
+    setBackupMode(BackupMode.AUTO)
+    mockGetAutoRefreshCandidates.mockReturnValue(candidates)
+
+    await act(async () => {
+      renderContextOnly()
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(2)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("backup-auto-sync-complete", {
+          detail: { hadTransfer: false, conflict: true },
+        }),
+      )
+    })
+
+    expect(getContext().pendingAutoRefreshCandidates).toHaveLength(0)
+    expect(getContext().autoRefreshCountdown).toBeNull()
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(mockFetchFinancialEntity).not.toHaveBeenCalled()
   })
 })
 

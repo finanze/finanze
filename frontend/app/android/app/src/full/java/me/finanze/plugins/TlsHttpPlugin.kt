@@ -43,6 +43,10 @@ class TlsHttpPlugin : Plugin() {
             if (data != null) {
                 put("body", data)
             }
+            val cookies = call.getArray("cookies")
+            if (cookies != null) {
+                put("cookies", cookies)
+            }
             if (!profile.isNullOrBlank()) {
                 put("profile", profile)
             }

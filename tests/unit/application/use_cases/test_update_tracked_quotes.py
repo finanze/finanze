@@ -1,16 +1,20 @@
 from uuid import uuid4
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 from dateutil.tz import tzlocal
 
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
+from domain.commodity import CommodityType, WeightUnit, WEIGHT_CONVERSIONS
 from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.global_position import (
+    Commodities,
+    Commodity,
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
@@ -27,6 +31,7 @@ from domain.global_position import (
     StockInvestments,
 )
 from domain.instrument import InstrumentDataRequest, InstrumentInfo, InstrumentType
+from domain.native_entities import COMMODITIES
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
@@ -63,12 +68,15 @@ def _build_use_case(
     exchange_rate_storage=None,
     virtual_import_registry=None,
     snapshot_writer=None,
+    throttle_port=None,
     transaction_handler_port=None,
 ):
     if position_port is None:
         position_port = MagicMock()
         position_port.get_by_id = AsyncMock(return_value=None)
         position_port.get_manual_crypto_position_ids = AsyncMock(return_value=set())
+    if not isinstance(position_port.get_last_grouped_by_entity, AsyncMock):
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
     if manual_position_data_port is None:
         manual_position_data_port = MagicMock()
         manual_position_data_port.get_trackable = AsyncMock(return_value=[])
@@ -87,6 +95,9 @@ def _build_use_case(
     if snapshot_writer is None:
         snapshot_writer = MagicMock()
         snapshot_writer.write = AsyncMock()
+    if throttle_port is None:
+        throttle_port = AsyncMock(spec=TrackedUpdatesPort)
+        throttle_port.get_last_executed.return_value = None
     if transaction_handler_port is None:
         transaction_handler_port = _make_transaction_handler()
 
@@ -98,6 +109,7 @@ def _build_use_case(
         exchange_rate_storage=exchange_rate_storage,
         virtual_import_registry=virtual_import_registry,
         snapshot_writer=snapshot_writer,
+        throttle_port=throttle_port,
         transaction_handler_port=transaction_handler_port,
     )
 
@@ -183,6 +195,7 @@ def _make_crypto_asset(
     market_value=Dezimal(0),
     source=DataSource.MANUAL,
     crypto_type=CryptoCurrencyType.NATIVE,
+    contract_address=None,
 ) -> CryptoCurrencyPosition:
     return CryptoCurrencyPosition(
         id=uuid4(),
@@ -192,6 +205,7 @@ def _make_crypto_asset(
         currency=currency,
         market_value=market_value,
         source=source,
+        contract_address=contract_address,
     )
 
 
@@ -771,6 +785,84 @@ class TestManualCryptoUpdate:
         assert written_position is position
 
     @pytest.mark.asyncio
+    async def test_updates_token_market_value_by_contract_address(self):
+        gpid = uuid4()
+        rate = Dezimal(1) / Dezimal("0.06")
+        asset = _make_crypto_asset(
+            symbol="BTCB",
+            amount=Dezimal(2),
+            currency="EUR",
+            market_value=Dezimal(0),
+            crypto_type=CryptoCurrencyType.TOKEN,
+            contract_address="0xAbC123",
+        )
+        position = _make_position(gpid, crypto_wallets=[_make_crypto_wallet([asset])])
+
+        position_port, virtual_import_registry = _make_crypto_registry_and_port(
+            position, [gpid]
+        )
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(
+            return_value={
+                "EUR": {"BTCB": Dezimal(1) / Dezimal(50000), "0xabc123": rate}
+            }
+        )
+
+        snapshot_writer = MagicMock()
+        snapshot_writer.write = AsyncMock()
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            virtual_import_registry=virtual_import_registry,
+            exchange_rate_storage=exchange_rate_storage,
+            snapshot_writer=snapshot_writer,
+        )
+
+        await use_case.execute()
+
+        expected = round(Dezimal(2) * Dezimal("0.06"), 2)
+        assert asset.market_value == expected
+        snapshot_writer.write.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_token_ignores_symbol_keyed_rate(self):
+        gpid = uuid4()
+        asset = _make_crypto_asset(
+            symbol="BTCB",
+            amount=Dezimal(2),
+            currency="EUR",
+            market_value=Dezimal(0),
+            crypto_type=CryptoCurrencyType.TOKEN,
+            contract_address="0xAbC123",
+        )
+        position = _make_position(gpid, crypto_wallets=[_make_crypto_wallet([asset])])
+
+        position_port, virtual_import_registry = _make_crypto_registry_and_port(
+            position, [gpid]
+        )
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(
+            return_value={"EUR": {"BTCB": Dezimal(1) / Dezimal(50000)}}
+        )
+
+        snapshot_writer = MagicMock()
+        snapshot_writer.write = AsyncMock()
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            virtual_import_registry=virtual_import_registry,
+            exchange_rate_storage=exchange_rate_storage,
+            snapshot_writer=snapshot_writer,
+        )
+
+        await use_case.execute()
+
+        assert asset.market_value == Dezimal(0)
+        snapshot_writer.write.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_skips_crypto_when_symbol_missing_from_matrix(self):
         gpid = uuid4()
         asset = _make_crypto_asset(symbol="BTC", currency="EUR")
@@ -1118,3 +1210,244 @@ class TestResult:
         assert result.had_tracked is True
         assert result.changed is False
         assert result.changed_entities == []
+
+
+def _make_commodity(
+    commodity_type=CommodityType.GOLD,
+    amount=Dezimal(2),
+    unit=WeightUnit.TROY_OUNCE,
+    market_value=Dezimal(0),
+    currency="EUR",
+    commodity_id=None,
+) -> Commodity:
+    return Commodity(
+        id=commodity_id or uuid4(),
+        name="Test Commodity",
+        type=commodity_type,
+        amount=amount,
+        unit=unit,
+        market_value=market_value,
+        initial_investment=Dezimal(100),
+        average_buy_price=None,
+        currency=currency,
+    )
+
+
+def _make_commodities_position(commodities, position_id=None) -> GlobalPosition:
+    return GlobalPosition(
+        id=position_id or uuid4(),
+        entity=COMMODITIES,
+        products={ProductType.COMMODITY: Commodities(entries=commodities)},
+    )
+
+
+def _make_commodities_port(position) -> MagicMock:
+    port = MagicMock()
+    port.get_by_id = AsyncMock(return_value=None)
+    port.get_manual_crypto_position_ids = AsyncMock(return_value=set())
+    port.get_last_grouped_by_entity = AsyncMock(return_value={COMMODITIES.id: position})
+    port.delete_position_for_date = AsyncMock()
+    port.save = AsyncMock()
+    return port
+
+
+class TestCommodityUpdate:
+    @pytest.mark.asyncio
+    async def test_updates_commodity_market_value(self):
+        position_id = uuid4()
+        rate = Dezimal(1) / Dezimal(2000)
+        commodity = _make_commodity(
+            commodity_type=CommodityType.GOLD,
+            amount=Dezimal(2),
+            unit=WeightUnit.TROY_OUNCE,
+            market_value=Dezimal(0),
+            currency="EUR",
+        )
+        position = _make_commodities_position([commodity], position_id=position_id)
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"EUR": {"XAU": rate}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        result = await use_case.execute()
+
+        assert commodity.market_value == round(Dezimal(2) * (Dezimal(1) / rate), 2)
+        position_port.delete_position_for_date.assert_awaited_once()
+        position_port.save.assert_awaited_once()
+        saved_position = position_port.save.await_args.args[0]
+        assert saved_position.source == DataSource.REAL
+        assert saved_position.id != position_id
+        assert result.had_tracked is True
+        assert result.changed is True
+        assert result.changed_entities == [COMMODITIES.id]
+
+    @pytest.mark.asyncio
+    async def test_no_change_no_snapshot(self):
+        rate = Dezimal(1) / Dezimal(2000)
+        current_value = round(Dezimal(2) * (Dezimal(1) / rate), 2)
+        commodity = _make_commodity(
+            amount=Dezimal(2),
+            market_value=current_value,
+        )
+        position = _make_commodities_position([commodity])
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"EUR": {"XAU": rate}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        result = await use_case.execute()
+
+        position_port.save.assert_not_awaited()
+        position_port.delete_position_for_date.assert_not_awaited()
+        assert result.had_tracked is True
+        assert result.changed is False
+
+    @pytest.mark.asyncio
+    async def test_gram_unit_conversion(self):
+        rate = Dezimal(1) / Dezimal(2000)
+        grams = WEIGHT_CONVERSIONS[WeightUnit.TROY_OUNCE][WeightUnit.GRAM]
+        commodity = _make_commodity(
+            amount=grams,
+            unit=WeightUnit.GRAM,
+            market_value=Dezimal(0),
+        )
+        position = _make_commodities_position([commodity])
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"EUR": {"XAU": rate}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        await use_case.execute()
+
+        assert commodity.market_value == round(Dezimal(1) * (Dezimal(1) / rate), 2)
+
+    @pytest.mark.asyncio
+    async def test_uses_commodity_currency(self):
+        rate = Dezimal(1) / Dezimal(1800)
+        commodity = _make_commodity(
+            amount=Dezimal(1),
+            currency="USD",
+            market_value=Dezimal(0),
+        )
+        position = _make_commodities_position([commodity])
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"USD": {"XAU": rate}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        await use_case.execute()
+
+        assert commodity.market_value == round(Dezimal(1) * (Dezimal(1) / rate), 2)
+
+    @pytest.mark.asyncio
+    async def test_silver_symbol(self):
+        rate = Dezimal(1) / Dezimal(25)
+        commodity = _make_commodity(
+            commodity_type=CommodityType.SILVER,
+            amount=Dezimal(10),
+            market_value=Dezimal(0),
+        )
+        position = _make_commodities_position([commodity])
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"EUR": {"XAG": rate}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        await use_case.execute()
+
+        assert commodity.market_value == round(Dezimal(10) * (Dezimal(1) / rate), 2)
+
+    @pytest.mark.asyncio
+    async def test_skips_when_rate_missing(self):
+        commodity = _make_commodity(amount=Dezimal(1), market_value=Dezimal(0))
+        position = _make_commodities_position([commodity])
+        position_port = _make_commodities_port(position)
+
+        exchange_rate_storage = MagicMock()
+        exchange_rate_storage.get = AsyncMock(return_value={"EUR": {}})
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            exchange_rate_storage=exchange_rate_storage,
+        )
+
+        result = await use_case.execute()
+
+        assert commodity.market_value == Dezimal(0)
+        position_port.save.assert_not_awaited()
+        assert result.changed is False
+
+
+class TestThrottle:
+    @pytest.mark.asyncio
+    async def test_skips_when_recently_executed(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = datetime.now(tzlocal()) - timedelta(
+            hours=1
+        )
+
+        manual_position_data_port = MagicMock()
+        manual_position_data_port.get_trackable = AsyncMock(return_value=[])
+
+        use_case = _build_use_case(
+            manual_position_data_port=manual_position_data_port,
+            throttle_port=throttle,
+        )
+
+        result = await use_case.execute()
+
+        assert result.throttled is True
+        assert result.had_tracked is False
+        manual_position_data_port.get_trackable.assert_not_called()
+        throttle.update_last_executed.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_records_timestamp_when_none(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = None
+
+        use_case = _build_use_case(throttle_port=throttle)
+
+        result = await use_case.execute()
+
+        assert result.throttled is False
+        throttle.update_last_executed.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_proceeds_when_stale(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = datetime.now(tzlocal()) - timedelta(
+            hours=9
+        )
+
+        use_case = _build_use_case(throttle_port=throttle)
+
+        result = await use_case.execute()
+
+        assert result.throttled is False
+        throttle.update_last_executed.assert_awaited_once()

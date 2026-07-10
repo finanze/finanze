@@ -148,6 +148,28 @@ from infrastructure.repository.db.versions.v0.v08.v080_14_credits import (
 from infrastructure.repository.db.versions.v0.v08.v080_15_hd_address_balance import (
     V0815HdAddressBalance,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_0_networth_timeline import (
+    V0900NetworthTimeline,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_1_recompute_loan_hashes import (
+    V0901RecomputeLoanHashes,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_2_tracked_updates import (
+    V0902TrackedUpdates,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_3_valuation_market_value import (
+    V0903ValuationMarketValue,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_4_enable_banking_provider import (
+    V0904EnableBankingProvider,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_5_b100 import V0905B100
+from infrastructure.repository.db.versions.v0.v09.v090_6_pending_flow_status import (
+    V0906PendingFlowStatus,
+)
+from infrastructure.repository.db.versions.v0.v09.v090_7_rebuild_networth_timeline import (
+    V0907RebuildNetworthTimeline,
+)
 
 versions = [
     V0Genesis(),
@@ -210,4 +232,12 @@ versions = [
     V0813ImprovedLoans(),
     V0814Credits(),
     V0815HdAddressBalance(),
+    V0900NetworthTimeline(),
+    V0901RecomputeLoanHashes(),
+    V0902TrackedUpdates(),
+    V0903ValuationMarketValue(),
+    V0904EnableBankingProvider(),
+    V0905B100(),
+    V0906PendingFlowStatus(),
+    V0907RebuildNetworthTimeline(),
 ]

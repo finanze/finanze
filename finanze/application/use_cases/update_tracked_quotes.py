@@ -1,7 +1,7 @@
 import logging
 from asyncio import Lock
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -12,30 +12,39 @@ from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.instrument_info_provider import InstrumentInfoProvider
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
+from domain.commodity import COMMODITY_SYMBOLS, to_troy_ounces
+from domain.crypto import crypto_rate_key
 from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict
 from domain.exchange_rate import ExchangeRates
 from domain.global_position import (
+    Commodity,
     CryptoCurrencyPosition,
     DataSource,
     EquityType,
     FundType,
     GlobalPosition,
     ManualPositionData,
+    PositionQueryRequest,
     ProductType,
 )
 from domain.instrument import InstrumentDataRequest, InstrumentInfo, InstrumentType
+from domain.native_entities import COMMODITIES
 from domain.tracking import UpdateTrackedResult
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.virtual_data import VirtualDataSource
 
 _TRACKABLE_PRODUCTS = (ProductType.STOCK_ETF, ProductType.FUND)
+
+_THROTTLE_KEY = "TRACKED_QUOTES"
+_THROTTLE_INTERVAL = timedelta(hours=8)
 
 
 class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
@@ -48,6 +57,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         exchange_rate_storage: ExchangeRateStorage,
         virtual_import_registry: VirtualImportRegistry,
         snapshot_writer: ManualPositionSnapshotWriter,
+        throttle_port: TrackedUpdatesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         self._position_port = position_port
@@ -57,6 +67,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         self._exchange_rate_storage = exchange_rate_storage
         self._virtual_import_registry = virtual_import_registry
         self._snapshot_writer = snapshot_writer
+        self._throttle_port = throttle_port
         self._transaction_handler_port = transaction_handler_port
 
         self._lock = Lock()
@@ -67,6 +78,17 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             raise ExecutionConflict()
 
         async with self._lock:
+            now = datetime.now(tzlocal())
+            last_executed = await self._throttle_port.get_last_executed(_THROTTLE_KEY)
+            if last_executed is not None and (now - last_executed) < _THROTTLE_INTERVAL:
+                self._log.info(
+                    "Skipping tracked quotes update, last run %s within %s",
+                    last_executed,
+                    _THROTTLE_INTERVAL,
+                )
+                return UpdateTrackedResult(had_tracked=False, throttled=True)
+            await self._throttle_port.update_last_executed(_THROTTLE_KEY, now)
+
             trackable_entries = await self._manual_position_data_port.get_trackable()
             grouped: dict[UUID, list[ManualPositionData]] = defaultdict(list)
             for mpd in trackable_entries:
@@ -74,7 +96,17 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
 
             crypto_position_ids = await self._get_manual_crypto_position_ids()
 
-            if not grouped and not crypto_position_ids:
+            commodities_position = await self._get_commodities_position()
+            commodity_container = (
+                commodities_position.products.get(ProductType.COMMODITY)
+                if commodities_position
+                else None
+            )
+            has_commodities = bool(
+                commodity_container and getattr(commodity_container, "entries", None)
+            )
+
+            if not grouped and not crypto_position_ids and not has_commodities:
                 return UpdateTrackedResult(had_tracked=False)
 
             fund_entries = sum(
@@ -88,22 +120,29 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
             crypto_entries = await self._count_manual_crypto_entries(
                 crypto_position_ids
             )
+            commodity_entries = (
+                len(commodity_container.entries) if has_commodities else 0
+            )
 
             self._log.info(
                 "Updating tracked quotes for %d instrument positions "
-                "(%d funds, %d stocks/etfs) and %d crypto positions (%d entries)",
+                "(%d funds, %d stocks/etfs), %d crypto positions (%d entries) "
+                "and %d commodities",
                 len(grouped),
                 fund_entries,
                 stock_etf_entries,
                 len(crypto_position_ids),
                 crypto_entries,
+                commodity_entries,
             )
 
             fiat_matrix = (
                 await self._exchange_rate_provider.get_matrix() if grouped else None
             )
-            crypto_matrix = (
-                await self._exchange_rate_storage.get() if crypto_position_ids else None
+            stored_rates = (
+                await self._exchange_rate_storage.get()
+                if (crypto_position_ids or has_commodities)
+                else None
             )
 
             changed_entities: set[UUID] = set()
@@ -117,7 +156,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                         global_position_id,
                         position_entries,
                         fiat_matrix,
-                        crypto_matrix if is_crypto else None,
+                        stored_rates if is_crypto else None,
                     )
                     if result is not None:
                         entity_id, entry_count = result
@@ -138,6 +177,18 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                         tracker_keys,
                     )
                     continue
+
+            if has_commodities and stored_rates is not None:
+                try:
+                    result = await self._refresh_commodities(
+                        commodities_position, stored_rates
+                    )
+                    if result is not None:
+                        entity_id, entry_count = result
+                        changed_entities.add(entity_id)
+                        changed_entries += entry_count
+                except Exception:
+                    self._log.exception("Failed updating tracked commodities")
 
             self._log.info(
                 "Finished updating tracked quotes: had_tracked=%s, "
@@ -165,6 +216,75 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         return await self._position_port.get_manual_crypto_position_ids(
             list(candidate_ids)
         )
+
+    async def _get_commodities_position(self) -> Optional[GlobalPosition]:
+        grouped = await self._position_port.get_last_grouped_by_entity(
+            PositionQueryRequest(
+                entities=[COMMODITIES.id],
+                products=[ProductType.COMMODITY],
+                real=True,
+            )
+        )
+        for position in grouped.values():
+            return position
+        return None
+
+    async def _refresh_commodities(
+        self,
+        position: GlobalPosition,
+        rates: ExchangeRates,
+    ) -> Optional[tuple[UUID, int]]:
+        container = position.products.get(ProductType.COMMODITY)
+        if not (container and getattr(container, "entries", None)):
+            return None
+
+        changed = 0
+        for commodity in container.entries:
+            new_value = self._compute_commodity_value(commodity, rates)
+            if new_value is None:
+                continue
+            if new_value != commodity.market_value:
+                commodity.market_value = new_value
+                changed += 1
+
+        if not changed:
+            return None
+
+        now = datetime.now(tzlocal())
+        position.id = uuid4()
+        position.date = now
+        position.source = DataSource.REAL
+        for commodity in container.entries:
+            commodity.id = uuid4()
+
+        async with self._transaction_handler_port.start():
+            await self._position_port.delete_position_for_date(
+                COMMODITIES.id, now.date(), source=DataSource.REAL
+            )
+            await self._position_port.save(position)
+
+        return COMMODITIES.id, changed
+
+    @staticmethod
+    def _compute_commodity_value(
+        commodity: Commodity,
+        rates: ExchangeRates,
+    ) -> Optional[Dezimal]:
+        if commodity.amount is None:
+            return None
+        symbol = COMMODITY_SYMBOLS.get(commodity.type)
+        if symbol is None:
+            return None
+        currency = commodity.currency or "EUR"
+        currency_rates = rates.get(currency)
+        if not currency_rates:
+            return None
+        rate = currency_rates.get(symbol)
+        if rate is None or rate == 0:
+            return None
+        price = Dezimal(1) / rate
+        amount = to_troy_ounces(commodity.amount, commodity.unit)
+        return round(amount * price, 2)
 
     async def _count_manual_crypto_entries(self, crypto_position_ids: set[UUID]) -> int:
         count = 0
@@ -248,7 +368,10 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         rates = crypto_matrix.get(asset.currency)
         if not rates:
             return None
-        rate = rates.get(asset.symbol.upper())
+        rate_key = crypto_rate_key(asset.type, asset.symbol, asset.contract_address)
+        if rate_key is None:
+            return None
+        rate = rates.get(rate_key)
         if rate is None or rate == 0:
             return None
         price = Dezimal(1) / rate

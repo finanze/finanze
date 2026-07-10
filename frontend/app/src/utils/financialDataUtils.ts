@@ -18,6 +18,7 @@ import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
 import {
   ExchangeRates,
   PendingFlow,
+  FlowStatus,
   RealEstate,
   RealEstateFlowSubtype,
   LoanPayload,
@@ -82,6 +83,15 @@ export const convertCurrency = (
     `No exchange rate found for ${fromCurrency} -> ${targetCurrency}`,
   )
   return 0
+}
+
+export const getCryptoRateKey = (
+  asset: Pick<CryptoCurrencyPosition, "type" | "symbol" | "contract_address">,
+): string | null => {
+  if (asset.type === CryptoCurrencyType.TOKEN && asset.contract_address) {
+    return asset.contract_address.toLowerCase()
+  }
+  return asset.symbol ? asset.symbol.toUpperCase() : null
 }
 
 export const calculateCryptoValue = (
@@ -149,13 +159,13 @@ export const calculateCryptoAssetValue = (
 ): number => {
   if (!asset) return 0
 
-  const symbol = asset.symbol?.toUpperCase()
   const amount = asset.amount || 0
+  const rateKey = getCryptoRateKey(asset)
 
-  if (amount > 0 && symbol) {
+  if (amount > 0 && rateKey) {
     const computedValue = calculateCryptoValue(
       amount,
-      symbol,
+      rateKey,
       targetCurrency,
       exchangeRates,
     )
@@ -341,8 +351,7 @@ const sumDerivativeValues = (
   underlyingFilter?: Set<ProductType>,
 ): number => {
   const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-    | DerivativePositions
-    | undefined
+    DerivativePositions | undefined
   if (
     !derivProduct ||
     !("entries" in derivProduct) ||
@@ -816,8 +825,7 @@ export const getAssetDistribution = (
       }
 
       const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-        | DerivativePositions
-        | undefined
+        DerivativePositions | undefined
       if (
         derivProduct &&
         "entries" in derivProduct &&
@@ -3040,7 +3048,7 @@ export const calculatePendingEarningsTotal = (
   const now = new Date()
 
   return pendingFlows
-    .filter(flow => flow.enabled)
+    .filter(flow => flow.status === FlowStatus.ACTIVE)
     .filter(flow => {
       // Only include future or current flows
       if (!flow.date) return true
@@ -3149,8 +3157,7 @@ export const getTotalCreditDrawn = (
     .flat()
     .forEach((entityPosition: any) => {
       const creditsProduct = entityPosition.products?.[ProductType.CREDIT] as
-        | Credits
-        | undefined
+        Credits | undefined
       if (creditsProduct?.entries) {
         creditsProduct.entries.forEach((credit: any) => {
           total += convertCurrency(

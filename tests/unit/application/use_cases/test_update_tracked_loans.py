@@ -1,12 +1,14 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from dateutil.tz import tzlocal
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.tracked_updates_port import TrackedUpdatesPort
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
@@ -54,12 +56,15 @@ def _make_entity() -> Entity:
     )
 
 
-def _build_use_case():
+def _build_use_case(throttle_port=None):
     position_port = AsyncMock(spec=PositionPort)
     position_port.get_by_id.return_value = None
     manual_data_port = AsyncMock(spec=ManualPositionDataPort)
     calculator = AsyncMock(spec=LoanCalculatorPort)
     snapshot_writer = AsyncMock(spec=ManualPositionSnapshotWriter)
+    if throttle_port is None:
+        throttle_port = AsyncMock(spec=TrackedUpdatesPort)
+        throttle_port.get_last_executed.return_value = None
     transaction_handler = _make_transaction_handler()
 
     uc = UpdateTrackedLoansImpl(
@@ -67,6 +72,7 @@ def _build_use_case():
         manual_position_data_port=manual_data_port,
         loan_calculator=calculator,
         snapshot_writer=snapshot_writer,
+        throttle_port=throttle_port,
         transaction_handler_port=transaction_handler,
     )
     return uc, position_port, manual_data_port, calculator, snapshot_writer
@@ -801,3 +807,53 @@ class TestTrackingRefPreservation:
         assert untracked.installment_interests == Dezimal(150)
         assert untracked.manual_data.tracking_ref_outstanding == Dezimal(61000)
         assert untracked.manual_data.tracking_ref_date == date(2024, 1, 10)
+
+
+# ---------------------------------------------------------------------------
+# TestThrottle
+# ---------------------------------------------------------------------------
+
+
+class TestThrottle:
+    @pytest.mark.asyncio
+    async def test_skips_when_recently_executed(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = datetime.now(tzlocal()) - timedelta(
+            hours=1
+        )
+        uc, _, manual_data_port, calculator, snapshot_writer = _build_use_case(
+            throttle_port=throttle
+        )
+
+        result = await uc.execute()
+
+        assert result.throttled is True
+        assert result.had_tracked is False
+        manual_data_port.get_trackable_loans.assert_not_awaited()
+        throttle.update_last_executed.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_records_timestamp_when_none(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = None
+        uc, _, manual_data_port, _, _ = _build_use_case(throttle_port=throttle)
+        manual_data_port.get_trackable_loans.return_value = []
+
+        result = await uc.execute()
+
+        assert result.throttled is False
+        throttle.update_last_executed.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_proceeds_when_stale(self):
+        throttle = AsyncMock(spec=TrackedUpdatesPort)
+        throttle.get_last_executed.return_value = datetime.now(tzlocal()) - timedelta(
+            hours=19
+        )
+        uc, _, manual_data_port, _, _ = _build_use_case(throttle_port=throttle)
+        manual_data_port.get_trackable_loans.return_value = []
+
+        result = await uc.execute()
+
+        assert result.throttled is False
+        throttle.update_last_executed.assert_awaited_once()

@@ -53,8 +53,8 @@ class DeferredComponents:
         from infrastructure.sheets.capacitor_sheets_initiator import (
             CapacitorSheetsInitiator,
         )
-        from infrastructure.client.rates.crypto.preference_coingecko_strategy import (
-            PreferenceCoinGeckoCacheStrategy,
+        from infrastructure.client.rates.crypto.mobile_crypto_dataset_store import (
+            MobileCryptoDatasetStore,
         )
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
@@ -131,7 +131,7 @@ class DeferredComponents:
             GetExternalIntegrationsImpl,
         )
         from application.use_cases.get_money_events import GetMoneyEventsImpl
-        from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+        from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
         from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
         from application.use_cases.get_position import GetPositionImpl
         from application.use_cases.get_transactions import GetTransactionsImpl
@@ -193,6 +193,7 @@ class DeferredComponents:
                     domain.native_entities.CAJAMAR,
                     domain.native_entities.UNICAJA,
                     domain.native_entities.IBKR,
+                    domain.native_entities.B100,
                     domain.native_entities.BINANCE,
                 ]
             }
@@ -206,13 +207,19 @@ class DeferredComponents:
                     domain.native_entities.BSC,
                 ]
             }
+            external_entity_fetcher_stubs = {
+                ExternalIntegrationId.ENABLE_BANKING: True,
+            }
         else:
             financial_entity_fetcher_stubs = {}
             crypto_entity_fetcher_stubs = {}
+            external_entity_fetcher_stubs = {}
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
         }
+        if INCLUDE_CONNECTIONS:
+            external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True
 
         self.position_repo = PositionRepository(client=db_client)
         self.manual_repo = ManualPositionDataSQLRepository(client=db_client)
@@ -226,14 +233,14 @@ class DeferredComponents:
         self.period_repo = PeriodicFlowRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)
         self.re_repo = RealEstateRepository(client=db_client)
-        ext_ent_repo = ExternalEntityRepository(client=db_client)
+        self.ext_ent_repo = ExternalEntityRepository(client=db_client)
         self.creds_repo = CredentialsRepository(client=db_client)
         self.entity_account_repo = EntityAccountRepository(client=db_client)
-        ex_storage = PreferenceExchangeRateStorage()
+        self.ex_storage = PreferenceExchangeRateStorage()
 
         self.ex_client = ExchangeRateClient()
         self.crypto_info = CryptoAssetInfoClient(
-            coingecko_strategy=PreferenceCoinGeckoCacheStrategy()
+            dataset_store=MobileCryptoDatasetStore()
         )
         self.metal_client = MetalPriceClient()
         self.inst_provider = InstrumentProviderAdapter(
@@ -249,13 +256,14 @@ class DeferredComponents:
 
         self.get_avail_sources = GetAvailableEntitiesImpl(
             self.entity_repo,
-            ext_ent_repo,
+            self.ext_ent_repo,
+            self.ext_int_repo,
             self.creds_repo,
             self.wallet_repo,
             self.last_fetches_repo,
             self.virtual_repo,
             financial_entity_fetcher_stubs,
-            {},
+            external_entity_fetcher_stubs,
             self.entity_account_repo,
             crypto_entity_fetcher_stubs,
         )
@@ -267,15 +275,16 @@ class DeferredComponents:
             self.ex_client,
             self.crypto_info,
             self.metal_client,
-            ex_storage,
+            self.ex_storage,
             self.position_repo,
             port_call_runner=_pyodide_port_call_runner,
             job_scheduler=_pyodide_job_scheduler,
         )
+        self.query_pending = QueryPendingFlowsImpl(self.pending_repo)
         self.get_events = GetMoneyEventsImpl(
             self.get_contrib,
             GetPeriodicFlowsImpl(self.period_repo),
-            GetPendingFlowsImpl(self.pending_repo),
+            self.query_pending,
             self.entity_repo,
             self.position_repo,
         )
@@ -285,7 +294,6 @@ class DeferredComponents:
         )
 
         self.get_periodic = GetPeriodicFlowsImpl(self.period_repo)
-        self.get_pending = GetPendingFlowsImpl(self.pending_repo)
 
         self.list_re = ListRealEstateImpl(self.re_repo, self.position_repo)
 
@@ -304,6 +312,6 @@ class DeferredComponents:
         self.get_cloud = GetCloudAuthImpl(self.cloud_register)
         self.get_bkp_settings = GetBackupSettingsImpl(self.cloud_register)
 
-        await ex_storage.initialize()
+        await self.ex_storage.initialize()
         await self.crypto_info.initialize()
         await self.get_ex_rates.execute(initial_load=True)

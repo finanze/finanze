@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
 
-const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES"]
+const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
 
 export default function SettingsPage() {
   const { t, locale, changeLocale } = useI18n()
@@ -280,7 +280,13 @@ export default function SettingsPage() {
                       )}
                     >
                       <Sun className="h-4 w-4" />
-                      {t.common.light}
+                      <span
+                        className={cn(
+                          theme !== "light" && "hidden min-[400px]:inline",
+                        )}
+                      >
+                        {t.common.light}
+                      </span>
                     </button>
                     <button
                       onClick={() => setThemeMode("dark")}
@@ -292,7 +298,13 @@ export default function SettingsPage() {
                       )}
                     >
                       <Moon className="h-4 w-4" />
-                      {t.common.dark}
+                      <span
+                        className={cn(
+                          theme !== "dark" && "hidden min-[400px]:inline",
+                        )}
+                      >
+                        {t.common.dark}
+                      </span>
                     </button>
                     <button
                       onClick={() => setThemeMode("system")}
@@ -304,7 +316,13 @@ export default function SettingsPage() {
                       )}
                     >
                       <SunMoon className="h-4 w-4" />
-                      {t.common.system}
+                      <span
+                        className={cn(
+                          theme !== "system" && "hidden min-[400px]:inline",
+                        )}
+                      >
+                        {t.common.system}
+                      </span>
                     </button>
                   </div>
                 </CardContent>

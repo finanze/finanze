@@ -40,7 +40,7 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
     async def execute(
         self, request: ExternalEntityCandidatesQuery
     ) -> ExternalEntityCandidates:
-        provider = self._external_entity_fetchers[self.DEFAULT_PROVIDER]
+        provider_ids = request.providers or [self.DEFAULT_PROVIDER]
 
         setup_entities = await self._entity_port.get_all()
         setup_entities_by_natural_ids = {e.natural_id: e for e in setup_entities}
@@ -53,9 +53,15 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
                 ExternalIntegrationType.ENTITY_PROVIDER
             )
         )
-        await provider.setup(enabled_integrations)
 
-        all_candidates = await provider.get_entities(country=request.country)
+        all_candidates = []
+        for provider_id in provider_ids:
+            provider = self._external_entity_fetchers.get(provider_id)
+            if not provider:
+                continue
+            await provider.setup(enabled_integrations)
+            all_candidates.extend(await provider.get_entities(country=request.country))
+
         filtered_candidates = []
         for candidate in all_candidates:
             entity_by_natural_id = setup_entities_by_natural_ids.get(candidate.bic)

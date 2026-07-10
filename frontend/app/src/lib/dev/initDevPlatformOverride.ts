@@ -6,8 +6,7 @@ export function initDevPlatformOverride() {
   }
 
   const forcedPlatform = import.meta.env.VITE_FORCE_PLATFORM as
-    | string
-    | undefined
+    string | undefined
 
   if (!forcedPlatform) {
     return

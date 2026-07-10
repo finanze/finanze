@@ -25,8 +25,7 @@ export function initE2eMockExternalLogin() {
   if (!import.meta.env.VITE_E2E_MOCK_LOGIN) return
 
   let completionCallback:
-    | ((id: string, result: LoginHandlerResult) => void)
-    | null = null
+    ((id: string, result: LoginHandlerResult) => void) | null = null
 
   const mockAPI: ExternalLoginAPI = {
     requestExternalLogin: (id, request) => {

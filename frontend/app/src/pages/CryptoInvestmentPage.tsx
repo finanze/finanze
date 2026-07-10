@@ -25,6 +25,7 @@ import {
   calculateCryptoValue,
   calculateInvestmentDistribution,
   convertCurrency,
+  getCryptoRateKey,
   getWalletAssets,
 } from "@/utils/financialDataUtils"
 import {
@@ -545,8 +546,7 @@ function CryptoInvestmentContent({
       .flat()
       .forEach(entityPosition => {
         const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
-          | DerivativePositions
-          | undefined
+          DerivativePositions | undefined
         if (
           !derivProduct ||
           !("entries" in derivProduct) ||
@@ -634,6 +634,9 @@ function CryptoInvestmentContent({
                   effectiveAsset.name ||
                   symbol
                 const hasAssetDetails = Boolean(effectiveAsset.crypto_asset)
+                const rateKey = getCryptoRateKey(
+                  effectiveAsset as CryptoCurrencyPosition,
+                )
                 const value = hasAssetDetails
                   ? calculateCryptoAssetValue(
                       effectiveAsset as CryptoCurrencyPosition,
@@ -650,7 +653,7 @@ function CryptoInvestmentContent({
                   : 0
                 const hasSymbolRate =
                   hasAssetDetails &&
-                  hasSymbolConversion(symbol, defaultCurrency, rates)
+                  hasSymbolConversion(rateKey, defaultCurrency, rates)
                 const marketCurrency =
                   effectiveAsset.currency ||
                   effectiveAsset.investment_currency ||
@@ -714,7 +717,7 @@ function CryptoInvestmentContent({
                   amount: effectiveAsset.amount ?? 0,
                   currentPrice: calculateCryptoValue(
                     1,
-                    symbol,
+                    rateKey ?? symbol,
                     defaultCurrency,
                     rates,
                   ),
@@ -842,6 +845,9 @@ function CryptoInvestmentContent({
           const isToken =
             (draft.type ?? CryptoCurrencyType.NATIVE) ===
               CryptoCurrencyType.TOKEN || Boolean(draft.contract_address)
+          const rateKey = getCryptoRateKey(
+            draft as unknown as CryptoCurrencyPosition,
+          )
           const groupingKey = isToken
             ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
             : `native:${symbol || draft.localId}`
@@ -893,7 +899,7 @@ function CryptoInvestmentContent({
             amount: draft.amount ?? 0,
             currentPrice: calculateCryptoValue(
               1,
-              symbol,
+              rateKey ?? symbol,
               defaultCurrency,
               rates,
             ),
@@ -1017,16 +1023,18 @@ function CryptoInvestmentContent({
 
   const walletFilterOptions = useMemo<MultiSelectOption[]>(() => {
     return entityFilteredWalletGroups.flatMap(group =>
-      group.wallets.map(walletGroup => {
-        const wallet = walletGroup.wallet
-        const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
-        const walletName =
-          wallet.name ?? walletDisplayValue ?? group.entity.name
-        return {
-          value: getWalletIdentifier(wallet),
-          label: `${group.entity.name} - ${walletName}`,
-        }
-      }),
+      group.wallets
+        .filter(walletGroup => !isWalletlessEntry(walletGroup.wallet))
+        .map(walletGroup => {
+          const wallet = walletGroup.wallet
+          const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
+          const walletName =
+            wallet.name ?? walletDisplayValue ?? group.entity.name
+          return {
+            value: getWalletIdentifier(wallet),
+            label: `${group.entity.name} - ${walletName}`,
+          }
+        }),
     )
   }, [entityFilteredWalletGroups])
 
@@ -2729,6 +2737,7 @@ function CryptoInvestmentContent({
           <Button
             variant="default"
             size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
             onClick={() => {
               if (isEditMode && hasLocalChanges) {
                 setShowConnectConfirm(true)

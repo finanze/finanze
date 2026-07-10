@@ -1,2 +1,2 @@
-pyinstaller==6.20.0
-setuptools-scm==10.0.5
+pyinstaller==6.21.0
+setuptools-scm==10.2.0

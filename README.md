@@ -1,13 +1,13 @@
-<a href="https://github.com/finanze/finanze/releases/latest">
-  <img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest Release">
-</a>
+<p align="center">
+  <a href="https://github.com/finanze/finanze/releases/latest"><img src="https://img.shields.io/github/v/release/finanze/finanze?style=for-the-badge&color=blue&label=Latest%20Release" alt="Latest release of Finanze"></a>
+</p>
 
-<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
-<h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
+<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze logo — self-hosted personal finance and net worth tracker" width="220px"></p>
+<h1 align="center">Finanze — Self-hosted Personal Finance & Net Worth Tracker</h1>
 
 <p align="center">
-<a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
-platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
+<a href="https://finanze.me">Finanze</a> is a private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
+It connects to real financial entities via public ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
 </p>
 
 <h3 align="center">Available On</h3>
@@ -40,13 +40,13 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 <h2 align="center"></h2>
 
 <p align="middle">
-  <img src="resources/dashboard.png" width="49%" />
-  <img src="resources/m-stocks.png" width="19%" /> 
-  <img src="resources/entitiespage.png" width="49%" /> 
-  <img src="resources/earningsexpenses.png" width="49%" /> 
-  <img src="resources/realestate.png" width="49%" />
-  <img src="resources/savingscalculator.png" width="49%" /> 
-  <img src="resources/crypto.png" width="49%" /> 
+  <img src="resources/dashboard.png" alt="Finanze net worth dashboard aggregating banks, investments and crypto" width="49%" />
+  <img src="resources/m-stocks.png" alt="Finanze mobile stocks and ETFs portfolio view" width="19%" /> 
+  <img src="resources/entitiespage.png" alt="Finanze connected financial entities and open banking accounts" width="49%" /> 
+  <img src="resources/earningsexpenses.png" alt="Finanze earnings and expenses tracking with contribution forecasting" width="49%" /> 
+  <img src="resources/realestate.png" alt="Finanze real estate investment tracking with KPIs and metrics" width="49%" />
+  <img src="resources/savingscalculator.png" alt="Finanze savings and retirement calculator with multiple scenarios" width="49%" /> 
+  <img src="resources/crypto.png" alt="Finanze crypto portfolio tracking across wallets and exchanges" width="49%" /> 
 </p>
 
 ## Table of Contents
@@ -74,30 +74,35 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 
 ### Supported Assets by Financial Entity & Crypto Exchanges
 
-| Financial Entity    | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-| ------------------- | -------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
-| Urbanitae           | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅       | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
-| SEGO                | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic      | ✅       | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
-| Unicaja             | ✅       | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| Wecity              | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos              | ✅       | -     | -     | ❌             | ❌       | -          | -                   | -      | ❌    | Crowdlending        |
-| Freedom24           | ✅       | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
-| Indexa Capital      | ✅       | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING                 | ✅       | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
-| Grupo Cajamar       | ✅       | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| DEGIRO              | ✅       | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
-| Interactive Brokers | ✅       | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
+| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
+| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
+| Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
+| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
+| SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
+| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
+| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
+| Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending        |
+| Freedom24           | ✅              | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
+| Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
+| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
+| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
+| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
+| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                     |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
 | Binance         | ✅ Spot & Futures | Futures  |
 
+#### Enable Banking Integration
+
+Provides a way to connect to EU banks that are not natively supported by the app, via PSD2 compliant bank account information.
+Instructions to set it up can be found in the app Settings/Integrations tab.
+
 #### GoCardless Integration
 
-GoCardless provides PSD2 compliant bank account information for many EU/UK banks, for institutions not natively
-supported this is the way to get account related data.
+Only if you already have an account, another option is GoCardless, which also provides PSD2 compliant bank account information for many EU/UK banks.
 
 ### Financial Entity & Crypto Exchanges Features
 
@@ -127,6 +132,7 @@ Not all entities support the same features, in general we can group data in the 
 | Grupo Cajamar       | ✅              | -                         | ❌                             | -                      |
 | DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
+| B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
@@ -145,8 +151,10 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** if not using the app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
-  Akamai for antibot protection.
+- **Unicaja**:
+    - May fail sometimes in mobile app.
+    - If not using the app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
+      Akamai for antibot protection.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using the app.
 - **Trade Republic**, **ING** and **IBKR** only work via app, as require user interaction to log in.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
@@ -220,8 +228,7 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ## Development
 
-This project requires `Python 3.13` or `3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
-`3.13`.
+This project requires `Python 3.14`.
 For the frontend use `pnpm`, and `node 24`.
 
 ### Setup
@@ -279,7 +286,8 @@ For the frontend use `pnpm`, and `node 24`.
 
 6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
 
-    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (`go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
+    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (
+    `go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
 
     ```sh
     cd frontend/app           # If not already
@@ -325,6 +333,7 @@ important ones are::
 ## Attributions & Credits
 
 - Powered by [CoinGecko](https://www.coingecko.com/).
+- Powered by [CoinMarketCap](https://coinmarketcap.com/).
 - Powered by [CryptoCompare](https://www.cryptocompare.com/).
 - [Pyodide](https://github.com/pyodide/pyodide) is used for mobile backend compatibility.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
@@ -337,4 +346,5 @@ important ones are::
 
 ---
 
-<small>\* App Store version has limited features and does not support bank connections. Use AltStore or TestFlight for the full experience.</small>
+<small>\* App Store version has limited features and does not support bank connections. Use AltStore or TestFlight for
+the full experience.</small>

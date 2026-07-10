@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: frontend/app/package.json
 
@@ -69,7 +69,7 @@ jobs:
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25'
 
@@ -133,7 +133,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: frontend/app/package.json
 
@@ -145,7 +145,7 @@ jobs:
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -159,7 +159,7 @@ jobs:
         run: pip install python-minifier
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25'
 
@@ -170,7 +170,7 @@ jobs:
           gomobile init
 
       - name: Setup Android SDK & NDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: 'ndk;28.0.13004108'
 
@@ -217,7 +217,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: e2e/mobile/package.json
 
@@ -259,8 +259,13 @@ jobs:
           xcrun simctl boot "$DEVICE_ID" || true
           open -a Simulator --args -CurrentDeviceUDID "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
+          DEVICE_VERSION=$(xcrun simctl list devices available --json \
+            | jq -r --arg udid "$DEVICE_ID" '.devices | to_entries[] | select(any(.value[]; .udid == $udid)) | .key' \
+            | sed -E 's/.*SimRuntime\.iOS-//; s/-/./g')
+          echo "Detected simulator runtime: $DEVICE_VERSION"
           echo "IOS_DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
           echo "IOS_DEVICE_UDID=$DEVICE_ID" >> $GITHUB_ENV
+          echo "IOS_PLATFORM_VERSION=$DEVICE_VERSION" >> $GITHUB_ENV
 
       - name: Pre-build WebDriverAgent
         env:
@@ -287,6 +292,7 @@ jobs:
           IOS_APP_PATH: ${{ github.workspace }}/ios-app/App.app
           IOS_DEVICE_NAME: ${{ env.IOS_DEVICE_NAME }}
           IOS_DEVICE_UDID: ${{ env.IOS_DEVICE_UDID }}
+          IOS_PLATFORM_VERSION: ${{ env.IOS_PLATFORM_VERSION }}
         run: pnpm test:ios
 
       - name: Show WDIO logs
@@ -322,7 +328,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: e2e/mobile/package.json
 
@@ -334,7 +340,7 @@ jobs:
           cache-dependency-path: e2e/mobile/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17

@@ -29,6 +29,7 @@ from domain.crypto import (
     CryptoFetchedPosition,
     CryptoWallet,
     HDAddress,
+    crypto_rate_key,
 )
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
@@ -639,10 +640,10 @@ class FetchCryptoDataImpl(FetchCryptoData):
     def _get_market_value(
         self, price_map: dict[str, Dezimal], crypto_currency: CryptoCurrencyPosition
     ) -> Optional[Dezimal]:
-        price_key = (
-            crypto_currency.symbol
-            if crypto_currency.type == CryptoCurrencyType.NATIVE
-            else crypto_currency.contract_address.lower()
+        price_key = crypto_rate_key(
+            crypto_currency.type,
+            crypto_currency.symbol,
+            crypto_currency.contract_address,
         )
         price = price_map.get(price_key) if price_key else None
         if price is None:

@@ -42,7 +42,7 @@ def _pending_flow_payload(**overrides):
         "currency": "EUR",
         "flow_type": "EARNING",
         "category": "taxes",
-        "enabled": True,
+        "status": "ACTIVE",
         "date": "2026-06-01",
         "icon": "receipt",
     }
@@ -432,137 +432,288 @@ class TestDeletePeriodicFlow:
 
 class TestSavePendingFlows:
     @pytest.mark.asyncio
-    async def test_save_returns_204(self, client):
+    async def test_save_returns_201(self, client):
         await _signup(client)
-        response = await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload()]},
-        )
-        assert response.status_code == 204
+        response = await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        assert response.status_code == 201
 
     @pytest.mark.asyncio
     async def test_save_appears_in_get(self, client):
         await _signup(client)
-        await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload()]},
-        )
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
 
         response = await client.get(PENDING_FLOWS_URL)
         assert response.status_code == 200
-        flows = await response.get_json()
+        body = await response.get_json()
+        flows = body["entries"]
         assert len(flows) == 1
         assert flows[0]["name"] == "Tax Refund"
         assert float(flows[0]["amount"]) == 500
         assert flows[0]["currency"] == "EUR"
         assert flows[0]["flow_type"] == "EARNING"
         assert flows[0]["category"] == "taxes"
-        assert flows[0]["enabled"] is True
+        assert flows[0]["status"] == "ACTIVE"
+        assert flows[0]["status_changed_at"] is not None
         assert flows[0]["date"] == "2026-06-01"
         assert flows[0]["icon"] == "receipt"
 
     @pytest.mark.asyncio
     async def test_save_multiple_pending_flows(self, client):
         await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
         await client.post(
             PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(),
-                    _pending_flow_payload(
-                        name="Insurance Bill",
-                        amount="200",
-                        flow_type="EXPENSE",
-                        category="insurance",
-                    ),
-                ]
-            },
+            json=_pending_flow_payload(
+                name="Insurance Bill",
+                amount="200",
+                flow_type="EXPENSE",
+                category="insurance",
+            ),
         )
 
-        response = await client.get(PENDING_FLOWS_URL)
-        flows = await response.get_json()
+        body = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        flows = body["entries"]
         assert len(flows) == 2
         names = {f["name"] for f in flows}
         assert names == {"Tax Refund", "Insurance Bill"}
 
     @pytest.mark.asyncio
-    async def test_save_replaces_all_existing(self, client):
+    async def test_update_pending_flow(self, client):
         await _signup(client)
-        await client.post(
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        flow_id = flows[0]["id"]
+
+        response = await client.put(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload()]},
+            json=_pending_flow_payload(id=flow_id, name="Updated Refund"),
         )
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        assert response.status_code == 204
+
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
         assert len(flows) == 1
-
-        await client.post(
-            PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(name="New Flow A"),
-                    _pending_flow_payload(name="New Flow B"),
-                ]
-            },
-        )
-
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
-        assert len(flows) == 2
-        names = {f["name"] for f in flows}
-        assert names == {"New Flow A", "New Flow B"}
+        assert flows[0]["name"] == "Updated Refund"
 
     @pytest.mark.asyncio
-    async def test_save_empty_clears_all(self, client):
+    async def test_update_missing_flow_returns_404(self, client):
         await _signup(client)
-        await client.post(
+        response = await client.put(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload()]},
+            json=_pending_flow_payload(id="00000000-0000-0000-0000-000000000000"),
         )
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
-        assert len(flows) == 1
+        assert response.status_code == 404
 
-        await client.post(PENDING_FLOWS_URL, json={"flows": []})
+    @pytest.mark.asyncio
+    async def test_delete_pending_flow(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        flow_id = flows[0]["id"]
 
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        response = await client.delete(f"{PENDING_FLOWS_URL}/{flow_id}")
+        assert response.status_code == 204
+
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
         assert len(flows) == 0
+
+    @pytest.mark.asyncio
+    async def test_status_changed_at_updates_on_status_change(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        flow_id = flows[0]["id"]
+        original_changed_at = flows[0]["status_changed_at"]
+
+        await client.put(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(id=flow_id, status="COMPLETED"),
+        )
+
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        assert flows[0]["status"] == "COMPLETED"
+        assert flows[0]["status_changed_at"] != original_changed_at
 
     @pytest.mark.asyncio
     async def test_save_without_date(self, client):
         await _signup(client)
-        await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date=None)]},
-        )
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload(date=None))
 
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
         assert flows[0]["date"] is None
 
     @pytest.mark.asyncio
     async def test_save_disabled_pending_flow(self, client):
         await _signup(client)
         await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(enabled=False)]},
+            PENDING_FLOWS_URL, json=_pending_flow_payload(status="DISABLED")
         )
 
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
-        assert flows[0]["enabled"] is False
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        assert flows[0]["status"] == "DISABLED"
 
     @pytest.mark.asyncio
     async def test_save_returns_400_on_missing_name(self, client):
         await _signup(client)
         flow = _pending_flow_payload()
         del flow["name"]
-        response = await client.post(PENDING_FLOWS_URL, json={"flows": [flow]})
+        response = await client.post(PENDING_FLOWS_URL, json=flow)
         assert response.status_code == 400
 
     @pytest.mark.asyncio
     async def test_save_returns_400_on_invalid_flow_type(self, client):
         await _signup(client)
         response = await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(flow_type="INVALID")]},
+            PENDING_FLOWS_URL, json=_pending_flow_payload(flow_type="INVALID")
         )
         assert response.status_code == 400
+
+
+class TestQueryPendingFlows:
+    @pytest.mark.asyncio
+    async def test_filter_by_status(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="Completed one", status="COMPLETED"),
+        )
+
+        body = await (await client.get(f"{PENDING_FLOWS_URL}?status=ACTIVE")).get_json()
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["name"] == "Tax Refund"
+
+    @pytest.mark.asyncio
+    async def test_filter_by_flow_type(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="Bill", flow_type="EXPENSE"),
+        )
+
+        body = await (
+            await client.get(f"{PENDING_FLOWS_URL}?flow_type=EXPENSE")
+        ).get_json()
+        assert len(body["entries"]) == 1
+        assert body["entries"][0]["name"] == "Bill"
+
+    @pytest.mark.asyncio
+    async def test_pagination(self, client):
+        await _signup(client)
+        for i in range(3):
+            await client.post(
+                PENDING_FLOWS_URL,
+                json=_pending_flow_payload(name=f"Flow {i}", amount=str(i + 1)),
+            )
+
+        body = await (
+            await client.get(f"{PENDING_FLOWS_URL}?page=1&limit=2")
+        ).get_json()
+        assert len(body["entries"]) == 2
+        assert body["total"] == 3
+        assert body["has_more"] is True
+
+    @pytest.mark.asyncio
+    async def test_stats_active_only(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(
+                name="Completed", amount="1000", status="COMPLETED"
+            ),
+        )
+
+        body = await (await client.get(f"{PENDING_FLOWS_URL}?stats=true")).get_json()
+        assert body["stats"] is not None
+        assert float(body["stats"]["earning"]["totals"]["EUR"]) == 500
+        assert body["stats"]["earning"]["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_categories_included(self, client):
+        await _signup(client)
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
+
+        body = await (
+            await client.get(f"{PENDING_FLOWS_URL}?categories=true")
+        ).get_json()
+        assert body["categories"] == ["taxes"]
+
+    @pytest.mark.asyncio
+    async def test_empty_category_treated_as_none(self, client):
+        await _signup(client)
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="No category", category=""),
+        )
+
+        body = await (
+            await client.get(f"{PENDING_FLOWS_URL}?categories=true&stats=true")
+        ).get_json()
+
+        assert body["categories"] == []
+        by_category = body["stats"]["earning"]["by_category"]
+        assert [stat["category"] for stat in by_category] == [None]
+
+    @pytest.mark.asyncio
+    async def test_uncategorized_entries_not_grouped(self, client):
+        await _signup(client)
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="A1", amount="60", category="A"),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="A2", amount="40", category="A"),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="Loose 1", amount="110", category=""),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="Loose 2", amount="50", category=""),
+        )
+
+        body = await (await client.get(f"{PENDING_FLOWS_URL}?stats=true")).get_json()
+        by_category = body["stats"]["earning"]["by_category"]
+
+        categorized = [s for s in by_category if s["category"] is not None]
+        uncategorized = [s for s in by_category if s["category"] is None]
+
+        assert len(categorized) == 1
+        assert categorized[0]["category"] == "A"
+        assert float(categorized[0]["amounts"]["EUR"]) == 100
+
+        assert len(uncategorized) == 2
+        assert {s["name"] for s in uncategorized} == {"Loose 1", "Loose 2"}
+        assert {float(s["amounts"]["EUR"]) for s in uncategorized} == {110, 50}
+
+    @pytest.mark.asyncio
+    async def test_stats_break_down_per_entry_when_filtering_category(self, client):
+        await _signup(client)
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="A1", amount="60", category="A"),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="A2", amount="40", category="A"),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="B1", amount="30", category="B"),
+        )
+
+        body = await (
+            await client.get(f"{PENDING_FLOWS_URL}?stats=true&category=A")
+        ).get_json()
+        by_category = body["stats"]["earning"]["by_category"]
+
+        assert len(by_category) == 2
+        assert all(s["category"] == "A" for s in by_category)
+        assert {s["name"] for s in by_category} == {"A1", "A2"}
+        assert {float(s["amounts"]["EUR"]) for s in by_category} == {60, 40}
 
 
 class TestGetPendingFlows:
@@ -571,18 +722,16 @@ class TestGetPendingFlows:
         await _signup(client)
         response = await client.get(PENDING_FLOWS_URL)
         assert response.status_code == 200
-        flows = await response.get_json()
-        assert flows == []
+        body = await response.get_json()
+        assert body["entries"] == []
 
     @pytest.mark.asyncio
     async def test_get_returns_id(self, client):
         await _signup(client)
-        await client.post(
-            PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload()]},
-        )
+        await client.post(PENDING_FLOWS_URL, json=_pending_flow_payload())
 
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        body = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        flows = body["entries"]
         assert flows[0]["id"] is not None
         assert len(flows[0]["id"]) == 36
 
@@ -675,7 +824,7 @@ class TestGetMoneyEvents:
         await _signup(client)
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2026-06-15")]},
+            json=_pending_flow_payload(date="2026-06-15"),
         )
 
         response = await client.get(
@@ -692,7 +841,7 @@ class TestGetMoneyEvents:
         await _signup(client)
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2027-06-15")]},
+            json=_pending_flow_payload(date="2027-06-15"),
         )
 
         response = await client.get(
@@ -707,7 +856,7 @@ class TestGetMoneyEvents:
         await _signup(client)
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2026-06-15", enabled=False)]},
+            json=_pending_flow_payload(date="2026-06-15", status="DISABLED"),
         )
 
         response = await client.get(
@@ -722,16 +871,12 @@ class TestGetMoneyEvents:
         await _signup(client)
         await client.post(
             PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(
-                        name="Car Repair",
-                        amount="800",
-                        flow_type="EXPENSE",
-                        date="2026-06-15",
-                    )
-                ]
-            },
+            json=_pending_flow_payload(
+                name="Car Repair",
+                amount="800",
+                flow_type="EXPENSE",
+                date="2026-06-15",
+            ),
         )
 
         response = await client.get(
@@ -803,7 +948,7 @@ class TestGetMoneyEvents:
         await _signup(client)
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2026-06-15")]},
+            json=_pending_flow_payload(date="2026-06-15"),
         )
 
         response = await client.get(
@@ -812,14 +957,15 @@ class TestGetMoneyEvents:
         body = await response.get_json()
         assert len([e for e in body["events"] if e["type"] == "PENDING_FLOW"]) == 1
 
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        await client.delete(f"{PENDING_FLOWS_URL}/{flows[0]['id']}")
         await client.post(
             PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(name="New Pending A", date="2026-07-01"),
-                    _pending_flow_payload(name="New Pending B", date="2026-08-01"),
-                ]
-            },
+            json=_pending_flow_payload(name="New Pending A", date="2026-07-01"),
+        )
+        await client.post(
+            PENDING_FLOWS_URL,
+            json=_pending_flow_payload(name="New Pending B", date="2026-08-01"),
         )
 
         response = await client.get(
@@ -862,11 +1008,7 @@ class TestGetMoneyEvents:
         today = date.today()
         await client.post(
             PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(date=(today + timedelta(days=15)).isoformat())
-                ]
-            },
+            json=_pending_flow_payload(date=(today + timedelta(days=15)).isoformat()),
         )
 
         from_date = today.isoformat()
@@ -997,34 +1139,32 @@ class TestPeriodicFlowLifecycle:
 
 class TestPendingFlowLifecycle:
     @pytest.mark.asyncio
-    async def test_save_replace_cycle(self, client):
+    async def test_crud_cycle(self, client):
         await _signup(client)
 
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(name="First")]},
+            json=_pending_flow_payload(name="First"),
         )
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
         assert len(flows) == 1
         assert flows[0]["name"] == "First"
+        flow_id = flows[0]["id"]
 
-        await client.post(
+        update_resp = await client.put(
             PENDING_FLOWS_URL,
-            json={
-                "flows": [
-                    _pending_flow_payload(name="Second"),
-                    _pending_flow_payload(name="Third"),
-                ]
-            },
+            json=_pending_flow_payload(id=flow_id, name="Second"),
         )
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
-        assert len(flows) == 2
-        names = {f["name"] for f in flows}
-        assert "First" not in names
-        assert names == {"Second", "Third"}
+        assert update_resp.status_code == 204
 
-        await client.post(PENDING_FLOWS_URL, json={"flows": []})
-        flows = await (await client.get(PENDING_FLOWS_URL)).get_json()
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        assert len(flows) == 1
+        assert flows[0]["name"] == "Second"
+
+        delete_resp = await client.delete(f"{PENDING_FLOWS_URL}/{flow_id}")
+        assert delete_resp.status_code == 204
+
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
         assert len(flows) == 0
 
     @pytest.mark.asyncio
@@ -1033,7 +1173,7 @@ class TestPendingFlowLifecycle:
 
         await client.post(
             PENDING_FLOWS_URL,
-            json={"flows": [_pending_flow_payload(date="2026-06-15")]},
+            json=_pending_flow_payload(date="2026-06-15"),
         )
 
         response = await client.get(
@@ -1042,7 +1182,8 @@ class TestPendingFlowLifecycle:
         body = await response.get_json()
         assert len([e for e in body["events"] if e["type"] == "PENDING_FLOW"]) == 1
 
-        await client.post(PENDING_FLOWS_URL, json={"flows": []})
+        flows = (await (await client.get(PENDING_FLOWS_URL)).get_json())["entries"]
+        await client.delete(f"{PENDING_FLOWS_URL}/{flows[0]['id']}")
 
         response = await client.get(
             f"{EVENTS_URL}?from_date=2026-01-01&to_date=2026-12-31"

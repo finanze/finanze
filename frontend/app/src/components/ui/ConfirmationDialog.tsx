@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion"
 import { createPortal } from "react-dom"
+import { type ReactNode } from "react"
 import { Button } from "@/components/ui/Button"
 import { AlertTriangle } from "lucide-react"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
@@ -16,14 +17,14 @@ import { useI18n } from "@/i18n"
 interface ConfirmationDialogProps {
   isOpen: boolean
   title: string
-  message: string
+  message: ReactNode
   confirmText: string
   cancelText: string
   onConfirm: () => void
   onCancel: () => void
   isLoading?: boolean
   description?: string
-  warning?: string
+  warning?: ReactNode
 }
 
 export function ConfirmationDialog({
@@ -73,18 +74,22 @@ export function ConfirmationDialog({
                     <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-medium">{t.common.warning}</div>
-                      {warning
-                        .split(/\n+/)
-                        .map(part => part.trim())
-                        .filter(Boolean)
-                        .map((message, index) => (
-                          <p
-                            key={`${message}-${index}`}
-                            className="text-sm opacity-90"
-                          >
-                            {message}
-                          </p>
-                        ))}
+                      {typeof warning === "string" ? (
+                        warning
+                          .split(/\n+/)
+                          .map(part => part.trim())
+                          .filter(Boolean)
+                          .map((msg, index) => (
+                            <p
+                              key={`${msg}-${index}`}
+                              className="text-sm opacity-90"
+                            >
+                              {msg}
+                            </p>
+                          ))
+                      ) : (
+                        <div className="text-sm opacity-90">{warning}</div>
+                      )}
                     </div>
                   </div>
                 )}

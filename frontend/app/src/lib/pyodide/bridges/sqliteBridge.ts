@@ -712,9 +712,22 @@ function createGatedFacade(workerId: WorkerId) {
       password: string,
       stagingFileName: string,
     ): Promise<{ ok: true }> {
-      return withGate(workerId, () =>
-        importDatabaseFromStaging(dbName, password, stagingFileName),
-      )
+      return withGate(workerId, async () => {
+        try {
+          return await importDatabaseFromStaging(
+            dbName,
+            password,
+            stagingFileName,
+          )
+        } finally {
+          // importDatabaseFromStaging fully tears down and closes the shared
+          // native connection (currentDb is null afterwards). Relinquish
+          // ownership so the next openDatabase (e.g. the reinitialize call from
+          // any worker) claims it fresh and performs a real native open instead
+          // of hitting the non-owner "shared connection not ready" path.
+          connectionOwner = null
+        }
+      })
     },
   }
 }

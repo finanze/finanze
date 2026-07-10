@@ -22,6 +22,7 @@ import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Banknote,
   BanknoteArrowDown,
   BanknoteArrowUp,
@@ -83,6 +84,7 @@ export default function RecurringMoneyPage() {
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [groupByCategory, setGroupByCategory] = useState(() => {
     try {
       return sessionStorage.getItem("recurringGroupByCategory") === "true"
@@ -135,14 +137,16 @@ export default function RecurringMoneyPage() {
         )
       : periodicFlows
     const sortFn = (a: PeriodicFlow, b: PeriodicFlow) => {
+      let cmp: number
       if (sortBy === "amount") {
-        return b.amount - a.amount
+        cmp = a.amount - b.amount
       } else {
         // Sort by next_date
-        const aDate = a.next_date ? new Date(a.next_date).getTime() : Infinity
-        const bDate = b.next_date ? new Date(b.next_date).getTime() : Infinity
-        return aDate - bDate
+        const aDate = a.next_date ? new Date(a.next_date).getTime() : -Infinity
+        const bDate = b.next_date ? new Date(b.next_date).getTime() : -Infinity
+        cmp = aDate - bDate
       }
+      return sortOrder === "desc" ? -cmp : cmp
     }
 
     const sortedPeriodicFlows = [...baseFlows].sort(sortFn)
@@ -155,7 +159,7 @@ export default function RecurringMoneyPage() {
         flow => flow.flow_type === FlowType.EXPENSE,
       ),
     }
-  }, [periodicFlows, sortBy, categoryFilter])
+  }, [periodicFlows, sortBy, sortOrder, categoryFilter])
 
   // Calculate monthly amounts for KPIs
   const monthlyAmounts = useMemo(() => {
@@ -996,12 +1000,10 @@ export default function RecurringMoneyPage() {
                       >
                         <div className="min-w-0 flex-1 space-y-1.5">
                           <h3 className="flex items-center gap-2 text-base sm:text-lg font-semibold leading-tight flex-wrap">
-                            {flow.icon && (
-                              <Icon
-                                name={flow.icon as IconName}
-                                className="w-5 h-5 shrink-0"
-                              />
-                            )}
+                            <Icon
+                              name={(flow.icon as IconName) || "circle-dashed"}
+                              className="w-5 h-5 shrink-0"
+                            />
                             <span>{flow.name}</span>
                             {flow.linked && (
                               <Link2
@@ -1935,6 +1937,21 @@ export default function RecurringMoneyPage() {
               <CalendarDays size={16} />
             </button>
           </div>
+          <button
+            onClick={() =>
+              setSortOrder(prev => (prev === "asc" ? "desc" : "asc"))
+            }
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            aria-label={
+              sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+            }
+          >
+            {sortOrder === "asc" ? (
+              <ArrowRight size={16} className="rotate-[-90deg]" />
+            ) : (
+              <ArrowRight size={16} className="rotate-90" />
+            )}
+          </button>
 
           <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
             <span className="text-sm text-muted-foreground">

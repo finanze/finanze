@@ -40,7 +40,14 @@ def _base_re_payload(**overrides):
         "purchase_info": {"date": "2020-01-15", "price": "200000", "expenses": []},
         "valuation_info": {
             "estimated_market_value": "250000",
-            "valuations": [],
+            "valuations": [
+                {
+                    "date": "2020-01-15",
+                    "amount": "250000",
+                    "notes": None,
+                    "market_value": True,
+                }
+            ],
         },
         "currency": "EUR",
         "flows": [],
@@ -245,6 +252,57 @@ class TestCreateValidation:
         body = await response.get_json()
         assert body["code"] == "INVALID_REQUEST"
 
+    @pytest.mark.asyncio
+    async def test_create_without_market_value_valuation_returns_400(self, client):
+        await _signup(client)
+        payload = _base_re_payload(
+            valuation_info={
+                "estimated_market_value": "250000",
+                "valuations": [],
+            }
+        )
+        response = await _create_re(client, payload)
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+
+    @pytest.mark.asyncio
+    async def test_create_derives_estimated_from_latest_market_valuation(self, client):
+        await _signup(client)
+        payload = _base_re_payload(
+            valuation_info={
+                "estimated_market_value": "1",
+                "valuations": [
+                    {
+                        "date": "2021-01-01",
+                        "amount": "260000",
+                        "notes": None,
+                        "market_value": True,
+                    },
+                    {
+                        "date": "2023-06-01",
+                        "amount": "300000",
+                        "notes": None,
+                        "market_value": True,
+                    },
+                    {
+                        "date": "2024-01-01",
+                        "amount": "999999",
+                        "notes": None,
+                        "market_value": False,
+                    },
+                ],
+            }
+        )
+        response = await _create_re(client, payload)
+        assert response.status_code == 201
+
+        data = await _list_re(client)
+        item = data[0]
+        assert item["valuation_info"]["estimated_market_value"] == 300000
+        marked = [v for v in item["valuation_info"]["valuations"] if v["market_value"]]
+        assert len(marked) == 2
+
 
 class TestCreateBasic:
     @pytest.mark.asyncio
@@ -301,7 +359,12 @@ class TestCreateBasic:
                 "estimated_market_value": "600000",
                 "annual_appreciation": "0.02",
                 "valuations": [
-                    {"date": "2023-01-01", "amount": "550000", "notes": "Appraisal"}
+                    {
+                        "date": "2023-01-01",
+                        "amount": "550000",
+                        "notes": "Appraisal",
+                        "market_value": True,
+                    }
                 ],
             },
             rental_data={

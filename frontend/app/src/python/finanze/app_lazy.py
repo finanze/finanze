@@ -69,11 +69,20 @@ class LazyComponents:
             from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import (
                 IBKRFetcher,
             )
+            from infrastructure.client.entity.financial.b100.b100_fetcher import (
+                B100Fetcher,
+            )
             from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
                 WecityFetcher,
             )
             from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
                 BinanceFetcher,
+            )
+            from infrastructure.client.financial.enablebanking.enablebanking_client import (
+                EnableBankingClient,
+            )
+            from infrastructure.client.entity.financial.psd2.enablebanking_fetcher import (
+                EnableBankingFetcher,
             )
         from infrastructure.crypto.public_key_derivation_adapter import (
             PublicKeyDerivationAdapter,
@@ -126,9 +135,24 @@ class LazyComponents:
             from application.use_cases.fetch_financial_data import (
                 FetchFinancialDataImpl,
             )
+            from application.use_cases.fetch_external_financial_data import (
+                FetchExternalFinancialDataImpl,
+            )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
             from application.use_cases.cancel_entity_login import (
                 CancelEntityLoginImpl,
+            )
+            from application.use_cases.connect_external_entity import (
+                ConnectExternalEntityImpl,
+            )
+            from application.use_cases.complete_external_entity_connection import (
+                CompleteExternalEntityConnectionImpl,
+            )
+            from application.use_cases.delete_external_entity import (
+                DeleteExternalEntityImpl,
+            )
+            from application.use_cases.get_available_external_entities import (
+                GetAvailableExternalEntitiesImpl,
             )
         from application.use_cases.export_file import ExportFileImpl
         from application.use_cases.import_file import ImportFileImpl
@@ -154,7 +178,9 @@ class LazyComponents:
         from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
         from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
         from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
-        from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+        from application.use_cases.save_pending_flow import SavePendingFlowImpl
+        from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
+        from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
         from application.use_cases.create_real_estate import CreateRealEstateImpl
         from application.use_cases.update_real_estate import UpdateRealEstateImpl
         from application.use_cases.delete_real_estate import DeleteRealEstateImpl
@@ -198,6 +224,13 @@ class LazyComponents:
             etherscan_client = EtherscanClient()
             ethplorer_client = EthplorerClient()
 
+            enablebanking_client = EnableBankingClient()
+            external_entity_fetchers = {
+                ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
+                    enablebanking_client
+                ),
+            }
+
             crypto_entity_fetchers = {
                 domain.native_entities.BITCOIN: BitcoinFetcher(),
                 domain.native_entities.ETHEREUM: EthereumFetcher(
@@ -222,6 +255,7 @@ class LazyComponents:
                 domain.native_entities.CAJAMAR: CajamarFetcher(),
                 domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
                 domain.native_entities.IBKR: IBKRFetcher(),
+                domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
             }
 
@@ -230,6 +264,10 @@ class LazyComponents:
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
         }
+        if INCLUDE_CONNECTIONS:
+            external_integrations[ExternalIntegrationId.ENABLE_BANKING] = (
+                enablebanking_client
+            )
 
         csv_tsv_adapter = CSVFileTableAdapter()
         table_rw_adapter = TableRWDispatcher(
@@ -318,6 +356,38 @@ class LazyComponents:
             )
             self.cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
 
+            self.conn_external_entity = ConnectExternalEntityImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.complete_external_entity = CompleteExternalEntityConnectionImpl(
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.del_external_entity = DeleteExternalEntityImpl(
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.get_external_candidates = GetAvailableExternalEntitiesImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+            )
+            self.fetch_external = FetchExternalFinancialDataImpl(
+                d.entity_repo,
+                d.ext_ent_repo,
+                d.position_repo,
+                external_entity_fetchers,
+                d.ext_int_repo,
+                d.last_fetches_repo,
+                d.tx_handler,
+            )
+
         self.derive_crypto = DeriveCryptoAddressesImpl(
             public_key_derivation, d.entity_repo
         )
@@ -382,7 +452,9 @@ class LazyComponents:
         self.save_periodic = SavePeriodicFlowImpl(d.period_repo)
         self.up_periodic = UpdatePeriodicFlowImpl(d.period_repo)
         self.del_periodic = DeletePeriodicFlowImpl(d.period_repo)
-        self.save_pending = SavePendingFlowsImpl(d.pending_repo, d.tx_handler)
+        self.save_pending = SavePendingFlowImpl(d.pending_repo)
+        self.up_pending = UpdatePendingFlowImpl(d.pending_repo)
+        self.del_pending = DeletePendingFlowImpl(d.pending_repo)
 
         self.create_re = CreateRealEstateImpl(
             d.re_repo, d.period_repo, d.tx_handler, file_storage

@@ -37,12 +37,7 @@ export interface AppConfig {
 }
 
 export type BackendLogLevel =
-  | "NONE"
-  | "DEBUG"
-  | "INFO"
-  | "WARNING"
-  | "ERROR"
-  | "CRITICAL"
+  "NONE" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL"
 
 export interface BackendStartOptions {
   dataDir?: string
@@ -63,11 +58,7 @@ export interface BackendRuntimeArgs {
 }
 
 export type BackendState =
-  | "stopped"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "error"
+  "stopped" | "starting" | "running" | "stopping" | "error"
 
 export interface BackendErrorInfo {
   message: string

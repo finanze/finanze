@@ -65,13 +65,26 @@ class RequestWrapper:
     def args(self):
         return self
 
-    def get(self, key, default=None):
+    def get(self, key, default=None, type=None):
         vals = self._args.get(key)
-        # Handle '1' or 1
-        return vals[0] if vals else default
+        if not vals:
+            return default
+        value = vals[0]
+        if type is not None:
+            try:
+                return type(value)
+            except (ValueError, TypeError):
+                return default
+        return value
 
     def getlist(self, key):
         return self._args.get(key, [])
+
+    def to_dict(self):
+        return {
+            key: (value[0] if isinstance(value, (list, tuple)) and value else value)
+            for key, value in self._args.items()
+        }
 
     def get_json(self, silent: bool = False):
         try:

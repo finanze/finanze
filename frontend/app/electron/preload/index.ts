@@ -165,4 +165,14 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
     return () => ipcRenderer.removeAllListeners("oauth-callback-url")
   },
+
+  onExternalCompleteUrl: (callback: (payload: { url: string }) => void) => {
+    ipcRenderer.removeAllListeners("external-complete-url")
+
+    ipcRenderer.on("external-complete-url", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("external-complete-url")
+  },
 } as const)

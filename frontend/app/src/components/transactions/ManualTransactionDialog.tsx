@@ -602,8 +602,7 @@ export function ManualTransactionDialog({
       const options: SuggestionOption[] = []
       entityPositions.forEach(ep => {
         const stockPositions = ep.products[ProductType.STOCK_ETF] as
-          | StockInvestments
-          | undefined
+          StockInvestments | undefined
         stockPositions?.entries?.forEach((entry: StockDetail) => {
           const value = entry.isin?.trim().toUpperCase()
           if (!value || seen.has(value)) return
@@ -631,8 +630,7 @@ export function ManualTransactionDialog({
       const options: SuggestionOption[] = []
       entityPositions.forEach(ep => {
         const fundPositions = ep.products[ProductType.FUND] as
-          | FundInvestments
-          | undefined
+          FundInvestments | undefined
         fundPositions?.entries?.forEach((entry: FundDetail) => {
           const value = entry.isin?.trim().toUpperCase()
           if (!value || seen.has(value)) return
@@ -658,8 +656,7 @@ export function ManualTransactionDialog({
 
       entityPositions.forEach(ep => {
         const fundPortfolios = ep.products[ProductType.FUND_PORTFOLIO] as
-          | FundPortfolios
-          | undefined
+          FundPortfolios | undefined
         fundPortfolios?.entries?.forEach(portfolio => {
           const portfolioName = portfolio.name?.trim()
           if (portfolioName && !nameSeen.has(portfolioName)) {
@@ -697,8 +694,7 @@ export function ManualTransactionDialog({
       const options: SuggestionOption[] = []
       entityPositions.forEach(ep => {
         const cryptoPositions = ep.products[ProductType.CRYPTO] as
-          | CryptoCurrencies
-          | undefined
+          CryptoCurrencies | undefined
         cryptoPositions?.entries?.forEach(wallet => {
           wallet.assets?.forEach(asset => {
             if (!asset.symbol || !asset.crypto_asset) return

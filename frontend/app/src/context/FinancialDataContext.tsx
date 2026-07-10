@@ -23,10 +23,12 @@ import { PeriodicFlow, PendingFlow } from "@/types"
 import { TransactionsResult } from "@/types/transactions"
 import { useAppContext } from "./AppContext"
 import { useEntityWorkflow } from "./EntityWorkflowContext"
+import { useCloud } from "./CloudContext"
 import { triggerLazyInit } from "@/lib/mobile"
 import { EntityType } from "@/types"
 import { getAllRealEstate } from "@/services/api"
 import type { RealEstate } from "@/types"
+import { BackupMode } from "@/types"
 
 interface FinancialDataContextType {
   positionsData: EntitiesPosition | null
@@ -82,8 +84,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     exchangeRates,
     exchangeRatesLoading,
     setOnTrackedUpdateCompleted,
+    runTrackedUpdatesIfNeeded,
   } = useAppContext()
   const { setOnScrapeCompleted, setOnEntityDisconnected } = useEntityWorkflow()
+  const { backupMode, isInitialized: cloudInitialized } = useCloud()
+  const trackedUpdatesTriggeredRef = useRef(false)
+  const [backupSyncSettled, setBackupSyncSettled] = useState(false)
 
   const fetchFinancialData = useCallback(async () => {
     setIsLoading(true)
@@ -433,6 +439,40 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setOnTrackedUpdateCompleted(null)
     }
   }, [refreshEntitiesPositions, setOnTrackedUpdateCompleted])
+
+  // Track when the backup auto-sync cycle has settled so tracked updates can
+  // run without racing the backup import. Any settle event is enough: on a
+  // clean sync it fires after the import completes; on conflict it fires
+  // before any import runs (none happens), so there is never a concurrent
+  // write to the shared DB from the mobile background worker. We still run
+  // tracked updates on conflict — they are cheap, throttled local refreshes,
+  // and the DB is already in a conflict state.
+  useEffect(() => {
+    const handler = () => {
+      setBackupSyncSettled(true)
+    }
+    window.addEventListener("backup-auto-sync-complete", handler)
+    return () => {
+      window.removeEventListener("backup-auto-sync-complete", handler)
+    }
+  }, [])
+
+  // Trigger the throttled tracked quotes/loans updates once, gated on:
+  //  - cloud auth initialization finished (so backupMode is trustworthy)
+  //  - in AUTO backup mode, the auto-sync cycle has settled
+  useEffect(() => {
+    if (trackedUpdatesTriggeredRef.current) return
+    if (!cloudInitialized) return
+    if (backupMode === BackupMode.AUTO && !backupSyncSettled) return
+
+    trackedUpdatesTriggeredRef.current = true
+    void runTrackedUpdatesIfNeeded()
+  }, [
+    cloudInitialized,
+    backupMode,
+    backupSyncSettled,
+    runTrackedUpdatesIfNeeded,
+  ])
 
   return (
     <FinancialDataContext.Provider

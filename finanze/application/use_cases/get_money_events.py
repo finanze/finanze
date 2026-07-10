@@ -15,8 +15,10 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import (
     FlowFrequency,
+    FlowStatus,
     FlowType,
     PendingFlow,
+    PendingFlowQuery,
     PeriodicFlow,
 )
 from domain.global_position import (
@@ -37,8 +39,8 @@ from domain.money_event import (
 )
 from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_money_events import GetMoneyEvents
-from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
+from domain.use_cases.query_pending_flows import QueryPendingFlows
 
 
 class GetMoneyEventsImpl(GetMoneyEvents):
@@ -46,13 +48,13 @@ class GetMoneyEventsImpl(GetMoneyEvents):
         self,
         get_contributions_uc: GetContributions,
         get_periodic_flows_uc: GetPeriodicFlows,
-        get_pending_flows_uc: GetPendingFlows,
+        query_pending_flows_uc: QueryPendingFlows,
         entity_port: EntityPort,
         position_port: PositionPort,
     ):
         self._get_contributions = get_contributions_uc
         self._get_periodic_flows = get_periodic_flows_uc
-        self._get_pending_flows = get_pending_flows_uc
+        self._query_pending_flows = query_pending_flows_uc
         self._entity_port = entity_port
         self._position_port = position_port
 
@@ -65,7 +67,11 @@ class GetMoneyEventsImpl(GetMoneyEvents):
         )
         contributions = await self._get_contributions.execute(contribution_query)
         periodic_flows = await self._get_periodic_flows.execute()
-        pending_flows = await self._get_pending_flows.execute()
+        pending_flows = (
+            await self._query_pending_flows.execute(
+                PendingFlowQuery(statuses=[FlowStatus.ACTIVE])
+            )
+        ).entries
 
         contribution_events = self._build_contribution_events(
             contributions.contributions.values(), query
@@ -141,7 +147,7 @@ class GetMoneyEventsImpl(GetMoneyEvents):
     ) -> list[MoneyEvent]:
         events: list[MoneyEvent] = []
         for flow in flows:
-            if not flow.enabled:
+            if flow.status != FlowStatus.ACTIVE:
                 continue
             if flow.date and query.from_date <= flow.date <= query.to_date:
                 events.append(
