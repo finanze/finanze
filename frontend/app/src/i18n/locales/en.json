@@ -1141,6 +1141,7 @@
   "netWorthTimeline": {
     "title": "Net Worth",
     "noData": "No timeline data available yet",
+    "buildingHistory": "In a few days, you will see your net worth evolution here",
     "expand": "Expand",
     "collapse": "Collapse",
     "dateRange": "Date range",

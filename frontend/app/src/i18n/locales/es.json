@@ -1140,6 +1140,7 @@
   "netWorthTimeline": {
     "title": "Patrimonio",
     "noData": "Aún no hay datos de evolución disponibles",
+    "buildingHistory": "En unos días verás aquí la evolución de tu patrimonio",
     "expand": "Ampliar",
     "collapse": "Reducir",
     "dateRange": "Rango de fechas",

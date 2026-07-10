@@ -578,6 +578,8 @@ export default function NetWorthTimelineCard({
   )
 
   const hasData = allPoints.length > 0
+  const isHistoryBuilding =
+    !isForecast && allPoints.length > 0 && allPoints.length <= 2
 
   const renderChart = (height: number | string, isExpanded: boolean) => {
     const gridTickMin =
@@ -965,6 +967,14 @@ export default function NetWorthTimelineCard({
         </div>
       )
     }
+    if (isHistoryBuilding) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[260px] text-center text-sm text-muted-foreground">
+          <LineChartIcon className="h-10 w-10 mb-3 opacity-50" />
+          <p>{t.netWorthTimeline.buildingHistory}</p>
+        </div>
+      )
+    }
     return renderChart(chartHeight, isExpanded)
   }
 
@@ -1028,7 +1038,7 @@ export default function NetWorthTimelineCard({
             </div>
             <div className="mb-4">{renderControls()}</div>
             <div className="flex-1 min-h-0 flex flex-col">
-              {loading || error || !hasData ? (
+              {loading || error || !hasData || isHistoryBuilding ? (
                 renderBody(400, true)
               ) : (
                 <div className="flex-1 min-h-0">
