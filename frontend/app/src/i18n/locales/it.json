@@ -1141,6 +1141,7 @@
   "netWorthTimeline": {
     "title": "Patrimonio Netto",
     "noData": "Nessun dato della cronologia ancora disponibile",
+    "buildingHistory": "Tra qualche giorno vedrai qui l'evoluzione del tuo patrimonio",
     "expand": "Espandi",
     "collapse": "Comprimi",
     "dateRange": "Intervallo di date",

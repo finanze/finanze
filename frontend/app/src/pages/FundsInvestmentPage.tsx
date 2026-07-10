@@ -1428,8 +1428,8 @@ function useFundsCombinedActions(
   fundsContext: ManualPositionsContextValue,
   portfolioContext: ManualPositionsContextValue,
 ) {
-  const { refreshEntity } = useFinancialData()
-  const { showToast } = useAppContext()
+  const { refreshEntity, refreshData } = useFinancialData()
+  const { showToast, fetchEntities } = useAppContext()
   const combinedIsEditMode =
     fundsContext.isEditMode || portfolioContext.isEditMode
   const combinedHasChanges =
@@ -1598,6 +1598,7 @@ function useFundsCombinedActions(
     try {
       const requestPromises: Promise<void>[] = []
       let missingNewEntityName = false
+      let createdNewEntity = false
 
       aggregated.forEach(
         ({ products, isNewEntity, newEntityName }, entityId) => {
@@ -1626,6 +1627,7 @@ function useFundsCombinedActions(
               return
             }
             requestPayload.new_entity_name = trimmedName
+            createdNewEntity = true
           } else {
             requestPayload.entity_id = entityId
           }
@@ -1656,6 +1658,11 @@ function useFundsCombinedActions(
 
       await Promise.all(requestPromises)
 
+      if (createdNewEntity) {
+        await fetchEntities()
+        await refreshData()
+      }
+
       fundsContext.handleExternalSaveSuccess()
       portfolioContext.handleExternalSaveSuccess()
       showToast(
@@ -1678,6 +1685,8 @@ function useFundsCombinedActions(
     fundsContext,
     portfolioContext,
     refreshEntity,
+    fetchEntities,
+    refreshData,
     showToast,
   ])
 
@@ -1710,7 +1719,6 @@ function FundsCombinedControls({
         variant="default"
         size="sm"
         onClick={handleAddFundDraft}
-        disabled={fundsContext.manualEntities.length === 0}
         className="flex items-center gap-2"
       >
         <Plus className="h-3.5 w-3.5" />
