@@ -1,3 +1,28 @@
+## [0.9.0] - 2026-07-10
+
+### 🚀 Features
+
+- Add net worth timeline basics (#124)
+- Pyodide 314.0.0 (#128)
+- *(timeline)* Improve UI and background calculation (#129)
+- Improve crypto data provider management and sources (#130)
+- Add historic real estate market values input (#135)
+- Add Enable Banking external institution provider (#137)
+- Add B100 (#138)
+- Pending expenses & earnings historic (#139)
+- Improve TR dividend handling (#145)
+
+### 🐛 Bug Fixes
+
+- Abort auto update for auto imported from backup candidates
+- General UI polishes, overall backup stability and net worth timeline calculation improvements (#140)
+- Properly handle Urbanitae repayments (#143)
+- Use DIA instead of P2S for basic crypto pricing (#144)
+- Fund creation not properly refreshing view (#147)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies (#136)
 ## [0.8.7] - 2026-06-23
 
 ### 🚀 Features
