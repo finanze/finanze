@@ -342,6 +342,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/flows/pending/settle",
+            "settle_pending_flow",
+            "settle_pending_flow",
+            lz.settle_pending,
+        ),
+        (
+            "POST",
             "/api/v1/real-estate",
             "create_real_estate",
             "create_real_estate",

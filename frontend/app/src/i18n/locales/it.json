@@ -1029,7 +1029,7 @@
               "Copia l'**Application ID** della tua applicazione (stringa alfanumerica con trattini in alto) e incollalo nel campo sottostante, quindi carica il file della chiave privata sottostante e salva."
             ],
             [
-              "*Ricorda: prima di collegare una banca nell'app, devi prima collegare quell'istituto nel pannello dell'applicazione Enable Banking affinché restituisca dati.*"
+              "*Ricorda: clicca su \"Activate by linking accounts\" prima di collegare una banca nell'app, poiché devi prima collegare quell'istituto nel pannello dell'applicazione Enable Banking affinché restituisca dati.*"
             ]
           ]
         }
@@ -1924,7 +1924,7 @@
     "hideNumbers": "Nascondi dettagli",
     "totalBalance": "Saldo Totale",
     "totalCardUsed": "Utilizzo Totale Carte",
-    "totalDebt": "Debito Residuo Totale",
+    "totalDebt": "Debito Residuo",
     "monthlyPayments": "Pagamenti Mensili",
     "avgInterest": "interesse medio",
     "accounts": "Conti",
@@ -1989,6 +1989,8 @@
   },
   "management": {
     "title": "Gestione",
+    "recurring": "Ricorrente",
+    "pending": "In sospeso",
     "recurringMoney": "Denaro Ricorrente",
     "recurringMoneyDescription": "Gestisci le tue entrate e uscite ricorrenti",
     "pendingMoney": "Denaro in Sospeso",
@@ -2056,6 +2058,10 @@
     "markCompleted": "Segna come completato",
     "markCompletedTitle": "Completa {type}",
     "markCompletedConfirm": "Segnare questo {type} come completato? Non verrà più conteggiato nei tuoi totali in sospeso.",
+    "applyToAccountBalance": "Applica al saldo di un conto",
+    "applyToAccountBalanceHint": "L'importo liquidato verrà aggiunto o sottratto dal conto selezionato.",
+    "selectAccount": "Seleziona un conto",
+    "noManualAccounts": "Nessun conto manuale disponibile",
     "markActive": "Riattiva",
     "statusFilter": "Stato",
     "filters": "Filtri",

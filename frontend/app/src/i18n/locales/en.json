@@ -1029,7 +1029,7 @@
               "Copy the **Application ID** (top alphanumeric dashed string) of your application and paste it in the field below, then upload the private key file below and save."
             ],
             [
-              "*Remember: before linking a bank in the app, you must first link that institution in the Enable Banking application panel so it returns data.*"
+              "*Remember: Click \"Activate by linking accounts\", before linking a bank in the app, as you must first link an institution in the Enable Banking web panel so it returns data.*"
             ]
           ]
         }
@@ -1924,7 +1924,7 @@
     "hideNumbers": "Hide details",
     "totalBalance": "Total Balance",
     "totalCardUsed": "Total Card Usage",
-    "totalDebt": "Total Outstanding Debt",
+    "totalDebt": "Outstanding Debt",
     "monthlyPayments": "Monthly Payments",
     "avgInterest": "avg. interest",
     "accounts": "Accounts",
@@ -1989,6 +1989,8 @@
   },
   "management": {
     "title": "Management",
+    "recurring": "Recurring",
+    "pending": "Pending",
     "recurringMoney": "Recurring Money",
     "recurringMoneyDescription": "Manage your recurring income and expenses",
     "pendingMoney": "Pending Money",
@@ -2056,6 +2058,10 @@
     "markCompleted": "Mark as completed",
     "markCompletedTitle": "Complete {type}",
     "markCompletedConfirm": "Mark this {type} as completed? It will no longer be counted in your pending totals.",
+    "applyToAccountBalance": "Apply to account balance",
+    "applyToAccountBalanceHint": "The settled amount will be added to or subtracted from the selected account.",
+    "selectAccount": "Select an account",
+    "noManualAccounts": "No manual accounts available",
     "markActive": "Reactivate",
     "statusFilter": "Status",
     "filters": "Filters",

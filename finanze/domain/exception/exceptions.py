@@ -114,6 +114,11 @@ class FlowNotFound(Exception):
     pass
 
 
+class ManualAccountNotFound(Exception):
+    def __init__(self, account_id):
+        super().__init__(f"Manual account not found: {account_id}")
+
+
 class ExportException(Exception):
     def __init__(self, details: str):
         self.details = details

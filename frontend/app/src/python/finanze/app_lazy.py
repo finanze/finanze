@@ -181,6 +181,7 @@ class LazyComponents:
         from application.use_cases.save_pending_flow import SavePendingFlowImpl
         from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
         from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+        from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
         from application.use_cases.create_real_estate import CreateRealEstateImpl
         from application.use_cases.update_real_estate import UpdateRealEstateImpl
         from application.use_cases.delete_real_estate import DeleteRealEstateImpl
@@ -497,6 +498,13 @@ class LazyComponents:
             d.tx_handler,
             d.virtual_repo,
             manual_position_snapshot_writer,
+        )
+        self.settle_pending = SettlePendingFlowImpl(
+            d.pending_repo,
+            d.position_repo,
+            manual_position_snapshot_writer,
+            d.ex_client,
+            d.tx_handler,
         )
         self.add_manual_tx = AddManualTransactionImpl(
             d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler

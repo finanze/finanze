@@ -940,6 +940,11 @@ export interface UpdatePendingFlowRequest {
   icon?: string
 }
 
+export interface SettlePendingFlowRequest {
+  flow_id: string
+  account_id: string
+}
+
 export enum FlowSortField {
   AMOUNT = "amount",
   DATE = "date",
