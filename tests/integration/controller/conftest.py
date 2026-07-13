@@ -65,6 +65,7 @@ from infrastructure.controller.routes.get_periodic_flows import (
 from infrastructure.controller.routes.save_pending_flow import save_pending_flow
 from infrastructure.controller.routes.update_pending_flow import update_pending_flow
 from infrastructure.controller.routes.delete_pending_flow import delete_pending_flow
+from infrastructure.controller.routes.settle_pending_flow import settle_pending_flow
 from infrastructure.controller.routes.get_pending_flows import (
     get_pending_flows as get_pending_flows_route,
 )
@@ -100,6 +101,7 @@ from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.position_port import PositionPort
+from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.transaction_port import TransactionPort
 from application.ports.historic_port import HistoricPort
@@ -167,6 +169,7 @@ from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.save_pending_flow import SavePendingFlowImpl
 from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
 from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
@@ -229,6 +232,7 @@ async def app(tmp_path):
     last_fetches_port = AsyncMock(spec=LastFetchesPort)
     crypto_asset_registry_port = AsyncMock(spec=CryptoAssetRegistryPort)
     crypto_asset_info_provider = AsyncMock(spec=CryptoAssetInfoProvider)
+    exchange_rate_provider = AsyncMock(spec=ExchangeRateProvider)
     config_port = AsyncMock(spec=ConfigPort)
 
     backup_local_registry = AsyncMock(spec=BackupLocalRegistry)
@@ -443,6 +447,13 @@ async def app(tmp_path):
     update_pending_flow_uc = UpdatePendingFlowImpl(pending_flow_repo)
     delete_pending_flow_uc = DeletePendingFlowImpl(pending_flow_repo)
     query_pending_flows_uc = QueryPendingFlowsImpl(pending_flow_repo)
+    settle_pending_flow_uc = SettlePendingFlowImpl(
+        pending_flow_port=pending_flow_repo,
+        position_port=position_port,
+        snapshot_writer=manual_position_snapshot_writer,
+        exchange_rate_provider=exchange_rate_provider,
+        transaction_handler_port=transaction_handler,
+    )
     get_money_events_uc = GetMoneyEventsImpl(
         get_contributions_uc,
         get_periodic_flows_uc,
@@ -609,6 +620,10 @@ async def app(tmp_path):
     @test_app.route("/api/v1/flows/pending", methods=["PUT"])
     async def update_pending_flow_route():
         return await update_pending_flow(update_pending_flow_uc)
+
+    @test_app.route("/api/v1/flows/pending/settle", methods=["POST"])
+    async def settle_pending_flow_route():
+        return await settle_pending_flow(settle_pending_flow_uc)
 
     @test_app.route("/api/v1/flows/pending/<flow_id>", methods=["DELETE"])
     async def delete_pending_flow_route(flow_id: str):

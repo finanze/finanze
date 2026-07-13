@@ -51,11 +51,14 @@ import {
   PendingFlow,
   PendingFlowStats,
   CreatePendingFlowRequest,
+  DataSource,
 } from "@/types"
+import { ProductType, type Account } from "@/types/position"
 import {
   createPendingFlow,
   updatePendingFlow,
   deletePendingFlow,
+  settlePendingFlow,
   getPendingFlows,
 } from "@/services/api"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
@@ -75,7 +78,7 @@ const DEFAULT_STATUS_FILTER: FlowStatus[] = [
 export default function PendingMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
-  const { refreshPendingFlows } = useFinancialData()
+  const { refreshPendingFlows, positionsData, refreshData } = useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
 
@@ -112,6 +115,10 @@ export default function PendingMoneyPage() {
   const [editingFlow, setEditingFlow] = useState<PendingFlow | null>(null)
   const [deletingFlow, setDeletingFlow] = useState<PendingFlow | null>(null)
   const [completingFlow, setCompletingFlow] = useState<PendingFlow | null>(null)
+  const [applyToAccount, setApplyToAccount] = useState(false)
+  const [settleAccountId, setSettleAccountId] = useState("")
+  const [settleAccountError, setSettleAccountError] = useState(false)
+  const [isSettling, setIsSettling] = useState(false)
 
   const pageRef = useRef(1)
   const loadingRef = useRef(false)
@@ -329,25 +336,43 @@ export default function PendingMoneyPage() {
 
   const handleComplete = async () => {
     if (!completingFlow) return
+    if (applyToAccount && !settleAccountId) {
+      setSettleAccountError(true)
+      return
+    }
+    const settle = applyToAccount && Boolean(settleAccountId)
     try {
-      await updatePendingFlow({
-        id: completingFlow.id,
-        name: completingFlow.name,
-        amount: Number(completingFlow.amount),
-        flow_type: completingFlow.flow_type,
-        category: completingFlow.category || undefined,
-        status: FlowStatus.COMPLETED,
-        date: completingFlow.date || undefined,
-        currency: completingFlow.currency || defaultCurrency,
-        icon: (completingFlow as { icon?: IconName }).icon,
-      })
+      setIsSettling(true)
+      if (settle) {
+        await settlePendingFlow({
+          flow_id: completingFlow.id,
+          account_id: settleAccountId,
+        })
+      } else {
+        await updatePendingFlow({
+          id: completingFlow.id,
+          name: completingFlow.name,
+          amount: Number(completingFlow.amount),
+          flow_type: completingFlow.flow_type,
+          category: completingFlow.category || undefined,
+          status: FlowStatus.COMPLETED,
+          date: completingFlow.date || undefined,
+          currency: completingFlow.currency || defaultCurrency,
+          icon: (completingFlow as { icon?: IconName }).icon,
+        })
+      }
       showToast(t.management.saveSuccess, "success")
       setIsCompleteDialogOpen(false)
       setCompletingFlow(null)
+      setApplyToAccount(false)
+      setSettleAccountId("")
       refreshAll()
+      if (settle) void refreshData()
     } catch (error) {
       console.error("Error completing pending flow:", error)
       showToast(t.management.saveError, "error")
+    } finally {
+      setIsSettling(false)
     }
   }
 
@@ -401,6 +426,9 @@ export default function PendingMoneyPage() {
 
   const openCompleteDialog = (flow: PendingFlow) => {
     setCompletingFlow(flow)
+    setApplyToAccount(false)
+    setSettleAccountId("")
+    setSettleAccountError(false)
     setIsCompleteDialogOpen(true)
   }
 
@@ -424,6 +452,25 @@ export default function PendingMoneyPage() {
     () => allCategories.map(c => ({ value: c, label: c })),
     [allCategories],
   )
+
+  const manualAccountOptions = useMemo(() => {
+    if (!positionsData?.positions) return []
+    const opts: { value: string; label: string }[] = []
+    Object.values(positionsData.positions).forEach(globalPositions => {
+      globalPositions.forEach(gp => {
+        const product = gp.products[ProductType.ACCOUNT] as
+          { entries?: Account[] } | undefined
+        product?.entries?.forEach(account => {
+          if (account.source !== DataSource.MANUAL || !account.id) return
+          const parts = [gp.entity.name]
+          if (account.name?.trim()) parts.push(account.name.trim())
+          if (account.iban) parts.push(`···${account.iban.slice(-4)}`)
+          opts.push({ value: account.id, label: parts.join(" · ") })
+        })
+      })
+    })
+    return opts
+  }, [positionsData])
 
   const isDefaultStatusFilter =
     statusFilter.length === DEFAULT_STATUS_FILTER.length &&
@@ -1004,27 +1051,37 @@ export default function PendingMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+          className="flex flex-row items-center justify-between gap-3"
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8"
+              className="p-1 h-8 w-8 shrink-0"
               onClick={() => navigate("/management")}
             >
               <ArrowLeft size={20} />
             </Button>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">
-                {t.management.pendingMoney}
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-2xl font-bold truncate">
+                <span className="sm:hidden">{t.management.pending}</span>
+                <span className="hidden sm:inline">
+                  {t.management.pendingMoney}
+                </span>
               </h1>
               <PinAssetButton
                 assetId="management-pending"
-                className="hidden md:inline-flex"
+                className="hidden md:inline-flex shrink-0"
               />
             </div>
           </div>
+          <button
+            onClick={() => navigate("/management/recurring")}
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
+          >
+            {t.management.recurring}
+            <ArrowRight size={16} />
+          </button>
         </motion.div>
 
         {/* KPI Cards */}
@@ -1034,7 +1091,7 @@ export default function PendingMoneyPage() {
           animate="show"
           className="grid grid-cols-1 md:grid-cols-2 gap-4"
         >
-          <Card className="p-4">
+          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <div className="flex items-center gap-2 mb-2">
               <BanknoteArrowUp className="h-5 w-5 text-green-500" />
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -1059,7 +1116,7 @@ export default function PendingMoneyPage() {
             )}
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <div className="flex items-center gap-2 mb-2">
               <BanknoteArrowDown className="h-5 w-5 text-red-500" />
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -1454,14 +1511,68 @@ export default function PendingMoneyPage() {
             ? t.management.flowType.EARNING.toLowerCase()
             : t.management.flowType.EXPENSE.toLowerCase(),
         )}
-        message={t.management.markCompletedConfirm.replace(
-          "{type}",
-          completingFlow?.flow_type === FlowType.EARNING
-            ? t.management.flowType.EARNING.toLowerCase()
-            : t.management.flowType.EXPENSE.toLowerCase(),
-        )}
+        message={
+          <>
+            <span className="block">
+              {t.management.markCompletedConfirm.replace(
+                "{type}",
+                completingFlow?.flow_type === FlowType.EARNING
+                  ? t.management.flowType.EARNING.toLowerCase()
+                  : t.management.flowType.EXPENSE.toLowerCase(),
+              )}
+            </span>
+            <span className="mt-4 flex items-center justify-between gap-3">
+              <span className="flex flex-col">
+                <span className="text-sm font-medium text-foreground">
+                  {t.management.applyToAccountBalance}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {t.management.applyToAccountBalanceHint}
+                </span>
+              </span>
+              <Switch
+                checked={applyToAccount}
+                onCheckedChange={checked => {
+                  setApplyToAccount(checked)
+                  if (!checked) setSettleAccountError(false)
+                }}
+                disabled={manualAccountOptions.length === 0}
+              />
+            </span>
+            {applyToAccount && (
+              <span className="block mt-3">
+                <select
+                  className={cn(
+                    "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    settleAccountError
+                      ? "border-red-500 focus-visible:ring-red-500"
+                      : "border-input",
+                  )}
+                  value={settleAccountId}
+                  onChange={e => {
+                    setSettleAccountId(e.target.value)
+                    if (e.target.value) setSettleAccountError(false)
+                  }}
+                >
+                  <option value="">{t.management.selectAccount}</option>
+                  {manualAccountOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            )}
+            {manualAccountOptions.length === 0 && (
+              <span className="block mt-2 text-xs text-muted-foreground">
+                {t.management.noManualAccounts}
+              </span>
+            )}
+          </>
+        }
         confirmText={t.management.markCompleted}
         cancelText={t.common.cancel}
+        isLoading={isSettling}
         onConfirm={handleComplete}
         onCancel={() => setIsCompleteDialogOpen(false)}
       />

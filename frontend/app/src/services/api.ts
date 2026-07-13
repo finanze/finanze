@@ -19,6 +19,7 @@ import {
   UpdatePeriodicFlowRequest,
   CreatePendingFlowRequest,
   UpdatePendingFlowRequest,
+  SettlePendingFlowRequest,
   PendingFlowsQuery,
   PendingFlowsPage,
   FlowStatus,
@@ -566,6 +567,12 @@ export async function updatePendingFlow(
 
 export async function deletePendingFlow(flowId: string): Promise<void> {
   return (await getApiClient()).delete(`/flows/pending/${flowId}`)
+}
+
+export async function settlePendingFlow(
+  request: SettlePendingFlowRequest,
+): Promise<void> {
+  return (await getApiClient()).post("/flows/pending/settle", request)
 }
 
 export async function getPendingFlows(

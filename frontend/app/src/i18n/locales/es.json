@@ -1027,7 +1027,7 @@
               "Copia el **Application ID** de tu aplicación (código alfanumérico con guiones en la parte superior) y pégalo en el campo de abajo, luego sube el archivo de la clave privada abajo y guarda."
             ],
             [
-              "*Recuerda: antes de vincular un banco en la app, primero debes vincular esa institución en el panel de aplicaciones de Enable Banking para que devuelva datos.*"
+              "*Recuerda: haz clic en \"Activate by linking accounts\" antes de vincular un banco en la app, ya que primero debes vincular esa institución en el panel de aplicaciones de Enable Banking para que devuelva datos.*"
             ]
           ]
         }
@@ -1923,7 +1923,7 @@
     "hideNumbers": "Ocultar detalles",
     "totalBalance": "Saldo total",
     "totalCardUsed": "Uso total de tarjetas",
-    "totalDebt": "Deuda pendiente total",
+    "totalDebt": "Deuda pendiente",
     "monthlyPayments": "Pagos mensuales",
     "avgInterest": "interés promedio",
     "accounts": "Cuentas",
@@ -1988,6 +1988,8 @@
   },
   "management": {
     "title": "Gestión",
+    "recurring": "Recurrente",
+    "pending": "Pendiente",
     "recurringMoney": "Dinero Recurrente",
     "recurringMoneyDescription": "Gestiona tus ingresos y gastos recurrentes",
     "pendingMoney": "Dinero Pendiente",
@@ -2055,6 +2057,10 @@
     "markCompleted": "Marcar como completado",
     "markCompletedTitle": "Completar {type}",
     "markCompletedConfirm": "¿Marcar este {type} como completado? Dejará de contarse en tus totales pendientes.",
+    "applyToAccountBalance": "Aplicar al saldo de una cuenta",
+    "applyToAccountBalanceHint": "El importe liquidado se sumará o restará de la cuenta seleccionada.",
+    "selectAccount": "Selecciona una cuenta",
+    "noManualAccounts": "No hay cuentas manuales disponibles",
     "markActive": "Reactivar",
     "statusFilter": "Estado",
     "filters": "Filtros",

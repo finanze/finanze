@@ -80,6 +80,7 @@ from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flow import SavePendingFlowImpl
 from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
 from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
@@ -748,6 +749,13 @@ class FinanzeServer:
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
         )
+        settle_pending_flow = SettlePendingFlowImpl(
+            pending_flow_port=pending_flow_repository,
+            position_port=position_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            exchange_rate_provider=exchange_rate_client,
+            transaction_handler_port=transaction_handler,
+        )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)
         delete_template = DeleteTemplateImpl(template_repository)
@@ -855,6 +863,7 @@ class FinanzeServer:
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,
+            settle_pending_flow,
             query_pending_flows,
             create_real_estate,
             update_real_estate,

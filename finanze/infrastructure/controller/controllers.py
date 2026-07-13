@@ -66,6 +66,7 @@ from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.save_pending_flow import SavePendingFlow
 from domain.use_cases.update_pending_flow import UpdatePendingFlow
 from domain.use_cases.delete_pending_flow import DeletePendingFlow
+from domain.use_cases.settle_pending_flow import SettlePendingFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
 from domain.use_cases.update_contributions import UpdateContributions
@@ -173,6 +174,7 @@ from infrastructure.controller.routes.save_commodities import save_commodities
 from infrastructure.controller.routes.save_pending_flow import save_pending_flow
 from infrastructure.controller.routes.update_pending_flow import update_pending_flow
 from infrastructure.controller.routes.delete_pending_flow import delete_pending_flow
+from infrastructure.controller.routes.settle_pending_flow import settle_pending_flow
 from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
 from infrastructure.controller.routes.transactions import transactions
 from infrastructure.controller.routes.update_contributions import update_contributions
@@ -239,6 +241,7 @@ async def register_routes(
     save_pending_flow_uc: SavePendingFlow,
     update_pending_flow_uc: UpdatePendingFlow,
     delete_pending_flow_uc: DeletePendingFlow,
+    settle_pending_flow_uc: SettlePendingFlow,
     query_pending_flows_uc: QueryPendingFlows,
     create_real_estate_uc: CreateRealEstate,
     update_real_estate_uc: UpdateRealEstate,
@@ -449,6 +452,10 @@ async def register_routes(
     @app.route("/api/v1/flows/pending", methods=["PUT"])
     async def update_pending_flow_route():
         return await update_pending_flow(update_pending_flow_uc)
+
+    @app.route("/api/v1/flows/pending/settle", methods=["POST"])
+    async def settle_pending_flow_route():
+        return await settle_pending_flow(settle_pending_flow_uc)
 
     @app.route("/api/v1/flows/pending/<flow_id>", methods=["DELETE"])
     async def delete_pending_flow_route(flow_id: str):
