@@ -137,6 +137,16 @@
     "manualDownloads": {
       "show": "Show manual download options",
       "hide": "Hide manual download options"
+    },
+    "mobileUpdate": {
+      "description": "A new version is ready to download and install.",
+      "download": "Download update",
+      "downloading": "Downloading…",
+      "install": "Install update",
+      "permissionRequired": "Allow installing apps from this source, then tap Install update again.",
+      "retry": "Retry",
+      "showMore": "Show more",
+      "showLess": "Show less"
     }
   },
   "about": {

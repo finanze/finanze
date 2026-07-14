@@ -22,9 +22,9 @@ let package = Package(
         .package(name: "CapacitorShare", path: "../../../node_modules/.pnpm/@capacitor+share@8.0.1_@capacitor+core@8.4.1/node_modules/@capacitor/share"),
         .package(name: "CapacitorSplashScreen", path: "../../../node_modules/.pnpm/@capacitor+splash-screen@8.0.1_@capacitor+core@8.4.1/node_modules/@capacitor/splash-screen"),
         .package(name: "CapacitorStatusBar", path: "../../../node_modules/.pnpm/@capacitor+status-bar@8.0.2_@capacitor+core@8.4.1/node_modules/@capacitor/status-bar"),
-        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/.pnpm/@capgo+capacitor-native-biometric@8.4.11_@capacitor+core@8.4.1/node_modules/@capgo/capacitor-native-biometric"),
-        .package(name: "CapgoCapacitorSocialLogin", path: "../../../node_modules/.pnpm/@capgo+capacitor-social-login@8.3.30_@capacitor+core@8.4.1/node_modules/@capgo/capacitor-social-login"),
-        .package(name: "CapacitorPluginSafeArea", path: "../../../node_modules/.pnpm/capacitor-plugin-safe-area@5.0.0_@capacitor+core@8.4.1/node_modules/capacitor-plugin-safe-area")
+        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/.pnpm/@capgo+capacitor-native-biometric@8.6.2_@capacitor+core@8.4.1/node_modules/@capgo/capacitor-native-biometric"),
+        .package(name: "CapgoCapacitorSocialLogin", path: "../../../node_modules/.pnpm/@capgo+capacitor-social-login@8.3.36_@capacitor+core@8.4.1/node_modules/@capgo/capacitor-social-login"),
+        .package(name: "CapacitorPluginSafeArea", path: "../../../node_modules/.pnpm/capacitor-plugin-safe-area@5.0.1_@capacitor+core@8.4.1/node_modules/capacitor-plugin-safe-area")
     ],
     targets: [
         .target(

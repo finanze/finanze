@@ -137,6 +137,16 @@
     "manualDownloads": {
       "show": "Mostra opzioni di download manuale",
       "hide": "Nascondi opzioni di download manuale"
+    },
+    "mobileUpdate": {
+      "description": "È disponibile una nuova versione da scaricare e installare.",
+      "download": "Scarica aggiornamento",
+      "downloading": "Download…",
+      "install": "Installa aggiornamento",
+      "permissionRequired": "Consenti l'installazione di app da questa origine, poi tocca di nuovo Installa aggiornamento.",
+      "retry": "Riprova",
+      "showMore": "Mostra di più",
+      "showLess": "Mostra meno"
     }
   },
   "about": {
