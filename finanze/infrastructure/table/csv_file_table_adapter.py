@@ -39,11 +39,11 @@ class CSVFileTableAdapter(TableRWPort):
             writer.writerow(row)
 
         data_str = output.getvalue()
-        return data_str.encode("utf-8")
+        return data_str.encode("utf-8-sig")
 
     async def parse(self, upload: FileUpload) -> list[list[str]]:
         delimiter = _delimiter_from_upload(upload)
         upload.data.seek(0)
-        stream = TextIOWrapper(upload.data, encoding="utf-8")
+        stream = TextIOWrapper(upload.data, encoding="utf-8-sig")
         reader = csv.reader(stream, delimiter=delimiter)
         return list(reader)
