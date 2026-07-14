@@ -1,2 +1,2 @@
-tzlocal==5.4.3
+tzlocal==5.4.4
 aiocache==0.12.3
