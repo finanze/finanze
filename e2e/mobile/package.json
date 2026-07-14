@@ -12,7 +12,7 @@
     },
     "devDependencies": {
         "@types/mocha": "^10.0.10",
-        "@types/node": "^25.9.1",
+        "@types/node": "^26.1.1",
         "@wdio/appium-service": "^9.29.1",
         "@wdio/cli": "^9.29.1",
         "@wdio/globals": "^9.29.1",
@@ -21,9 +21,9 @@
         "@wdio/spec-reporter": "^9.29.1",
         "@wdio/types": "^9.29.1",
         "appium": "^3.5.2",
-        "appium-uiautomator2-driver": "^7.5.2",
-        "appium-xcuitest-driver": "^11.16.1",
+        "appium-uiautomator2-driver": "^8.1.0",
+        "appium-xcuitest-driver": "^11.17.6",
         "ts-node": "^10.9.2",
-        "typescript": "^6.0.3"
+        "typescript": "^7.0.2"
     }
 }
