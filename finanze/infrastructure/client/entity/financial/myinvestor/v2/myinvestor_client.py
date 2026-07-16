@@ -265,9 +265,22 @@ class MyInvestorAPIV2Client:
             base_url=self.LOGIN_URL,
         )
 
-    async def check_maintenance(self):
-        resp = await self._session.get("https://cms.myinvestor.es/api/maintenances")
-        return (await resp.json())["data"]
+    async def is_under_maintenance(self) -> bool:
+        try:
+            response = await self._session.get(
+                "https://config.myinvestor.es/flags/settings.json",
+                timeout=self.TIMEOUT,
+            )
+            if not response.ok:
+                return False
+
+            data = await response.json()
+            return (
+                data.get("enabled") is True and data.get("mode_name") == "maintenance"
+            )
+        except Exception as e:
+            self._log.warning(f"Could not check MyInvestor maintenance status: {e}")
+            return False
 
     async def get_user(self):
         return (await self._get_request("/cperf-server/api/v3/customers/self"))[
