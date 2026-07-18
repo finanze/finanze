@@ -1,3 +1,18 @@
+## [0.9.1] - 2026-07-18
+
+### 🚀 Features
+
+- Pending money earnings/expenses settlement updates account (#150)
+- Android auto update (#152)
+- Add real estate cf and factoring quick settlement and amortization & historic for manual investments (#154)
+
+### 🐛 Bug Fixes
+
+- Myinvestor maintenance check (#153)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies (#151)
 ## [0.9.0] - 2026-07-10
 
 ### 🚀 Features
