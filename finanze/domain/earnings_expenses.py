@@ -70,6 +70,12 @@ class PendingFlow:
     status_changed_at: Optional[datetime] = None
 
 
+@dataclass
+class SettlePendingFlowRequest:
+    flow_id: UUID
+    account_id: UUID
+
+
 class FlowSortField(str, Enum):
     AMOUNT = "amount"
     DATE = "date"

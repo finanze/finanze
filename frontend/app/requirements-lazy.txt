@@ -1,4 +1,4 @@
-websockets==16.0
+websockets==16.1
 requests-toolbelt==1.0.0
 openpyxl==3.1.5
 et-xmlfile==2.0.0

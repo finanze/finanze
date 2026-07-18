@@ -486,4 +486,5 @@ export interface UpdatePositionRequest {
     provider: string
   } | null
   products: PartialProductPositions
+  create_investment_txs?: boolean
 }

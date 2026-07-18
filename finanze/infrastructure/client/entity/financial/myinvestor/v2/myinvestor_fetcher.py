@@ -17,7 +17,11 @@ from domain.auto_contributions import (
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.entity_login import (
+    EntityLoginParams,
+    EntityLoginResult,
+    LoginResultCode,
+)
 from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
@@ -175,6 +179,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        if await self._client.is_under_maintenance():
+            return EntityLoginResult(LoginResultCode.CURRENTLY_UNAVAILABLE)
+
         credentials = login_params.credentials
         two_factor = login_params.two_factor
 
@@ -196,8 +203,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         )
 
     async def global_position(self) -> GlobalPosition:
-        # maintenance = await self._client.check_maintenance()
-
         account_entries = await self.fetch_accounts()
         accounts = [account for _, account, _ in account_entries]
 

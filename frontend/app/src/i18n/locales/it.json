@@ -137,6 +137,16 @@
     "manualDownloads": {
       "show": "Mostra opzioni di download manuale",
       "hide": "Nascondi opzioni di download manuale"
+    },
+    "mobileUpdate": {
+      "description": "È disponibile una nuova versione da scaricare e installare.",
+      "download": "Scarica aggiornamento",
+      "downloading": "Download…",
+      "install": "Installa aggiornamento",
+      "permissionRequired": "Consenti l'installazione di app da questa origine, poi tocca di nuovo Installa aggiornamento.",
+      "retry": "Riprova",
+      "showMore": "Mostra di più",
+      "showLess": "Mostra meno"
     }
   },
   "about": {
@@ -1029,7 +1039,7 @@
               "Copia l'**Application ID** della tua applicazione (stringa alfanumerica con trattini in alto) e incollalo nel campo sottostante, quindi carica il file della chiave privata sottostante e salva."
             ],
             [
-              "*Ricorda: prima di collegare una banca nell'app, devi prima collegare quell'istituto nel pannello dell'applicazione Enable Banking affinché restituisca dati.*"
+              "*Ricorda: clicca su \"Activate by linking accounts\" prima di collegare una banca nell'app, poiché devi prima collegare quell'istituto nel pannello dell'applicazione Enable Banking affinché restituisca dati.*"
             ]
           ]
         }
@@ -1924,7 +1934,7 @@
     "hideNumbers": "Nascondi dettagli",
     "totalBalance": "Saldo Totale",
     "totalCardUsed": "Utilizzo Totale Carte",
-    "totalDebt": "Debito Residuo Totale",
+    "totalDebt": "Debito Residuo",
     "monthlyPayments": "Pagamenti Mensili",
     "avgInterest": "interesse medio",
     "accounts": "Conti",
@@ -1989,6 +1999,8 @@
   },
   "management": {
     "title": "Gestione",
+    "recurring": "Ricorrente",
+    "pending": "In sospeso",
     "recurringMoney": "Denaro Ricorrente",
     "recurringMoneyDescription": "Gestisci le tue entrate e uscite ricorrenti",
     "pendingMoney": "Denaro in Sospeso",
@@ -2056,6 +2068,10 @@
     "markCompleted": "Segna come completato",
     "markCompletedTitle": "Completa {type}",
     "markCompletedConfirm": "Segnare questo {type} come completato? Non verrà più conteggiato nei tuoi totali in sospeso.",
+    "applyToAccountBalance": "Applica al saldo di un conto",
+    "applyToAccountBalanceHint": "L'importo liquidato verrà aggiunto o sottratto dal conto selezionato.",
+    "selectAccount": "Seleziona un conto",
+    "noManualAccounts": "Non ci sono conti manuali su cui applicare questa modifica. Crea uno per abilitare questa opzione.",
     "markActive": "Riattiva",
     "statusFilter": "Stato",
     "filters": "Filtri",
@@ -2169,6 +2185,72 @@
       }
     },
     "manualPositions": {
+      "settle": {
+        "title": "Liquida investimento",
+        "maturity": "Data di liquidazione",
+        "interests": "Interessi",
+        "interestModes": {
+          "default": "Automatico",
+          "amount": "Importo",
+          "rate": "Tasso annuo",
+          "gain": "Guadagno totale"
+        },
+        "defaultInterestsHint": "Interessi stimati: {amount}",
+        "resolvedInterests": "Interessi: {amount}",
+        "taxes": "Imposte e ritenute",
+        "taxModes": {
+          "percent": "Percentuale",
+          "amount": "Importo"
+        },
+        "resolvedRetentions": "Ritenute: {amount}",
+        "fees": "Commissioni",
+        "pendingCapital": "Capitale residuo",
+        "willComplete": "Sarà contrassegnato come completato.",
+        "willDefault": "Resta capitale residuo: sarà contrassegnato come insoluto.",
+        "createInvestmentTx": "Crea transazione correlata",
+        "confirm": "Liquida",
+        "success": "Investimento liquidato",
+        "error": "Impossibile liquidare l'investimento"
+      },
+      "amortize": {
+        "title": "Ammortamento parziale",
+        "amount": "Capitale rimborsato",
+        "date": "Data",
+        "interests": "Interessi",
+        "retentions": "Ritenute",
+        "fees": "Commissioni",
+        "confirm": "Ammortizza",
+        "invalidAmount": "Inserisci un importo valido",
+        "success": "Ammortamento registrato",
+        "error": "Impossibile registrare l'ammortamento"
+      },
+      "deleteHistoric": {
+        "title": "Elimina investimento completato",
+        "description": "Verrà rimosso il record dell'investimento completato.",
+        "txHandling": "Transazioni correlate",
+        "keepTxs": "Mantieni le transazioni",
+        "keepTxsHint": "Viene rimosso solo il record; le transazioni restano.",
+        "settlementTxs": "Elimina le transazioni di liquidazione",
+        "settlementTxsHint": "Rimuove le transazioni create alla liquidazione.",
+        "allTxs": "Elimina tutte le transazioni",
+        "allTxsHint": "Rimuove tutte le transazioni correlate.",
+        "confirm": "Elimina",
+        "success": "Record eliminato",
+        "error": "Impossibile eliminare il record"
+      },
+      "unsettle": {
+        "title": "Annulla liquidazione",
+        "message": "L'investimento verrà ripristinato come attivo e le transazioni create alla liquidazione verranno rimosse.",
+        "confirm": "Annulla liquidazione",
+        "success": "Investimento ripristinato",
+        "error": "Impossibile annullare la liquidazione"
+      },
+      "actions": {
+        "settle": "Liquida",
+        "amortize": "Ammortizza",
+        "unsettle": "Annulla liquidazione",
+        "deleteRecord": "Elimina record"
+      },
       "shared": {
         "entity": "Entità",
         "name": "Nome",
@@ -2178,6 +2260,8 @@
         "newEntityPlaceholder": "Inserisci il nome della nuova entità",
         "trackPrice": "Monitora prezzo",
         "trackPriceUnavailable": "Seleziona uno strumento per abilitare il monitoraggio del prezzo.",
+        "createInvestmentTxs": "Crea transazioni",
+        "createInvestmentTxsInfo": "Se attivato, viene creata una transazione di investimento iniziale (più una transazione di rimborso se il capitale residuo è inferiore all'importo investito).",
         "currencyConversionWarning": "La valuta dello strumento è diversa da quella selezionata. La conversione utilizza i tassi più recenti e può variare.",
         "summary": {
           "shares": "Quote"

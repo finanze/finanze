@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/Input"
+import { cn } from "@/lib/utils"
 
 const PATTERN = /^-?\d*\.?\d*$/
 const PATTERN_POSITIVE = /^\d*\.?\d*$/
 
 interface DecimalInputBaseProps extends Omit<
   React.ComponentProps<typeof Input>,
-  "type" | "onChange" | "value"
+  "type" | "onChange" | "value" | "prefix"
 > {
   allowNegative?: boolean
+  prefix?: React.ReactNode
+  suffix?: React.ReactNode
 }
 
 interface DecimalInputNumericProps extends DecimalInputBaseProps {
@@ -44,6 +47,9 @@ export function DecimalInput({
   allowNegative = false,
   onFocus,
   onBlur,
+  prefix,
+  suffix,
+  className,
   ...props
 }: DecimalInputProps) {
   const isStringMode = Boolean(onStringChange)
@@ -54,10 +60,11 @@ export function DecimalInput({
     if (!focused.current) setLocal(fmt(value))
   }, [value])
 
-  return (
+  const input = (
     <Input
       inputMode="decimal"
       {...props}
+      className={cn(prefix && "pl-8", suffix && "pr-8", className)}
       type="text"
       value={
         focused.current ? local : isStringMode ? (value as string) : fmt(value)
@@ -87,5 +94,23 @@ export function DecimalInput({
         onBlur?.(e)
       }}
     />
+  )
+
+  if (!prefix && !suffix) return input
+
+  return (
+    <div className="relative">
+      {prefix && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+          {prefix}
+        </span>
+      )}
+      {input}
+      {suffix && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+          {suffix}
+        </span>
+      )}
+    </div>
   )
 }

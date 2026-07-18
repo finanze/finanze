@@ -13,6 +13,7 @@ from application.ports.entity_port import EntityPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
+from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.manual_position_snapshot import (
     ManualPositionSnapshotWriter,
 )
@@ -49,6 +50,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         transaction_handler_port: TransactionHandlerPort,
         virtual_import_registry: VirtualImportRegistry,
         snapshot_writer: ManualPositionSnapshotWriter,
+        historic_writer: ManualHistoricWriter,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
         self._entity_port = entity_port
@@ -57,6 +59,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._virtual_import_registry = virtual_import_registry
         self._snapshot_writer = snapshot_writer
+        self._historic_writer = historic_writer
 
         self._log = logging.getLogger(__name__)
 
@@ -466,3 +469,6 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         await self._process_crypto_assets_in_position(base_position)
 
         await self._snapshot_writer.write(entity, base_position)
+        await self._historic_writer.sync_position(
+            entity, base_position, create_investment_txs=request.create_investment_txs
+        )

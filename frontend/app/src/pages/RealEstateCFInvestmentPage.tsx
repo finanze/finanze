@@ -48,6 +48,8 @@ import {
   Info,
   Layers,
   ChevronDown,
+  CircleCheckBig,
+  Coins,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
@@ -60,6 +62,11 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { SettleManualInvestmentDialog } from "@/components/manual/SettleManualInvestmentDialog"
+import { PartialAmortizeDialog } from "@/components/manual/PartialAmortizeDialog"
+import { DeleteHistoricEntryDialog } from "@/components/manual/DeleteHistoricEntryDialog"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { unsettleManualInvestment } from "@/services/api"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   mergeManualDisplayItems,
@@ -459,6 +466,7 @@ function RealEstateViewContent({
   historicSentinelRef,
 }: RealEstateViewContentProps) {
   const navigate = useNavigate()
+  const { showToast } = useAppContext()
   const {
     drafts,
     isEditMode,
@@ -473,6 +481,39 @@ function RealEstateViewContent({
   } = useManualPositions()
 
   const realEstateDrafts = drafts as RealEstateCFDraft[]
+
+  const { refreshEntity } = useFinancialData()
+
+  const [settleTarget, setSettleTarget] = useState<{
+    entityId: string
+    entryId: string
+    invested: number
+    currency: string
+    startDate: string | null
+    defaultInterests: number
+  } | null>(null)
+  const [amortizeTarget, setAmortizeTarget] = useState<{
+    entityId: string
+    entryId: string
+    currency: string
+  } | null>(null)
+  const [unsettleTarget, setUnsettleTarget] = useState<{
+    entryId: string
+    entityId: string
+  } | null>(null)
+  const [isUnsettling, setIsUnsettling] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    entryId: string
+    hasRelatedTxs: boolean
+  } | null>(null)
+
+  const handleManualActionDone = useCallback(
+    (entityId?: string | null) => {
+      if (entityId) refreshEntity(entityId)
+      onReloadHistoric()
+    },
+    [refreshEntity, onReloadHistoric],
+  )
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
@@ -1552,6 +1593,59 @@ function RealEstateViewContent({
                                   </div>
                                 </div>
                               </div>
+                              {isManual && originalId && position.entityId && (
+                                <div
+                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() =>
+                                      setSettleTarget({
+                                        entityId: position.entityId!,
+                                        entryId: originalId,
+                                        invested:
+                                          position.convertedPendingAmount ??
+                                          position.convertedAmount,
+                                        currency: defaultCurrency,
+                                        startDate:
+                                          position.last_invest_date ?? null,
+                                        defaultInterests:
+                                          (position.convertedPendingAmount ??
+                                            position.convertedAmount) *
+                                          ((position.profitabilityPct ?? 0) /
+                                            100),
+                                      })
+                                    }
+                                  >
+                                    <CircleCheckBig className="h-3.5 w-3.5" />
+                                    {
+                                      t.management.manualPositions.actions
+                                        .settle
+                                    }
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() =>
+                                      setAmortizeTarget({
+                                        entityId: position.entityId!,
+                                        entryId: originalId,
+                                        currency: defaultCurrency,
+                                      })
+                                    }
+                                  >
+                                    <Coins className="h-3.5 w-3.5" />
+                                    {
+                                      t.management.manualPositions.actions
+                                        .amortize
+                                    }
+                                  </Button>
+                                </div>
+                              )}
                               {showActions && (
                                 <div
                                   className="flex items-center gap-2 pt-2 border-t border-border/30"
@@ -2204,6 +2298,49 @@ function RealEstateViewContent({
                                 {t.investments.historicSection.noTransactions}
                               </p>
                             )}
+                            {item.entry.source === DataSource.MANUAL && (
+                              <div
+                                className="flex items-center gap-2 pt-3 mt-1 border-t border-border/30"
+                                data-historic-stop
+                              >
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-2"
+                                  onClick={() =>
+                                    setUnsettleTarget({
+                                      entryId: item.entry.id,
+                                      entityId: item.entityId,
+                                    })
+                                  }
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                  {
+                                    t.management.manualPositions.actions
+                                      .unsettle
+                                  }
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-2 text-red-500 hover:text-red-600"
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      entryId: item.entry.id,
+                                      hasRelatedTxs:
+                                        (item.entry.related_txs?.length ?? 0) >
+                                        0,
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  {
+                                    t.management.manualPositions.actions
+                                      .deleteRecord
+                                  }
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </motion.div>
                       )}
@@ -2221,6 +2358,67 @@ function RealEstateViewContent({
             </div>
           )}
         </motion.section>
+      )}
+
+      {settleTarget && (
+        <SettleManualInvestmentDialog
+          isOpen={!!settleTarget}
+          onClose={() => setSettleTarget(null)}
+          entityId={settleTarget.entityId}
+          entryId={settleTarget.entryId}
+          productType={ProductType.REAL_ESTATE_CF}
+          investedAmount={settleTarget.invested}
+          currency={settleTarget.currency}
+          startDate={settleTarget.startDate}
+          defaultInterests={settleTarget.defaultInterests}
+          onSubmitted={() => handleManualActionDone(settleTarget.entityId)}
+        />
+      )}
+      {amortizeTarget && (
+        <PartialAmortizeDialog
+          isOpen={!!amortizeTarget}
+          onClose={() => setAmortizeTarget(null)}
+          entityId={amortizeTarget.entityId}
+          entryId={amortizeTarget.entryId}
+          productType={ProductType.REAL_ESTATE_CF}
+          currency={amortizeTarget.currency}
+          onSubmitted={() => handleManualActionDone(amortizeTarget.entityId)}
+        />
+      )}
+      {unsettleTarget && (
+        <ConfirmationDialog
+          isOpen={!!unsettleTarget}
+          title={t.management.manualPositions.unsettle.title}
+          message={t.management.manualPositions.unsettle.message}
+          confirmText={t.management.manualPositions.unsettle.confirm}
+          cancelText={t.common.cancel}
+          isLoading={isUnsettling}
+          onCancel={() => setUnsettleTarget(null)}
+          onConfirm={async () => {
+            if (!unsettleTarget) return
+            setIsUnsettling(true)
+            try {
+              await unsettleManualInvestment(unsettleTarget.entryId)
+              const entityId = unsettleTarget.entityId
+              setUnsettleTarget(null)
+              handleManualActionDone(entityId)
+            } catch (e) {
+              console.error("Unsettle manual investment failed", e)
+              showToast(t.management.manualPositions.unsettle.error, "error")
+            } finally {
+              setIsUnsettling(false)
+            }
+          }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteHistoricEntryDialog
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          entryId={deleteTarget.entryId}
+          hasRelatedTxs={deleteTarget.hasRelatedTxs}
+          onSubmitted={() => handleManualActionDone(null)}
+        />
       )}
     </motion.div>
   )

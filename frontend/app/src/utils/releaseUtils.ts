@@ -168,6 +168,8 @@ export function getPlatformAssets(
         return name.endsWith(".exe")
       case PlatformType.LINUX:
         return name.endsWith(".appimage")
+      case PlatformType.ANDROID:
+        return name.endsWith("android-full.apk")
       case PlatformType.WEB:
       default:
         return false
@@ -200,4 +202,27 @@ export function formatFileSize(bytes: number): string {
  */
 export function formatReleaseDate(dateString: string, locale: string): string {
   return formatDate(dateString, locale)
+}
+
+/**
+ * Removes the auto-generated "Build Assets" section (download links and tables)
+ * from release notes, keeping only the human-written changelog.
+ */
+export function cleanReleaseNotes(body: string | null | undefined): string {
+  if (!body) return ""
+
+  const lines = body.split("\n")
+  const cutIndex = lines.findIndex(line =>
+    /^#{1,6}\s.*build assets/i.test(line.trim()),
+  )
+
+  let result = cutIndex >= 0 ? lines.slice(0, cutIndex).join("\n") : body
+
+  // Drop a trailing "View the full CHANGELOG.md" pointer and horizontal rules
+  result = result
+    .replace(/\n+.*view the full.*changelog.*$/gim, "")
+    .replace(/(\n+\s*-{3,}\s*)+$/g, "")
+    .trimEnd()
+
+  return result
 }

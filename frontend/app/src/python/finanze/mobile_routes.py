@@ -342,6 +342,13 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
         ),
         (
             "POST",
+            "/api/v1/flows/pending/settle",
+            "settle_pending_flow",
+            "settle_pending_flow",
+            lz.settle_pending,
+        ),
+        (
+            "POST",
             "/api/v1/real-estate",
             "create_real_estate",
             "create_real_estate",
@@ -417,6 +424,34 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
             "delete_manual_transaction",
             "delete_manual_transaction",
             lz.del_manual_tx,
+        ),
+        (
+            "POST",
+            "/api/v1/data/manual/investments/settle",
+            "settle_manual_investment",
+            "settle_manual_investment",
+            lz.settle_manual_inv,
+        ),
+        (
+            "POST",
+            "/api/v1/data/manual/investments/amortize",
+            "partial_amortize_manual_investment",
+            "partial_amortize_manual_investment",
+            lz.partial_amortize_manual_inv,
+        ),
+        (
+            "POST",
+            "/api/v1/historic/<entry_id>/unsettle",
+            "unsettle_manual_investment",
+            "unsettle_manual_investment",
+            lz.unsettle_manual_inv,
+        ),
+        (
+            "DELETE",
+            "/api/v1/historic/<entry_id>",
+            "delete_manual_historic_entry",
+            "delete_manual_historic_entry",
+            lz.delete_manual_historic,
         ),
         ("GET", "/api/v1/historic", "historic", "get_historic", lz.get_historic),
         (

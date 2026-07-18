@@ -1330,25 +1330,37 @@ export default function RecurringMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex items-center gap-4"
+          className="flex flex-row items-center justify-between gap-3"
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1 h-8 w-8"
-            onClick={() => navigate("/management")}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">
-              {t.management.recurringMoney}
-            </h1>
-            <PinAssetButton
-              assetId="management-recurring"
-              className="hidden md:inline-flex"
-            />
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8 shrink-0"
+              onClick={() => navigate("/management")}
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-2xl font-bold truncate">
+                <span className="sm:hidden">{t.management.recurring}</span>
+                <span className="hidden sm:inline">
+                  {t.management.recurringMoney}
+                </span>
+              </h1>
+              <PinAssetButton
+                assetId="management-recurring"
+                className="hidden md:inline-flex shrink-0"
+              />
+            </div>
           </div>
+          <button
+            onClick={() => navigate("/management/pending")}
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
+          >
+            {t.management.pending}
+            <ArrowRight size={16} />
+          </button>
         </motion.div>
 
         {/* KPI Cards */}
@@ -1363,7 +1375,7 @@ export default function RecurringMoneyPage() {
               : "md:grid-cols-2",
           )}
         >
-          <Card className="p-4">
+          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <div className="flex items-center gap-2 mb-2">
               <BanknoteArrowUp className="h-5 w-5 text-green-500" />
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -1387,7 +1399,7 @@ export default function RecurringMoneyPage() {
             </div>
           </Card>
 
-          <Card className="p-4">
+          <Card className="p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <div className="flex items-center gap-2 mb-2">
               <BanknoteArrowDown className="h-5 w-5 text-red-500" />
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -1441,7 +1453,7 @@ export default function RecurringMoneyPage() {
             </div>
           </Card>
           {showSavingsCard && (
-            <Card className="p-4 md:col-span-2 xl:col-span-1">
+            <Card className="p-4 md:col-span-2 xl:col-span-1 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
@@ -1536,7 +1548,7 @@ export default function RecurringMoneyPage() {
         {(flowDistribution.totalEarnings > 0 ||
           flowDistribution.totalExpenses > 0) && (
           <motion.div variants={fadeListItem}>
-            <Card className="p-4 space-y-4">
+            <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
               {(() => {
                 const scale = Math.max(
                   flowDistribution.totalEarnings,

@@ -29,6 +29,16 @@ from application.use_cases.get_crypto_wallet_addresses import (
 )
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
+from application.use_cases.settle_manual_investment import SettleManualInvestmentImpl
+from application.use_cases.partial_amortize_manual_investment import (
+    PartialAmortizeManualInvestmentImpl,
+)
+from application.use_cases.unsettle_manual_investment import (
+    UnsettleManualInvestmentImpl,
+)
+from application.use_cases.delete_manual_historic_entry import (
+    DeleteManualHistoricEntryImpl,
+)
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.derive_crypto_addresses import DeriveCryptoAddressesImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
@@ -80,6 +90,7 @@ from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flow import SavePendingFlowImpl
 from application.use_cases.update_pending_flow import UpdatePendingFlowImpl
 from application.use_cases.delete_pending_flow import DeletePendingFlowImpl
+from application.use_cases.settle_pending_flow import SettlePendingFlowImpl
 from application.use_cases.query_pending_flows import QueryPendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
@@ -87,6 +98,7 @@ from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
+from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
@@ -703,6 +715,11 @@ class FinanzeServer:
             real_estate_port=real_estate_repository,
             loan_calculator=loan_calculator,
         )
+        manual_historic_writer = ManualHistoricWriter(
+            historic_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_registry,
+        )
         update_position = UpdatePositionImpl(
             entity_port=entity_repository,
             position_port=position_repository,
@@ -711,12 +728,14 @@ class FinanzeServer:
             transaction_handler_port=transaction_handler,
             virtual_import_registry=virtual_import_registry,
             snapshot_writer=manual_position_snapshot_writer,
+            historic_writer=manual_historic_writer,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
             transaction_port=transaction_repository,
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
+            historic_port=historic_repository,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
@@ -725,6 +744,38 @@ class FinanzeServer:
             transaction_handler_port=transaction_handler,
         )
         delete_manual_transaction = DeleteManualTransactionImpl(
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_registry,
+            transaction_handler_port=transaction_handler,
+        )
+        settle_manual_investment = SettleManualInvestmentImpl(
+            entity_port=entity_repository,
+            position_port=position_repository,
+            transaction_port=transaction_repository,
+            historic_port=historic_repository,
+            virtual_import_registry=virtual_import_registry,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
+        )
+        partial_amortize_manual_investment = PartialAmortizeManualInvestmentImpl(
+            entity_port=entity_repository,
+            position_port=position_repository,
+            transaction_port=transaction_repository,
+            historic_port=historic_repository,
+            virtual_import_registry=virtual_import_registry,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
+        )
+        unsettle_manual_investment = UnsettleManualInvestmentImpl(
+            historic_port=historic_repository,
+            position_port=position_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_registry,
+            snapshot_writer=manual_position_snapshot_writer,
+            transaction_handler_port=transaction_handler,
+        )
+        delete_manual_historic_entry = DeleteManualHistoricEntryImpl(
+            historic_port=historic_repository,
             transaction_port=transaction_repository,
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
@@ -746,6 +797,13 @@ class FinanzeServer:
             loan_calculator=loan_calculator,
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        settle_pending_flow = SettlePendingFlowImpl(
+            pending_flow_port=pending_flow_repository,
+            position_port=position_repository,
+            snapshot_writer=manual_position_snapshot_writer,
+            exchange_rate_provider=exchange_rate_client,
             transaction_handler_port=transaction_handler,
         )
         create_template = CreateTemplateImpl(template_repository)
@@ -855,6 +913,7 @@ class FinanzeServer:
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,
+            settle_pending_flow,
             query_pending_flows,
             create_real_estate,
             update_real_estate,
@@ -866,6 +925,10 @@ class FinanzeServer:
             update_contributions,
             update_position,
             add_manual_transaction,
+            settle_manual_investment,
+            partial_amortize_manual_investment,
+            unsettle_manual_investment,
+            delete_manual_historic_entry,
             update_manual_transaction,
             delete_manual_transaction,
             get_instruments,

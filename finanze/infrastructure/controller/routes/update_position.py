@@ -50,6 +50,7 @@ async def update_position(update_position_uc: UpdatePosition):
         products=products,
         new_entity_icon_url=new_entity_icon_url,
         net_crypto_entity_details=net_crypto_entity_details,
+        create_investment_txs=bool(body.get("create_investment_txs", True)),
     )
     try:
         await update_position_uc.execute(req)

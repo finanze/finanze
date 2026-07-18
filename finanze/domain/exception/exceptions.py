@@ -105,6 +105,21 @@ class RealEstateNotFound(Exception):
     pass
 
 
+class ManualInvestmentNotFound(Exception):
+    def __init__(self, entry_id):
+        super().__init__(f"Manual investment not found: {entry_id}")
+
+
+class ManualHistoricEntryNotFound(Exception):
+    def __init__(self, entry_id):
+        super().__init__(f"Manual historic entry not found: {entry_id}")
+
+
+class ManualHistoricEntryNotFinal(Exception):
+    def __init__(self, entry_id):
+        super().__init__(f"Manual historic entry is not settled: {entry_id}")
+
+
 class MarketValueValuationRequired(Exception):
     def __init__(self):
         super().__init__("At least one valuation must be marked as market value")
@@ -112,6 +127,11 @@ class MarketValueValuationRequired(Exception):
 
 class FlowNotFound(Exception):
     pass
+
+
+class ManualAccountNotFound(Exception):
+    def __init__(self, account_id):
+        super().__init__(f"Manual account not found: {account_id}")
 
 
 class ExportException(Exception):

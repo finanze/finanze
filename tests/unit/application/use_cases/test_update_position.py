@@ -15,6 +15,7 @@ from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
+from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_position import UpdatePositionImpl
 from domain.crypto import CryptoAsset, CryptoAssetDetails, CryptoCurrencyType
 from domain.dezimal import Dezimal
@@ -95,6 +96,11 @@ def _build_use_case():
         loan_calculator,
     )
 
+    historic_port = AsyncMock()
+    historic_port.get_by_manual_key.return_value = None
+    historic_port.get_manual_by_entity.return_value = []
+    historic_writer = ManualHistoricWriter(historic_port)
+
     uc = UpdatePositionImpl(
         entity_port,
         position_port,
@@ -103,6 +109,7 @@ def _build_use_case():
         tx_handler,
         virtual_registry,
         snapshot_writer,
+        historic_writer,
     )
     return (
         uc,
@@ -438,6 +445,11 @@ def _build_crypto_use_case():
         MagicMock(spec=LoanCalculatorPort),
     )
 
+    historic_port = AsyncMock()
+    historic_port.get_by_manual_key.return_value = None
+    historic_port.get_manual_by_entity.return_value = []
+    historic_writer = ManualHistoricWriter(historic_port)
+
     uc = UpdatePositionImpl(
         entity_port,
         position_port,
@@ -446,6 +458,7 @@ def _build_crypto_use_case():
         tx_handler,
         virtual_registry,
         snapshot_writer,
+        historic_writer,
     )
     return uc, crypto_registry, crypto_info
 
