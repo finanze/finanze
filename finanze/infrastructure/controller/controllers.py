@@ -47,6 +47,14 @@ from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
+from domain.use_cases.partial_amortize_manual_investment import (
+    PartialAmortizeManualInvestment,
+)
+from domain.use_cases.settle_manual_investment import SettleManualInvestment
+from domain.use_cases.unsettle_manual_investment import (
+    UnsettleManualInvestment,
+)
+from domain.use_cases.delete_manual_historic_entry import DeleteManualHistoricEntry
 from domain.use_cases.query_pending_flows import QueryPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
@@ -113,6 +121,18 @@ from infrastructure.controller.routes.delete_external_entity import (
 )
 from infrastructure.controller.routes.delete_manual_transaction import (
     delete_manual_transaction,
+)
+from infrastructure.controller.routes.settle_manual_investment import (
+    settle_manual_investment,
+)
+from infrastructure.controller.routes.partial_amortize_manual_investment import (
+    partial_amortize_manual_investment,
+)
+from infrastructure.controller.routes.unsettle_manual_investment import (
+    unsettle_manual_investment,
+)
+from infrastructure.controller.routes.delete_manual_historic_entry import (
+    delete_manual_historic_entry,
 )
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.derive_crypto_addresses import (
@@ -253,6 +273,10 @@ async def register_routes(
     update_contributions_uc: UpdateContributions,
     update_position_uc: UpdatePosition,
     add_manual_transaction_uc: AddManualTransaction,
+    settle_manual_investment_uc: SettleManualInvestment,
+    partial_amortize_manual_investment_uc: PartialAmortizeManualInvestment,
+    unsettle_manual_investment_uc: UnsettleManualInvestment,
+    delete_manual_historic_entry_uc: DeleteManualHistoricEntry,
     update_manual_transaction_uc: UpdateManualTransaction,
     delete_manual_transaction_uc: DeleteManualTransaction,
     get_instruments_uc: GetInstruments,
@@ -508,6 +532,26 @@ async def register_routes(
     @app.route("/api/v1/data/manual/transactions/<tx_id>", methods=["DELETE"])
     async def delete_manual_transaction_route(tx_id: str):
         return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
+
+    @app.route("/api/v1/data/manual/investments/settle", methods=["POST"])
+    async def settle_manual_investment_route():
+        return await settle_manual_investment(settle_manual_investment_uc)
+
+    @app.route("/api/v1/data/manual/investments/amortize", methods=["POST"])
+    async def partial_amortize_manual_investment_route():
+        return await partial_amortize_manual_investment(
+            partial_amortize_manual_investment_uc
+        )
+
+    @app.route("/api/v1/historic/<entry_id>/unsettle", methods=["POST"])
+    async def unsettle_manual_investment_route(entry_id: str):
+        return await unsettle_manual_investment(unsettle_manual_investment_uc, entry_id)
+
+    @app.route("/api/v1/historic/<entry_id>", methods=["DELETE"])
+    async def delete_manual_historic_entry_route(entry_id: str):
+        return await delete_manual_historic_entry(
+            delete_manual_historic_entry_uc, entry_id
+        )
 
     @app.route("/api/v1/historic", methods=["GET"])
     async def get_historic_route():

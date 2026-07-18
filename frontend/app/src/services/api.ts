@@ -77,7 +77,13 @@ import {
   PositionQueryRequest,
   UpdatePositionRequest,
 } from "../types/position"
-import type { Historic, HistoricQueryRequest } from "../types/historic"
+import type {
+  Historic,
+  HistoricQueryRequest,
+  SettleManualInvestmentRequest,
+  PartialAmortizeManualInvestmentRequest,
+  HistoricTxDeletion,
+} from "../types/historic"
 import type {
   NetworthTimeline,
   NetworthTimelineQuery,
@@ -380,6 +386,34 @@ export async function getHistoric(
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
   return (await getApiClient()).get(`/historic${queryString}`)
+}
+
+export async function settleManualInvestment(
+  request: SettleManualInvestmentRequest,
+): Promise<void> {
+  return (await getApiClient()).post("/data/manual/investments/settle", request)
+}
+
+export async function partialAmortizeManualInvestment(
+  request: PartialAmortizeManualInvestmentRequest,
+): Promise<void> {
+  return (await getApiClient()).post(
+    "/data/manual/investments/amortize",
+    request,
+  )
+}
+
+export async function unsettleManualInvestment(entryId: string): Promise<void> {
+  return (await getApiClient()).post(`/historic/${entryId}/unsettle`, {})
+}
+
+export async function deleteManualHistoricEntry(
+  entryId: string,
+  txDeletion: HistoricTxDeletion,
+): Promise<void> {
+  return (await getApiClient()).delete(
+    `/historic/${entryId}?tx_deletion=${txDeletion}`,
+  )
 }
 
 export async function signup(

@@ -10,6 +10,11 @@ import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
@@ -31,6 +36,7 @@ import {
   ChevronDown,
   CircleCheckBig,
   Edit,
+  HelpCircle,
   Plus,
   SlidersHorizontal,
   Tag,
@@ -1530,14 +1536,31 @@ export default function PendingMoneyPage() {
                   {t.management.applyToAccountBalanceHint}
                 </span>
               </span>
-              <Switch
-                checked={applyToAccount}
-                onCheckedChange={checked => {
-                  setApplyToAccount(checked)
-                  if (!checked) setSettleAccountError(false)
-                }}
-                disabled={manualAccountOptions.length === 0}
-              />
+              <span className="flex items-center gap-2">
+                <Switch
+                  checked={applyToAccount}
+                  onCheckedChange={checked => {
+                    setApplyToAccount(checked)
+                    if (!checked) setSettleAccountError(false)
+                  }}
+                  disabled={manualAccountOptions.length === 0}
+                />
+                {manualAccountOptions.length === 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <HelpCircle size={14} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 text-sm">
+                      {t.management.noManualAccounts}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </span>
             </span>
             {applyToAccount && (
               <span className="block mt-3">
@@ -1561,11 +1584,6 @@ export default function PendingMoneyPage() {
                     </option>
                   ))}
                 </select>
-              </span>
-            )}
-            {manualAccountOptions.length === 0 && (
-              <span className="block mt-2 text-xs text-muted-foreground">
-                {t.management.noManualAccounts}
               </span>
             )}
           </>

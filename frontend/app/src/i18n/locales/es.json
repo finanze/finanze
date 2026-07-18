@@ -2070,7 +2070,7 @@
     "applyToAccountBalance": "Aplicar al saldo de una cuenta",
     "applyToAccountBalanceHint": "El importe liquidado se sumará o restará de la cuenta seleccionada.",
     "selectAccount": "Selecciona una cuenta",
-    "noManualAccounts": "No hay cuentas manuales disponibles",
+    "noManualAccounts": "No hay cuentas manuales a las que aplicar este cambio. Crea una para habilitar esta opción.",
     "markActive": "Reactivar",
     "statusFilter": "Estado",
     "filters": "Filtros",
@@ -2184,6 +2184,72 @@
       }
     },
     "manualPositions": {
+      "settle": {
+        "title": "Liquidar inversión",
+        "maturity": "Fecha de liquidación",
+        "interests": "Intereses",
+        "interestModes": {
+          "default": "Automático",
+          "amount": "Importe",
+          "rate": "Tasa anual",
+          "gain": "Ganancia total"
+        },
+        "defaultInterestsHint": "Intereses estimados: {amount}",
+        "resolvedInterests": "Intereses: {amount}",
+        "taxes": "Impuestos y retenciones",
+        "taxModes": {
+          "percent": "Porcentaje",
+          "amount": "Importe"
+        },
+        "resolvedRetentions": "Retenciones: {amount}",
+        "fees": "Comisiones",
+        "pendingCapital": "Capital pendiente",
+        "willComplete": "Se marcará como completada.",
+        "willDefault": "Queda capital pendiente: se marcará como impagada.",
+        "createInvestmentTx": "Crear transacción relacionada",
+        "confirm": "Liquidar",
+        "success": "Inversión liquidada",
+        "error": "No se pudo liquidar la inversión"
+      },
+      "amortize": {
+        "title": "Amortización parcial",
+        "amount": "Capital devuelto",
+        "date": "Fecha",
+        "interests": "Intereses",
+        "retentions": "Retenciones",
+        "fees": "Comisiones",
+        "confirm": "Amortizar",
+        "invalidAmount": "Introduce un importe válido",
+        "success": "Amortización registrada",
+        "error": "No se pudo registrar la amortización"
+      },
+      "deleteHistoric": {
+        "title": "Eliminar inversión completada",
+        "description": "Se eliminará el registro de la inversión completada.",
+        "txHandling": "Transacciones relacionadas",
+        "keepTxs": "Mantener transacciones",
+        "keepTxsHint": "Solo se elimina el registro; las transacciones se mantienen.",
+        "settlementTxs": "Eliminar transacciones de liquidación",
+        "settlementTxsHint": "Elimina las transacciones creadas al liquidar.",
+        "allTxs": "Eliminar todas las transacciones",
+        "allTxsHint": "Elimina todas las transacciones relacionadas.",
+        "confirm": "Eliminar",
+        "success": "Registro eliminado",
+        "error": "No se pudo eliminar el registro"
+      },
+      "unsettle": {
+        "title": "Deshacer liquidación",
+        "message": "Esto restaurará la inversión como activa y eliminará las transacciones creadas en la liquidación.",
+        "confirm": "Deshacer",
+        "success": "Inversión restaurada",
+        "error": "No se pudo deshacer la liquidación"
+      },
+      "actions": {
+        "settle": "Liquidar",
+        "amortize": "Amortizar",
+        "unsettle": "Deshacer liquidación",
+        "deleteRecord": "Eliminar registro"
+      },
       "shared": {
         "entity": "Entidad",
         "name": "Nombre",
@@ -2193,6 +2259,8 @@
         "newEntityPlaceholder": "Introduce el nombre de la nueva entidad",
         "trackPrice": "Seguir precio",
         "trackPriceUnavailable": "Selecciona un instrumento para habilitar el seguimiento de precio.",
+        "createInvestmentTxs": "Crear transacciones",
+        "createInvestmentTxsInfo": "Si está activado, se crea una transacción de inversión inicial (más una transacción de reembolso si el capital pendiente es menor que el importe invertido).",
         "currencyConversionWarning": "La moneda del instrumento difiere de la seleccionada. La conversión usa las últimas tasas disponibles y puede variar.",
         "summary": {
           "shares": "Participaciones"

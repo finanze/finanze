@@ -170,6 +170,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_6_pending_flow_status imp
 from infrastructure.repository.db.versions.v0.v09.v090_7_rebuild_networth_timeline import (
     V0907RebuildNetworthTimeline,
 )
+from infrastructure.repository.db.versions.v0.v09.v090_8_historic_source import (
+    V0908HistoricSource,
+)
 
 versions = [
     V0Genesis(),
@@ -240,4 +243,5 @@ versions = [
     V0905B100(),
     V0906PendingFlowStatus(),
     V0907RebuildNetworthTimeline(),
+    V0908HistoricSource(),
 ]

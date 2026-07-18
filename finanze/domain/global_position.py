@@ -140,6 +140,14 @@ def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> s
     return hashlib.shake_128(raw.encode()).hexdigest(16)
 
 
+def compute_investment_hash(
+    entity_id: str, amount: str, start_date: str, name: str
+) -> str:
+    canonical_amount = f"{Dezimal(amount).val:.2f}"
+    raw = f"{entity_id}|{canonical_amount}|{start_date}|{name}"
+    return hashlib.shake_128(raw.encode()).hexdigest(16)
+
+
 @dataclass
 class Loan(BaseData):
     id: Optional[UUID]
@@ -290,6 +298,7 @@ class FactoringDetail(BaseData):
     late_interest_rate: Optional[Dezimal] = None
     gross_interest_rate: Optional[Dezimal] = None
     gross_late_interest_rate: Optional[Dezimal] = None
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
@@ -328,6 +337,7 @@ class RealEstateCFDetail(BaseData):
     profitability: Optional[Dezimal] = None
     extended_maturity: Optional[date] = None
     extended_interest_rate: Optional[Dezimal] = None
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
@@ -635,6 +645,7 @@ class UpdatePositionRequest:
     new_entity_name: Optional[str] = None
     new_entity_icon_url: Optional[str] = None
     net_crypto_entity_details: Optional[CryptoEntityDetails] = None
+    create_investment_txs: bool = True
 
 
 @dataclass
