@@ -29,6 +29,12 @@ from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
 )
+from infrastructure.controller.routes.unsettle_manual_investment import (
+    unsettle_manual_investment,
+)
+from infrastructure.controller.routes.delete_manual_historic_entry import (
+    delete_manual_historic_entry,
+)
 from infrastructure.controller.routes.update_manual_transaction import (
     update_manual_transaction,
 )
@@ -149,8 +155,15 @@ from application.use_cases.get_crypto_wallet_addresses import (
 )
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.manual_position_snapshot import ManualPositionSnapshotWriter
+from application.use_cases.manual_historic_common import ManualHistoricWriter
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
+from application.use_cases.unsettle_manual_investment import (
+    UnsettleManualInvestmentImpl,
+)
+from application.use_cases.delete_manual_historic_entry import (
+    DeleteManualHistoricEntryImpl,
+)
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
@@ -229,6 +242,8 @@ async def app(tmp_path):
     auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
     transaction_port = AsyncMock(spec=TransactionPort)
     historic_port = AsyncMock(spec=HistoricPort)
+    historic_port.get_by_manual_key.return_value = None
+    historic_port.get_manual_by_entity.return_value = []
     last_fetches_port = AsyncMock(spec=LastFetchesPort)
     crypto_asset_registry_port = AsyncMock(spec=CryptoAssetRegistryPort)
     crypto_asset_info_provider = AsyncMock(spec=CryptoAssetInfoProvider)
@@ -371,6 +386,7 @@ async def app(tmp_path):
         real_estate_port=real_estate_repo,
         loan_calculator=loan_calculator,
     )
+    manual_historic_writer = ManualHistoricWriter(historic_port)
     update_position_uc = UpdatePositionImpl(
         entity_port=entity_port,
         position_port=position_port,
@@ -379,9 +395,25 @@ async def app(tmp_path):
         transaction_handler_port=transaction_handler_port,
         virtual_import_registry=virtual_import_registry,
         snapshot_writer=manual_position_snapshot_writer,
+        historic_writer=manual_historic_writer,
     )
     add_manual_transaction_uc = AddManualTransactionImpl(
         entity_port,
+        transaction_port,
+        virtual_import_registry,
+        transaction_handler_port,
+        historic_port,
+    )
+    unsettle_manual_investment_uc = UnsettleManualInvestmentImpl(
+        historic_port,
+        position_port,
+        transaction_port,
+        virtual_import_registry,
+        manual_position_snapshot_writer,
+        transaction_handler_port,
+    )
+    delete_manual_historic_entry_uc = DeleteManualHistoricEntryImpl(
+        historic_port,
         transaction_port,
         virtual_import_registry,
         transaction_handler_port,
@@ -561,6 +593,16 @@ async def app(tmp_path):
     async def delete_manual_transaction_route(tx_id: str):
         return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
 
+    @test_app.route("/api/v1/historic/<entry_id>/unsettle", methods=["POST"])
+    async def unsettle_manual_investment_route(entry_id: str):
+        return await unsettle_manual_investment(unsettle_manual_investment_uc, entry_id)
+
+    @test_app.route("/api/v1/historic/<entry_id>", methods=["DELETE"])
+    async def delete_manual_historic_entry_route(entry_id: str):
+        return await delete_manual_historic_entry(
+            delete_manual_historic_entry_uc, entry_id
+        )
+
     @test_app.route("/api/v1/data/manual/contributions", methods=["POST"])
     async def update_contributions_route():
         return await update_contributions(update_contributions_uc)
@@ -673,6 +715,7 @@ async def app(tmp_path):
         periodic_flow_repo,
         pending_flow_port,
         file_storage_port,
+        historic_port,
     )
 
     await db_client.silent_close()
@@ -833,3 +876,8 @@ async def pending_flow_port(app):
 @pytest_asyncio.fixture
 async def file_storage_port(app):
     return app[30]
+
+
+@pytest_asyncio.fixture
+async def historic_port(app):
+    return app[31]

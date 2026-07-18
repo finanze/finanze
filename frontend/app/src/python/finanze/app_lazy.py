@@ -194,6 +194,7 @@ class LazyComponents:
         from application.use_cases.manual_position_snapshot import (
             ManualPositionSnapshotWriter,
         )
+        from application.use_cases.manual_historic_common import ManualHistoricWriter
         from application.use_cases.add_manual_transaction import (
             AddManualTransactionImpl,
         )
@@ -202,6 +203,18 @@ class LazyComponents:
         )
         from application.use_cases.delete_manual_transaction import (
             DeleteManualTransactionImpl,
+        )
+        from application.use_cases.settle_manual_investment import (
+            SettleManualInvestmentImpl,
+        )
+        from application.use_cases.partial_amortize_manual_investment import (
+            PartialAmortizeManualInvestmentImpl,
+        )
+        from application.use_cases.unsettle_manual_investment import (
+            UnsettleManualInvestmentImpl,
+        )
+        from application.use_cases.delete_manual_historic_entry import (
+            DeleteManualHistoricEntryImpl,
         )
         from application.use_cases.get_historic import GetHistoricImpl
         from application.use_cases.get_instruments import GetInstrumentsImpl
@@ -490,6 +503,11 @@ class LazyComponents:
             d.re_repo,
             d.loan_calculator,
         )
+        manual_historic_writer = ManualHistoricWriter(
+            historic_repo,
+            transaction_port=d.tx_repo,
+            virtual_import_registry=d.virtual_repo,
+        )
         self.up_pos = UpdatePositionImpl(
             d.entity_repo,
             d.position_repo,
@@ -498,6 +516,7 @@ class LazyComponents:
             d.tx_handler,
             d.virtual_repo,
             manual_position_snapshot_writer,
+            manual_historic_writer,
         )
         self.settle_pending = SettlePendingFlowImpl(
             d.pending_repo,
@@ -507,13 +526,45 @@ class LazyComponents:
             d.tx_handler,
         )
         self.add_manual_tx = AddManualTransactionImpl(
-            d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler
+            d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler, historic_repo
         )
         self.up_manual_tx = UpdateManualTransactionImpl(
             d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler
         )
         self.del_manual_tx = DeleteManualTransactionImpl(
             d.tx_repo, d.virtual_repo, d.tx_handler
+        )
+        self.settle_manual_inv = SettleManualInvestmentImpl(
+            d.entity_repo,
+            d.position_repo,
+            d.tx_repo,
+            historic_repo,
+            d.virtual_repo,
+            manual_position_snapshot_writer,
+            d.tx_handler,
+        )
+        self.partial_amortize_manual_inv = PartialAmortizeManualInvestmentImpl(
+            d.entity_repo,
+            d.position_repo,
+            d.tx_repo,
+            historic_repo,
+            d.virtual_repo,
+            manual_position_snapshot_writer,
+            d.tx_handler,
+        )
+        self.unsettle_manual_inv = UnsettleManualInvestmentImpl(
+            historic_repo,
+            d.position_repo,
+            d.tx_repo,
+            d.virtual_repo,
+            manual_position_snapshot_writer,
+            d.tx_handler,
+        )
+        self.delete_manual_historic = DeleteManualHistoricEntryImpl(
+            historic_repo,
+            d.tx_repo,
+            d.virtual_repo,
+            d.tx_handler,
         )
 
         self.get_historic = GetHistoricImpl(historic_repo, d.entity_repo)

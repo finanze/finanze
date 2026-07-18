@@ -546,6 +546,7 @@ export function ManualPositionsManager({
   )
   const [formErrors, setFormErrors] = useState<ManualFormErrors<any>>({})
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
+  const [createInvestmentTxs, setCreateInvestmentTxs] = useState(true)
   const [activeDraft, setActiveDraft] =
     useState<ManualPositionDraft<any> | null>(null)
   const formInitialSnapshotRef = useRef<string | null>(null)
@@ -706,6 +707,7 @@ export function ManualPositionsManager({
         setFormErrors({})
         formInitialSnapshotRef.current = serialize(form)
       } else {
+        setCreateInvestmentTxs(true)
         const baseForm = config.createEmptyForm({
           defaultCurrency,
           entityId:
@@ -974,6 +976,10 @@ export function ManualPositionsManager({
       newEntityName: isNewEntity ? newEntityName : null,
     }
 
+    if (asset === "factoring" || asset === "realEstateCf") {
+      ;(draft as any)._createInvestmentTxs = createInvestmentTxs
+    }
+
     upsertDraft(draft)
   }, [
     formState,
@@ -985,6 +991,8 @@ export function ManualPositionsManager({
     manualEntities,
     showToast,
     upsertDraft,
+    asset,
+    createInvestmentTxs,
   ])
 
   const resolveAccountIdentifiers = useCallback(
@@ -1480,6 +1488,22 @@ export function ManualPositionsManager({
             products: {
               [productType]: productPayload as any,
             },
+          }
+
+          if (
+            productType === ProductType.FACTORING ||
+            productType === ProductType.REAL_ESTATE_CF
+          ) {
+            const newInvestmentDrafts = entries.filter(
+              ({ draft }) => !draft.originalId,
+            )
+            requestPayload.create_investment_txs =
+              newInvestmentDrafts.length === 0
+                ? true
+                : newInvestmentDrafts.every(
+                    ({ draft }) =>
+                      (draft as any)._createInvestmentTxs !== false,
+                  )
           }
 
           if (treatAsNewEntity) {
@@ -2111,6 +2135,42 @@ export function ManualPositionsManager({
                               >
                                 {translate(
                                   "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : (asset === "factoring" ||
+                            asset === "realEstateCf") &&
+                          formMode === "create" ? (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id="manual_create_investment_txs"
+                              checked={createInvestmentTxs}
+                              onCheckedChange={setCreateInvestmentTxs}
+                            />
+                            <Label
+                              htmlFor="manual_create_investment_txs"
+                              className="cursor-pointer text-sm"
+                            >
+                              {translate(
+                                "management.manualPositions.shared.createInvestmentTxs",
+                              )}
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                >
+                                  <Info className="h-3.5 w-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                className="w-72 text-xs"
+                                side="top"
+                              >
+                                {translate(
+                                  "management.manualPositions.shared.createInvestmentTxsInfo",
                                 )}
                               </PopoverContent>
                             </Popover>

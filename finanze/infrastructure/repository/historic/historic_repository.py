@@ -7,6 +7,7 @@ from dateutil.tz import tzlocal
 from application.ports.historic_port import HistoricPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.historic import (
     BaseHistoricEntry,
@@ -57,6 +58,8 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "entity_account_id": UUID(row["entity_account_id"])
         if row["entity_account_id"]
         else None,
+        "source": DataSource(row["source"]) if row["source"] else DataSource.REAL,
+        "manual_key": row["manual_key"],
     }
 
     if common["product_type"] == ProductType.FACTORING:
@@ -124,6 +127,8 @@ class HistoricSQLRepository(HistoricPort):
                     "entity_account_id": str(entry.entity_account_id)
                     if entry.entity_account_id
                     else None,
+                    "source": entry.source.value,
+                    "manual_key": entry.manual_key,
                 }
 
                 if isinstance(entry, FactoringEntry):
@@ -202,6 +207,68 @@ class HistoricSQLRepository(HistoricPort):
                 HistoricQueries.DELETE_BY_ENTITY_ACCOUNT,
                 (str(entity_account_id),),
             )
+
+    async def get_by_id(
+        self, entry_id: UUID, fetch_related_txs: bool = False
+    ) -> Optional[BaseHistoricEntry]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(HistoricQueries.GET_BY_ID.value, (str(entry_id),))
+            entries = await cursor.fetchall()
+            if not entries:
+                return None
+            built = await self._build_historic_entries(
+                entries, fetch_related_txs, cursor
+            )
+            return built[0]
+
+    async def get_by_manual_key(
+        self, manual_key: str, fetch_related_txs: bool = False
+    ) -> Optional[BaseHistoricEntry]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(HistoricQueries.GET_BY_MANUAL_KEY.value, (manual_key,))
+            entries = await cursor.fetchall()
+            if not entries:
+                return None
+            built = await self._build_historic_entries(
+                entries, fetch_related_txs, cursor
+            )
+            return built[0]
+
+    async def delete_by_id(self, entry_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(HistoricQueries.DELETE_BY_ID.value, (str(entry_id),))
+
+    async def get_manual_by_entity(
+        self, entity_id: UUID, fetch_related_txs: bool = False
+    ) -> List[BaseHistoricEntry]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                HistoricQueries.GET_MANUAL_BY_ENTITY.value, (str(entity_id),)
+            )
+            entries = await cursor.fetchall()
+            if not entries:
+                return []
+            return await self._build_historic_entries(
+                entries, fetch_related_txs, cursor
+            )
+
+    async def upsert(self, entry: BaseHistoricEntry):
+        if entry.manual_key:
+            async with self._db_client.tx() as cursor:
+                await cursor.execute(
+                    HistoricQueries.DELETE_BY_MANUAL_KEY.value, (entry.manual_key,)
+                )
+        await self.save([entry])
+
+    async def link_txs(self, entry_id: UUID, tx_ids: list[UUID]):
+        if not tx_ids:
+            return
+        async with self._db_client.tx() as cursor:
+            for tx_id in tx_ids:
+                await cursor.execute(
+                    HistoricQueries.INSERT_HISTORIC_TX,
+                    (str(tx_id), str(entry_id)),
+                )
 
     async def get_by_filters(
         self, query: HistoricQueryRequest, fetch_related_txs: bool = False

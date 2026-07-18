@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from dateutil.tz import tzlocal
 from domain.use_cases.add_manual_transaction import AddManualTransaction
@@ -20,11 +21,13 @@ async def add_manual_transaction(add_manual_transaction_uc: AddManualTransaction
 
     try:
         tx = map_manual_transaction(body)
+        raw_historic_id = body.get("historic_entry_id")
+        historic_entry_id = UUID(raw_historic_id) if raw_historic_id else None
     except Exception as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     try:
-        await add_manual_transaction_uc.execute(tx)
+        await add_manual_transaction_uc.execute(tx, historic_entry_id)
     except ValueError as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 

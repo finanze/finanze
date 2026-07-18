@@ -2071,7 +2071,7 @@
     "applyToAccountBalance": "Apply to account balance",
     "applyToAccountBalanceHint": "The settled amount will be added to or subtracted from the selected account.",
     "selectAccount": "Select an account",
-    "noManualAccounts": "No manual accounts available",
+    "noManualAccounts": "There are no manually entered accounts to apply this change to. Create one to enable this option.",
     "markActive": "Reactivate",
     "statusFilter": "Status",
     "filters": "Filters",
@@ -2185,6 +2185,72 @@
       }
     },
     "manualPositions": {
+      "settle": {
+        "title": "Settle investment",
+        "maturity": "Settlement date",
+        "interests": "Interests",
+        "interestModes": {
+          "default": "Automatic",
+          "amount": "Amount",
+          "rate": "Annual rate",
+          "gain": "Total gain"
+        },
+        "defaultInterestsHint": "Estimated interests: {amount}",
+        "resolvedInterests": "Interests: {amount}",
+        "taxes": "Taxes & retentions",
+        "taxModes": {
+          "percent": "Percentage",
+          "amount": "Amount"
+        },
+        "resolvedRetentions": "Retentions: {amount}",
+        "fees": "Fees",
+        "pendingCapital": "Pending capital",
+        "willComplete": "Will be marked as completed.",
+        "willDefault": "Pending capital remains: will be marked as defaulted.",
+        "createInvestmentTx": "Create related transaction",
+        "confirm": "Settle",
+        "success": "Investment settled",
+        "error": "Could not settle the investment"
+      },
+      "amortize": {
+        "title": "Partial amortization",
+        "amount": "Repaid capital",
+        "date": "Date",
+        "interests": "Interests",
+        "retentions": "Retentions",
+        "fees": "Fees",
+        "confirm": "Amortize",
+        "invalidAmount": "Enter a valid amount",
+        "success": "Amortization registered",
+        "error": "Could not register the amortization"
+      },
+      "deleteHistoric": {
+        "title": "Delete completed investment",
+        "description": "This will remove the completed investment record.",
+        "txHandling": "Related transactions",
+        "keepTxs": "Keep transactions",
+        "keepTxsHint": "Only the record is removed; transactions are kept.",
+        "settlementTxs": "Delete settlement transactions",
+        "settlementTxsHint": "Remove the transactions created at settlement.",
+        "allTxs": "Delete all transactions",
+        "allTxsHint": "Remove every related transaction.",
+        "confirm": "Delete",
+        "success": "Record deleted",
+        "error": "Could not delete the record"
+      },
+      "unsettle": {
+        "title": "Unsettle investment",
+        "message": "This will restore the investment as active and remove the transactions created at settlement.",
+        "confirm": "Unsettle",
+        "success": "Investment restored",
+        "error": "Could not unsettle the investment"
+      },
+      "actions": {
+        "settle": "Settle",
+        "amortize": "Amortize",
+        "unsettle": "Unsettle",
+        "deleteRecord": "Delete record"
+      },
       "shared": {
         "entity": "Entity",
         "name": "Name",
@@ -2194,6 +2260,8 @@
         "newEntityPlaceholder": "Enter the new entity name",
         "trackPrice": "Track price",
         "trackPriceUnavailable": "Select an instrument to enable price tracking.",
+        "createInvestmentTxs": "Create transactions",
+        "createInvestmentTxsInfo": "When enabled, an initial investment transaction is created (plus a repayment transaction if the pending capital is lower than the invested amount).",
         "currencyConversionWarning": "Instrument currency differs from the selected currency. Conversion uses the latest rates and may vary.",
         "summary": {
           "shares": "Shares"
