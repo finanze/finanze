@@ -1,3 +1,8 @@
+## [0.9.2] - 2026-07-20
+
+### 🐛 Bug Fixes
+
+- Keychain key causing collision in migration
 ## [0.9.1] - 2026-07-18
 
 ### 🚀 Features
