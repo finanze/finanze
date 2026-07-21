@@ -142,6 +142,12 @@ const DEFAULT_FETCH_OPTIONS: FetchOptions = {
   deep: false,
 }
 
+const formatEntityError = (
+  message: string | undefined,
+  entityName: string,
+  fallback: string,
+): string => (message || fallback).replace("{entity}", entityName)
+
 export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
@@ -496,12 +502,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 resetState()
                 setView("entities")
               } else {
-                const errorMessage =
-                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
-                  t.common.loginErrorEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  )
+                const errorMessage = formatEntityError(
+                  t.errors[confirmResponse.code as keyof typeof t.errors],
+                  selectedEntity.name,
+                  t.common.loginErrorEntity,
+                )
                 showToast(errorMessage, "error")
                 resetState()
                 setView("entities")
@@ -595,26 +600,29 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginErrorEntity.replace(
-                "{entity}",
-                selectedEntity.name,
-              ),
+            formatEntityError(
+              t.errors[response.code as keyof typeof t.errors],
+              selectedEntity.name,
+              t.common.loginErrorEntity,
+            ),
+            "error",
+          )
+        } else if (response.code === "INVALID_CREDENTIALS") {
+          showToast(
+            formatEntityError(
+              t.errors[response.code as keyof typeof t.errors],
+              selectedEntity.name,
+              t.common.loginErrorEntity,
+            ),
             "error",
           )
         } else {
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
-          let finalMessage: string
-          if (errorMessage?.includes("{entity}")) {
-            finalMessage = errorMessage.replace("{entity}", selectedEntity.name)
-          } else if (errorMessage) {
-            finalMessage = errorMessage
-          } else {
-            finalMessage = t.common.loginErrorEntity.replace(
-              "{entity}",
-              selectedEntity.name,
-            )
-          }
+          const finalMessage = formatEntityError(
+            errorMessage,
+            selectedEntity.name,
+            t.common.loginErrorEntity,
+          )
           showToast(finalMessage, "error")
           resetState()
           setView("entities")
@@ -847,11 +855,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 } else {
                   const errorKey = confirmResponse.code as keyof typeof t.errors
                   notify(
-                    t.errors[errorKey] ||
-                      t.common.fetchErrorEntity.replace(
-                        "{entity}",
-                        entity.name,
-                      ),
+                    formatEntityError(
+                      t.errors[errorKey],
+                      entity.name,
+                      t.common.fetchErrorEntity,
+                    ),
                     "error",
                   )
                   resetState({ preserveSelectedFeatures: true })
@@ -1045,25 +1053,36 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
-          const errorMessage =
-            t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity.replace("{entity}", entityName)
+          const errorMessage = formatEntityError(
+            t.errors[response.code as keyof typeof t.errors],
+            entityName,
+            t.common.fetchErrorEntity,
+          )
           notify(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
             navigate("/entities")
           }
           const entityName = entity?.name || t.common.crypto
-          const errorMessage = (
-            t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity
-          )?.replace("{entity}", entityName)
+          const errorMessage = formatEntityError(
+            t.errors[response.code as keyof typeof t.errors],
+            entityName,
+            t.common.fetchErrorEntity,
+          )
           notify(errorMessage, "error")
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
           }
         } else if (response.code === FetchResultCode.LINK_EXPIRED) {
-          notify(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
+          const entityName = entity?.name || t.common.crypto
+          notify(
+            formatEntityError(
+              t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED,
+              entityName,
+              t.errors.LOGIN_REQUIRED,
+            ),
+            "warning",
+          )
           if (entity) {
             updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
             if (silent) {
@@ -1084,17 +1103,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else {
           const entityName = entity?.name || t.common.crypto
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
-          let finalMessage: string
-          if (errorMessage?.includes("{entity}")) {
-            finalMessage = errorMessage.replace("{entity}", entityName)
-          } else if (errorMessage) {
-            finalMessage = errorMessage
-          } else {
-            finalMessage = t.common.fetchErrorEntity.replace(
-              "{entity}",
-              entityName,
-            )
-          }
+          const finalMessage = formatEntityError(
+            errorMessage,
+            entityName,
+            t.common.fetchErrorEntity,
+          )
           notify(finalMessage, "error")
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
@@ -1353,8 +1366,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setView("entities")
               } else {
                 showToast(
-                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
+                  formatEntityError(
+                    t.errors[confirmResponse.code as keyof typeof t.errors],
+                    selectedEntity.name,
                     t.common.loginError,
+                  ),
                   "error",
                 )
                 resetState()
@@ -1395,8 +1411,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             "-> resetting to entities",
           )
           showToast(
-            t.errors[loginResponse.code as keyof typeof t.errors] ||
+            formatEntityError(
+              t.errors[loginResponse.code as keyof typeof t.errors],
+              selectedEntity.name,
               t.common.loginError,
+            ),
             "error",
           )
           resetState()

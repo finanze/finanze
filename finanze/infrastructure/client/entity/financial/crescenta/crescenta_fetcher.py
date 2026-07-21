@@ -18,6 +18,7 @@ from domain.global_position import (
 )
 from domain.native_entities import CRESCENTA
 from domain.transactions import FundTx, Transactions, TxType
+from domain.instrument_issuer import resolve_issuer
 from infrastructure.client.entity.financial.crescenta.crescenta_client import (
     CrescentaClient,
 )
@@ -91,6 +92,7 @@ class CrescentaFetcher(FinancialEntityFetcher):
                         currency=currency,
                         type=FundType.PRIVATE_EQUITY,
                         source=DataSource.REAL,
+                        issuer=resolve_issuer(None, product_name) or "Crescenta",
                     )
                 )
 
