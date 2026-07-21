@@ -104,16 +104,19 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
             except Exception as e:
                 msg = self._stringify_error(e)
                 if self._looks_like_decryption_error(msg):
+                    self._unlocked = False
+                    self._db_name = None
+                    try:
+                        await self._client.silent_close()
+                    finally:
+                        self._client.set_connection(None)
                     raise DecryptionError(
                         "Failed to decrypt database. Incorrect password or corrupted file"
                     ) from e
 
-                if isinstance(e, MigrationAheadOfTime):
-                    raise
-                if isinstance(e, MigrationError):
-                    raise
+                if not isinstance(e, (MigrationAheadOfTime, MigrationError)):
+                    self._log.exception("Failed to unlock database: %s", e)
 
-                self._log.exception("Failed to unlock database: %s", e)
                 self._unlocked = False
                 self._db_name = None
                 try:

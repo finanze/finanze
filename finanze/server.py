@@ -135,6 +135,9 @@ from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
 from infrastructure.client.entity.financial.b100.b100_fetcher import B100Fetcher
+from infrastructure.client.entity.financial.crescenta.crescenta_fetcher import (
+    CrescentaFetcher,
+)
 from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
 from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import IBKRFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
@@ -326,6 +329,7 @@ class FinanzeServer:
                 domain.native_entities.DEGIRO: DegiroFetcher(),
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
+                domain.native_entities.CRESCENTA: CrescentaFetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
             }
 

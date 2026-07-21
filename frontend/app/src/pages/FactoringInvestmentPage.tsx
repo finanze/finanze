@@ -1823,7 +1823,7 @@ function FactoringViewContent({
                       className="text-gray-400 dark:text-gray-500"
                     />
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      {item.interestRateFormatted}
+                      <Sensitive>{item.interestRateFormatted}</Sensitive>
                     </span>
                     {historicShowGrossRate && (
                       <>
@@ -1831,7 +1831,9 @@ function FactoringViewContent({
                           /
                         </span>
                         <span className="text-blue-600 dark:text-neutral-500 font-medium">
-                          {item.grossInterestRateFormatted}
+                          <Sensitive>
+                            {item.grossInterestRateFormatted}
+                          </Sensitive>
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {t.investments.gross}
@@ -1889,11 +1891,13 @@ function FactoringViewContent({
                       <div className="flex items-center gap-2 self-center">
                         <div className="flex flex-col items-end gap-1 text-right">
                           <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                            {item.invested.formatted ?? notAvailableLabel}
+                            <Sensitive>
+                              {item.invested.formatted ?? notAvailableLabel}
+                            </Sensitive>
                           </span>
                           {item.invested.original && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {item.invested.original}
+                              <Sensitive>{item.invested.original}</Sensitive>
                             </span>
                           )}
                         </div>
@@ -1904,7 +1908,7 @@ function FactoringViewContent({
                               profitColor(item.netProfit.amount),
                             )}
                           >
-                            {profitDisplay}
+                            <Sensitive>{profitDisplay}</Sensitive>
                           </span>
                         </div>
                       </div>
@@ -2030,12 +2034,16 @@ function FactoringViewContent({
                                                       amountColor,
                                                     )}
                                                   >
-                                                    {formattedAmount}
+                                                    <Sensitive>
+                                                      {formattedAmount}
+                                                    </Sensitive>
                                                   </span>
                                                 </div>
                                                 {amountDisplay.original && (
                                                   <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                    {amountDisplay.original}
+                                                    <Sensitive>
+                                                      {amountDisplay.original}
+                                                    </Sensitive>
                                                   </span>
                                                 )}
                                               </button>
@@ -2084,11 +2092,16 @@ function FactoringViewContent({
                                       profitColor(item.profit.amount),
                                     )}
                                   >
-                                    {item.profit.formatted ?? notAvailableLabel}
+                                    <Sensitive>
+                                      {item.profit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.profit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.profit.percentFormatted}
+                                      <Sensitive>
+                                        {item.profit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2102,12 +2115,16 @@ function FactoringViewContent({
                                       profitColor(item.netProfit.amount),
                                     )}
                                   >
-                                    {item.netProfit.formatted ??
-                                      notAvailableLabel}
+                                    <Sensitive>
+                                      {item.netProfit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.netProfit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.netProfit.percentFormatted}
+                                      <Sensitive>
+                                        {item.netProfit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2123,8 +2140,10 @@ function FactoringViewContent({
                                   >
                                     <span>{stat.label}:</span>
                                     <span className="font-medium text-gray-900 dark:text-gray-100">
-                                      {stat.amount.formatted ??
-                                        notAvailableLabel}
+                                      <Sensitive>
+                                        {stat.amount.formatted ??
+                                          notAvailableLabel}
+                                      </Sensitive>
                                     </span>
                                   </div>
                                 ))}
@@ -2138,8 +2157,10 @@ function FactoringViewContent({
                                     >
                                       <span>{stat.label}:</span>
                                       <span className="font-medium text-gray-900 dark:text-gray-100">
-                                        {stat.amount.formatted ??
-                                          notAvailableLabel}
+                                        <Sensitive>
+                                          {stat.amount.formatted ??
+                                            notAvailableLabel}
+                                        </Sensitive>
                                       </span>
                                     </div>
                                   ))}
