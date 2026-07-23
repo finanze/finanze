@@ -194,6 +194,7 @@ class DeferredComponents:
                     domain.native_entities.UNICAJA,
                     domain.native_entities.IBKR,
                     domain.native_entities.B100,
+                    domain.native_entities.CRESCENTA,
                     domain.native_entities.BINANCE,
                 ]
             }

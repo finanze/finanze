@@ -1961,7 +1961,7 @@ function RealEstateViewContent({
                         className="text-gray-400 dark:text-gray-500"
                       />
                       <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                        {item.interestRateFormatted}
+                        <Sensitive>{item.interestRateFormatted}</Sensitive>
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {t.investments.annually}
@@ -2018,11 +2018,13 @@ function RealEstateViewContent({
                       <div className="flex items-center gap-2 self-center">
                         <div className="flex flex-col items-end gap-1 text-right">
                           <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                            {item.invested.formatted ?? notAvailableLabel}
+                            <Sensitive>
+                              {item.invested.formatted ?? notAvailableLabel}
+                            </Sensitive>
                           </span>
                           {item.invested.original && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {item.invested.original}
+                              <Sensitive>{item.invested.original}</Sensitive>
                             </span>
                           )}
                         </div>
@@ -2033,7 +2035,7 @@ function RealEstateViewContent({
                               profitColor(item.netProfit.amount),
                             )}
                           >
-                            {profitDisplay}
+                            <Sensitive>{profitDisplay}</Sensitive>
                           </span>
                         </div>
                       </div>
@@ -2159,12 +2161,16 @@ function RealEstateViewContent({
                                                       amountColor,
                                                     )}
                                                   >
-                                                    {formattedAmount}
+                                                    <Sensitive>
+                                                      {formattedAmount}
+                                                    </Sensitive>
                                                   </span>
                                                 </div>
                                                 {amountDisplay.original && (
                                                   <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                    {amountDisplay.original}
+                                                    <Sensitive>
+                                                      {amountDisplay.original}
+                                                    </Sensitive>
                                                   </span>
                                                 )}
                                               </button>
@@ -2230,11 +2236,16 @@ function RealEstateViewContent({
                                       profitColor(item.profit.amount),
                                     )}
                                   >
-                                    {item.profit.formatted ?? notAvailableLabel}
+                                    <Sensitive>
+                                      {item.profit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.profit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.profit.percentFormatted}
+                                      <Sensitive>
+                                        {item.profit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2248,12 +2259,16 @@ function RealEstateViewContent({
                                       profitColor(item.netProfit.amount),
                                     )}
                                   >
-                                    {item.netProfit.formatted ??
-                                      notAvailableLabel}
+                                    <Sensitive>
+                                      {item.netProfit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.netProfit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.netProfit.percentFormatted}
+                                      <Sensitive>
+                                        {item.netProfit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2269,8 +2284,10 @@ function RealEstateViewContent({
                                   >
                                     <span>{stat.label}:</span>
                                     <span className="font-medium text-gray-900 dark:text-gray-100">
-                                      {stat.amount.formatted ??
-                                        notAvailableLabel}
+                                      <Sensitive>
+                                        {stat.amount.formatted ??
+                                          notAvailableLabel}
+                                      </Sensitive>
                                     </span>
                                   </div>
                                 ))}
@@ -2284,8 +2301,10 @@ function RealEstateViewContent({
                                     >
                                       <span>{stat.label}:</span>
                                       <span className="font-medium text-gray-900 dark:text-gray-100">
-                                        {stat.amount.formatted ??
-                                          notAvailableLabel}
+                                        <Sensitive>
+                                          {stat.amount.formatted ??
+                                            notAvailableLabel}
+                                        </Sensitive>
                                       </span>
                                     </div>
                                   ))}

@@ -275,6 +275,7 @@ class MyInvestorAPIV2Client:
                 return False
 
             data = await response.json()
+            # read_only maintenance & transactional
             return (
                 data.get("enabled") is True and data.get("mode_name") == "maintenance"
             )

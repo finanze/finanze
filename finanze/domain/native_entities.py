@@ -291,6 +291,23 @@ B100 = NativeFinancialEntity(
     icon_url=None,
 )
 
+CRESCENTA = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000015"),
+    name="Crescenta",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.FUND],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "user": CredentialType.EMAIL,
+        "password": CredentialType.PASSWORD,
+    },
+    icon_url=None,
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -362,6 +379,7 @@ NATIVE_ENTITIES = [
     DEGIRO,
     IBKR,
     B100,
+    CRESCENTA,
     BITCOIN,
     ETHEREUM,
     LITECOIN,
