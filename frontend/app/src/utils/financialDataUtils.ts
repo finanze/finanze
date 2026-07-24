@@ -24,6 +24,21 @@ import {
   LoanPayload,
 } from "@/types"
 
+const CURRENCY_ALIAS_MAP: Record<string, string> = {
+  BNFCR: "USD",
+  PUSD: "USD",
+}
+
+const normalizeCurrencyAlias = (
+  currency: string | null | undefined,
+): string | null => {
+  if (!currency) {
+    return null
+  }
+
+  return CURRENCY_ALIAS_MAP[currency.toUpperCase()] || currency
+}
+
 const getExchangeRateEntry = (
   exchangeRates: ExchangeRates | null | undefined,
   targetCurrency: string,
@@ -33,13 +48,26 @@ const getExchangeRateEntry = (
     return null
   }
 
-  const normalizedTarget = targetCurrency.toUpperCase()
+  const normalizedTarget = normalizeCurrencyAlias(targetCurrency)?.toUpperCase()
+  if (!normalizedTarget) {
+    return null
+  }
+
+  const normalizedKey = normalizeCurrencyAlias(key)
+  if (!normalizedKey) {
+    return null
+  }
+
   const targetCandidates = [
     exchangeRates[targetCurrency],
     exchangeRates[normalizedTarget],
   ]
 
-  const variants = [key, key.toUpperCase(), key.toLowerCase()]
+  const variants = [
+    normalizedKey,
+    normalizedKey.toUpperCase(),
+    normalizedKey.toLowerCase(),
+  ]
 
   for (const candidate of targetCandidates) {
     if (!candidate) {
@@ -62,7 +90,15 @@ export const convertCurrency = (
   targetCurrency: string,
   exchangeRates: ExchangeRates | null,
 ): number => {
-  if (fromCurrency === targetCurrency) {
+  const normalizedFromCurrency = normalizeCurrencyAlias(fromCurrency)
+  const normalizedTargetCurrency = normalizeCurrencyAlias(targetCurrency)
+
+  if (
+    normalizedFromCurrency &&
+    normalizedTargetCurrency &&
+    normalizedFromCurrency.toUpperCase() ===
+      normalizedTargetCurrency.toUpperCase()
+  ) {
     return amount
   }
 
@@ -73,7 +109,11 @@ export const convertCurrency = (
     return 0
   }
 
-  const rate = getExchangeRateEntry(exchangeRates, targetCurrency, fromCurrency)
+  const rate = getExchangeRateEntry(
+    exchangeRates,
+    normalizedTargetCurrency || targetCurrency,
+    normalizedFromCurrency || fromCurrency,
+  )
 
   if (rate && rate !== 0) {
     return amount / rate
@@ -342,7 +382,7 @@ export const convertCommodityAmountToDisplayUnit = (
   return convertWeight(amount, originalUnit, displayUnit)
 }
 
-const STABLECOIN_CURRENCY_MAP: Record<string, string> = { BNFCR: "USD" }
+const STABLECOIN_CURRENCY_MAP = CURRENCY_ALIAS_MAP
 
 const sumDerivativeValues = (
   entityPosition: { products: Record<string, any> },
@@ -1715,6 +1755,24 @@ export const getTotalInvestedAmount = (
                 )
               : initialInvestment
           totalInvested += convertedInvestment
+        })
+      }
+
+      const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+        DerivativePositions | undefined
+      if (
+        derivProduct &&
+        "entries" in derivProduct &&
+        derivProduct.entries.length > 0
+      ) {
+        derivProduct.entries.forEach((d: DerivativeDetail) => {
+          const amount = d.initial_investment || d.market_value || 0
+          const currency = STABLECOIN_CURRENCY_MAP[d.currency] || d.currency
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(amount, currency, targetCurrency, exchangeRates)
+              : amount
+          totalInvested += convertedAmount
         })
       }
     })

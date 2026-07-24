@@ -57,6 +57,7 @@ from domain.use_cases.unsettle_manual_investment import (
 from domain.use_cases.delete_manual_historic_entry import DeleteManualHistoricEntry
 from domain.use_cases.query_pending_flows import QueryPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
+from domain.use_cases.get_polymarket_bets import GetPolymarketBets
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
 from domain.use_cases.get_status import GetStatus
@@ -187,6 +188,7 @@ from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.oauth_callback import oauth_callback
+from infrastructure.controller.routes.polymarket_bets import polymarket_bets
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.save_backup_settings import save_backup_settings
@@ -258,6 +260,7 @@ async def register_routes(
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
     get_periodic_flows_uc: GetPeriodicFlows,
+    get_polymarket_bets_uc: GetPolymarketBets,
     save_pending_flow_uc: SavePendingFlow,
     update_pending_flow_uc: UpdatePendingFlow,
     delete_pending_flow_uc: DeletePendingFlow,
@@ -404,6 +407,10 @@ async def register_routes(
     @app.route("/api/v1/transactions", methods=["GET"])
     async def transactions_route():
         return await transactions(get_transactions_uc)
+
+    @app.route("/api/v1/polymarket/bets", methods=["GET"])
+    async def polymarket_bets_route():
+        return await polymarket_bets(get_polymarket_bets_uc)
 
     @app.route("/api/v1/exchange-rates", methods=["GET"])
     async def exchange_rates_route():

@@ -14,6 +14,7 @@ export type PinnedShortcutId =
   | "factoring"
   | "real-estate-cf"
   | "crypto"
+  | "bets"
   | "commodities"
   | "real-estate"
   | "management-recurring"
@@ -37,6 +38,7 @@ const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "factoring",
   "real-estate-cf",
   "crypto",
+  "bets",
   "commodities",
   "real-estate",
   "management-recurring",

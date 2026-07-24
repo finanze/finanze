@@ -67,6 +67,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Crowdfunding Immobiliare",
     "cryptoInvestments": "Crypto",
+    "bets": "Scommesse",
     "distributionByEntity": "Distribuzione per Entità",
     "distributionByAsset": "Distribuzione per Bene",
     "distribution": "Distribuzione",
@@ -336,6 +337,41 @@
       "sortMaturity": "Scadenza",
       "sortStartDate": "Data di inizio",
       "sortInvested": "Importo"
+    }
+  },
+  "bets": {
+    "untitledMarket": "Mercato senza titolo",
+    "chartPreviewUnavailable": "L'anteprima del grafico non è disponibile per questa scommessa.",
+    "status": {
+      "open": "Aperta",
+      "closed": "Chiusa"
+    },
+    "labels": {
+      "shares": "Quote",
+      "entry": "Entrata",
+      "mark": "Prezzo attuale",
+      "resolves": "Si risolve",
+      "closed": "Chiusa",
+      "value": "Valore",
+      "bought": "Acquistato",
+      "sold": "Venduto",
+      "viewMarket": "Vedi mercato"
+    },
+    "summary": {
+      "openExposure": "Esposizione aperta",
+      "costBasis": "Costo base",
+      "openPositions": "Posizioni aperte",
+      "closedPositions": "Posizioni chiuse",
+      "realizedPnl": "PnL realizzato",
+      "pnlHistory": "Storico PnL",
+      "latestCumulativePnl": "PnL cumulativo più recente"
+    },
+    "sections": {
+      "openTitle": "Scommesse aperte",
+      "openDescription": "Mercati attivi con performance mark-to-market attuale.",
+      "closedTitle": "Scommesse chiuse",
+      "closedDescription": "Mercati regolati e profitto o perdita realizzati.",
+      "positions": "posizioni"
     }
   },
   "toast": {
@@ -1171,7 +1207,8 @@
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1S"
+      "1W": "1S",
+      "YTD": "YTD"
     }
   },
   "export": {
@@ -1564,6 +1601,7 @@
     "page": "Pagina",
     "of": "di",
     "selectEntities": "Seleziona entità...",
+    "selectAccounts": "Seleziona conti...",
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
     "form": {

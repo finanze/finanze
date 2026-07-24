@@ -1,4 +1,10 @@
-import { EquityType, FundType, ProductType } from "./position"
+import {
+  DerivativeContractType,
+  EquityType,
+  FundType,
+  PositionDirection,
+  ProductType,
+} from "./position"
 import { DataSource, EntityOrigin } from "."
 
 export enum TxType {
@@ -77,6 +83,22 @@ export interface CryptoCurrencyTx extends BaseInvestmentTx {
   contract_address?: string
   retentions?: number
   order_date?: string
+}
+
+export interface DerivativeTx extends BaseInvestmentTx {
+  net_amount: number
+  size: number
+  price: number
+  fees: number
+  symbol: string
+  contract_address?: string
+  retentions?: number
+  order_date?: string
+  linked_tx?: string
+  direction?: PositionDirection
+  contract_type?: DerivativeContractType
+  underlying_asset?: ProductType
+  underlying_symbol?: string
 }
 
 // Fund transaction interface
@@ -218,6 +240,7 @@ export interface Transactions {
 type Tx = AccountTx &
   StockTx &
   CryptoCurrencyTx &
+  DerivativeTx &
   FundTx &
   FactoringTx &
   RealEstateCFTx &

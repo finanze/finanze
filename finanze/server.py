@@ -73,6 +73,7 @@ from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
+from application.use_cases.get_polymarket_bets import GetPolymarketBetsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_status import GetStatusImpl
@@ -130,6 +131,9 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
 from infrastructure.client.entity.exchange.binance.binance_fetcher import (
     BinanceFetcher,
+)
+from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+    PolymarketFetcher,
 )
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
@@ -327,6 +331,7 @@ class FinanzeServer:
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: PolymarketFetcher(),
             }
 
         external_entity_fetchers = {
@@ -579,6 +584,10 @@ class FinanzeServer:
         )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
+        )
+        get_polymarket_bets = GetPolymarketBetsImpl(
+            entity_account_repository,
+            credentials_port,
         )
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
@@ -910,6 +919,7 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
+            get_polymarket_bets,
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,

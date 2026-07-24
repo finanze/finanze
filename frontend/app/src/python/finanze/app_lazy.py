@@ -78,6 +78,9 @@ class LazyComponents:
             from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
                 BinanceFetcher,
             )
+            from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+                PolymarketFetcher,
+            )
             from infrastructure.client.financial.enablebanking.enablebanking_client import (
                 EnableBankingClient,
             )
@@ -271,6 +274,7 @@ class LazyComponents:
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: PolymarketFetcher(),
             }
 
         public_key_derivation = PublicKeyDerivationAdapter()

@@ -195,6 +195,7 @@ class DeferredComponents:
                     domain.native_entities.IBKR,
                     domain.native_entities.B100,
                     domain.native_entities.BINANCE,
+                    domain.native_entities.POLYMARKET,
                 ]
             }
             crypto_entity_fetcher_stubs = {

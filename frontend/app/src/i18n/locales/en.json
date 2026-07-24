@@ -67,6 +67,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Real Estate CF",
     "cryptoInvestments": "Crypto",
+    "bets": "Bets",
     "distributionByEntity": "Distribution by Entity",
     "distributionByAsset": "Distribution by Asset",
     "distribution": "Distribution",
@@ -338,6 +339,41 @@
       "sortInvested": "Amount"
     }
   },
+  "bets": {
+    "untitledMarket": "Untitled market",
+    "chartPreviewUnavailable": "Chart preview is not available for this bet.",
+    "status": {
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "labels": {
+      "shares": "Shares",
+      "entry": "Entry",
+      "mark": "Mark",
+      "resolves": "Resolves",
+      "closed": "Closed",
+      "value": "Value",
+      "bought": "Bought",
+      "sold": "Sold",
+      "viewMarket": "View market"
+    },
+    "summary": {
+      "openExposure": "Open exposure",
+      "costBasis": "Cost basis",
+      "openPositions": "Open positions",
+      "closedPositions": "Closed positions",
+      "realizedPnl": "Realized PnL",
+      "pnlHistory": "PnL history",
+      "latestCumulativePnl": "Latest cumulative PnL"
+    },
+    "sections": {
+      "openTitle": "Open bets",
+      "openDescription": "Active markets with current mark-to-market performance.",
+      "closedTitle": "Closed bets",
+      "closedDescription": "Settled markets and realized profit or loss.",
+      "positions": "positions"
+    }
+  },
   "toast": {
     "success": "Success",
     "warning": "Warning",
@@ -360,7 +396,8 @@
     },
     "credentialFields": {
       "apiKey": "API Key",
-      "secretKey": "Secret Key"
+      "secretKey": "Secret Key",
+      "identifier": "Username or wallet address"
     },
     "entityNotes": {
       "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)"
@@ -1171,7 +1208,8 @@
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1W"
+      "1W": "1W",
+      "YTD": "YTD"
     }
   },
   "export": {
@@ -1558,12 +1596,17 @@
     "symbol": "Symbol",
     "currencyAmount": "Currency Amount",
     "contractAddress": "Contract Address",
+    "size": "Size",
+    "direction": "Direction",
+    "contractType": "Contract Type",
+    "underlyingSymbol": "Underlying",
     "addManualTransaction": "Add",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
     "of": "of",
     "selectEntities": "Select entities...",
+    "selectAccounts": "Select accounts...",
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
     "form": {

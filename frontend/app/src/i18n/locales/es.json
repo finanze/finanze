@@ -35,6 +35,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Cf. Inmobiliario",
     "cryptoInvestments": "Crypto",
+    "bets": "Apuestas",
     "distributionByEntity": "Distribución por Entidad",
     "distributionByAsset": "Distribución por Activo",
     "distribution": "Distribución",
@@ -336,6 +337,41 @@
       "sortInvested": "Importe"
     }
   },
+  "bets": {
+    "untitledMarket": "Mercado sin título",
+    "chartPreviewUnavailable": "La vista previa del gráfico no está disponible para esta apuesta.",
+    "status": {
+      "open": "Abierta",
+      "closed": "Cerrada"
+    },
+    "labels": {
+      "shares": "Títulos",
+      "entry": "Entrada",
+      "mark": "Precio actual",
+      "resolves": "Resuelve",
+      "closed": "Cerrada",
+      "value": "Valor",
+      "bought": "Comprado",
+      "sold": "Vendido",
+      "viewMarket": "Ver mercado"
+    },
+    "summary": {
+      "openExposure": "Exposición abierta",
+      "costBasis": "Coste base",
+      "openPositions": "Posiciones abiertas",
+      "closedPositions": "Posiciones cerradas",
+      "realizedPnl": "P&L realizado",
+      "pnlHistory": "Historial de P&L",
+      "latestCumulativePnl": "P&L acumulado más reciente"
+    },
+    "sections": {
+      "openTitle": "Apuestas abiertas",
+      "openDescription": "Mercados activos con rendimiento mark-to-market actual.",
+      "closedTitle": "Apuestas cerradas",
+      "closedDescription": "Mercados liquidados y beneficio o pérdida realizada.",
+      "positions": "posiciones"
+    }
+  },
   "toast": {
     "success": "Operación exitosa",
     "warning": "Advertencia",
@@ -358,7 +394,8 @@
     },
     "credentialFields": {
       "apiKey": "Clave API",
-      "secretKey": "Clave Secreta"
+      "secretKey": "Clave Secreta",
+      "identifier": "Usuario o dirección wallet"
     },
     "entityNotes": {
       "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)"
@@ -1170,7 +1207,8 @@
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1S"
+      "1W": "1S",
+      "YTD": "YTD"
     }
   },
   "export": {
@@ -1557,12 +1595,17 @@
     "symbol": "Símbolo",
     "currencyAmount": "Cantidad",
     "contractAddress": "Dirección del contrato",
+    "size": "Tamaño",
+    "direction": "Dirección",
+    "contractType": "Tipo de contrato",
+    "underlyingSymbol": "Subyacente",
     "addManualTransaction": "Añadir",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",
     "of": "de",
     "selectEntities": "Seleccionar entidades...",
+    "selectAccounts": "Seleccionar cuentas...",
     "selectProductTypes": "Seleccionar tipos de producto...",
     "selectTransactionTypes": "Seleccionar tipos de transacción...",
     "form": {

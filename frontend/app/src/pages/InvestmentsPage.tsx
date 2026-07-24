@@ -79,6 +79,14 @@ export default function InvestmentsPage() {
         assetId: "crypto" as const,
       },
       {
+        path: "/investments/bets",
+        label: t.common.bets,
+        icon: getIconForProductType(ProductType.BETS, "h-8 w-8"),
+        color: "bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-200",
+        productType: ProductType.BETS,
+        assetId: "bets" as const,
+      },
+      {
         path: "/investments/commodities",
         label: t.common.commodities,
         icon: getIconForProductType(ProductType.COMMODITY, "h-8 w-8"),
@@ -110,8 +118,11 @@ export default function InvestmentsPage() {
       const hasPositions =
         route.productType === ProductType.REAL_ESTATE
           ? realEstateList.length > 0
-          : getEntitiesWithProductType(positionsData, route.productType)
-              .length > 0
+          : route.productType === ProductType.BETS
+            ? getEntitiesWithProductType(positionsData, ProductType.DERIVATIVE)
+                .length > 0
+            : getEntitiesWithProductType(positionsData, route.productType)
+                .length > 0
 
       return {
         ...route,

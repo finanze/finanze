@@ -22,6 +22,7 @@ export enum ProductType {
   BOND = "BOND",
   CREDIT = "CREDIT",
   DERIVATIVE = "DERIVATIVE",
+  BETS = "BETS",
 }
 
 export enum AccountType {
@@ -410,6 +411,11 @@ export interface DerivativeDetail {
   expiry?: string | null
   name?: string | null
   initial_investment?: number | null
+  polymarket_slug?: string | null
+  polymarket_event_slug?: string | null
+  polymarket_outcome?: string | null
+  polymarket_condition_id?: string | null
+  polymarket_token_id?: string | null
   source: DataSource
 }
 

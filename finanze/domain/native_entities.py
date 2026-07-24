@@ -338,6 +338,22 @@ BINANCE = NativeCryptoExchangeEntity(
     icon_url=None,
 )
 
+POLYMARKET = NativeCryptoExchangeEntity(
+    id=UUID("ce000000-0000-0000-0000-000000000002"),
+    name="Polymarket",
+    natural_id=None,
+    type=EntityType.CRYPTO_EXCHANGE,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.DERIVATIVE],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "identifier": CredentialType.USER,
+    },
+    icon_url=None,
+)
+
 COMMODITIES = Entity(
     id=UUID("ccccdddd-0000-0000-0000-000000000000"),
     name="Commodity Source",
@@ -368,6 +384,7 @@ NATIVE_ENTITIES = [
     TRON,
     BSC,
     BINANCE,
+    POLYMARKET,
     COMMODITIES,
 ]
 

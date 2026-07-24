@@ -666,6 +666,38 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setPinError(false)
 
+        const shouldFetchAllEntityAccounts =
+          !!entity &&
+          !entityAccountId &&
+          (entity.type === EntityType.FINANCIAL_INSTITUTION ||
+            entity.type === EntityType.CRYPTO_EXCHANGE) &&
+          (entity.accounts?.length ?? 0) > 1
+
+        if (shouldFetchAllEntityAccounts && entity) {
+          const accountIds = Array.from(
+            new Set(
+              (entity.accounts ?? [])
+                .map(account => account.id)
+                .filter(
+                  (accountId): accountId is string =>
+                    typeof accountId === "string" && accountId.length > 0,
+                ),
+            ),
+          )
+
+          for (const accountId of accountIds) {
+            await scrapeRef.current(
+              entity,
+              features,
+              options,
+              accountId,
+              externalCredentials,
+            )
+          }
+
+          return
+        }
+
         if (entity) {
           setFetchingEntityState(prev => ({
             ...prev,

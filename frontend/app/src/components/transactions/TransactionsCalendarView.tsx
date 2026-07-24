@@ -14,6 +14,7 @@ import {
   type RealEstateCFTx,
   type DepositTx,
   type CryptoCurrencyTx,
+  type DerivativeTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
@@ -574,6 +575,18 @@ function DayDetailModal({
           (cryptoTx.retentions != null && cryptoTx.retentions > 0)
         )
       }
+      case ProductType.DERIVATIVE: {
+        const derivativeTx = tx as DerivativeTx
+        return !!(
+          derivativeTx.symbol ||
+          derivativeTx.underlying_symbol ||
+          derivativeTx.size ||
+          Number(derivativeTx.price || 0) !== 0 ||
+          derivativeTx.contract_type ||
+          derivativeTx.direction ||
+          derivativeTx.contract_address
+        )
+      }
       default:
         return false
     }
@@ -952,6 +965,81 @@ function DayDetailModal({
                     tx.currency,
                   )}
                 </Sensitive>
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      case ProductType.DERIVATIVE: {
+        const derivativeTx = tx as DerivativeTx
+        return (
+          <div className="space-y-1 pt-2">
+            {derivativeTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {derivativeTx.symbol}
+              </div>
+            )}
+            {derivativeTx.underlying_symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.underlyingSymbol}:
+                </span>{" "}
+                {derivativeTx.underlying_symbol}
+              </div>
+            )}
+            {derivativeTx.size !== undefined && derivativeTx.size !== null && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
+                {derivativeTx.size.toLocaleString()}
+              </div>
+            )}
+            {Number(derivativeTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    derivativeTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+            {derivativeTx.contract_type && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.contractType}:
+                </span>{" "}
+                {t.investments.derivatives.contractType?.[
+                  derivativeTx.contract_type
+                ] || derivativeTx.contract_type}
+              </div>
+            )}
+            {derivativeTx.direction && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.direction}:
+                </span>{" "}
+                {t.investments.derivatives.direction?.[
+                  derivativeTx.direction
+                ] || derivativeTx.direction}
+              </div>
+            )}
+            {derivativeTx.contract_address && (
+              <div className={`${detailRowClass} break-all`}>
+                <span className={detailLabelClass}>
+                  {t.transactions.contractAddress}:
+                </span>{" "}
+                <span className="font-mono">
+                  {derivativeTx.contract_address}
+                </span>
               </div>
             )}
           </div>

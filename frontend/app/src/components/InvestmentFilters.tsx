@@ -13,6 +13,7 @@ interface InvestmentFiltersProps {
   walletOptions?: MultiSelectOption[]
   selectedWallets?: string[]
   onWalletsChange?: (wallets: string[]) => void
+  walletPlaceholder?: string
   minimal?: boolean
   placeholderOverride?: string
   extraFilters?: React.ReactNode
@@ -26,6 +27,7 @@ export function InvestmentFilters({
   walletOptions,
   selectedWallets,
   onWalletsChange,
+  walletPlaceholder,
   minimal = false,
   placeholderOverride,
   extraFilters,
@@ -76,7 +78,10 @@ export function InvestmentFilters({
                 options={walletOptions}
                 value={selectedWallets || []}
                 onChange={onWalletsChange}
-                placeholder={t.walletManagement.walletFilterPlaceholder}
+                placeholder={
+                  walletPlaceholder ||
+                  t.walletManagement.walletFilterPlaceholder
+                }
               />
             </div>
           )}

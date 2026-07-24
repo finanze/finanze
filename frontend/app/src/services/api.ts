@@ -72,6 +72,10 @@ import {
   ContributionQueryRequest,
   ManualContributionsRequest,
 } from "../types/contributions"
+import type {
+  PolymarketBetsResponse,
+  PolymarketPnlInterval,
+} from "../types/polymarket"
 import {
   EntitiesPosition,
   PositionQueryRequest,
@@ -361,6 +365,19 @@ export async function getTransactions(
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
   return (await getApiClient()).get(`/transactions${queryString}`)
+}
+
+export async function getPolymarketBets(
+  entityAccountIds?: string[],
+  interval: PolymarketPnlInterval = "all",
+): Promise<PolymarketBetsResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  params.append("interval", interval)
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/polymarket/bets${queryString}`)
 }
 
 export async function getHistoric(
