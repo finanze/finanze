@@ -364,7 +364,8 @@
       "closedPositions": "Posizioni chiuse",
       "realizedPnl": "PnL realizzato",
       "pnlHistory": "Storico PnL",
-      "latestCumulativePnl": "PnL cumulativo più recente"
+      "latestCumulativePnl": "PnL cumulativo più recente",
+      "selectedRangePnl": "PnL dell'intervallo selezionato"
     },
     "sections": {
       "openTitle": "Scommesse aperte",

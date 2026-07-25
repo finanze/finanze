@@ -364,7 +364,8 @@
       "closedPositions": "Closed positions",
       "realizedPnl": "Realized PnL",
       "pnlHistory": "PnL history",
-      "latestCumulativePnl": "Latest cumulative PnL"
+      "latestCumulativePnl": "Latest cumulative PnL",
+      "selectedRangePnl": "Selected range PnL"
     },
     "sections": {
       "openTitle": "Open bets",

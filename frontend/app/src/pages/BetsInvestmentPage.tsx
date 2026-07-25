@@ -152,6 +152,45 @@ function getPnlRangeStartTimestamp(
   }
 }
 
+function getPnlValueForRange(
+  points: PolymarketPnlPoint[],
+  range: PnlRange,
+): number {
+  if (points.length === 0) {
+    return 0
+  }
+
+  const latestPoint = points[points.length - 1]
+  if (range === "all") {
+    return latestPoint.p
+  }
+
+  const minTimestamp = getPnlRangeStartTimestamp(range, latestPoint.t)
+  if (minTimestamp == null) {
+    return latestPoint.p
+  }
+
+  let baselinePoint: PolymarketPnlPoint | null = null
+  for (const point of points) {
+    if (point.t <= minTimestamp) {
+      baselinePoint = point
+      continue
+    }
+    break
+  }
+
+  if (baselinePoint) {
+    return latestPoint.p - baselinePoint.p
+  }
+
+  const firstPointInRange = points.find(point => point.t >= minTimestamp)
+  if (firstPointInRange) {
+    return latestPoint.p - firstPointInRange.p
+  }
+
+  return latestPoint.p
+}
+
 function getPolymarketAccountLabel(args: {
   customName?: string | null
   accountName?: string | null
@@ -752,7 +791,7 @@ export default function BetsInvestmentPage() {
       )
   }, [betsData, filteredAccountIds])
 
-  const filteredPnlHistory = useMemo(() => {
+  const aggregatedPnlHistory = useMemo(() => {
     const history = betsData?.pnl_history ?? []
     const latestPointByAccountDay = new Map<
       string,
@@ -796,26 +835,29 @@ export default function BetsInvestmentPage() {
       }
     })
 
-    const aggregatedPoints = [...totalsByDay.values()]
+    return [...totalsByDay.values()]
       .sort((a, b) => a.t - b.t)
       .map(({ t, p }) => ({ t, p })) as PolymarketPnlPoint[]
+  }, [betsData, filteredAccountIds])
 
-    if (aggregatedPoints.length === 0) {
-      return aggregatedPoints
+  const filteredPnlHistory = useMemo(() => {
+    if (aggregatedPnlHistory.length === 0) {
+      return aggregatedPnlHistory
     }
 
-    const latestTimestamp = aggregatedPoints[aggregatedPoints.length - 1].t
+    const latestTimestamp =
+      aggregatedPnlHistory[aggregatedPnlHistory.length - 1].t
     const minTimestamp = getPnlRangeStartTimestamp(
       selectedInterval,
       latestTimestamp,
     )
 
     if (minTimestamp == null) {
-      return aggregatedPoints
+      return aggregatedPnlHistory
     }
 
-    return aggregatedPoints.filter(point => point.t >= minTimestamp)
-  }, [betsData, filteredAccountIds, selectedInterval])
+    return aggregatedPnlHistory.filter(point => point.t >= minTimestamp)
+  }, [aggregatedPnlHistory, selectedInterval])
 
   const pnlChartData = useMemo(
     () =>
@@ -892,20 +934,22 @@ export default function BetsInvestmentPage() {
       return sum + (toFiniteNumber(position.realizedPnl) ?? 0)
     }, 0)
 
-    const pnlLatest = filteredPnlHistory.length
-      ? filteredPnlHistory[filteredPnlHistory.length - 1].p
-      : 0
+    const pnlForSelectedRange = getPnlValueForRange(
+      aggregatedPnlHistory,
+      selectedInterval,
+    )
 
     return {
       openValue,
       openInvestment,
       closedPnl,
-      pnlLatest,
+      pnlForSelectedRange,
     }
   }, [
+    aggregatedPnlHistory,
     filteredClosedPositions,
     filteredOpenPositions,
-    filteredPnlHistory,
+    selectedInterval,
     defaultCurrency,
     exchangeRates,
   ])
@@ -1025,15 +1069,22 @@ export default function BetsInvestmentPage() {
               {isPnlLoading && <LoadingSpinner size="sm" />}
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
-              {t.bets.summary.latestCumulativePnl}:{" "}
+              {selectedInterval === "all"
+                ? t.bets.summary.latestCumulativePnl
+                : t.bets.summary.selectedRangePnl}
+              :{" "}
               <span
                 className={
-                  summary.pnlLatest >= 0
+                  summary.pnlForSelectedRange >= 0
                     ? "text-green-600 dark:text-green-400"
                     : "text-red-600 dark:text-red-400"
                 }
               >
-                {formatGainLoss(summary.pnlLatest, locale, defaultCurrency)}
+                {formatGainLoss(
+                  summary.pnlForSelectedRange,
+                  locale,
+                  defaultCurrency,
+                )}
               </span>
             </div>
           </div>

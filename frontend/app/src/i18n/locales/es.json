@@ -362,7 +362,8 @@
       "closedPositions": "Posiciones cerradas",
       "realizedPnl": "P&L realizado",
       "pnlHistory": "Historial de P&L",
-      "latestCumulativePnl": "P&L acumulado más reciente"
+      "latestCumulativePnl": "P&L acumulado más reciente",
+      "selectedRangePnl": "P&L del rango seleccionado"
     },
     "sections": {
       "openTitle": "Apuestas abiertas",
