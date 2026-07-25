@@ -176,6 +176,9 @@ from infrastructure.repository.db.versions.v0.v09.v090_8_historic_source import 
 from infrastructure.repository.db.versions.v0.v09.v090_9_polymarket import (
     V0909Polymarket,
 )
+from infrastructure.repository.db.versions.v0.v10.v0100_0_crescenta import (
+    V0100Crescenta,
+)
 
 versions = [
     V0Genesis(),
@@ -248,4 +251,5 @@ versions = [
     V0907RebuildNetworthTimeline(),
     V0908HistoricSource(),
     V0909Polymarket(),
+    V0100Crescenta(),
 ]

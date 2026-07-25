@@ -939,10 +939,14 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
-            <div className={detailRowClass}>
-              <span className={detailLabelClass}>{t.transactions.market}:</span>{" "}
-              {fundTx.market}
-            </div>
+            {fundTx.market && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.market}:
+                </span>{" "}
+                {fundTx.market}
+              </div>
+            )}
           </>
         )
       }

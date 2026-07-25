@@ -104,7 +104,7 @@ def _map_investment_row(
             **common,
             isin=row["isin"] if row["isin"] else None,
             ticker=row["ticker"],
-            market=row["market"],
+            market=row["market"] if row["market"] else None,
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
@@ -166,7 +166,7 @@ def _map_investment_row(
         return FundTx(
             **common,
             isin=row["isin"] if row["isin"] else None,
-            market=row["market"],
+            market=row["market"] if row["market"] else None,
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
@@ -262,7 +262,7 @@ class TransactionSQLRepository(TransactionPort):
                         {
                             "isin": tx.isin,
                             "ticker": tx.ticker,
-                            "market": tx.market,
+                            "market": tx.market if tx.market else None,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
@@ -328,7 +328,7 @@ class TransactionSQLRepository(TransactionPort):
                     entry.update(
                         {
                             "isin": tx.isin,
-                            "market": tx.market,
+                            "market": tx.market if tx.market else None,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
