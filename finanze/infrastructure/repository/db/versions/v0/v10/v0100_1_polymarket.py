@@ -9,10 +9,10 @@ SQL = """
       """
 
 
-class V0909Polymarket(DBVersionMigration, QueryMixin):
+class V01001Polymarket(DBVersionMigration, QueryMixin):
     @property
     def name(self):
-        return "v0.9.0:9_polymarket"
+        return "v0.10.0:1_polymarket"
 
     async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)

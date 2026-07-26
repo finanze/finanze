@@ -173,8 +173,8 @@ from infrastructure.repository.db.versions.v0.v09.v090_7_rebuild_networth_timeli
 from infrastructure.repository.db.versions.v0.v09.v090_8_historic_source import (
     V0908HistoricSource,
 )
-from infrastructure.repository.db.versions.v0.v09.v090_9_polymarket import (
-    V0909Polymarket,
+from infrastructure.repository.db.versions.v0.v10.v0100_1_polymarket import (
+    V01001Polymarket,
 )
 from infrastructure.repository.db.versions.v0.v10.v0100_0_crescenta import (
     V0100Crescenta,
@@ -250,6 +250,6 @@ versions = [
     V0906PendingFlowStatus(),
     V0907RebuildNetworthTimeline(),
     V0908HistoricSource(),
-    V0909Polymarket(),
+    V01001Polymarket(),
     V0100Crescenta(),
 ]
