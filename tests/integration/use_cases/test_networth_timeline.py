@@ -39,6 +39,7 @@ _SCHEMA = """
         market_value TEXT, type VARCHAR(32), amount TEXT, unit VARCHAR(32)
     );
     CREATE TABLE derivative_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
+    CREATE TABLE market_forecast_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), market_value TEXT);
     CREATE TABLE card_positions (id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3), used TEXT);
     CREATE TABLE loan_positions (
         id CHAR(36) PRIMARY KEY, global_position_id CHAR(36), currency CHAR(3),
