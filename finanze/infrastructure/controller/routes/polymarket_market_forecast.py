@@ -5,7 +5,7 @@ from quart import jsonify, request
 _ALLOWED_INTERVALS = {"1d", "1w", "1m", "all"}
 
 
-async def polymarket_bets(get_polymarket_bets_uc):
+async def polymarket_market_forecast(get_polymarket_market_forecast_uc):
     entity_account_ids: list[UUID] = []
     for value in request.args.getlist("entity_account_id"):
         try:
@@ -17,5 +17,8 @@ async def polymarket_bets(get_polymarket_bets_uc):
     if interval not in _ALLOWED_INTERVALS:
         return jsonify({"error": "Invalid interval"}), 400
 
-    result = await get_polymarket_bets_uc.execute(entity_account_ids or None, interval)
+    result = await get_polymarket_market_forecast_uc.execute(
+        entity_account_ids or None,
+        interval,
+    )
     return jsonify(result), 200

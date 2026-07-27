@@ -67,7 +67,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Crowdfunding Immobiliare",
     "cryptoInvestments": "Crypto",
-    "bets": "Scommesse",
+    "marketForecast": "Previsione di Mercato",
     "distributionByEntity": "Distribuzione per Entità",
     "distributionByAsset": "Distribuzione per Bene",
     "distribution": "Distribuzione",
@@ -339,9 +339,9 @@
       "sortInvested": "Importo"
     }
   },
-  "bets": {
+  "marketForecast": {
     "untitledMarket": "Mercato senza titolo",
-    "chartPreviewUnavailable": "L'anteprima del grafico non è disponibile per questa scommessa.",
+    "chartPreviewUnavailable": "L'anteprima del grafico non è disponibile per questa previsione di mercato.",
     "status": {
       "open": "Aperta",
       "closed": "Chiusa"
@@ -368,9 +368,9 @@
       "selectedRangePnl": "PnL dell'intervallo selezionato"
     },
     "sections": {
-      "openTitle": "Scommesse aperte",
+      "openTitle": "Previsioni di mercato aperte",
       "openDescription": "Mercati attivi con performance mark-to-market attuale.",
-      "closedTitle": "Scommesse chiuse",
+      "closedTitle": "Previsioni di mercato chiuse",
       "closedDescription": "Mercati regolati e profitto o perdita realizzati.",
       "positions": "posizioni"
     }

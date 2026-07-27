@@ -48,7 +48,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   CARD: "#ef4444", // Equivalent to text-red-500
   LOAN: "#dc2626", // Equivalent to text-red-700
   DERIVATIVE: "#ec4899", // Equivalent to text-pink-500
-  BETS: "#db2777", // Equivalent to text-pink-600
+  MARKET_FORECAST: "#db2777", // Equivalent to text-pink-600
 }
 
 export function getPieSliceColorForAssetType(type: string): string {
@@ -162,7 +162,7 @@ export function getIconForAssetType(
           style={iconStyle}
         />
       )
-    case "BETS":
+    case "MARKET_FORECAST":
       return (
         <Dices className={getIconClass("text-pink-600")} style={iconStyle} />
       )
@@ -260,7 +260,7 @@ export const getProductTypeColor = (type: ProductType): string => {
       return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
     case ProductType.DERIVATIVE:
       return "bg-brown-100 text-brown-800 dark:bg-brown-900 dark:text-brown-100"
-    case ProductType.BETS:
+    case ProductType.MARKET_FORECAST:
       return "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100"
     case ProductType.CREDIT:
       return "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100"

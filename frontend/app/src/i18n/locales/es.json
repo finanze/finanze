@@ -35,7 +35,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Cf. Inmobiliario",
     "cryptoInvestments": "Crypto",
-    "bets": "Apuestas",
+    "marketForecast": "Pronóstico de Mercado",
     "distributionByEntity": "Distribución por Entidad",
     "distributionByAsset": "Distribución por Activo",
     "distribution": "Distribución",
@@ -337,9 +337,9 @@
       "sortInvested": "Importe"
     }
   },
-  "bets": {
+  "marketForecast": {
     "untitledMarket": "Mercado sin título",
-    "chartPreviewUnavailable": "La vista previa del gráfico no está disponible para esta apuesta.",
+    "chartPreviewUnavailable": "La vista previa del gráfico no está disponible para este pronóstico de mercado.",
     "status": {
       "open": "Abierta",
       "closed": "Cerrada"
@@ -366,9 +366,9 @@
       "selectedRangePnl": "P&L del rango seleccionado"
     },
     "sections": {
-      "openTitle": "Apuestas abiertas",
+      "openTitle": "Pronósticos de mercado abiertos",
       "openDescription": "Mercados activos con rendimiento mark-to-market actual.",
-      "closedTitle": "Apuestas cerradas",
+      "closedTitle": "Pronósticos de mercado cerrados",
       "closedDescription": "Mercados liquidados y beneficio o pérdida realizada.",
       "positions": "posiciones"
     }

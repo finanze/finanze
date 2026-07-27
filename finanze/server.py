@@ -73,7 +73,9 @@ from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
-from application.use_cases.get_polymarket_bets import GetPolymarketBetsImpl
+from application.use_cases.get_polymarket_market_forecast import (
+    GetPolymarketMarketForecastImpl,
+)
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_status import GetStatusImpl
@@ -589,7 +591,7 @@ class FinanzeServer:
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
-        get_polymarket_bets = GetPolymarketBetsImpl(
+        get_polymarket_market_forecast = GetPolymarketMarketForecastImpl(
             entity_account_repository,
             credentials_port,
         )
@@ -923,7 +925,7 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
-            get_polymarket_bets,
+            get_polymarket_market_forecast,
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,

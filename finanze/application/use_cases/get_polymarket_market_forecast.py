@@ -6,13 +6,15 @@ from application.ports.entity_account_port import EntityAccountPort
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.native_entities import POLYMARKET
 from domain.public_keychain import PublicKeychain
-from domain.use_cases.get_polymarket_bets import GetPolymarketBets
+from domain.use_cases.get_polymarket_market_forecast import (
+    GetPolymarketMarketForecast,
+)
 from infrastructure.client.entity.exchange.polymarket.polymarket_client import (
     PolymarketClient,
 )
 
 
-class GetPolymarketBetsImpl(GetPolymarketBets):
+class GetPolymarketMarketForecastImpl(GetPolymarketMarketForecast):
     def __init__(
         self,
         entity_account_port: EntityAccountPort,

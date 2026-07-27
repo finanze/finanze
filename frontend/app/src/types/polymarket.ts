@@ -7,7 +7,7 @@ export interface PolymarketPnlPoint {
   wallet_address?: string | null
 }
 
-export interface PolymarketBetPosition {
+export interface PolymarketMarketForecastPosition {
   entity_account_id?: string | null
   wallet_address?: string | null
   title?: string | null
@@ -35,21 +35,21 @@ export interface PolymarketBetPosition {
   totalSold?: number | null
 }
 
-export interface PolymarketBetsAccount {
+export interface PolymarketMarketForecastAccount {
   entity_account_id: string
   entity_id?: string
   account_name?: string | null
   wallet_address: string
   profile?: Record<string, unknown> | null
-  open_positions: PolymarketBetPosition[]
-  closed_positions: PolymarketBetPosition[]
+  open_positions: PolymarketMarketForecastPosition[]
+  closed_positions: PolymarketMarketForecastPosition[]
   pnl_history: PolymarketPnlPoint[]
 }
 
-export interface PolymarketBetsResponse {
+export interface PolymarketMarketForecastResponse {
   interval?: PolymarketPnlInterval
-  accounts: PolymarketBetsAccount[]
-  open_positions: PolymarketBetPosition[]
-  closed_positions: PolymarketBetPosition[]
+  accounts: PolymarketMarketForecastAccount[]
+  open_positions: PolymarketMarketForecastPosition[]
+  closed_positions: PolymarketMarketForecastPosition[]
   pnl_history: PolymarketPnlPoint[]
 }

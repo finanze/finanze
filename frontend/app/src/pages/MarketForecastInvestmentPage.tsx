@@ -42,10 +42,10 @@ import {
   formatPercentage,
 } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
-import { getPolymarketBets } from "@/services/api"
+import { getPolymarketMarketForecast } from "@/services/api"
 import type {
-  PolymarketBetPosition,
-  PolymarketBetsResponse,
+  PolymarketMarketForecastPosition,
+  PolymarketMarketForecastResponse,
   PolymarketPnlPoint,
 } from "@/types/polymarket"
 import { ProductType } from "@/types/position"
@@ -210,7 +210,7 @@ function getPolymarketAccountLabel(args: {
 }
 
 function getPositionValue(
-  position: PolymarketBetPosition,
+  position: PolymarketMarketForecastPosition,
   fallback = 0,
 ): number {
   return (
@@ -220,14 +220,17 @@ function getPositionValue(
   )
 }
 
-function getBetCardBorderColor(pnl: number, status: "open" | "closed"): string {
+function getMarketForecastCardBorderColor(
+  pnl: number,
+  status: "open" | "closed",
+): string {
   if (pnl > 0) return "hsl(var(--chart-2))"
   if (pnl < 0) return "hsl(var(--destructive))"
   return status === "open" ? "hsl(var(--chart-4))" : "hsl(var(--chart-3))"
 }
 
-function getBetPositionKey(
-  position: PolymarketBetPosition,
+function getMarketForecastPositionKey(
+  position: PolymarketMarketForecastPosition,
   status: "open" | "closed",
 ): string {
   return [
@@ -242,8 +245,8 @@ function getBetPositionKey(
   ].join(":")
 }
 
-function getBetPositionRecencyTimestamp(
-  position: PolymarketBetPosition,
+function getMarketForecastPositionRecencyTimestamp(
+  position: PolymarketMarketForecastPosition,
   status: "open" | "closed",
 ): number {
   const candidates =
@@ -268,19 +271,22 @@ function getBetPositionRecencyTimestamp(
 }
 
 function getPolymarketEmbedMarketSlug(
-  position: PolymarketBetPosition,
+  position: PolymarketMarketForecastPosition,
 ): string | null {
   return (
     normalizeSlug(position.slug) ?? normalizeSlug(position.eventSlug) ?? null
   )
 }
 
-interface BetMarketDetailProps {
-  position: PolymarketBetPosition
+interface MarketForecastDetailProps {
+  position: PolymarketMarketForecastPosition
   isDarkMode: boolean
 }
 
-function BetMarketDetail({ position, isDarkMode }: BetMarketDetailProps) {
+function MarketForecastDetail({
+  position,
+  isDarkMode,
+}: MarketForecastDetailProps) {
   const { t } = useI18n()
   const embedMarketSlug = getPolymarketEmbedMarketSlug(position)
   const iframeSrc = embedMarketSlug
@@ -299,7 +305,7 @@ function BetMarketDetail({ position, isDarkMode }: BetMarketDetailProps) {
           />
         ) : (
           <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed bg-background px-4 text-center text-sm text-muted-foreground">
-            {t.bets.chartPreviewUnavailable}
+            {t.marketForecast.chartPreviewUnavailable}
           </div>
         )}
       </div>
@@ -307,8 +313,8 @@ function BetMarketDetail({ position, isDarkMode }: BetMarketDetailProps) {
   )
 }
 
-interface BetPositionCardProps {
-  position: PolymarketBetPosition
+interface MarketForecastPositionCardProps {
+  position: PolymarketMarketForecastPosition
   status: "open" | "closed"
   locale: string
   defaultCurrency: string
@@ -318,7 +324,7 @@ interface BetPositionCardProps {
   isDarkMode: boolean
 }
 
-function BetPositionCard({
+function MarketForecastPositionCard({
   position,
   status,
   locale,
@@ -327,7 +333,7 @@ function BetPositionCard({
   isExpanded,
   onToggleDetails,
   isDarkMode,
-}: BetPositionCardProps) {
+}: MarketForecastPositionCardProps) {
   const { t } = useI18n()
   const positionUrl = getPolymarketUrl(position)
   const pnl =
@@ -345,7 +351,7 @@ function BetPositionCard({
     position.title ||
     position.slug ||
     position.conditionId ||
-    t.bets.untitledMarket
+    t.marketForecast.untitledMarket
   const subtitle =
     position.slug || position.conditionId || position.asset || null
   const shares = toFiniteNumber(position.size)
@@ -359,7 +365,7 @@ function BetPositionCard({
   return (
     <Card
       className="overflow-hidden border-l-4 transition-all hover:shadow-sm"
-      style={{ borderLeftColor: getBetCardBorderColor(pnl, status) }}
+      style={{ borderLeftColor: getMarketForecastCardBorderColor(pnl, status) }}
     >
       <CardContent className="p-0">
         <div
@@ -388,7 +394,10 @@ function BetPositionCard({
                 />
               ) : (
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-primary">
-                  {getIconForProductType(ProductType.BETS, "h-5 w-5")}
+                  {getIconForProductType(
+                    ProductType.MARKET_FORECAST,
+                    "h-5 w-5",
+                  )}
                 </div>
               )}
               <div className="min-w-0 space-y-2">
@@ -404,8 +413,8 @@ function BetPositionCard({
                     className="rounded-full px-2.5 py-1"
                   >
                     {status === "open"
-                      ? t.bets.status.open
-                      : t.bets.status.closed}
+                      ? t.marketForecast.status.open
+                      : t.marketForecast.status.closed}
                   </Badge>
                   {position.outcome && (
                     <Badge
@@ -436,29 +445,31 @@ function BetPositionCard({
                   {shares != null && (
                     <span>
                       {formatNumber(shares, locale)}{" "}
-                      {t.bets.labels.shares.toLowerCase()}
+                      {t.marketForecast.labels.shares.toLowerCase()}
                     </span>
                   )}
                   {averagePrice != null && (
                     <span>
-                      {t.bets.labels.entry}{" "}
+                      {t.marketForecast.labels.entry}{" "}
                       {formatCurrency(averagePrice, locale, defaultCurrency)}
                     </span>
                   )}
                   {status === "open" && markPrice != null && (
                     <span>
-                      {t.bets.labels.mark}{" "}
+                      {t.marketForecast.labels.mark}{" "}
                       {formatCurrency(markPrice, locale, defaultCurrency)}
                     </span>
                   )}
                   {status === "open" && resolvedAt && (
                     <span>
-                      {t.bets.labels.resolves} {formatDate(resolvedAt, locale)}
+                      {t.marketForecast.labels.resolves}{" "}
+                      {formatDate(resolvedAt, locale)}
                     </span>
                   )}
                   {status === "closed" && closedAt && (
                     <span>
-                      {t.bets.labels.closed} {formatDate(closedAt, locale)}
+                      {t.marketForecast.labels.closed}{" "}
+                      {formatDate(closedAt, locale)}
                     </span>
                   )}
                 </div>
@@ -471,8 +482,8 @@ function BetPositionCard({
               <Sensitive>
                 <div className="text-base font-semibold">
                   {status === "open"
-                    ? t.bets.labels.value
-                    : t.bets.labels.bought}
+                    ? t.marketForecast.labels.value
+                    : t.marketForecast.labels.bought}
                   :{" "}
                   {formatCurrency(
                     status === "open"
@@ -508,9 +519,9 @@ function BetPositionCard({
                 position.totalSold != null && (
                   <div className="text-xs text-muted-foreground">
                     {formatNumber(totalBought, locale)}{" "}
-                    {t.bets.labels.bought.toLowerCase()} ·{" "}
+                    {t.marketForecast.labels.bought.toLowerCase()} ·{" "}
                     {formatNumber(position.totalSold, locale)}{" "}
-                    {t.bets.labels.sold.toLowerCase()}
+                    {t.marketForecast.labels.sold.toLowerCase()}
                   </div>
                 )}
 
@@ -523,7 +534,7 @@ function BetPositionCard({
                     data-no-expand
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                   >
-                    {t.bets.labels.viewMarket}{" "}
+                    {t.marketForecast.labels.viewMarket}{" "}
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </div>
@@ -549,7 +560,10 @@ function BetPositionCard({
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <BetMarketDetail position={position} isDarkMode={isDarkMode} />
+              <MarketForecastDetail
+                position={position}
+                isDarkMode={isDarkMode}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -558,7 +572,7 @@ function BetPositionCard({
   )
 }
 
-export default function BetsInvestmentPage() {
+export default function MarketForecastInvestmentPage() {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const { isLoading: financialLoading } = useFinancialData()
@@ -569,8 +583,11 @@ export default function BetsInvestmentPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedInterval, setSelectedInterval] = useState<PnlRange>("all")
   const [isClosedVisible, setIsClosedVisible] = useState(false)
-  const [expandedBetKey, setExpandedBetKey] = useState<string | null>(null)
-  const [betsData, setBetsData] = useState<PolymarketBetsResponse | null>(null)
+  const [expandedPositionKey, setExpandedPositionKey] = useState<string | null>(
+    null,
+  )
+  const [marketForecastData, setMarketForecastData] =
+    useState<PolymarketMarketForecastResponse | null>(null)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isPnlLoading, setIsPnlLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -608,16 +625,16 @@ export default function BetsInvestmentPage() {
     return map
   }, [polymarketEntities])
 
-  const betsAccountMap = useMemo(() => {
+  const marketForecastAccountMap = useMemo(() => {
     const map = new Map<
       string,
-      NonNullable<PolymarketBetsResponse["accounts"]>[number]
+      NonNullable<PolymarketMarketForecastResponse["accounts"]>[number]
     >()
-    betsData?.accounts.forEach(account => {
+    marketForecastData?.accounts.forEach(account => {
       map.set(account.entity_account_id, account)
     })
     return map
-  }, [betsData])
+  }, [marketForecastData])
 
   const accountOptions = useMemo<MultiSelectOption[]>(() => {
     const seen = new Set<string>()
@@ -633,7 +650,7 @@ export default function BetsInvestmentPage() {
           return
         }
 
-        const accountData = betsAccountMap.get(account.id)
+        const accountData = marketForecastAccountMap.get(account.id)
         const label = getPolymarketAccountLabel({
           customName: account.name,
           accountName: accountData?.account_name,
@@ -650,7 +667,7 @@ export default function BetsInvestmentPage() {
     })
 
     return options.sort((a, b) => a.label.localeCompare(b.label, locale))
-  }, [betsAccountMap, polymarketEntities, selectedEntities, locale])
+  }, [marketForecastAccountMap, polymarketEntities, selectedEntities, locale])
 
   useEffect(() => {
     if (accountOptions.length === 0) {
@@ -667,8 +684,8 @@ export default function BetsInvestmentPage() {
     })
   }, [accountOptions, selectedAccounts.length])
 
-  const openBetPositions = useMemo(() => {
-    const openPositions = betsData?.open_positions ?? []
+  const openMarketForecastPositions = useMemo(() => {
+    const openPositions = marketForecastData?.open_positions ?? []
 
     return openPositions.filter(position => {
       const accountId = position.entity_account_id
@@ -676,13 +693,13 @@ export default function BetsInvestmentPage() {
       const entityId = accountToEntityMap.get(accountId)
       return entityId ? polymarketEntityIds.includes(entityId) : false
     })
-  }, [betsData, accountToEntityMap, polymarketEntityIds])
+  }, [marketForecastData, accountToEntityMap, polymarketEntityIds])
 
   useEffect(() => {
     let cancelled = false
 
     const load = async () => {
-      const hasExistingData = betsData !== null
+      const hasExistingData = marketForecastData !== null
       if (hasExistingData) {
         setIsPnlLoading(true)
       } else {
@@ -693,12 +710,12 @@ export default function BetsInvestmentPage() {
         const accountIds = polymarketEntities.flatMap(entity =>
           (entity.accounts ?? []).map(account => account.id),
         )
-        const response = await getPolymarketBets(accountIds, "all")
+        const response = await getPolymarketMarketForecast(accountIds, "all")
         if (!cancelled) {
-          setBetsData(response)
+          setMarketForecastData(response)
         }
       } catch (err) {
-        console.error("Error loading Polymarket bets", err)
+        console.error("Error loading Polymarket market forecast data", err)
         if (!cancelled) {
           setError(t.common.unexpectedError)
         }
@@ -722,7 +739,7 @@ export default function BetsInvestmentPage() {
     }
 
     const ids = new Set<string>()
-    betsData?.accounts.forEach(account => {
+    marketForecastData?.accounts.forEach(account => {
       const entityId = accountToEntityMap.get(account.entity_account_id)
       const matchesEntity =
         !selectedEntities.length ||
@@ -736,7 +753,7 @@ export default function BetsInvestmentPage() {
       }
     })
 
-    openBetPositions.forEach(position => {
+    openMarketForecastPositions.forEach(position => {
       const accountId = position.entity_account_id
       if (!accountId) return
       const entityId = accountToEntityMap.get(accountId)
@@ -755,13 +772,13 @@ export default function BetsInvestmentPage() {
   }, [
     selectedEntities,
     selectedAccounts,
-    betsData,
+    marketForecastData,
     accountToEntityMap,
-    openBetPositions,
+    openMarketForecastPositions,
   ])
 
   const filteredOpenPositions = useMemo(() => {
-    return openBetPositions
+    return openMarketForecastPositions
       .filter(position => {
         if (!filteredAccountIds) return true
         return position.entity_account_id
@@ -770,13 +787,13 @@ export default function BetsInvestmentPage() {
       })
       .sort(
         (a, b) =>
-          getBetPositionRecencyTimestamp(b, "open") -
-          getBetPositionRecencyTimestamp(a, "open"),
+          getMarketForecastPositionRecencyTimestamp(b, "open") -
+          getMarketForecastPositionRecencyTimestamp(a, "open"),
       )
-  }, [openBetPositions, filteredAccountIds])
+  }, [openMarketForecastPositions, filteredAccountIds])
 
   const filteredClosedPositions = useMemo(() => {
-    const closedPositions = betsData?.closed_positions ?? []
+    const closedPositions = marketForecastData?.closed_positions ?? []
     return closedPositions
       .filter(position => {
         if (!filteredAccountIds) return true
@@ -786,13 +803,13 @@ export default function BetsInvestmentPage() {
       })
       .sort(
         (a, b) =>
-          getBetPositionRecencyTimestamp(b, "closed") -
-          getBetPositionRecencyTimestamp(a, "closed"),
+          getMarketForecastPositionRecencyTimestamp(b, "closed") -
+          getMarketForecastPositionRecencyTimestamp(a, "closed"),
       )
-  }, [betsData, filteredAccountIds])
+  }, [marketForecastData, filteredAccountIds])
 
   const aggregatedPnlHistory = useMemo(() => {
-    const history = betsData?.pnl_history ?? []
+    const history = marketForecastData?.pnl_history ?? []
     const latestPointByAccountDay = new Map<
       string,
       { dayKey: string; t: number; p: number }
@@ -838,7 +855,7 @@ export default function BetsInvestmentPage() {
     return [...totalsByDay.values()]
       .sort((a, b) => a.t - b.t)
       .map(({ t, p }) => ({ t, p })) as PolymarketPnlPoint[]
-  }, [betsData, filteredAccountIds])
+  }, [marketForecastData, filteredAccountIds])
 
   const filteredPnlHistory = useMemo(() => {
     if (aggregatedPnlHistory.length === 0) {
@@ -976,9 +993,9 @@ export default function BetsInvestmentPage() {
               <ArrowLeft size={20} />
             </Button>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">{t.common.bets}</h1>
+              <h1 className="text-2xl font-bold">{t.common.marketForecast}</h1>
               <PinAssetButton
-                assetId="bets"
+                assetId="market-forecast"
                 className="hidden md:inline-flex"
               />
             </div>
@@ -1008,7 +1025,7 @@ export default function BetsInvestmentPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold">
-              {t.bets.summary.openExposure}
+              {t.marketForecast.summary.openExposure}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1018,7 +1035,7 @@ export default function BetsInvestmentPage() {
               </div>
             </Sensitive>
             <div className="mt-1 text-xs text-muted-foreground">
-              {t.bets.summary.costBasis}{" "}
+              {t.marketForecast.summary.costBasis}{" "}
               {formatCurrency(summary.openInvestment, locale, defaultCurrency)}
             </div>
           </CardContent>
@@ -1026,7 +1043,7 @@ export default function BetsInvestmentPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold">
-              {t.bets.summary.openPositions}
+              {t.marketForecast.summary.openPositions}
             </CardTitle>
           </CardHeader>
           <CardContent>{filteredOpenPositions.length}</CardContent>
@@ -1034,7 +1051,7 @@ export default function BetsInvestmentPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold">
-              {t.bets.summary.closedPositions}
+              {t.marketForecast.summary.closedPositions}
             </CardTitle>
           </CardHeader>
           <CardContent>{filteredClosedPositions.length}</CardContent>
@@ -1042,7 +1059,7 @@ export default function BetsInvestmentPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold">
-              {t.bets.summary.realizedPnl}
+              {t.marketForecast.summary.realizedPnl}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1065,13 +1082,13 @@ export default function BetsInvestmentPage() {
         <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <CardTitle>{t.bets.summary.pnlHistory}</CardTitle>
+              <CardTitle>{t.marketForecast.summary.pnlHistory}</CardTitle>
               {isPnlLoading && <LoadingSpinner size="sm" />}
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
               {selectedInterval === "all"
-                ? t.bets.summary.latestCumulativePnl
-                : t.bets.summary.selectedRangePnl}
+                ? t.marketForecast.summary.latestCumulativePnl
+                : t.marketForecast.summary.selectedRangePnl}
               :{" "}
               <span
                 className={
@@ -1122,7 +1139,7 @@ export default function BetsInvestmentPage() {
                 >
                   <defs>
                     <linearGradient
-                      id="bets-pnl-gradient"
+                      id="market-forecast-pnl-gradient"
                       x1="0"
                       y1="0"
                       x2="0"
@@ -1205,7 +1222,7 @@ export default function BetsInvestmentPage() {
                     type="monotone"
                     dataKey="value"
                     stroke="hsl(var(--chart-1))"
-                    fill="url(#bets-pnl-gradient)"
+                    fill="url(#market-forecast-pnl-gradient)"
                     strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
@@ -1220,14 +1237,17 @@ export default function BetsInvestmentPage() {
       <section className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold">{t.bets.sections.openTitle}</h2>
+            <h2 className="text-lg font-bold">
+              {t.marketForecast.sections.openTitle}
+            </h2>
             <div className="text-sm text-muted-foreground">
-              {t.bets.sections.openDescription}
+              {t.marketForecast.sections.openDescription}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="w-fit rounded-full px-3 py-1">
-              {filteredOpenPositions.length} {t.bets.sections.positions}
+              {filteredOpenPositions.length}{" "}
+              {t.marketForecast.sections.positions}
             </Badge>
             <Button
               variant={isClosedVisible ? "default" : "outline"}
@@ -1251,11 +1271,11 @@ export default function BetsInvestmentPage() {
           </div>
         ) : (
           filteredOpenPositions.map(position => {
-            const betKey = getBetPositionKey(position, "open")
+            const positionKey = getMarketForecastPositionKey(position, "open")
 
             return (
-              <BetPositionCard
-                key={betKey}
+              <MarketForecastPositionCard
+                key={positionKey}
                 position={position}
                 status="open"
                 locale={locale}
@@ -1265,9 +1285,11 @@ export default function BetsInvestmentPage() {
                     ? accountEntityNames.get(position.entity_account_id)
                     : undefined
                 }
-                isExpanded={expandedBetKey === betKey}
+                isExpanded={expandedPositionKey === positionKey}
                 onToggleDetails={() =>
-                  setExpandedBetKey(prev => (prev === betKey ? null : betKey))
+                  setExpandedPositionKey(prev =>
+                    prev === positionKey ? null : positionKey,
+                  )
                 }
                 isDarkMode={isDarkMode}
               />
@@ -1280,13 +1302,14 @@ export default function BetsInvestmentPage() {
         <Card>
           <CardHeader className="gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>{t.bets.sections.closedTitle}</CardTitle>
+              <CardTitle>{t.marketForecast.sections.closedTitle}</CardTitle>
               <div className="text-sm text-muted-foreground">
-                {t.bets.sections.closedDescription}
+                {t.marketForecast.sections.closedDescription}
               </div>
             </div>
             <Badge variant="outline" className="w-fit rounded-full px-3 py-1">
-              {filteredClosedPositions.length} {t.bets.sections.positions}
+              {filteredClosedPositions.length}{" "}
+              {t.marketForecast.sections.positions}
             </Badge>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1296,11 +1319,14 @@ export default function BetsInvestmentPage() {
               </div>
             ) : (
               filteredClosedPositions.map(position => {
-                const betKey = getBetPositionKey(position, "closed")
+                const positionKey = getMarketForecastPositionKey(
+                  position,
+                  "closed",
+                )
 
                 return (
-                  <BetPositionCard
-                    key={betKey}
+                  <MarketForecastPositionCard
+                    key={positionKey}
                     position={position}
                     status="closed"
                     locale={locale}
@@ -1310,10 +1336,10 @@ export default function BetsInvestmentPage() {
                         ? accountEntityNames.get(position.entity_account_id)
                         : undefined
                     }
-                    isExpanded={expandedBetKey === betKey}
+                    isExpanded={expandedPositionKey === positionKey}
                     onToggleDetails={() =>
-                      setExpandedBetKey(prev =>
-                        prev === betKey ? null : betKey,
+                      setExpandedPositionKey(prev =>
+                        prev === positionKey ? null : positionKey,
                       )
                     }
                     isDarkMode={isDarkMode}

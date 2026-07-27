@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID
 
 
-class GetPolymarketBets(metaclass=abc.ABCMeta):
+class GetPolymarketMarketForecast(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def execute(
         self,

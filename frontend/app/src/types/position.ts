@@ -22,7 +22,7 @@ export enum ProductType {
   BOND = "BOND",
   CREDIT = "CREDIT",
   DERIVATIVE = "DERIVATIVE",
-  BETS = "BETS",
+  MARKET_FORECAST = "MARKET_FORECAST",
 }
 
 export enum AccountType {

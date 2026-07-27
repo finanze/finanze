@@ -67,7 +67,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Real Estate CF",
     "cryptoInvestments": "Crypto",
-    "bets": "Bets",
+    "marketForecast": "Market Forecast",
     "distributionByEntity": "Distribution by Entity",
     "distributionByAsset": "Distribution by Asset",
     "distribution": "Distribution",
@@ -339,9 +339,9 @@
       "sortInvested": "Amount"
     }
   },
-  "bets": {
+  "marketForecast": {
     "untitledMarket": "Untitled market",
-    "chartPreviewUnavailable": "Chart preview is not available for this bet.",
+    "chartPreviewUnavailable": "Chart preview is not available for this market forecast.",
     "status": {
       "open": "Open",
       "closed": "Closed"
@@ -368,9 +368,9 @@
       "selectedRangePnl": "Selected range PnL"
     },
     "sections": {
-      "openTitle": "Open bets",
+      "openTitle": "Open market forecasts",
       "openDescription": "Active markets with current mark-to-market performance.",
-      "closedTitle": "Closed bets",
+      "closedTitle": "Closed market forecasts",
       "closedDescription": "Settled markets and realized profit or loss.",
       "positions": "positions"
     }

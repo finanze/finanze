@@ -14,7 +14,7 @@ export type PinnedShortcutId =
   | "factoring"
   | "real-estate-cf"
   | "crypto"
-  | "bets"
+  | "market-forecast"
   | "commodities"
   | "real-estate"
   | "management-recurring"
@@ -30,6 +30,9 @@ interface PinnedShortcutsContextType {
 }
 
 const STORAGE_KEY = "finanze-pinned-assets"
+const LEGACY_SHORTCUT_ID_MAP = {
+  bets: "market-forecast",
+} as const
 const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "banking",
   "stocks-etfs",
@@ -38,7 +41,7 @@ const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "factoring",
   "real-estate-cf",
   "crypto",
-  "bets",
+  "market-forecast",
   "commodities",
   "real-estate",
   "management-recurring",
@@ -57,7 +60,12 @@ function loadPinnedShortcuts(): PinnedShortcutId[] {
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
 
-      const valid = parsed.filter((id): id is PinnedShortcutId =>
+      const normalized = parsed.map(
+        id =>
+          LEGACY_SHORTCUT_ID_MAP[id as keyof typeof LEGACY_SHORTCUT_ID_MAP] ??
+          id,
+      )
+      const valid = normalized.filter((id): id is PinnedShortcutId =>
         KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId),
       )
       return valid.length ? valid : DEFAULT_PINNED
