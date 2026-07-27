@@ -179,9 +179,6 @@ from infrastructure.repository.db.versions.v0.v10.v0100_0_crescenta import (
 from infrastructure.repository.db.versions.v0.v10.v0100_1_polymarket import (
     V01001Polymarket,
 )
-from infrastructure.repository.db.versions.v0.v10.v0100_2_prediction_market_positions import (
-    V01002MarketForecastPositions,
-)
 
 versions = [
     V0Genesis(),
@@ -255,5 +252,4 @@ versions = [
     V0908HistoricSource(),
     V0100Crescenta(),
     V01001Polymarket(),
-    V01002MarketForecastPositions(),
 ]

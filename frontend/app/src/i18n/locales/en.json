@@ -1729,7 +1729,8 @@
       "PENDING_FLOWS": "Pending",
       "BOND": "Bond",
       "DERIVATIVE": "Derivative",
-      "CREDIT": "Credit"
+      "CREDIT": "Credit",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Equity",

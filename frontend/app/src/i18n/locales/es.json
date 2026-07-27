@@ -1728,7 +1728,8 @@
       "PENDING_FLOWS": "Pendiente",
       "BOND": "Bonos",
       "DERIVATIVE": "Derivados",
-      "CREDIT": "Crédito"
+      "CREDIT": "Crédito",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Renta Variable",

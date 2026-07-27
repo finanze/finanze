@@ -1724,7 +1724,8 @@
       "PENDING_FLOWS": "In sospeso",
       "BOND": "Obbligazione",
       "DERIVATIVE": "Derivato",
-      "CREDIT": "Credito"
+      "CREDIT": "Credito",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Azionario",

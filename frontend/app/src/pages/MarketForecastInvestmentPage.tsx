@@ -278,22 +278,110 @@ function getPolymarketEmbedMarketSlug(
 
 interface MarketForecastDetailProps {
   position: PolymarketMarketForecastPosition
+  status: "open" | "closed"
+  locale: string
+  defaultCurrency: string
   isDarkMode: boolean
+  positionUrl: string | null
 }
 
 function MarketForecastDetail({
   position,
+  status,
+  locale,
+  defaultCurrency,
   isDarkMode,
+  positionUrl,
 }: MarketForecastDetailProps) {
   const { t } = useI18n()
   const embedMarketSlug = getPolymarketEmbedMarketSlug(position)
   const iframeSrc = embedMarketSlug
     ? `https://embed.polymarket.com/market?market=${encodeURIComponent(embedMarketSlug)}&theme=${isDarkMode ? "dark" : "light"}&fit=true`
     : null
+  const shares = toFiniteNumber(position.size)
+  const averagePrice = toFiniteNumber(position.avgPrice)
+  const markPrice =
+    toFiniteNumber(position.curPrice) ?? toFiniteNumber(position.price)
+  const resolvedAt = position.endDate || position.updatedAt || null
+  const closedAt = position.closedAt || position.updatedAt || null
 
   return (
     <div className="px-4 pb-4">
       <div className="border-t border-border/50 pt-3">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:hidden">
+          {shares != null && (
+            <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.shares}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {formatNumber(shares, locale)}
+              </div>
+            </div>
+          )}
+
+          {averagePrice != null && (
+            <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.entry}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {formatCurrency(averagePrice, locale, defaultCurrency)}
+              </div>
+            </div>
+          )}
+
+          {status === "open" && markPrice != null && (
+            <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.mark}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {formatCurrency(markPrice, locale, defaultCurrency)}
+              </div>
+            </div>
+          )}
+
+          {status === "open" && resolvedAt && (
+            <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.resolves}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {formatDate(resolvedAt, locale)}
+              </div>
+            </div>
+          )}
+
+          {status === "closed" && closedAt && (
+            <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.closed}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {formatDate(closedAt, locale)}
+              </div>
+            </div>
+          )}
+
+          {positionUrl && (
+            <div className="col-span-2 rounded-lg border border-border/60 bg-background/60 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t.marketForecast.labels.viewMarket}
+              </div>
+              <a
+                href={positionUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                {t.marketForecast.labels.viewMarket}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
+        </div>
+
         {iframeSrc ? (
           <iframe
             title="polymarket-market-iframe"
@@ -367,7 +455,7 @@ function MarketForecastPositionCard({
     >
       <CardContent className="p-0">
         <div
-          className="flex flex-col gap-4 p-4 transition-colors hover:bg-accent/40 md:flex-row md:items-start md:justify-between"
+          className="flex flex-col gap-3 p-4 transition-colors hover:bg-accent/40 sm:gap-4 md:flex-row md:items-start md:justify-between"
           onClick={e => {
             if ((e.target as HTMLElement).closest("[data-no-expand]")) return
             onToggleDetails()
@@ -434,12 +522,12 @@ function MarketForecastPositionCard({
                 </div>
 
                 {subtitle && (
-                  <div className="break-words text-sm text-muted-foreground">
+                  <div className="hidden break-words text-sm text-muted-foreground sm:block">
                     {subtitle}
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm text-muted-foreground min-[460px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center">
                   {shares != null && (
                     <span>
                       {formatNumber(shares, locale)}{" "}
@@ -453,19 +541,19 @@ function MarketForecastPositionCard({
                     </span>
                   )}
                   {status === "open" && markPrice != null && (
-                    <span>
+                    <span className="hidden sm:inline">
                       {t.marketForecast.labels.mark}{" "}
                       {formatCurrency(markPrice, locale, defaultCurrency)}
                     </span>
                   )}
                   {status === "open" && resolvedAt && (
-                    <span>
+                    <span className="hidden sm:inline">
                       {t.marketForecast.labels.resolves}{" "}
                       {formatDate(resolvedAt, locale)}
                     </span>
                   )}
                   {status === "closed" && closedAt && (
-                    <span>
+                    <span className="hidden sm:inline">
                       {t.marketForecast.labels.closed}{" "}
                       {formatDate(closedAt, locale)}
                     </span>
@@ -475,8 +563,8 @@ function MarketForecastPositionCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:shrink-0">
-            <div className="grid gap-1.5 text-sm md:min-w-[220px] md:text-right">
+          <div className="flex w-full items-start justify-between gap-3 border-t border-border/50 pt-3 md:w-auto md:shrink-0 md:items-center md:justify-end md:border-t-0 md:pt-0">
+            <div className="grid min-w-0 flex-1 gap-1.5 text-sm md:min-w-[220px] md:text-right">
               <Sensitive>
                 <div className="text-base font-semibold">
                   {status === "open"
@@ -524,7 +612,7 @@ function MarketForecastPositionCard({
                 )}
 
               {positionUrl && (
-                <div className="md:text-right">
+                <div className="hidden sm:block md:text-right">
                   <a
                     href={positionUrl}
                     target="_blank"
@@ -541,7 +629,7 @@ function MarketForecastPositionCard({
 
             <ChevronDown
               className={cn(
-                "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                "mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 md:mt-0",
                 isExpanded && "rotate-180",
               )}
             />
@@ -560,7 +648,11 @@ function MarketForecastPositionCard({
             >
               <MarketForecastDetail
                 position={position}
+                status={status}
+                locale={locale}
+                defaultCurrency={defaultCurrency}
                 isDarkMode={isDarkMode}
+                positionUrl={positionUrl}
               />
             </motion.div>
           )}
