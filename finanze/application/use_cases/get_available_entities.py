@@ -89,7 +89,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         all_accounts = await self._entity_account_port.get_by_ids(all_account_ids)
         accounts_by_id = {a.id: a for a in all_accounts}
 
-        all_entities = await self._ensure_native_entities_seeded()
+        all_entities = await self._entity_port.get_all()
 
         native_entities_by_id = {e.id: e for e in NATIVE_ENTITIES}
 
@@ -240,24 +240,6 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             )
 
         return AvailableSources(entities=entities)
-
-    async def _ensure_native_entities_seeded(self) -> list[Entity]:
-        all_entities = await self._entity_port.get_all()
-        existing_ids = {entity.id for entity in all_entities}
-
-        missing_native_entities = [
-            entity
-            for entity in NATIVE_ENTITIES
-            if entity.type in self.LISTED_ENTITY_TYPES and entity.id not in existing_ids
-        ]
-
-        for entity in missing_native_entities:
-            await self._entity_port.insert(entity)
-
-        if missing_native_entities:
-            all_entities = await self._entity_port.get_all()
-
-        return all_entities
 
     async def get_last_virtual_imports_by_entity(
         self,
