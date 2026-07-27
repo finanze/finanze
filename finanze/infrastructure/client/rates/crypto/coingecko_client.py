@@ -408,7 +408,52 @@ class CoinGeckoClient:
         self, symbols: list[str], vs_currencies: list[str], timeout: int
     ) -> dict[str, dict[str, Dezimal]]:
         deduped, vs_param = self._validate_and_prepare(symbols, vs_currencies)
-        return await self._aggregate_prices(deduped, vs_param, timeout)
+        dataset = await self._load_dataset()
+
+        symbol_by_id: dict[str, str] = {}
+        unresolved: list[str] = []
+        for symbol in deduped:
+            coin_id = self._dominant_coin_id(dataset, symbol)
+            if coin_id:
+                symbol_by_id.setdefault(coin_id.lower(), symbol.strip().upper())
+            else:
+                unresolved.append(symbol)
+
+        result: dict[str, dict[str, Dezimal]] = {}
+        if symbol_by_id:
+            by_id = await self._aggregate_prices_by_ids(
+                list(symbol_by_id.keys()), vs_param, timeout
+            )
+            for coin_id, prices in by_id.items():
+                symbol = symbol_by_id.get(coin_id.strip().lower())
+                if symbol:
+                    result[symbol] = prices
+        if unresolved:
+            result.update(await self._aggregate_prices(unresolved, vs_param, timeout))
+        return result
+
+    async def _load_dataset(self):
+        try:
+            return await self._dataset_client.load_coingecko()
+        except Exception as e:
+            self._log.warning(f"Failed to load dataset for symbol resolution: {e}")
+            return None
+
+    @staticmethod
+    def _dominant_coin_id(dataset, symbol: str) -> str | None:
+        """Resolve a symbol to the id of its dominant coin using the cloud dataset.
+
+        Many nano-cap tokens reuse the tickers of the major coins, and CoinGecko's
+        ``symbols`` query param resolves them arbitrarily, so prices are fetched by
+        id whenever the symbol is known. The dataset is published sorted by market
+        cap, hence the first entry for a symbol is the dominant coin. The live
+        ``/coins/list`` is deliberately not used here: it is unordered, so it cannot
+        disambiguate, and those symbols keep the ``symbols`` param path.
+        """
+        if dataset is None:
+            return None
+        coins = dataset.coins_by_symbol(symbol)
+        return coins[0].id if coins else None
 
     def _validate_and_prepare(
         self, symbols: list[str], vs_currencies: list[str]

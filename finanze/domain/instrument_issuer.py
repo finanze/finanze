@@ -57,6 +57,7 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "templeton ": KnownIssuer.FRANKLIN_TEMPLETON,
     "spdr ": KnownIssuer.STATE_STREET,
     "ssga ": KnownIssuer.STATE_STREET,
+    "lyxor ": KnownIssuer.AMUNDI,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {
