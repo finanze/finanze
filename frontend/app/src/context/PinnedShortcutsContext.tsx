@@ -30,9 +30,6 @@ interface PinnedShortcutsContextType {
 }
 
 const STORAGE_KEY = "finanze-pinned-assets"
-const LEGACY_SHORTCUT_ID_MAP = {
-  bets: "market-forecast",
-} as const
 const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "banking",
   "stocks-etfs",
@@ -59,13 +56,7 @@ function loadPinnedShortcuts(): PinnedShortcutId[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
-
-      const normalized = parsed.map(
-        id =>
-          LEGACY_SHORTCUT_ID_MAP[id as keyof typeof LEGACY_SHORTCUT_ID_MAP] ??
-          id,
-      )
-      const valid = normalized.filter((id): id is PinnedShortcutId =>
+      const valid = parsed.filter((id): id is PinnedShortcutId =>
         KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId),
       )
       return valid.length ? valid : DEFAULT_PINNED
