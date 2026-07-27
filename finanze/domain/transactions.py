@@ -113,6 +113,27 @@ class DerivativeTx(BaseInvestmentTx):
 
 
 @dataclass(kw_only=True)
+class MarketForecastTx(BaseInvestmentTx):
+    symbol: str
+    size: Dezimal
+    price: Dezimal
+    fees: Dezimal
+    contract_address: Optional[str] = None
+    net_amount: Optional[Dezimal] = None
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
+    linked_tx: Optional[str] = None
+    direction: Optional[PositionDirection] = None
+    market_type: Optional[str] = None
+    underlying_symbol: Optional[str] = None
+    market_slug: Optional[str] = None
+    event_slug: Optional[str] = None
+    outcome: Optional[str] = None
+    condition_id: Optional[str] = None
+    token_id: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class FundTx(BaseInvestmentTx):
     shares: Dezimal
     price: Dezimal

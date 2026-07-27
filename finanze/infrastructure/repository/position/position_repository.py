@@ -46,6 +46,8 @@ from domain.global_position import (
     LoanType,
     ManualEntryData,
     MarginType,
+    MarketForecastDetail,
+    MarketForecastPositions,
     PositionDirection,
     PositionQueryRequest,
     ProductType,
@@ -232,6 +234,41 @@ async def _save_derivatives(
                 str(detail.initial_investment)
                 if detail.initial_investment is not None
                 else None,
+            ),
+        )
+
+
+async def _save_market_forecasts(
+    cursor, position: GlobalPosition, market_forecasts: MarketForecastPositions
+):
+    for detail in market_forecasts.entries:
+        await cursor.execute(
+            PositionWriteQueries.INSERT_MARKET_FORECAST_POSITION,
+            (
+                str(detail.id),
+                str(position.id),
+                detail.symbol,
+                detail.market_type,
+                detail.direction.value,
+                str(detail.size),
+                str(detail.entry_price),
+                detail.currency,
+                str(detail.mark_price) if detail.mark_price is not None else None,
+                str(detail.market_value) if detail.market_value is not None else None,
+                str(detail.unrealized_pnl)
+                if detail.unrealized_pnl is not None
+                else None,
+                detail.underlying_symbol,
+                detail.expiry.isoformat() if detail.expiry else None,
+                detail.name,
+                str(detail.initial_investment)
+                if detail.initial_investment is not None
+                else None,
+                detail.market_slug,
+                detail.event_slug,
+                detail.outcome,
+                detail.condition_id,
+                detail.token_id,
             ),
         )
 
@@ -489,6 +526,12 @@ async def _save_product_positions(cursor, position: GlobalPosition):
     await _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
     await _save_position(cursor, position, ProductType.COMMODITY, _save_commodities)
     await _save_position(cursor, position, ProductType.DERIVATIVE, _save_derivatives)
+    await _save_position(
+        cursor,
+        position,
+        ProductType.MARKET_FORECAST,
+        _save_market_forecasts,
+    )
     await _save_position(cursor, position, ProductType.CREDIT, _save_credits)
 
 
@@ -1306,6 +1349,55 @@ class PositionSQLRepository(PositionPort):
                 )
             return {UUID(k): DerivativePositions(v) for k, v in grouped.items()}
 
+    async def _get_all_market_forecasts(
+        self, positions: list[GlobalPosition]
+    ) -> dict[UUID, MarketForecastPositions]:
+        gp_ids = [str(p.id) for p in positions]
+        source_map = {str(p.id): p.source for p in positions}
+        async with self._db_client.read() as cursor:
+            sql = PositionQueries.GET_MARKET_FORECASTS_BY_GLOBAL_POSITION_IDS.value.format(
+                placeholders=",".join("?" for _ in gp_ids)
+            )
+            await cursor.execute(sql, tuple(gp_ids))
+            grouped: dict[str, list[MarketForecastDetail]] = {}
+            for row in cursor:
+                gp_id = row["global_position_id"]
+                grouped.setdefault(gp_id, []).append(
+                    MarketForecastDetail(
+                        id=UUID(row["id"]),
+                        symbol=row["symbol"],
+                        market_type=row["market_type"],
+                        direction=PositionDirection(row["direction"]),
+                        size=Dezimal(row["size"]),
+                        entry_price=Dezimal(row["entry_price"]),
+                        currency=row["currency"],
+                        mark_price=Dezimal(row["mark_price"])
+                        if row["mark_price"]
+                        else None,
+                        market_value=Dezimal(row["market_value"])
+                        if row["market_value"]
+                        else None,
+                        unrealized_pnl=Dezimal(row["unrealized_pnl"])
+                        if row["unrealized_pnl"]
+                        else None,
+                        underlying_symbol=row["underlying_symbol"],
+                        expiry=date.fromisoformat(row["expiry"])
+                        if row["expiry"]
+                        else None,
+                        name=row["name"],
+                        initial_investment=Dezimal(row["initial_investment"])
+                        if row["initial_investment"]
+                        else None,
+                        market_slug=row["market_slug"],
+                        event_slug=row["event_slug"],
+                        outcome=row["outcome"],
+                        condition_id=row["condition_id"],
+                        token_id=row["token_id"],
+                        source=source_map[gp_id],
+                    )
+                )
+            return {UUID(k): MarketForecastPositions(v) for k, v in grouped.items()}
+
     async def _get_all_credits(
         self, positions: list[GlobalPosition]
     ) -> dict[UUID, Credits]:
@@ -1360,6 +1452,7 @@ class PositionSQLRepository(PositionPort):
             (ProductType.CRYPTO, self._get_all_cryptocurrency),
             (ProductType.COMMODITY, self._get_all_commodities),
             (ProductType.DERIVATIVE, self._get_all_derivatives),
+            (ProductType.MARKET_FORECAST, self._get_all_market_forecasts),
             (ProductType.CREDIT, self._get_all_credits),
         ]
 

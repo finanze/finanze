@@ -133,6 +133,17 @@ class PositionWriteQueries(str, Enum):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
+    INSERT_MARKET_FORECAST_POSITION = """
+        INSERT INTO market_forecast_positions (id, global_position_id, symbol, market_type,
+                                               direction, size, entry_price, currency,
+                                               mark_price, market_value, unrealized_pnl,
+                                               underlying_symbol, expiry, name,
+                                               initial_investment, market_slug,
+                                               event_slug, outcome,
+                                               condition_id, token_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
     INSERT_CREDIT_POSITION = """
         INSERT INTO credit_positions (id, global_position_id, currency, credit_limit, drawn_amount,
                                       interest_rate, name, pledged_amount, creation)
@@ -313,6 +324,8 @@ class PositionQueries(str, Enum):
     )
 
     GET_DERIVATIVES_BY_GLOBAL_POSITION_IDS = "SELECT * FROM derivative_positions WHERE global_position_id IN ({placeholders})"
+
+    GET_MARKET_FORECASTS_BY_GLOBAL_POSITION_IDS = "SELECT * FROM market_forecast_positions WHERE global_position_id IN ({placeholders})"
 
     GET_CREDITS_BY_GLOBAL_POSITION_IDS = (
         "SELECT * FROM credit_positions WHERE global_position_id IN ({placeholders})"

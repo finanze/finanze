@@ -10,6 +10,8 @@ import {
   CryptoCurrencyType,
   DerivativeDetail,
   DerivativePositions,
+  MarketForecastDetail,
+  MarketForecastPositions,
   Credits,
   Loan,
 } from "@/types/position"
@@ -411,6 +413,38 @@ const sumDerivativeValues = (
         : mv)
     )
   }, 0)
+}
+
+const sumMarketForecastValues = (
+  entityPosition: { products: Record<string, any> },
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  const marketForecastProduct = entityPosition.products[
+    ProductType.MARKET_FORECAST
+  ] as MarketForecastPositions | undefined
+  if (
+    !marketForecastProduct ||
+    !("entries" in marketForecastProduct) ||
+    marketForecastProduct.entries.length === 0
+  )
+    return 0
+
+  return marketForecastProduct.entries.reduce(
+    (sum: number, marketForecast: MarketForecastDetail) => {
+      const mv = marketForecast.market_value || 0
+      const currency =
+        STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+        marketForecast.currency
+      return (
+        sum +
+        (targetCurrency && exchangeRates
+          ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+          : mv)
+      )
+    },
+    0,
+  )
 }
 
 export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
@@ -891,6 +925,39 @@ export const getAssetDistribution = (
           totalValue += converted
         })
       }
+
+      const marketForecastProduct = entityPosition.products[
+        ProductType.MARKET_FORECAST
+      ] as MarketForecastPositions | undefined
+      if (
+        marketForecastProduct &&
+        "entries" in marketForecastProduct &&
+        marketForecastProduct.entries.length > 0
+      ) {
+        if (!assetTypes[ProductType.MARKET_FORECAST]) {
+          assetTypes[ProductType.MARKET_FORECAST] = {
+            type: ProductType.MARKET_FORECAST,
+            value: 0,
+            percentage: 0,
+            change: 0,
+          }
+        }
+
+        marketForecastProduct.entries.forEach(
+          (marketForecast: MarketForecastDetail) => {
+            const mv = marketForecast.market_value || 0
+            const currency =
+              STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+              marketForecast.currency
+            const converted =
+              targetCurrency && exchangeRates
+                ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+                : mv
+            assetTypes[ProductType.MARKET_FORECAST].value += converted
+            totalValue += converted
+          },
+        )
+      }
     })
 
   // Include Real Estate owned equity as its own asset category (market value - outstanding debt)
@@ -1195,6 +1262,11 @@ export const getEntityDistribution = (
       }
 
       entityTotal += sumDerivativeValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
+      entityTotal += sumMarketForecastValues(
         entityPosition,
         targetCurrency,
         exchangeRates,
@@ -1520,6 +1592,11 @@ export const getTotalAssets = (
         targetCurrency,
         exchangeRates,
       )
+      total += sumMarketForecastValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
     })
 
   // Add pending flows if provided
@@ -1774,6 +1851,37 @@ export const getTotalInvestedAmount = (
               : amount
           totalInvested += convertedAmount
         })
+      }
+
+      const marketForecastProduct = entityPosition.products[
+        ProductType.MARKET_FORECAST
+      ] as MarketForecastPositions | undefined
+      if (
+        marketForecastProduct &&
+        "entries" in marketForecastProduct &&
+        marketForecastProduct.entries.length > 0
+      ) {
+        marketForecastProduct.entries.forEach(
+          (marketForecast: MarketForecastDetail) => {
+            const amount =
+              marketForecast.initial_investment ||
+              marketForecast.market_value ||
+              0
+            const currency =
+              STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+              marketForecast.currency
+            const convertedAmount =
+              targetCurrency && exchangeRates
+                ? convertCurrency(
+                    amount,
+                    currency,
+                    targetCurrency,
+                    exchangeRates,
+                  )
+                : amount
+            totalInvested += convertedAmount
+          },
+        )
       }
     })
 
@@ -2819,6 +2927,11 @@ export const getTotalDisplayedAssets = (
         targetCurrency,
         exchangeRates,
         displayedUnderlyingTypes,
+      )
+      total += sumMarketForecastValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
       )
     })
 

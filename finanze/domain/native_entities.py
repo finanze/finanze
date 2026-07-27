@@ -355,14 +355,14 @@ BINANCE = NativeCryptoExchangeEntity(
     icon_url=None,
 )
 
-POLYMARKET = NativeCryptoExchangeEntity(
+POLYMARKET = NativeFinancialEntity(
     id=UUID("ce000000-0000-0000-0000-000000000002"),
     name="Polymarket",
     natural_id=None,
-    type=EntityType.CRYPTO_EXCHANGE,
+    type=EntityType.MARKET_FORECAST_PLATFORM,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
-    products=[ProductType.ACCOUNT, ProductType.DERIVATIVE],
+    products=[ProductType.ACCOUNT, ProductType.MARKET_FORECAST],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={

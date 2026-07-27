@@ -64,16 +64,14 @@ function normalizeSlug(value?: string | null): string | null {
 function getPolymarketUrl(position: {
   slug?: string | null
   eventSlug?: string | null
-  polymarket_slug?: string | null
-  polymarket_event_slug?: string | null
+  market_slug?: string | null
+  event_slug?: string | null
 }): string | null {
   const slug =
-    normalizeSlug(position.slug) ??
-    normalizeSlug(position.polymarket_slug) ??
-    null
+    normalizeSlug(position.slug) ?? normalizeSlug(position.market_slug) ?? null
   const eventSlug =
     normalizeSlug(position.eventSlug) ??
-    normalizeSlug(position.polymarket_event_slug) ??
+    normalizeSlug(position.event_slug) ??
     null
 
   if (eventSlug && slug && eventSlug !== slug) {

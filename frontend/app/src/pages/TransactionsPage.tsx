@@ -16,6 +16,7 @@ import {
   type StockTx,
   type CryptoCurrencyTx,
   type DerivativeTx,
+  type MarketForecastTx,
   type FundTx,
   type FundPortfolioTx,
   type FactoringTx,
@@ -178,6 +179,7 @@ export default function TransactionsPage() {
       ProductType.REAL_ESTATE_CF,
       ProductType.CRYPTO,
       ProductType.DERIVATIVE,
+      ProductType.MARKET_FORECAST,
     ]
     return supportedTypes.map(type => ({
       value: type,
@@ -902,6 +904,80 @@ export default function TransactionsPage() {
         )
       }
 
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return (
+          <>
+            {commonFields}
+            {marketForecastTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {marketForecastTx.symbol}
+              </div>
+            )}
+            {marketForecastTx.underlying_symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.underlyingSymbol}:
+                </span>{" "}
+                {marketForecastTx.underlying_symbol}
+              </div>
+            )}
+            {marketForecastTx.size !== undefined && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
+                <Sensitive>{marketForecastTx.size.toLocaleString()}</Sensitive>
+              </div>
+            )}
+            {Number(marketForecastTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    marketForecastTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+            {marketForecastTx.market_type && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.market}:
+                </span>{" "}
+                {marketForecastTx.market_type}
+              </div>
+            )}
+            {marketForecastTx.direction && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.direction}:
+                </span>{" "}
+                {t.investments.derivatives.direction?.[
+                  marketForecastTx.direction
+                ] || marketForecastTx.direction}
+              </div>
+            )}
+            {marketForecastTx.contract_address && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.contractAddress}:
+                </span>{" "}
+                <span className="font-mono break-all">
+                  {marketForecastTx.contract_address}
+                </span>
+              </div>
+            )}
+          </>
+        )
+      }
+
       case ProductType.FUND: {
         const fundTx = tx as FundTx
         return (
@@ -1254,6 +1330,18 @@ export default function TransactionsPage() {
           derivativeTx.contract_type ||
           derivativeTx.direction ||
           derivativeTx.contract_address
+        )
+      }
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return !!(
+          marketForecastTx.symbol ||
+          marketForecastTx.underlying_symbol ||
+          marketForecastTx.size ||
+          Number(marketForecastTx.price || 0) !== 0 ||
+          marketForecastTx.market_type ||
+          marketForecastTx.direction ||
+          marketForecastTx.contract_address
         )
       }
       default:

@@ -14,7 +14,10 @@ class CancelEntityLoginImpl(CancelEntityLogin):
 
     def execute(self, entity_id: UUID) -> None:
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
+            entity_id,
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
+            EntityType.MARKET_FORECAST_PLATFORM,
         )
         if not entity:
             return

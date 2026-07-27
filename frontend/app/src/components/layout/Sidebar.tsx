@@ -148,7 +148,7 @@ export function Sidebar() {
         label: t.common.marketForecast,
         productType: ProductType.MARKET_FORECAST,
         key: "market-forecast",
-        hasData: hasProductEntries(ProductType.DERIVATIVE),
+        hasData: hasProductEntries(ProductType.MARKET_FORECAST),
       },
       {
         path: "/investments/commodities",

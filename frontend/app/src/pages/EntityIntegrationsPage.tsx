@@ -30,6 +30,7 @@ import {
   Wallet,
   Smartphone,
   Bitcoin,
+  ChartNoAxesColumn,
   X,
 } from "lucide-react"
 import {
@@ -158,6 +159,9 @@ export default function EntityIntegrationsPage() {
   const connectedCryptoExchangeEntities = connectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_EXCHANGE,
   )
+  const connectedMarketForecastEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.MARKET_FORECAST_PLATFORM,
+  )
 
   // Categorize unconnected entities by type
   const unconnectedFinancialEntities = unconnectedEntities.filter(
@@ -168,6 +172,9 @@ export default function EntityIntegrationsPage() {
   )
   const unconnectedCryptoExchangeEntities = unconnectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_EXCHANGE,
+  )
+  const unconnectedMarketForecastEntities = unconnectedEntities.filter(
+    entity => entity.type === EntityType.MARKET_FORECAST_PLATFORM,
   )
 
   const handleEntitySelect = (entity: any) => {
@@ -192,7 +199,8 @@ export default function EntityIntegrationsPage() {
   const handleRelogin = (entity: any) => {
     if (
       entity.type === EntityType.FINANCIAL_INSTITUTION ||
-      entity.type === EntityType.CRYPTO_EXCHANGE
+      entity.type === EntityType.CRYPTO_EXCHANGE ||
+      entity.type === EntityType.MARKET_FORECAST_PLATFORM
     ) {
       selectEntity(entity)
       handleLogin(entity)
@@ -202,7 +210,8 @@ export default function EntityIntegrationsPage() {
   const handleDisconnect = async (entity: any) => {
     if (
       entity.type === EntityType.FINANCIAL_INSTITUTION ||
-      entity.type === EntityType.CRYPTO_EXCHANGE
+      entity.type === EntityType.CRYPTO_EXCHANGE ||
+      entity.type === EntityType.MARKET_FORECAST_PLATFORM
     ) {
       const accountId = entity.accounts?.[0]?.id
       if (!accountId) return
@@ -511,6 +520,44 @@ export default function EntityIntegrationsPage() {
                         </motion.div>
                       </div>
                     )}
+
+                    {/* Market Forecast Platforms */}
+                    {connectedMarketForecastEntities.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                          <ChartNoAxesColumn className="h-5 w-5 mr-2" />
+                          {t.common.marketForecast}
+                        </h3>
+                        <motion.div
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                          variants={fadeListContainer}
+                          initial={false}
+                          animate="show"
+                        >
+                          {connectedMarketForecastEntities.map(entity => (
+                            <motion.div key={entity.id} variants={fadeListItem}>
+                              <EntityCard
+                                entity={entity}
+                                onSelect={() => handleEntitySelect(entity)}
+                                onRelogin={() => handleRelogin(entity)}
+                                onDisconnect={() => handleDisconnect(entity)}
+                                onManage={() => handleManage(entity)}
+                                onAddAccount={() => handleAddAccount(entity)}
+                                onExternalContinue={
+                                  handleContinueExternalEntityLink
+                                }
+                                onExternalDisconnect={
+                                  handleDisconnectExternalProvided
+                                }
+                                linkingExternalEntityId={
+                                  linkingExternalEntityId
+                                }
+                              />
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -715,6 +762,41 @@ export default function EntityIntegrationsPage() {
                         variants={fadeListContainer}
                       >
                         {unconnectedCryptoExchangeEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                              onExternalRelink={handleRelinkExternalProvided}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {/* Market Forecast Platforms */}
+                  {unconnectedMarketForecastEntities.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <ChartNoAxesColumn className="h-5 w-5 mr-2" />
+                        {t.common.marketForecast}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                      >
+                        {unconnectedMarketForecastEntities.map(entity => (
                           <motion.div key={entity.id} variants={fadeListItem}>
                             <EntityCard
                               entity={entity}

@@ -411,16 +411,38 @@ export interface DerivativeDetail {
   expiry?: string | null
   name?: string | null
   initial_investment?: number | null
-  polymarket_slug?: string | null
-  polymarket_event_slug?: string | null
-  polymarket_outcome?: string | null
-  polymarket_condition_id?: string | null
-  polymarket_token_id?: string | null
   source: DataSource
 }
 
 export interface DerivativePositions {
   entries: DerivativeDetail[]
+}
+
+export interface MarketForecastDetail {
+  id: string
+  symbol: string
+  market_type?: string | null
+  direction: PositionDirection
+  size: number
+  entry_price: number
+  currency: string
+  mark_price?: number | null
+  market_value?: number | null
+  unrealized_pnl?: number | null
+  underlying_symbol?: string | null
+  expiry?: string | null
+  name?: string | null
+  initial_investment?: number | null
+  market_slug?: string | null
+  event_slug?: string | null
+  outcome?: string | null
+  condition_id?: string | null
+  token_id?: string | null
+  source: DataSource
+}
+
+export interface MarketForecastPositions {
+  entries: MarketForecastDetail[]
 }
 
 export interface CreditDetail {
@@ -454,6 +476,7 @@ export type ProductPosition =
   | Commodities
   | Credits
   | DerivativePositions
+  | MarketForecastPositions
 
 export type ProductPositions = Record<ProductType, ProductPosition>
 export type PartialProductPositions = Partial<

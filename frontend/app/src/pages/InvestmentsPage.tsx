@@ -118,11 +118,8 @@ export default function InvestmentsPage() {
       const hasPositions =
         route.productType === ProductType.REAL_ESTATE
           ? realEstateList.length > 0
-          : route.productType === ProductType.MARKET_FORECAST
-            ? getEntitiesWithProductType(positionsData, ProductType.DERIVATIVE)
-                .length > 0
-            : getEntitiesWithProductType(positionsData, route.productType)
-                .length > 0
+          : getEntitiesWithProductType(positionsData, route.productType)
+              .length > 0
 
       return {
         ...route,

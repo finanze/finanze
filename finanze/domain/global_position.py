@@ -44,6 +44,7 @@ class ProductType(str, Enum):
     BOND = "BOND"
     CREDIT = "CREDIT"
     DERIVATIVE = "DERIVATIVE"
+    MARKET_FORECAST = "MARKET_FORECAST"
 
 
 class AccountType(str, Enum):
@@ -484,6 +485,30 @@ class DerivativeDetail(BaseData):
 
 
 @dataclass
+class MarketForecastDetail(BaseData):
+    id: Optional[UUID]
+    symbol: str
+    market_type: Optional[str]
+    direction: PositionDirection
+    size: Dezimal
+    entry_price: Dezimal
+    currency: str
+    mark_price: Optional[Dezimal] = None
+    market_value: Optional[Dezimal] = None
+    unrealized_pnl: Optional[Dezimal] = None
+    underlying_symbol: Optional[str] = None
+    expiry: Optional[date] = None
+    name: Optional[str] = None
+    initial_investment: Optional[Dezimal] = None
+    market_slug: Optional[str] = None
+    event_slug: Optional[str] = None
+    outcome: Optional[str] = None
+    condition_id: Optional[str] = None
+    token_id: Optional[str] = None
+    source: DataSource = DataSource.REAL
+
+
+@dataclass
 class CreditDetail(BaseData):
     id: Optional[UUID]
     currency: str
@@ -580,6 +605,11 @@ class DerivativePositions:
     entries: List[DerivativeDetail]
 
 
+@dataclass
+class MarketForecastPositions:
+    entries: List[MarketForecastDetail]
+
+
 ProductPosition = Union[
     Accounts,
     Cards,
@@ -595,6 +625,7 @@ ProductPosition = Union[
     Commodities,
     Credits,
     DerivativePositions,
+    MarketForecastPositions,
 ]
 
 ProductPositions = dict[ProductType, ProductPosition]

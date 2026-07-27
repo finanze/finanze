@@ -69,7 +69,8 @@ export function EntityRefreshDropdown() {
   const financialEntities = connectedEntities.filter(
     entity =>
       entity.type === EntityType.FINANCIAL_INSTITUTION ||
-      entity.type === EntityType.CRYPTO_EXCHANGE,
+      entity.type === EntityType.CRYPTO_EXCHANGE ||
+      entity.type === EntityType.MARKET_FORECAST_PLATFORM,
   )
   // Only include crypto entities that have connected wallets
   const cryptoEntities = connectedEntities.filter(

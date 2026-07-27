@@ -8,17 +8,16 @@ from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
-    Accounts,
     AccountType,
-    DerivativeContractType,
-    DerivativeDetail,
-    DerivativePositions,
+    Accounts,
     GlobalPosition,
+    MarketForecastDetail,
+    MarketForecastPositions,
     PositionDirection,
     ProductType,
 )
 from domain.native_entities import POLYMARKET
-from domain.transactions import DerivativeTx, Transactions, TxType
+from domain.transactions import MarketForecastTx, Transactions, TxType
 from infrastructure.client.entity.exchange.polymarket.polymarket_client import (
     PolymarketClient,
 )
@@ -37,7 +36,7 @@ class PolymarketFetcher(FinancialEntityFetcher):
             available_balance,
             available_balance_currency,
         ) = await self._client.get_available_balance()
-        derivative_entries: list[DerivativeDetail] = []
+        market_forecast_entries: list[MarketForecastDetail] = []
         account_entries: list[Account] = []
 
         for position in positions:
@@ -49,14 +48,12 @@ class PolymarketFetcher(FinancialEntityFetcher):
             current_value = Dezimal(position.get("currentValue", 0))
             initial_investment = Dezimal(position.get("initialValue", 0))
             cash_pnl = Dezimal(position.get("cashPnl", 0))
-            derivative_entries.append(
-                DerivativeDetail(
+            market_forecast_entries.append(
+                MarketForecastDetail(
                     id=uuid4(),
                     symbol=self._build_symbol(position),
                     name=position.get("title") or self._build_symbol(position),
-                    underlying_asset=ProductType.CRYPTO,
-                    underlying_symbol=position.get("outcome") or position.get("slug"),
-                    contract_type=DerivativeContractType.OTHER,
+                    market_type="BINARY",
                     direction=PositionDirection.LONG,
                     size=size,
                     entry_price=avg_price,
@@ -64,8 +61,14 @@ class PolymarketFetcher(FinancialEntityFetcher):
                     mark_price=(current_value / size) if size != 0 else None,
                     market_value=current_value,
                     unrealized_pnl=cash_pnl,
+                    underlying_symbol=position.get("outcome") or position.get("slug"),
                     expiry=self._parse_date(position.get("endDate")),
                     initial_investment=initial_investment,
+                    market_slug=position.get("slug"),
+                    event_slug=position.get("eventSlug"),
+                    outcome=position.get("outcome"),
+                    condition_id=position.get("conditionId"),
+                    token_id=position.get("asset"),
                     source=DataSource.REAL,
                 )
             )
@@ -84,9 +87,9 @@ class PolymarketFetcher(FinancialEntityFetcher):
         products = {}
         if account_entries:
             products[ProductType.ACCOUNT] = Accounts(account_entries)
-        if derivative_entries:
-            products[ProductType.DERIVATIVE] = DerivativePositions(
-                entries=derivative_entries
+        if market_forecast_entries:
+            products[ProductType.MARKET_FORECAST] = MarketForecastPositions(
+                entries=market_forecast_entries
             )
 
         return GlobalPosition(
@@ -101,7 +104,7 @@ class PolymarketFetcher(FinancialEntityFetcher):
         trades = await self._client.get_trades()
         activity = await self._client.get_activity()
 
-        txs_by_ref: OrderedDict[str, DerivativeTx] = OrderedDict()
+        txs_by_ref: OrderedDict[str, MarketForecastTx] = OrderedDict()
 
         for raw_trade in trades:
             tx = self._map_trade(raw_trade)
@@ -117,7 +120,7 @@ class PolymarketFetcher(FinancialEntityFetcher):
 
         return Transactions(investment=list(txs_by_ref.values()))
 
-    def _map_trade(self, raw_trade: dict) -> DerivativeTx:
+    def _map_trade(self, raw_trade: dict) -> MarketForecastTx:
         tx_type = (
             TxType.BUY
             if str(raw_trade.get("side", "BUY")).upper() == "BUY"
@@ -138,7 +141,7 @@ class PolymarketFetcher(FinancialEntityFetcher):
             )
         )
 
-        return DerivativeTx(
+        return MarketForecastTx(
             id=uuid4(),
             ref=ref,
             name=raw_trade.get("title") or self._build_symbol(raw_trade),
@@ -147,7 +150,7 @@ class PolymarketFetcher(FinancialEntityFetcher):
             type=tx_type,
             date=timestamp,
             entity=POLYMARKET,
-            product_type=ProductType.DERIVATIVE,
+            product_type=ProductType.MARKET_FORECAST,
             source=DataSource.REAL,
             symbol=self._build_symbol(raw_trade),
             size=size,
@@ -158,9 +161,13 @@ class PolymarketFetcher(FinancialEntityFetcher):
             contract_address=contract_address,
             linked_tx=condition_id,
             direction=PositionDirection.LONG,
-            contract_type=DerivativeContractType.OTHER,
-            underlying_asset=ProductType.CRYPTO,
+            market_type="BINARY",
             underlying_symbol=raw_trade.get("outcome") or raw_trade.get("slug"),
+            market_slug=raw_trade.get("slug"),
+            event_slug=raw_trade.get("eventSlug"),
+            outcome=raw_trade.get("outcome"),
+            condition_id=condition_id,
+            token_id=raw_trade.get("asset"),
         )
 
     @staticmethod
