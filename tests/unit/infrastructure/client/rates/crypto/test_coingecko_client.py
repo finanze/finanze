@@ -28,8 +28,16 @@ def _dataset() -> CryptoDataset:
             name="Ethereum",
             icon_url=None,
             platforms={},
+            prices={"EUR": Dezimal("1701.79")},
+        ),
+        CryptoDatasetCoin(
+            id="bridged-wbtc",
+            symbol="wbtc",
+            name="Bridged WBTC",
+            icon_url=None,
+            platforms={},
             prices={},
-        )
+        ),
     ]
     platforms = {
         "ethereum": CryptoDatasetPlatform(
@@ -93,6 +101,16 @@ class TestGetPrices:
         params = client._fetch.await_args.kwargs["params"]
         assert params["symbols"] == "tok"
         assert "ids" not in params
+
+    @pytest.mark.asyncio
+    async def test_symbols_without_dataset_price_keep_the_symbols_param(self):
+        client = _build_client()
+        client._fetch = AsyncMock(return_value={"wbtc": {"eur": 57000}})
+
+        prices = await client.get_prices(["wbtc"], ["EUR"])
+
+        assert prices == {"WBTC": {"EUR": Dezimal("57000")}}
+        assert client._fetch.await_args.kwargs["params"]["symbols"] == "wbtc"
 
     @pytest.mark.asyncio
     async def test_mixed_symbols_use_both_paths(self):

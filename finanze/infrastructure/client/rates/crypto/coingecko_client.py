@@ -446,14 +446,17 @@ class CoinGeckoClient:
         Many nano-cap tokens reuse the tickers of the major coins, and CoinGecko's
         ``symbols`` query param resolves them arbitrarily, so prices are fetched by
         id whenever the symbol is known. The dataset is published sorted by market
-        cap, hence the first entry for a symbol is the dominant coin. The live
-        ``/coins/list`` is deliberately not used here: it is unordered, so it cannot
-        disambiguate, and those symbols keep the ``symbols`` param path.
+        cap, hence the first priced entry for a symbol is the dominant coin. Only
+        priced coins qualify: an unpriced entry has no market data upstream either,
+        so those symbols keep the ``symbols`` param path. The live ``/coins/list``
+        is deliberately not used here, it is unordered and cannot disambiguate.
         """
         if dataset is None:
             return None
-        coins = dataset.coins_by_symbol(symbol)
-        return coins[0].id if coins else None
+        for coin in dataset.coins_by_symbol(symbol):
+            if coin.prices and coin.id:
+                return coin.id
+        return None
 
     def _validate_and_prepare(
         self, symbols: list[str], vs_currencies: list[str]
