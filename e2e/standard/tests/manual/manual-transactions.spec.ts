@@ -116,7 +116,7 @@ async function createManualTransaction(
     amount: string,
 ) {
     await page.getByRole('button', { name: 'Add' }).click()
-    await expect(page.getByText('Add manual transaction')).toBeVisible({
+    await expect(page.getByText('Add transaction')).toBeVisible({
         timeout: 5_000,
     })
 
@@ -183,7 +183,7 @@ test.describe('Manual Transactions', () => {
         // Wait for Edit button to be visible, then click using accessible name
         await page.getByRole('button', { name: 'Edit' }).click()
 
-        await expect(page.getByText('Edit manual transaction')).toBeVisible({
+        await expect(page.getByText('Edit transaction')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -197,7 +197,7 @@ test.describe('Manual Transactions', () => {
         // The success toast auto-dismisses and is racy to assert on. Verify the
         // edit succeeded by confirming the dialog closed and the updated amount
         // is reflected in the list.
-        await expect(page.getByText('Edit manual transaction')).toBeHidden({
+        await expect(page.getByText('Edit transaction')).toBeHidden({
             timeout: 10_000,
         })
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
@@ -280,7 +280,7 @@ test.describe('Manual Transactions', () => {
         await navigateToTransactions(page)
 
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual transaction')).toBeVisible({
+        await expect(page.getByText('Add transaction')).toBeVisible({
             timeout: 5_000,
         })
 

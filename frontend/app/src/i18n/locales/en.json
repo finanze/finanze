@@ -1567,8 +1567,8 @@
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
     "form": {
-      "createTitle": "Add manual transaction",
-      "editTitle": "Edit manual transaction",
+      "createTitle": "Add transaction",
+      "editTitle": "Edit transaction",
       "entity": "Entity",
       "transactionType": "Transaction type",
       "pickDate": "Select a date",
@@ -2148,8 +2148,8 @@
     "manualContributions": {
       "unnamed": "Manual contribution",
       "add": "New",
-      "createTitle": "Add manual contribution",
-      "editTitle": "Edit manual contribution",
+      "createTitle": "Add contribution",
+      "editTitle": "Edit contribution",
       "entity": "Entity",
       "targetName": "Target name",
       "targetNameHelper": "Optional friendly name shown in the list",
@@ -2259,9 +2259,14 @@
         "cancelEntityCreation": "Cancel new entity",
         "newEntityPlaceholder": "Enter the new entity name",
         "trackPrice": "Track price",
+        "trackPriceShort": "Track",
         "trackPriceUnavailable": "Select an instrument to enable price tracking.",
         "createInvestmentTxs": "Create transactions",
+        "createInvestmentTxsShort": "Transactions",
         "createInvestmentTxsInfo": "When enabled, an initial investment transaction is created (plus a repayment transaction if the pending capital is lower than the invested amount).",
+        "termShortcut": "Term",
+        "monthsShort": "m",
+        "yearsShort": "y",
         "currencyConversionWarning": "Instrument currency differs from the selected currency. Conversion uses the latest rates and may vary.",
         "summary": {
           "shares": "Shares"
@@ -2297,7 +2302,7 @@
         "form": {
           "createTitle": "Add an account",
           "createDescription": "Fill in the account details to track it manually.",
-          "editTitle": "Edit manual bank account",
+          "editTitle": "Edit bank account",
           "editDescription": "Update the selected manual bank account."
         },
         "fields": {
@@ -2331,7 +2336,7 @@
         "form": {
           "createTitle": "Add a card",
           "createDescription": "Provide the card information to manage it manually.",
-          "editTitle": "Edit manual card",
+          "editTitle": "Edit card",
           "editDescription": "Update the selected manual card."
         },
         "fields": {
@@ -2358,7 +2363,7 @@
         "form": {
           "createTitle": "Add a loan",
           "createDescription": "Enter the loan details to manage it manually.",
-          "editTitle": "Edit manual loan",
+          "editTitle": "Edit loan",
           "editDescription": "Update the selected manual loan."
         },
         "fields": {
@@ -2409,7 +2414,7 @@
         "form": {
           "createTitle": "Add a credit line",
           "createDescription": "Enter the credit line details to manage it manually.",
-          "editTitle": "Edit manual credit",
+          "editTitle": "Edit credit line",
           "editDescription": "Update the selected manual credit line."
         },
         "fields": {
@@ -2432,9 +2437,9 @@
           "description": "Create a manual fund portfolio to group your investments."
         },
         "form": {
-          "createTitle": "Add manual fund portfolio",
+          "createTitle": "Add fund portfolio",
           "createDescription": "Set up a portfolio to group manually tracked funds.",
-          "editTitle": "Edit manual fund portfolio",
+          "editTitle": "Edit fund portfolio",
           "editDescription": "Update the selected manual fund portfolio."
         },
         "fields": {
@@ -2472,9 +2477,9 @@
           "description": "Add a manual fund position to include it in your portfolio."
         },
         "form": {
-          "createTitle": "Add manual fund",
+          "createTitle": "Add fund",
           "createDescription": "Fill in the fund details to track it manually.",
-          "editTitle": "Edit manual fund",
+          "editTitle": "Edit fund",
           "editDescription": "Update the selected manual fund."
         },
         "fields": {
@@ -2510,9 +2515,9 @@
           "description": "Add a manual stock or ETF position to your portfolio."
         },
         "form": {
-          "createTitle": "Add manual stock",
+          "createTitle": "Add stock",
           "createDescription": "Provide the stock details to track it manually.",
-          "editTitle": "Edit manual stock",
+          "editTitle": "Edit stock",
           "editDescription": "Update the selected manual stock."
         },
         "fields": {
@@ -2542,9 +2547,9 @@
           "description": "Add a manual crypto position to your portfolio."
         },
         "form": {
-          "createTitle": "Add manual crypto",
+          "createTitle": "Add crypto",
           "createDescription": "Provide the crypto details to track it manually.",
-          "editTitle": "Edit manual crypto",
+          "editTitle": "Edit crypto",
           "editDescription": "Update the selected manual crypto."
         },
         "fields": {
@@ -2583,9 +2588,9 @@
           "description": "Add a manual deposit to track its returns."
         },
         "form": {
-          "createTitle": "Add manual deposit",
+          "createTitle": "Add deposit",
           "createDescription": "Enter the deposit information to manage it manually.",
-          "editTitle": "Edit manual deposit",
+          "editTitle": "Edit deposit",
           "editDescription": "Update the selected manual deposit."
         },
         "fields": {
@@ -2605,9 +2610,9 @@
           "description": "Add a manual factoring position to include it in your investments."
         },
         "form": {
-          "createTitle": "Add manual factoring",
+          "createTitle": "Add factoring",
           "createDescription": "Provide the factoring details to track it manually.",
-          "editTitle": "Edit manual factoring",
+          "editTitle": "Edit factoring",
           "editDescription": "Update the selected manual factoring entry."
         },
         "fields": {
@@ -2630,9 +2635,9 @@
           "description": "Add a manual real estate CF position to monitor it."
         },
         "form": {
-          "createTitle": "Add manual real estate CF",
+          "createTitle": "Add real estate CF",
           "createDescription": "Enter the project details to track it manually.",
-          "editTitle": "Edit manual real estate CF",
+          "editTitle": "Edit real estate CF",
           "editDescription": "Update the selected manual real estate CF position."
         },
         "fields": {

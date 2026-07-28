@@ -951,25 +951,29 @@ export default function CommoditiesInvestmentPage() {
                       </select>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddForm(false)}
-                    >
-                      {t.common.cancel}
-                    </Button>
-                    <Button
-                      onClick={addNewEntry}
-                      disabled={
-                        !newEntry.name ||
-                        !newEntry.amount ||
-                        newEntry.amount <= 0
-                      }
-                    >
-                      {t.common.add}
-                    </Button>
-                  </div>
                 </CardContent>
+                <CardFooter className="flex w-full flex-wrap justify-end gap-2 pt-4 pb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddForm(false)}
+                    aria-label={t.common.cancel}
+                    title={t.common.cancel}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={addNewEntry}
+                    disabled={
+                      !newEntry.name || !newEntry.amount || newEntry.amount <= 0
+                    }
+                    aria-label={t.common.add}
+                    title={t.common.add}
+                    className="h-9 w-9 p-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </CardFooter>
               </Card>
             </motion.div>
           </motion.div>
@@ -1476,19 +1480,23 @@ export default function CommoditiesInvestmentPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap justify-end gap-2">
+                <CardFooter className="flex w-full flex-wrap justify-end gap-2 pt-4 pb-4">
                   <Button
                     variant="outline"
                     onClick={() => setEditingCommodityId(null)}
-                    className="whitespace-nowrap"
+                    aria-label={t.common.cancel}
+                    title={t.common.cancel}
+                    className="h-9 w-9 p-0"
                   >
-                    {t.common.cancel}
+                    <X className="h-4 w-4" />
                   </Button>
                   <Button
                     onClick={handleSaveEdit}
-                    className="whitespace-nowrap"
+                    aria-label={t.common.save}
+                    title={t.common.save}
+                    className="h-9 w-9 p-0"
                   >
-                    {t.common.save}
+                    <Save className="h-4 w-4" />
                   </Button>
                 </CardFooter>
               </Card>
