@@ -17,6 +17,7 @@ const KNOWN_ISSUER_ICONS: Record<string, string> = {
   Fidelity: "fidelity",
   "First Trust": "firsttrust",
   "Franklin Templeton": "franklintempleton",
+  Generali: "generali",
   "Global X": "globalx",
   Goldman: "goldman",
   HANetf: "hanetf",

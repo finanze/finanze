@@ -21,6 +21,7 @@ class KnownIssuer(str, Enum):
     FIDELITY = "Fidelity"
     FIRST_TRUST = "First Trust"
     FRANKLIN_TEMPLETON = "Franklin Templeton"
+    GENERALI = "Generali"
     GLOBAL_X = "Global X"
     GOLDMAN = "Goldman"
     HANETF = "HANetf"
@@ -58,6 +59,7 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "spdr ": KnownIssuer.STATE_STREET,
     "ssga ": KnownIssuer.STATE_STREET,
     "lyxor ": KnownIssuer.AMUNDI,
+    "sycomore ": KnownIssuer.GENERALI,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

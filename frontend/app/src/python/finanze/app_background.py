@@ -94,6 +94,7 @@ class MobileBackgroundApp:
         )
         from infrastructure.repository.db.transaction_handler import TransactionHandler
         from infrastructure.calculations.loan_calculator import LoanCalculator
+        from finanze.build_config import INCLUDE_CONNECTIONS
         from application.use_cases.manual_position_snapshot import (
             ManualPositionSnapshotWriter,
         )
@@ -119,7 +120,10 @@ class MobileBackgroundApp:
         tx_handler = TransactionHandler(client=self.db_client)
         loan_calculator = LoanCalculator()
         inst_provider = InstrumentProviderAdapter(
-            enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
+            enabled_clients=(
+                (["ft"] if INCLUDE_CONNECTIONS else [])
+                + ["yf", "finect", "tv", "ee", "le"]
+            )
         )
         historic_metal_client = HistoricMetalPriceClient()
 

@@ -1567,8 +1567,8 @@
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
     "form": {
-      "createTitle": "Aggiungi transazione manuale",
-      "editTitle": "Modifica transazione manuale",
+      "createTitle": "Aggiungi transazione",
+      "editTitle": "Modifica transazione",
       "entity": "Entità",
       "transactionType": "Tipo di transazione",
       "pickDate": "Seleziona una data",
@@ -2148,8 +2148,8 @@
     "manualContributions": {
       "unnamed": "Contributo manuale",
       "add": "Nuovo",
-      "createTitle": "Aggiungi contributo manuale",
-      "editTitle": "Modifica contributo manuale",
+      "createTitle": "Aggiungi contributo",
+      "editTitle": "Modifica contributo",
       "entity": "Entità",
       "targetName": "Nome destinazione",
       "targetNameHelper": "Nome amichevole opzionale mostrato nell'elenco",
@@ -2259,9 +2259,14 @@
         "cancelEntityCreation": "Annulla nuova entità",
         "newEntityPlaceholder": "Inserisci il nome della nuova entità",
         "trackPrice": "Monitora prezzo",
+        "trackPriceShort": "Monitora",
         "trackPriceUnavailable": "Seleziona uno strumento per abilitare il monitoraggio del prezzo.",
         "createInvestmentTxs": "Crea transazioni",
+        "createInvestmentTxsShort": "Transazioni",
         "createInvestmentTxsInfo": "Se attivato, viene creata una transazione di investimento iniziale (più una transazione di rimborso se il capitale residuo è inferiore all'importo investito).",
+        "termShortcut": "Durata",
+        "monthsShort": "m",
+        "yearsShort": "a",
         "currencyConversionWarning": "La valuta dello strumento è diversa da quella selezionata. La conversione utilizza i tassi più recenti e può variare.",
         "summary": {
           "shares": "Quote"
@@ -2297,7 +2302,7 @@
         "form": {
           "createTitle": "Aggiungi un conto",
           "createDescription": "Compila i dettagli del conto per monitorarlo manualmente.",
-          "editTitle": "Modifica conto bancario manuale",
+          "editTitle": "Modifica conto bancario",
           "editDescription": "Aggiorna il conto bancario manuale selezionato."
         },
         "fields": {
@@ -2331,7 +2336,7 @@
         "form": {
           "createTitle": "Aggiungi una carta",
           "createDescription": "Fornisci le informazioni della carta per gestirla manualmente.",
-          "editTitle": "Modifica carta manuale",
+          "editTitle": "Modifica carta",
           "editDescription": "Aggiorna la carta manuale selezionata."
         },
         "fields": {
@@ -2358,7 +2363,7 @@
         "form": {
           "createTitle": "Aggiungi un prestito",
           "createDescription": "Inserisci i dettagli del prestito per gestirlo manualmente.",
-          "editTitle": "Modifica prestito manuale",
+          "editTitle": "Modifica prestito",
           "editDescription": "Aggiorna il prestito manuale selezionato."
         },
         "fields": {
@@ -2409,7 +2414,7 @@
         "form": {
           "createTitle": "Aggiungi una linea di credito",
           "createDescription": "Inserisci i dettagli della linea di credito per gestirla manualmente.",
-          "editTitle": "Modifica credito manuale",
+          "editTitle": "Modifica linea di credito",
           "editDescription": "Aggiorna la linea di credito manuale selezionata."
         },
         "fields": {
@@ -2432,9 +2437,9 @@
           "description": "Crea un portafoglio di fondi manuale per raggruppare i tuoi investimenti."
         },
         "form": {
-          "createTitle": "Aggiungi portafoglio di fondi manuale",
+          "createTitle": "Aggiungi portafoglio di fondi",
           "createDescription": "Configura un portafoglio per raggruppare i fondi monitorati manualmente.",
-          "editTitle": "Modifica portafoglio di fondi manuale",
+          "editTitle": "Modifica portafoglio di fondi",
           "editDescription": "Aggiorna il portafoglio di fondi manuale selezionato."
         },
         "fields": {
@@ -2472,9 +2477,9 @@
           "description": "Aggiungi una posizione manuale di fondo per includerla nel tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi fondo manuale",
+          "createTitle": "Aggiungi fondo",
           "createDescription": "Compila i dettagli del fondo per monitorarlo manualmente.",
-          "editTitle": "Modifica fondo manuale",
+          "editTitle": "Modifica fondo",
           "editDescription": "Aggiorna il fondo manuale selezionato."
         },
         "fields": {
@@ -2510,9 +2515,9 @@
           "description": "Aggiungi una posizione manuale di azione o ETF al tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi azione manuale",
+          "createTitle": "Aggiungi azione",
           "createDescription": "Fornisci i dettagli dell'azione per monitorarla manualmente.",
-          "editTitle": "Modifica azione manuale",
+          "editTitle": "Modifica azione",
           "editDescription": "Aggiorna l'azione manuale selezionata."
         },
         "fields": {
@@ -2542,9 +2547,9 @@
           "description": "Aggiungi una posizione manuale di criptovaluta al tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi crypto manuale",
+          "createTitle": "Aggiungi crypto",
           "createDescription": "Fornisci i dettagli della criptovaluta per monitorarla manualmente.",
-          "editTitle": "Modifica crypto manuale",
+          "editTitle": "Modifica crypto",
           "editDescription": "Aggiorna la criptovaluta manuale selezionata."
         },
         "fields": {
@@ -2583,9 +2588,9 @@
           "description": "Aggiungi un deposito manuale per monitorarne il rendimento."
         },
         "form": {
-          "createTitle": "Aggiungi deposito manuale",
+          "createTitle": "Aggiungi deposito",
           "createDescription": "Inserisci le informazioni del deposito per gestirlo manualmente.",
-          "editTitle": "Modifica deposito manuale",
+          "editTitle": "Modifica deposito",
           "editDescription": "Aggiorna il deposito manuale selezionato."
         },
         "fields": {
@@ -2605,9 +2610,9 @@
           "description": "Aggiungi una posizione manuale di factoring per includerla nei tuoi investimenti."
         },
         "form": {
-          "createTitle": "Aggiungi factoring manuale",
+          "createTitle": "Aggiungi factoring",
           "createDescription": "Fornisci i dettagli del factoring per monitorarlo manualmente.",
-          "editTitle": "Modifica factoring manuale",
+          "editTitle": "Modifica factoring",
           "editDescription": "Aggiorna la voce di factoring manuale selezionata."
         },
         "fields": {
@@ -2630,9 +2635,9 @@
           "description": "Aggiungi una posizione manuale di crowdfunding immobiliare per monitorarla."
         },
         "form": {
-          "createTitle": "Aggiungi crowdfunding immobiliare manuale",
+          "createTitle": "Aggiungi crowdfunding immobiliare",
           "createDescription": "Inserisci i dettagli del progetto per monitorarlo manualmente.",
-          "editTitle": "Modifica crowdfunding immobiliare manuale",
+          "editTitle": "Modifica crowdfunding immobiliare",
           "editDescription": "Aggiorna la posizione manuale di crowdfunding immobiliare selezionata."
         },
         "fields": {

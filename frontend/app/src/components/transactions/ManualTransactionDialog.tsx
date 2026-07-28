@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
 import {
   X,
+  Save,
   ChevronDown,
   Check,
   ListFilter,
@@ -2091,11 +2092,20 @@ export function ManualTransactionDialog({
                     variant="outline"
                     onClick={handleClose}
                     disabled={isSubmitting}
+                    aria-label={t.common.cancel}
+                    title={t.common.cancel}
+                    className="h-9 w-9 p-0"
                   >
-                    {t.common.cancel}
+                    <X className="h-4 w-4" />
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? t.common.saving : t.common.save}
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    aria-label={isSubmitting ? t.common.saving : t.common.save}
+                    title={isSubmitting ? t.common.saving : t.common.save}
+                    className="h-9 w-9 p-0"
+                  >
+                    <Save className="h-4 w-4" />
                   </Button>
                 </CardFooter>
               </form>

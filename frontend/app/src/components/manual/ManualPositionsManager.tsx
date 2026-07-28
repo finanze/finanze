@@ -65,14 +65,11 @@ import { generateLocalId } from "@/utils/manualData"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Switch } from "@/components/ui/Switch"
-import { Label } from "@/components/ui/Label"
 import {
   Popover,
   PopoverContent,
@@ -1939,11 +1936,6 @@ export function ManualPositionsManager({
                       ? translate(`${assetPath}.form.createTitle`)
                       : translate(`${assetPath}.form.editTitle`)}
                   </CardTitle>
-                  <CardDescription>
-                    {formMode === "create"
-                      ? translate(`${assetPath}.form.createDescription`)
-                      : translate(`${assetPath}.form.editDescription`)}
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-y-auto">
                   {config.renderFormFields({
@@ -1972,6 +1964,8 @@ export function ManualPositionsManager({
 
                   let trackerCandidate: string | null = null
                   let trackerStatus: "auto" | "on" | "off" = "auto"
+                  let isLoanTrackingAvailable = false
+                  let isLoanTrackingActive = false
 
                   if (asset === "funds") {
                     const fundForm = formState as unknown as FundFormState
@@ -1981,15 +1975,30 @@ export function ManualPositionsManager({
                     const stockForm = formState as unknown as StockFormState
                     trackerCandidate = getStockTrackerCandidate(stockForm)
                     trackerStatus = stockForm._tracker_status ?? "auto"
+                  } else if (asset === "bankLoans") {
+                    const loanForm = formState as unknown as BankLoanFormState
+                    isLoanTrackingAvailable = loanForm.interest_type === "FIXED"
+                    isLoanTrackingActive =
+                      isLoanTrackingAvailable && Boolean(loanForm.track_loan)
                   }
 
-                  const isTrackingAvailable = Boolean(trackerCandidate)
+                  const isTrackingAvailable =
+                    asset === "bankLoans"
+                      ? isLoanTrackingAvailable
+                      : Boolean(trackerCandidate)
                   const isTrackingActive =
-                    isTrackingAvailable &&
-                    (trackerStatus === "on" || trackerStatus === "auto")
+                    asset === "bankLoans"
+                      ? isLoanTrackingActive
+                      : isTrackingAvailable &&
+                        (trackerStatus === "on" || trackerStatus === "auto")
 
                   const handleToggleTrack = () => {
                     if (!isTrackingAvailable) return
+                    if (asset === "bankLoans") {
+                      updateField("track_loan", isTrackingActive ? "" : "true")
+                      return
+                    }
+
                     const nextStatus = isTrackingActive ? "off" : "on"
                     updateField("_tracker_status", nextStatus)
 
@@ -2042,125 +2051,169 @@ export function ManualPositionsManager({
                     }
                   }
 
+                  const hasCreateInvestmentToggle =
+                    formMode === "create" &&
+                    (asset === "factoring" || asset === "realEstateCf")
+
                   return (
-                    <CardFooter className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-col max-sm:items-center">
+                    <CardFooter
+                      className={cn(
+                        "flex w-full flex-wrap items-center justify-between gap-2",
+                        asset === "funds" ||
+                          asset === "stocks" ||
+                          asset === "bankLoans" ||
+                          hasCreateInvestmentToggle
+                          ? "max-sm:flex-nowrap max-sm:pt-4 max-sm:pb-4"
+                          : "max-sm:flex-col max-sm:items-end",
+                      )}
+                    >
                       <div className="flex items-center gap-2">
-                        {asset === "funds" || asset === "stocks" ? (
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={isTrackingActive}
-                            aria-pressed={isTrackingActive}
-                            onClick={handleToggleTrack}
-                            disabled={!isTrackingAvailable}
-                            title={
-                              isTrackingAvailable
-                                ? undefined
-                                : translate(
-                                    "management.manualPositions.shared.trackPriceUnavailable",
-                                  )
-                            }
-                            className={cn(
-                              "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                              isTrackingActive
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
-                              !isTrackingAvailable &&
-                                "cursor-not-allowed opacity-50 hover:bg-muted",
-                            )}
-                          >
-                            <span
+                        {asset === "funds" ||
+                        asset === "stocks" ||
+                        asset === "bankLoans" ? (
+                          <>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={isTrackingActive}
+                              aria-pressed={isTrackingActive}
+                              onClick={handleToggleTrack}
+                              disabled={!isTrackingAvailable}
+                              title={
+                                isTrackingAvailable
+                                  ? undefined
+                                  : asset === "bankLoans"
+                                    ? translate(
+                                        "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                      )
+                                    : translate(
+                                        "management.manualPositions.shared.trackPriceUnavailable",
+                                      )
+                              }
                               className={cn(
-                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+                                "inline-flex items-center gap-2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9",
                                 isTrackingActive
-                                  ? "border-primary-foreground/40 bg-background/20"
-                                  : "border-border bg-background/40",
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
+                                !isTrackingAvailable &&
+                                  "cursor-not-allowed opacity-50 hover:bg-muted",
                               )}
                             >
-                              <Check
+                              <span
                                 className={cn(
-                                  "h-3 w-3 transition-opacity",
+                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
                                   isTrackingActive
-                                    ? "opacity-100"
-                                    : "opacity-0",
+                                    ? "border-primary-foreground/40 bg-background/20"
+                                    : "border-border bg-background/40",
                                 )}
-                              />
-                            </span>
-                            {translate(
-                              "management.manualPositions.shared.trackPrice",
-                            )}
-                          </button>
-                        ) : asset === "bankLoans" ? (
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              id={`track_loan_${activeDraft?.localId}`}
-                              checked={
-                                (formState as unknown as BankLoanFormState)
-                                  ?.interest_type === "FIXED" &&
-                                !!(formState as unknown as BankLoanFormState)
-                                  ?.track_loan
-                              }
-                              disabled={
-                                (formState as unknown as BankLoanFormState)
-                                  ?.interest_type !== "FIXED"
-                              }
-                              onCheckedChange={checked =>
-                                updateField("track_loan", checked ? "true" : "")
-                              }
-                            />
-                            <Label
-                              htmlFor={`track_loan_${activeDraft?.localId}`}
-                              className={cn(
-                                "cursor-pointer text-sm",
-                                (formState as unknown as BankLoanFormState)
-                                  ?.interest_type !== "FIXED" && "opacity-50",
-                              )}
-                            >
-                              {translate(
-                                "management.manualPositions.bankLoans.fields.trackLoanLabel",
-                              )}
-                            </Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
-                                >
-                                  <Info className="h-3.5 w-3.5" />
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                className="w-72 text-xs"
-                                side="top"
                               >
-                                {translate(
-                                  "management.manualPositions.bankLoans.fields.trackLoanInfo",
-                                )}
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        ) : (asset === "factoring" ||
-                            asset === "realEstateCf") &&
-                          formMode === "create" ? (
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              id="manual_create_investment_txs"
-                              checked={createInvestmentTxs}
-                              onCheckedChange={setCreateInvestmentTxs}
-                            />
-                            <Label
-                              htmlFor="manual_create_investment_txs"
-                              className="cursor-pointer text-sm"
-                            >
-                              {translate(
-                                "management.manualPositions.shared.createInvestmentTxs",
+                                <Check
+                                  className={cn(
+                                    "h-3 w-3 transition-opacity",
+                                    isTrackingActive
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                              </span>
+                              {asset === "bankLoans" ? (
+                                <span>
+                                  {translate(
+                                    "management.manualPositions.bankLoans.fields.trackLoanLabel",
+                                  )}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="sm:hidden">
+                                    {translate(
+                                      "management.manualPositions.shared.trackPriceShort",
+                                    )}
+                                  </span>
+                                  <span className="hidden sm:inline">
+                                    {translate(
+                                      "management.manualPositions.shared.trackPrice",
+                                    )}
+                                  </span>
+                                </>
                               )}
-                            </Label>
+                            </button>
+                            {asset === "bankLoans" && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label={translate(
+                                      "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                    )}
+                                    className="inline-flex cursor-help items-center text-gray-400 hover:text-gray-500"
+                                  >
+                                    <Info className="h-3.5 w-3.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  className="w-72 text-xs"
+                                  side="top"
+                                >
+                                  {translate(
+                                    "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                  )}
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                          </>
+                        ) : hasCreateInvestmentToggle ? (
+                          <>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={createInvestmentTxs}
+                              aria-pressed={createInvestmentTxs}
+                              onClick={() =>
+                                setCreateInvestmentTxs(value => !value)
+                              }
+                              className={cn(
+                                "inline-flex items-center gap-2 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium transition-colors max-sm:h-9",
+                                createInvestmentTxs
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+                                  createInvestmentTxs
+                                    ? "border-primary-foreground/40 bg-background/20"
+                                    : "border-border bg-background/40",
+                                )}
+                              >
+                                <Check
+                                  className={cn(
+                                    "h-3 w-3 transition-opacity",
+                                    createInvestmentTxs
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                              </span>
+                              <span className="sm:hidden">
+                                {translate(
+                                  "management.manualPositions.shared.createInvestmentTxsShort",
+                                )}
+                              </span>
+                              <span className="hidden sm:inline">
+                                {translate(
+                                  "management.manualPositions.shared.createInvestmentTxs",
+                                )}
+                              </span>
+                            </button>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                  aria-label={translate(
+                                    "management.manualPositions.shared.createInvestmentTxsInfo",
+                                  )}
+                                  className="inline-flex cursor-help items-center text-gray-400 hover:text-gray-500"
                                 >
                                   <Info className="h-3.5 w-3.5" />
                                 </button>
@@ -2174,15 +2227,31 @@ export function ManualPositionsManager({
                                 )}
                               </PopoverContent>
                             </Popover>
-                          </div>
+                          </>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" onClick={handleCloseForm}>
-                          {translate("common.cancel")}
+                      <div
+                        className={cn(
+                          "flex shrink-0 items-center gap-2",
+                          "ml-auto",
+                        )}
+                      >
+                        <Button
+                          variant="outline"
+                          onClick={handleCloseForm}
+                          aria-label={translate("common.cancel")}
+                          title={translate("common.cancel")}
+                          className="h-9 w-9 p-0"
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
-                        <Button onClick={handleSubmitForm}>
-                          {translate("common.save")}
+                        <Button
+                          onClick={handleSubmitForm}
+                          aria-label={translate("common.save")}
+                          title={translate("common.save")}
+                          className="h-9 w-9 p-0"
+                        >
+                          <Save className="h-4 w-4" />
                         </Button>
                       </div>
                     </CardFooter>
