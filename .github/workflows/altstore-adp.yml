@@ -63,6 +63,12 @@ jobs:
             echo "Release $VERSION_TAG found."
           fi
 
+          VERSION_TAG="v$VERSION"
+          if gh release view "$VERSION_TAG" --repo "${{ github.repository }}" --json assets -q '.assets[].name' | grep -qx 'altstore-manifest.json'; then
+            echo "::error::Release $VERSION_TAG already has an ADP (altstore-manifest.json). Uploading a second ADP to the same tag would break the https://adp.finanze.me/$VERSION_TAG/ URLs of the already published version. Create a new release tag instead."
+            exit 1
+          fi
+
           STATIC_REPO="finanze/static"
           SOURCE_URL="https://x-access-token:${STATIC_TOKEN}@raw.githubusercontent.com/${STATIC_REPO}/main/store/altstore/source.json"
           SOURCE=$(curl -sf "$SOURCE_URL")
@@ -150,46 +156,32 @@ jobs:
           echo "Found IPA variants:"
           echo "$IPA_FILES"
 
-          FIRST_IPA=$(echo "$IPA_FILES" | head -1)
-          IPA_SIZE=$(stat -c%s "$FIRST_IPA")
+          IPA_SIZE=$(find variant -name '*.ipa' -type f -exec stat -c%s {} + | sort -n | tail -1)
+          if [ -z "$IPA_SIZE" ]; then
+            echo "::error::No .ipa files found in variant/ directory."
+            exit 1
+          fi
 
           VERSION="${{ steps.version.outputs.version }}"
           ALTSTORE_VERSION="${{ steps.version.outputs.altstore_version }}"
           BUILD_VERSION="${{ inputs.build_version }}"
           MIN_OS="${{ inputs.min_os_version }}"
           DATE="${{ steps.adp.outputs.date }}"
-          BASE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}"
-
-          ASSET_URLS=$(jq -n \
-            --arg manifestURL "$BASE_URL/altstore-manifest.json" \
-            --arg signatureURL "$BASE_URL/altstore-signature" \
-            '{"manifest": $manifestURL, "signature": $signatureURL}')
-
-          while IFS= read -r ipa_path; do
-            IPA_FILENAME=$(basename "$ipa_path")
-            IPA_UUID="${IPA_FILENAME%.ipa}"
-            ASSET_URLS=$(echo "$ASSET_URLS" | jq \
-              --arg uuid "$IPA_UUID" \
-              --arg url "$BASE_URL/altstore-$IPA_FILENAME" \
-              '. + {($uuid): $url}')
-          done <<< "$IPA_FILES"
 
           VERSIONS_JSON=$(jq -n \
             --arg version "$ALTSTORE_VERSION" \
             --arg buildVersion "$BUILD_VERSION" \
             --arg date "$DATE" \
-            --arg downloadURL "$BASE_URL/altstore-manifest.json" \
+            --arg downloadURL "https://adp.finanze.me/v${VERSION}/manifest.json" \
             --argjson size "$IPA_SIZE" \
             --arg minOS "$MIN_OS" \
-            --argjson assetURLs "$ASSET_URLS" \
             '{
               version: $version,
               buildVersion: $buildVersion,
               date: $date,
               downloadURL: $downloadURL,
               size: $size,
-              minOSVersion: $minOS,
-              assetURLs: $assetURLs
+              minOSVersion: $minOS
             }')
 
           echo "=== Versions Entry JSON ==="
