@@ -356,7 +356,7 @@ BINANCE = NativeCryptoExchangeEntity(
 )
 
 POLYMARKET = NativeFinancialEntity(
-    id=UUID("ce000000-0000-0000-0000-000000000002"),
+    id=UUID("fe000000-0000-0000-0000-000000000001"),
     name="Polymarket",
     natural_id=None,
     type=EntityType.MARKET_FORECAST_PLATFORM,
