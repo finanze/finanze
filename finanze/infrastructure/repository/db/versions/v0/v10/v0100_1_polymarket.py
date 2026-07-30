@@ -5,7 +5,7 @@ from infrastructure.repository.db.upgrader import DBVersionMigration
 
 SQL = """
       INSERT OR IGNORE INTO entities (id, name, natural_id, type, origin)
-      VALUES ('ce000000-0000-0000-0000-000000000002', 'Polymarket', NULL, 'MARKET_FORECAST_PLATFORM', 'NATIVE');
+      VALUES ('fe000000-0000-0000-0000-000000000001', 'Polymarket', NULL, 'MARKET_FORECAST_PLATFORM', 'NATIVE');
 
       CREATE TABLE market_forecast_positions
       (
