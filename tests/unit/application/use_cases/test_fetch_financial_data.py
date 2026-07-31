@@ -1,14 +1,18 @@
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+from dateutil.tz import tzlocal
 import pytest
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from domain.dezimal import Dezimal
-from domain.entity import Entity, EntityOrigin, EntityType
+from domain.entity import Entity, EntityOrigin, EntityType, Feature
+from domain.entity_account import EntityAccount
+from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
+from domain.fetch_result import FetchRequest, FetchResultCode
 from domain.global_position import (
     Account,
     AccountType,
@@ -24,6 +28,8 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
+from domain.native_entities import TRADE_REPUBLIC
+from domain.public_keychain import PublicKeychain
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +306,45 @@ class TestMigrateStaleReferences:
         await uc._migrate_stale_references(old_pos_id, position)
 
         position_port.migrate_references.assert_not_awaited()
+
+
+class TestExecute:
+    @pytest.mark.asyncio
+    async def test_login_required_clears_stored_session(self):
+        uc, _, _, _ = _build_use_case()
+        account_id = uuid4()
+        account = EntityAccount(
+            id=account_id,
+            entity_id=TRADE_REPUBLIC.id,
+            created_at=datetime.now(tzlocal()),
+        )
+        fetcher = AsyncMock()
+        fetcher.login.return_value = EntityLoginResult(LoginResultCode.LOGIN_REQUIRED)
+
+        uc._entity_account_port.get_by_id.return_value = account
+        uc._last_fetches_port.get_by_entity_account_id.return_value = []
+        uc._credentials_port.get.return_value = {
+            "phone": "+49123456789",
+            "password": "1234",
+        }
+        uc._sessions_port.get.return_value = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"cookies": []},
+        )
+        uc._keychain_loader.load.return_value = PublicKeychain({})
+        uc._entity_fetchers[TRADE_REPUBLIC] = fetcher
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.POSITION],
+            )
+        )
+
+        assert result.code == FetchResultCode.LOGIN_REQUIRED
+        uc._sessions_port.delete.assert_awaited_once_with(account_id)
+        uc._credentials_port.update_expiration.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

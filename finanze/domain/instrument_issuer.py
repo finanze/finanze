@@ -49,17 +49,17 @@ class KnownIssuer(str, Enum):
 
 _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "ishrs ": KnownIssuer.BLACKROCK,
-    "ishares ": KnownIssuer.BLACKROCK,
+    "ishares": KnownIssuer.BLACKROCK,
     "is ": KnownIssuer.BLACKROCK,
     "bgf ": KnownIssuer.BLACKROCK,
     "jpm ": KnownIssuer.JP_MORGAN,
     "dbx ": KnownIssuer.XTRACKERS,
     "franklin ": KnownIssuer.FRANKLIN_TEMPLETON,
     "templeton ": KnownIssuer.FRANKLIN_TEMPLETON,
-    "spdr ": KnownIssuer.STATE_STREET,
+    "spdr": KnownIssuer.STATE_STREET,
     "ssga ": KnownIssuer.STATE_STREET,
-    "lyxor ": KnownIssuer.AMUNDI,
-    "sycomore ": KnownIssuer.GENERALI,
+    "lyxor": KnownIssuer.AMUNDI,
+    "sycomore": KnownIssuer.GENERALI,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

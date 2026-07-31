@@ -17,6 +17,10 @@ from domain.entity_login import (
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
+from infrastructure.client.entity.financial.tr.api import (
+    TradeRepublicApi,
+    TradeRepublicError,
+)
 
 API_CLASS = (
     "infrastructure.client.entity.financial.tr.trade_republic_client.TradeRepublicApi"
@@ -44,6 +48,7 @@ def _make_mock_api():
     api._weblogin = False
     api._process_id = None
     api.settings = AsyncMock()
+    api.has_websocket_auth = AsyncMock(return_value=True)
     return api
 
 
@@ -196,6 +201,45 @@ class TestCompleteLogin:
         assert "No login in progress" in result.message
 
 
+class TestWebsocketErrors:
+    @pytest.mark.asyncio
+    async def test_authentication_error_remains_trade_republic_error(self):
+        api = TradeRepublicApi("+49123456789", "1234")
+        api._ws = AsyncMock()
+        api._ws.close_code = None
+        api._ws.recv = AsyncMock(
+            return_value=(
+                '1 E {"errors":[{"errorCode":"AUTHENTICATION_ERROR",'
+                '"errorMessage":"No auth token"}]}'
+            )
+        )
+        api.subscriptions["1"] = {"type": "compactPortfolioByType"}
+
+        with pytest.raises(TradeRepublicError) as error:
+            await api.recv()
+
+        assert error.value.error["errors"][0]["errorCode"] == "AUTHENTICATION_ERROR"
+        api._ws.send.assert_awaited_once_with("unsub 1")
+
+    @pytest.mark.asyncio
+    async def test_non_authentication_error_remains_trade_republic_error(self):
+        api = TradeRepublicApi("+49123456789", "1234")
+        api._ws = AsyncMock()
+        api._ws.close_code = None
+        api._ws.recv = AsyncMock(
+            return_value=(
+                '1 E {"errors":[{"errorCode":"INVALID_REQUEST",'
+                '"errorMessage":"Invalid request"}]}'
+            )
+        )
+        api.subscriptions["1"] = {"type": "compactPortfolioByType"}
+
+        with pytest.raises(TradeRepublicError) as error:
+            await api.recv()
+
+        assert error.value.subscription == {"type": "compactPortfolioByType"}
+
+
 class TestCancelLogin:
     def test_sets_cancel_event(self):
         client = _make_client()
@@ -316,6 +360,33 @@ class TestLoginV2Flow:
             )
 
         assert result.code == LoginResultCode.RESUMED
+
+    @pytest.mark.asyncio
+    async def test_login_requires_login_when_session_has_no_websocket_auth(self):
+        mock_api = _make_mock_api()
+        mock_api.settings = AsyncMock(return_value={})
+        mock_api.has_websocket_auth = AsyncMock(return_value=False)
+        mock_api._websession.clear_cookies = MagicMock()
+        mock_api._websession.set_cookie = MagicMock()
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"cookies": [], "waf_token": "old-waf"},
+        )
+
+        with patch(API_CLASS, return_value=mock_api):
+            client = TradeRepublicClient()
+            result = await client.login(
+                phone="+49123456789",
+                pin="1234",
+                login_options=LoginOptions(),
+                session=session,
+            )
+
+        assert result.code == LoginResultCode.LOGIN_REQUIRED
+        mock_api.has_websocket_auth.assert_awaited_once()
+        mock_api._websession.post.assert_not_called()
 
 
 class TestDeviceInfo:

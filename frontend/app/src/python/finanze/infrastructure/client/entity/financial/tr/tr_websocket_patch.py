@@ -161,7 +161,19 @@ def apply_traderepublic_websocket_patch() -> None:
         except Exception as e:
             _log.error(f"[TR WS] NativeCookies.getCookie failed: {e}")
 
-    async def _get_weblogin_token() -> Optional[str]:
+    async def _get_weblogin_token(tr_api_self) -> Optional[str]:
+        try:
+            cookie_jar = getattr(tr_api_self._websession, "cookie_jar", None)
+            if cookie_jar is None:
+                cookies = getattr(tr_api_self._websession, "cookies", None)
+                cookie_jar = getattr(cookies, "jar", None)
+            if cookie_jar is not None:
+                for cookie in cookie_jar:
+                    if cookie.name == "tr_session" and cookie.value:
+                        return str(cookie.value)
+        except Exception as e:
+            _log.error(f"[TR WS] Reading httpx session cookie failed: {e}")
+
         plugin = _get_native_cookies_plugin()
         if plugin is None:
             return None
@@ -228,7 +240,7 @@ def apply_traderepublic_websocket_patch() -> None:
         payload_with_token = payload.copy() if isinstance(payload, dict) else payload
 
         if isinstance(payload_with_token, dict) and "token" not in payload_with_token:
-            token = await _get_weblogin_token()
+            token = await _get_weblogin_token(self)
             if token:
                 payload_with_token["token"] = token
             else:
@@ -239,5 +251,9 @@ def apply_traderepublic_websocket_patch() -> None:
         await ws.send(f"sub {subscription_id} {json.dumps(payload_with_token)}")
         return subscription_id
 
+    async def _has_websocket_auth_pyodide(self):
+        return await _get_weblogin_token(self) is not None
+
     tr_api.TradeRepublicApi._get_ws = _get_ws_pyodide
     tr_api.TradeRepublicApi.subscribe = _subscribe_pyodide
+    tr_api.TradeRepublicApi.has_websocket_auth = _has_websocket_auth_pyodide
