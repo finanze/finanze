@@ -73,7 +73,8 @@ import {
   ManualContributionsRequest,
 } from "../types/contributions"
 import type {
-  PolymarketMarketForecastResponse,
+  MarketForecastClosedPositionsResponse,
+  MarketForecastPnlResponse,
   PolymarketPnlInterval,
 } from "../types/polymarket"
 import {
@@ -367,17 +368,30 @@ export async function getTransactions(
   return (await getApiClient()).get(`/transactions${queryString}`)
 }
 
-export async function getPolymarketMarketForecast(
+export async function getMarketForecastPnl(
   entityAccountIds?: string[],
   interval: PolymarketPnlInterval = "all",
-): Promise<PolymarketMarketForecastResponse> {
+): Promise<MarketForecastPnlResponse> {
   const params = new URLSearchParams()
   entityAccountIds?.forEach(entityAccountId =>
     params.append("entity_account_id", entityAccountId),
   )
   params.append("interval", interval)
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return (await getApiClient()).get(`/polymarket/market-forecast${queryString}`)
+  return (await getApiClient()).get(`/market-forecast/pnl${queryString}`)
+}
+
+export async function getMarketForecastClosedPositions(
+  entityAccountIds?: string[],
+): Promise<MarketForecastClosedPositionsResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(
+    `/market-forecast/closed-positions${queryString}`,
+  )
 }
 
 export async function getHistoric(

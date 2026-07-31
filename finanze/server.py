@@ -71,11 +71,12 @@ from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
+from application.use_cases.get_market_forecast_closed_positions import (
+    GetMarketForecastClosedPositionsImpl,
+)
+from application.use_cases.get_market_forecast_pnl import GetMarketForecastPnlImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
-from application.use_cases.get_polymarket_market_forecast import (
-    GetPolymarketMarketForecastImpl,
-)
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_status import GetStatusImpl
@@ -136,6 +137,9 @@ from infrastructure.client.entity.exchange.binance.binance_fetcher import (
 )
 from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
     PolymarketFetcher,
+)
+from infrastructure.client.entity.exchange.polymarket.polymarket_market_forecast_provider import (
+    PolymarketMarketForecastProvider,
 )
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
@@ -591,9 +595,16 @@ class FinanzeServer:
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
-        get_polymarket_market_forecast = GetPolymarketMarketForecastImpl(
+        market_forecast_provider = PolymarketMarketForecastProvider()
+        get_market_forecast_pnl = GetMarketForecastPnlImpl(
             entity_account_repository,
             credentials_port,
+            market_forecast_provider,
+        )
+        get_market_forecast_closed_positions = GetMarketForecastClosedPositionsImpl(
+            entity_account_repository,
+            credentials_port,
+            market_forecast_provider,
         )
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
@@ -925,7 +936,8 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
-            get_polymarket_market_forecast,
+            get_market_forecast_pnl,
+            get_market_forecast_closed_positions,
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,

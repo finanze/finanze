@@ -35,21 +35,29 @@ export interface PolymarketMarketForecastPosition {
   totalSold?: number | null
 }
 
-export interface PolymarketMarketForecastAccount {
+export interface MarketForecastAccountSummary {
   entity_account_id: string
   entity_id?: string
   account_name?: string | null
   wallet_address: string
   profile?: Record<string, unknown> | null
-  open_positions: PolymarketMarketForecastPosition[]
-  closed_positions: PolymarketMarketForecastPosition[]
+}
+
+export interface MarketForecastPnlAccount extends MarketForecastAccountSummary {
   pnl_history: PolymarketPnlPoint[]
 }
 
-export interface PolymarketMarketForecastResponse {
-  interval?: PolymarketPnlInterval
-  accounts: PolymarketMarketForecastAccount[]
-  open_positions: PolymarketMarketForecastPosition[]
+export interface MarketForecastClosedPositionsAccount extends MarketForecastAccountSummary {
   closed_positions: PolymarketMarketForecastPosition[]
+}
+
+export interface MarketForecastPnlResponse {
+  interval?: PolymarketPnlInterval
+  accounts: MarketForecastPnlAccount[]
   pnl_history: PolymarketPnlPoint[]
+}
+
+export interface MarketForecastClosedPositionsResponse {
+  accounts: MarketForecastClosedPositionsAccount[]
+  closed_positions: PolymarketMarketForecastPosition[]
 }

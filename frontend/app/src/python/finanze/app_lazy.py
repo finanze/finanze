@@ -84,6 +84,9 @@ class LazyComponents:
             from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
                 PolymarketFetcher,
             )
+            from infrastructure.client.entity.exchange.polymarket.polymarket_market_forecast_provider import (
+                PolymarketMarketForecastProvider,
+            )
             from infrastructure.client.financial.enablebanking.enablebanking_client import (
                 EnableBankingClient,
             )
@@ -143,6 +146,12 @@ class LazyComponents:
             )
             from application.use_cases.fetch_external_financial_data import (
                 FetchExternalFinancialDataImpl,
+            )
+            from application.use_cases.get_market_forecast_closed_positions import (
+                GetMarketForecastClosedPositionsImpl,
+            )
+            from application.use_cases.get_market_forecast_pnl import (
+                GetMarketForecastPnlImpl,
             )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
             from application.use_cases.cancel_entity_login import (
@@ -408,6 +417,20 @@ class LazyComponents:
                 d.ext_int_repo,
                 d.last_fetches_repo,
                 d.tx_handler,
+            )
+
+            market_forecast_provider = PolymarketMarketForecastProvider()
+            self.get_market_forecast_pnl = GetMarketForecastPnlImpl(
+                d.entity_account_repo,
+                d.creds_repo,
+                market_forecast_provider,
+            )
+            self.get_market_forecast_closed_positions = (
+                GetMarketForecastClosedPositionsImpl(
+                    d.entity_account_repo,
+                    d.creds_repo,
+                    market_forecast_provider,
+                )
             )
 
         self.derive_crypto = DeriveCryptoAddressesImpl(

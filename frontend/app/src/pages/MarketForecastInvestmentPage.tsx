@@ -42,13 +42,18 @@ import {
   formatPercentage,
 } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
-import { getPolymarketMarketForecast } from "@/services/api"
+import {
+  getMarketForecastClosedPositions,
+  getMarketForecastPnl,
+} from "@/services/api"
 import type {
+  MarketForecastAccountSummary,
+  MarketForecastClosedPositionsResponse,
+  MarketForecastPnlResponse,
   PolymarketMarketForecastPosition,
-  PolymarketMarketForecastResponse,
   PolymarketPnlPoint,
 } from "@/types/polymarket"
-import { ProductType } from "@/types/position"
+import { ProductType, type MarketForecastDetail } from "@/types/position"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import { convertCurrency } from "@/utils/financialDataUtils"
 
@@ -266,6 +271,34 @@ function getMarketForecastPositionRecencyTimestamp(
   }
 
   return 0
+}
+
+function normalizeOpenMarketForecastPosition(
+  position: MarketForecastDetail,
+  entityAccountId?: string | null,
+): PolymarketMarketForecastPosition {
+  const initialValue = toFiniteNumber(position.initial_investment)
+  const cashPnl = toFiniteNumber(position.unrealized_pnl)
+
+  return {
+    entity_account_id: entityAccountId,
+    title: position.name,
+    slug: position.market_slug,
+    eventSlug: position.event_slug,
+    outcome: position.outcome,
+    conditionId: position.condition_id,
+    asset: position.token_id,
+    size: position.size,
+    avgPrice: position.entry_price,
+    price: position.mark_price,
+    currentValue: position.market_value,
+    initialValue: position.initial_investment,
+    cashPnl: position.unrealized_pnl,
+    percentPnl:
+      initialValue && cashPnl != null ? (cashPnl / initialValue) * 100 : null,
+    curPrice: position.mark_price,
+    endDate: position.expiry,
+  }
 }
 
 function getPolymarketEmbedMarketSlug(
@@ -665,7 +698,7 @@ function MarketForecastPositionCard({
 export default function MarketForecastInvestmentPage() {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
-  const { isLoading: financialLoading } = useFinancialData()
+  const { isLoading: financialLoading, positionsData } = useFinancialData()
   const { entities, settings, exchangeRates } = useAppContext()
   const { resolvedTheme } = useTheme()
 
@@ -676,10 +709,15 @@ export default function MarketForecastInvestmentPage() {
   const [expandedPositionKey, setExpandedPositionKey] = useState<string | null>(
     null,
   )
-  const [marketForecastData, setMarketForecastData] =
-    useState<PolymarketMarketForecastResponse | null>(null)
+  const [marketForecastPnlData, setMarketForecastPnlData] =
+    useState<MarketForecastPnlResponse | null>(null)
+  const [
+    marketForecastClosedPositionsData,
+    setMarketForecastClosedPositionsData,
+  ] = useState<MarketForecastClosedPositionsResponse | null>(null)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isPnlLoading, setIsPnlLoading] = useState(false)
+  const [isClosedLoading, setIsClosedLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const defaultCurrency = settings.general.defaultCurrency
@@ -715,16 +753,29 @@ export default function MarketForecastInvestmentPage() {
     return map
   }, [polymarketEntities])
 
+  const allMarketForecastAccounts = useMemo(() => {
+    const map = new Map<string, MarketForecastAccountSummary>()
+
+    marketForecastPnlData?.accounts.forEach(account => {
+      map.set(account.entity_account_id, account)
+    })
+
+    marketForecastClosedPositionsData?.accounts.forEach(account => {
+      if (!map.has(account.entity_account_id)) {
+        map.set(account.entity_account_id, account)
+      }
+    })
+
+    return [...map.values()]
+  }, [marketForecastClosedPositionsData, marketForecastPnlData])
+
   const marketForecastAccountMap = useMemo(() => {
-    const map = new Map<
-      string,
-      NonNullable<PolymarketMarketForecastResponse["accounts"]>[number]
-    >()
-    marketForecastData?.accounts.forEach(account => {
+    const map = new Map<string, MarketForecastAccountSummary>()
+    allMarketForecastAccounts.forEach(account => {
       map.set(account.entity_account_id, account)
     })
     return map
-  }, [marketForecastData])
+  }, [allMarketForecastAccounts])
 
   const accountOptions = useMemo<MultiSelectOption[]>(() => {
     const seen = new Set<string>()
@@ -775,46 +826,90 @@ export default function MarketForecastInvestmentPage() {
   }, [accountOptions, selectedAccounts.length])
 
   const openMarketForecastPositions = useMemo(() => {
-    const openPositions = marketForecastData?.open_positions ?? []
+    if (!positionsData?.positions) {
+      return []
+    }
 
-    return openPositions.filter(position => {
-      const accountId = position.entity_account_id
-      if (!accountId) return true
-      const entityId = accountToEntityMap.get(accountId)
-      return entityId ? polymarketEntityIds.includes(entityId) : false
-    })
-  }, [marketForecastData, accountToEntityMap, polymarketEntityIds])
+    return Object.values(positionsData.positions)
+      .flat()
+      .filter(entityPosition => {
+        const entityId = entityPosition.entity?.id
+        return entityId ? polymarketEntityIds.includes(entityId) : false
+      })
+      .flatMap(entityPosition => {
+        const marketForecastProduct =
+          entityPosition.products[ProductType.MARKET_FORECAST]
+
+        if (
+          !marketForecastProduct ||
+          !("entries" in marketForecastProduct) ||
+          !Array.isArray(marketForecastProduct.entries)
+        ) {
+          return []
+        }
+
+        return (marketForecastProduct.entries as MarketForecastDetail[]).map(
+          position =>
+            normalizeOpenMarketForecastPosition(
+              position,
+              entityPosition.entity_account_id,
+            ),
+        )
+      })
+  }, [polymarketEntityIds, positionsData])
 
   useEffect(() => {
     let cancelled = false
 
     const load = async () => {
-      const hasExistingData = marketForecastData !== null
-      if (hasExistingData) {
-        setIsPnlLoading(true)
-      } else {
-        setIsInitialLoading(true)
-      }
+      setIsInitialLoading(true)
+      setIsPnlLoading(true)
+      setIsClosedLoading(true)
       setError(null)
-      try {
-        const accountIds = polymarketEntities.flatMap(entity =>
-          (entity.accounts ?? []).map(account => account.id),
-        )
-        const response = await getPolymarketMarketForecast(accountIds, "all")
-        if (!cancelled) {
-          setMarketForecastData(response)
-        }
-      } catch (err) {
-        console.error("Error loading Polymarket market forecast data", err)
-        if (!cancelled) {
-          setError(t.common.unexpectedError)
-        }
-      } finally {
-        if (!cancelled) {
-          setIsInitialLoading(false)
-          setIsPnlLoading(false)
-        }
+
+      const accountIds = polymarketEntities.flatMap(entity =>
+        (entity.accounts ?? []).map(account => account.id),
+      )
+
+      const [pnlResult, closedPositionsResult] = await Promise.allSettled([
+        getMarketForecastPnl(accountIds, "all"),
+        getMarketForecastClosedPositions(accountIds),
+      ])
+
+      if (cancelled) {
+        return
       }
+
+      if (pnlResult.status === "fulfilled") {
+        setMarketForecastPnlData(pnlResult.value)
+      } else {
+        console.error(
+          "Error loading market forecast pnl data",
+          pnlResult.reason,
+        )
+        setMarketForecastPnlData(null)
+      }
+
+      if (closedPositionsResult.status === "fulfilled") {
+        setMarketForecastClosedPositionsData(closedPositionsResult.value)
+      } else {
+        console.error(
+          "Error loading market forecast closed positions",
+          closedPositionsResult.reason,
+        )
+        setMarketForecastClosedPositionsData(null)
+      }
+
+      if (
+        pnlResult.status === "rejected" &&
+        closedPositionsResult.status === "rejected"
+      ) {
+        setError(t.common.unexpectedError)
+      }
+
+      setIsInitialLoading(false)
+      setIsPnlLoading(false)
+      setIsClosedLoading(false)
     }
 
     void load()
@@ -823,13 +918,59 @@ export default function MarketForecastInvestmentPage() {
     }
   }, [polymarketEntities, t.common.unexpectedError])
 
+  useEffect(() => {
+    if (
+      !isClosedVisible ||
+      marketForecastClosedPositionsData ||
+      isClosedLoading
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadClosedPositions = async () => {
+      setIsClosedLoading(true)
+      setError(null)
+      try {
+        const accountIds = polymarketEntities.flatMap(entity =>
+          (entity.accounts ?? []).map(account => account.id),
+        )
+        const response = await getMarketForecastClosedPositions(accountIds)
+        if (!cancelled) {
+          setMarketForecastClosedPositionsData(response)
+        }
+      } catch (err) {
+        console.error("Error loading market forecast closed positions", err)
+        if (!cancelled) {
+          setError(t.common.unexpectedError)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsClosedLoading(false)
+        }
+      }
+    }
+
+    void loadClosedPositions()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isClosedVisible,
+    isClosedLoading,
+    marketForecastClosedPositionsData,
+    polymarketEntities,
+    t.common.unexpectedError,
+  ])
+
   const filteredAccountIds = useMemo(() => {
     if (!selectedEntities.length && !selectedAccounts.length) {
       return null
     }
 
     const ids = new Set<string>()
-    marketForecastData?.accounts.forEach(account => {
+    allMarketForecastAccounts.forEach(account => {
       const entityId = accountToEntityMap.get(account.entity_account_id)
       const matchesEntity =
         !selectedEntities.length ||
@@ -862,7 +1003,7 @@ export default function MarketForecastInvestmentPage() {
   }, [
     selectedEntities,
     selectedAccounts,
-    marketForecastData,
+    allMarketForecastAccounts,
     accountToEntityMap,
     openMarketForecastPositions,
   ])
@@ -883,7 +1024,8 @@ export default function MarketForecastInvestmentPage() {
   }, [openMarketForecastPositions, filteredAccountIds])
 
   const filteredClosedPositions = useMemo(() => {
-    const closedPositions = marketForecastData?.closed_positions ?? []
+    const closedPositions =
+      marketForecastClosedPositionsData?.closed_positions ?? []
     return closedPositions
       .filter(position => {
         if (!filteredAccountIds) return true
@@ -896,10 +1038,10 @@ export default function MarketForecastInvestmentPage() {
           getMarketForecastPositionRecencyTimestamp(b, "closed") -
           getMarketForecastPositionRecencyTimestamp(a, "closed"),
       )
-  }, [marketForecastData, filteredAccountIds])
+  }, [marketForecastClosedPositionsData, filteredAccountIds])
 
   const aggregatedPnlHistory = useMemo(() => {
-    const history = marketForecastData?.pnl_history ?? []
+    const history = marketForecastPnlData?.pnl_history ?? []
     const latestPointByAccountDay = new Map<
       string,
       { dayKey: string; t: number; p: number }
@@ -945,7 +1087,7 @@ export default function MarketForecastInvestmentPage() {
     return [...totalsByDay.values()]
       .sort((a, b) => a.t - b.t)
       .map(({ t, p }) => ({ t, p })) as PolymarketPnlPoint[]
-  }, [marketForecastData, filteredAccountIds])
+  }, [marketForecastPnlData, filteredAccountIds])
 
   const filteredPnlHistory = useMemo(() => {
     if (aggregatedPnlHistory.length === 0) {
@@ -1351,6 +1493,7 @@ export default function MarketForecastInvestmentPage() {
                   ? t.investments.historicSection.toggleShort.hide
                   : t.investments.historicSection.toggleShort.show}
               </span>
+              {isClosedLoading && <LoadingSpinner size="sm" />}
             </Button>
           </div>
         </div>
@@ -1392,7 +1535,10 @@ export default function MarketForecastInvestmentPage() {
         <Card>
           <CardHeader className="gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>{t.marketForecast.sections.closedTitle}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>{t.marketForecast.sections.closedTitle}</CardTitle>
+                {isClosedLoading && <LoadingSpinner size="sm" />}
+              </div>
               <div className="text-sm text-muted-foreground">
                 {t.marketForecast.sections.closedDescription}
               </div>
