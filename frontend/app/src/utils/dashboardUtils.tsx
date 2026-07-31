@@ -25,7 +25,7 @@ import {
   WalletMinimal,
   FlaskConical,
   ChartCandlestick,
-  Dices,
+  TrendingUpDown,
 } from "lucide-react"
 import { TxType } from "@/types/transactions"
 import { AccountType, ProductType } from "@/types/position"
@@ -164,7 +164,10 @@ export function getIconForAssetType(
       )
     case "MARKET_FORECAST":
       return (
-        <Dices className={getIconClass("text-pink-600")} style={iconStyle} />
+        <TrendingUpDown
+          className={getIconClass("text-pink-600")}
+          style={iconStyle}
+        />
       )
     case "CREDIT":
       return (
