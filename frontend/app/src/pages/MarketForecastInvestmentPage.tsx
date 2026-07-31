@@ -49,10 +49,10 @@ import {
 import type {
   MarketForecastAccountSummary,
   MarketForecastClosedPositionsResponse,
+  MarketForecastPosition,
+  MarketForecastPnlPoint,
   MarketForecastPnlResponse,
-  PolymarketMarketForecastPosition,
-  PolymarketPnlPoint,
-} from "@/types/polymarket"
+} from "@/types/marketForecast"
 import { ProductType, type MarketForecastDetail } from "@/types/position"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -68,16 +68,12 @@ function normalizeSlug(value?: string | null): string | null {
 
 function getPolymarketUrl(position: {
   slug?: string | null
-  eventSlug?: string | null
-  market_slug?: string | null
   event_slug?: string | null
+  market_slug?: string | null
 }): string | null {
   const slug =
     normalizeSlug(position.slug) ?? normalizeSlug(position.market_slug) ?? null
-  const eventSlug =
-    normalizeSlug(position.eventSlug) ??
-    normalizeSlug(position.event_slug) ??
-    null
+  const eventSlug = normalizeSlug(position.event_slug)
 
   if (eventSlug && slug && eventSlug !== slug) {
     return `https://polymarket.com/event/${eventSlug}/${slug}`
@@ -156,7 +152,7 @@ function getPnlRangeStartTimestamp(
 }
 
 function getPnlValueForRange(
-  points: PolymarketPnlPoint[],
+  points: MarketForecastPnlPoint[],
   range: PnlRange,
 ): number {
   if (points.length === 0) {
@@ -164,18 +160,19 @@ function getPnlValueForRange(
   }
 
   const latestPoint = points[points.length - 1]
+  const latestValue = toFiniteNumber(latestPoint.value) ?? 0
   if (range === "all") {
-    return latestPoint.p
+    return latestValue
   }
 
-  const minTimestamp = getPnlRangeStartTimestamp(range, latestPoint.t)
+  const minTimestamp = getPnlRangeStartTimestamp(range, latestPoint.timestamp)
   if (minTimestamp == null) {
-    return latestPoint.p
+    return latestValue
   }
 
-  let baselinePoint: PolymarketPnlPoint | null = null
+  let baselinePoint: MarketForecastPnlPoint | null = null
   for (const point of points) {
-    if (point.t <= minTimestamp) {
+    if (point.timestamp <= minTimestamp) {
       baselinePoint = point
       continue
     }
@@ -183,15 +180,17 @@ function getPnlValueForRange(
   }
 
   if (baselinePoint) {
-    return latestPoint.p - baselinePoint.p
+    return latestValue - (toFiniteNumber(baselinePoint.value) ?? 0)
   }
 
-  const firstPointInRange = points.find(point => point.t >= minTimestamp)
+  const firstPointInRange = points.find(
+    point => point.timestamp >= minTimestamp,
+  )
   if (firstPointInRange) {
-    return latestPoint.p - firstPointInRange.p
+    return latestValue - (toFiniteNumber(firstPointInRange.value) ?? 0)
   }
 
-  return latestPoint.p
+  return latestValue
 }
 
 function getPolymarketAccountLabel(args: {
@@ -213,12 +212,12 @@ function getPolymarketAccountLabel(args: {
 }
 
 function getPositionValue(
-  position: PolymarketMarketForecastPosition,
+  position: MarketForecastPosition,
   fallback = 0,
 ): number {
   return (
-    toFiniteNumber(position.currentValue) ??
-    toFiniteNumber(position.cashPnl) ??
+    toFiniteNumber(position.current_value) ??
+    toFiniteNumber(position.cash_pnl) ??
     fallback
   )
 }
@@ -233,13 +232,13 @@ function getMarketForecastCardBorderColor(
 }
 
 function getMarketForecastPositionKey(
-  position: PolymarketMarketForecastPosition,
+  position: MarketForecastPosition,
   status: "open" | "closed",
 ): string {
   return [
     status,
     position.entity_account_id ?? position.wallet_address ?? "unknown-account",
-    position.conditionId ??
+    position.condition_id ??
       position.slug ??
       position.asset ??
       position.title ??
@@ -249,18 +248,18 @@ function getMarketForecastPositionKey(
 }
 
 function getMarketForecastPositionRecencyTimestamp(
-  position: PolymarketMarketForecastPosition,
+  position: MarketForecastPosition,
   status: "open" | "closed",
 ): number {
   const candidates =
     status === "closed"
       ? [
-          position.closedAt,
-          position.updatedAt,
-          position.createdAt,
-          position.endDate,
+          position.closed_at,
+          position.updated_at,
+          position.created_at,
+          position.end_date,
         ]
-      : [position.updatedAt, position.createdAt, position.endDate]
+      : [position.updated_at, position.created_at, position.end_date]
 
   for (const candidate of candidates) {
     if (!candidate) continue
@@ -276,7 +275,7 @@ function getMarketForecastPositionRecencyTimestamp(
 function normalizeOpenMarketForecastPosition(
   position: MarketForecastDetail,
   entityAccountId?: string | null,
-): PolymarketMarketForecastPosition {
+): MarketForecastPosition {
   const initialValue = toFiniteNumber(position.initial_investment)
   const cashPnl = toFiniteNumber(position.unrealized_pnl)
 
@@ -284,33 +283,33 @@ function normalizeOpenMarketForecastPosition(
     entity_account_id: entityAccountId,
     title: position.name,
     slug: position.market_slug,
-    eventSlug: position.event_slug,
+    event_slug: position.event_slug,
     outcome: position.outcome,
-    conditionId: position.condition_id,
+    condition_id: position.condition_id,
     asset: position.token_id,
     size: position.size,
-    avgPrice: position.entry_price,
+    avg_price: position.entry_price,
     price: position.mark_price,
-    currentValue: position.market_value,
-    initialValue: position.initial_investment,
-    cashPnl: position.unrealized_pnl,
-    percentPnl:
+    current_value: position.market_value,
+    initial_value: position.initial_investment,
+    cash_pnl: position.unrealized_pnl,
+    percent_pnl:
       initialValue && cashPnl != null ? (cashPnl / initialValue) * 100 : null,
-    curPrice: position.mark_price,
-    endDate: position.expiry,
+    cur_price: position.mark_price,
+    end_date: position.expiry,
   }
 }
 
 function getPolymarketEmbedMarketSlug(
-  position: PolymarketMarketForecastPosition,
+  position: MarketForecastPosition,
 ): string | null {
   return (
-    normalizeSlug(position.slug) ?? normalizeSlug(position.eventSlug) ?? null
+    normalizeSlug(position.slug) ?? normalizeSlug(position.event_slug) ?? null
   )
 }
 
 interface MarketForecastDetailProps {
-  position: PolymarketMarketForecastPosition
+  position: MarketForecastPosition
   status: "open" | "closed"
   locale: string
   defaultCurrency: string
@@ -332,11 +331,11 @@ function MarketForecastDetail({
     ? `https://embed.polymarket.com/market?market=${encodeURIComponent(embedMarketSlug)}&theme=${isDarkMode ? "dark" : "light"}&fit=true`
     : null
   const shares = toFiniteNumber(position.size)
-  const averagePrice = toFiniteNumber(position.avgPrice)
+  const averagePrice = toFiniteNumber(position.avg_price)
   const markPrice =
-    toFiniteNumber(position.curPrice) ?? toFiniteNumber(position.price)
-  const resolvedAt = position.endDate || position.updatedAt || null
-  const closedAt = position.closedAt || position.updatedAt || null
+    toFiniteNumber(position.cur_price) ?? toFiniteNumber(position.price)
+  const resolvedAt = position.end_date || position.updated_at || null
+  const closedAt = position.closed_at || position.updated_at || null
 
   return (
     <div className="px-4 pb-4">
@@ -433,7 +432,7 @@ function MarketForecastDetail({
 }
 
 interface MarketForecastPositionCardProps {
-  position: PolymarketMarketForecastPosition
+  position: MarketForecastPosition
   status: "open" | "closed"
   locale: string
   defaultCurrency: string
@@ -457,29 +456,29 @@ function MarketForecastPositionCard({
   const positionUrl = getPolymarketUrl(position)
   const pnl =
     status === "open"
-      ? (toFiniteNumber(position.cashPnl) ?? 0)
-      : (toFiniteNumber(position.realizedPnl) ?? 0)
+      ? (toFiniteNumber(position.current_value) ?? 0)
+      : (toFiniteNumber(position.realized_pnl) ?? 0)
   const pct =
     status === "open"
-      ? (toFiniteNumber(position.percentPnl) ??
-        (toFiniteNumber(position.initialValue)
-          ? (pnl / (toFiniteNumber(position.initialValue) || 1)) * 100
+      ? (toFiniteNumber(position.percent_pnl) ??
+        (toFiniteNumber(position.initial_value)
+          ? (pnl / (toFiniteNumber(position.initial_value) || 1)) * 100
           : null))
       : null
   const title =
     position.title ||
     position.slug ||
-    position.conditionId ||
+    position.condition_id ||
     t.marketForecast.untitledMarket
   const subtitle =
-    position.slug || position.conditionId || position.asset || null
+    position.slug || position.condition_id || position.asset || null
   const shares = toFiniteNumber(position.size)
-  const averagePrice = toFiniteNumber(position.avgPrice)
+  const averagePrice = toFiniteNumber(position.avg_price)
   const markPrice =
-    toFiniteNumber(position.curPrice) ?? toFiniteNumber(position.price)
-  const resolvedAt = position.endDate || position.updatedAt || null
-  const closedAt = position.closedAt || position.updatedAt || null
-  const totalBought = toFiniteNumber(position.totalBought)
+    toFiniteNumber(position.cur_price) ?? toFiniteNumber(position.price)
+  const resolvedAt = position.end_date || position.updated_at || null
+  const closedAt = position.closed_at || position.updated_at || null
+  const totalBought = toFiniteNumber(position.total_bought)
 
   return (
     <Card
@@ -606,7 +605,7 @@ function MarketForecastPositionCard({
                   :{" "}
                   {formatCurrency(
                     status === "open"
-                      ? (toFiniteNumber(position.currentValue) ?? 0)
+                      ? (toFiniteNumber(position.current_value) ?? 0)
                       : (totalBought ?? 0),
                     locale,
                     defaultCurrency,
@@ -635,11 +634,14 @@ function MarketForecastPositionCard({
 
               {status === "closed" &&
                 totalBought != null &&
-                position.totalSold != null && (
+                position.total_sold != null && (
                   <div className="text-xs text-muted-foreground">
                     {formatNumber(totalBought, locale)}{" "}
                     {t.marketForecast.labels.bought.toLowerCase()} ·{" "}
-                    {formatNumber(position.totalSold, locale)}{" "}
+                    {formatNumber(
+                      toFiniteNumber(position.total_sold) ?? 0,
+                      locale,
+                    )}{" "}
                     {t.marketForecast.labels.sold.toLowerCase()}
                   </div>
                 )}
@@ -1044,7 +1046,7 @@ export default function MarketForecastInvestmentPage() {
     const history = marketForecastPnlData?.pnl_history ?? []
     const latestPointByAccountDay = new Map<
       string,
-      { dayKey: string; t: number; p: number }
+      { dayKey: string; timestamp: number; value: number }
     >()
 
     history.forEach(point => {
@@ -1058,35 +1060,35 @@ export default function MarketForecastInvestmentPage() {
 
       const accountKey =
         point.entity_account_id ?? point.wallet_address ?? "unknown"
-      const dayKey = getDayKey(point.t)
+      const dayKey = getDayKey(point.timestamp)
       const compositeKey = `${accountKey}:${dayKey}`
       const existing = latestPointByAccountDay.get(compositeKey)
 
-      if (!existing || point.t > existing.t) {
+      if (!existing || point.timestamp > existing.timestamp) {
         latestPointByAccountDay.set(compositeKey, {
           dayKey,
-          t: point.t,
-          p: point.p,
+          timestamp: point.timestamp,
+          value: toFiniteNumber(point.value) ?? 0,
         })
       }
     })
 
-    const totalsByDay = new Map<string, { t: number; p: number }>()
-    latestPointByAccountDay.forEach(({ dayKey, t, p }) => {
+    const totalsByDay = new Map<string, { timestamp: number; value: number }>()
+    latestPointByAccountDay.forEach(({ dayKey, timestamp, value }) => {
       const existing = totalsByDay.get(dayKey)
       if (existing) {
         totalsByDay.set(dayKey, {
-          t: Math.max(existing.t, t),
-          p: existing.p + p,
+          timestamp: Math.max(existing.timestamp, timestamp),
+          value: existing.value + value,
         })
       } else {
-        totalsByDay.set(dayKey, { t, p })
+        totalsByDay.set(dayKey, { timestamp, value })
       }
     })
 
     return [...totalsByDay.values()]
-      .sort((a, b) => a.t - b.t)
-      .map(({ t, p }) => ({ t, p })) as PolymarketPnlPoint[]
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(({ timestamp, value }) => ({ timestamp, value }))
   }, [marketForecastPnlData, filteredAccountIds])
 
   const filteredPnlHistory = useMemo(() => {
@@ -1095,7 +1097,7 @@ export default function MarketForecastInvestmentPage() {
     }
 
     const latestTimestamp =
-      aggregatedPnlHistory[aggregatedPnlHistory.length - 1].t
+      aggregatedPnlHistory[aggregatedPnlHistory.length - 1].timestamp
     const minTimestamp = getPnlRangeStartTimestamp(
       selectedInterval,
       latestTimestamp,
@@ -1105,15 +1107,15 @@ export default function MarketForecastInvestmentPage() {
       return aggregatedPnlHistory
     }
 
-    return aggregatedPnlHistory.filter(point => point.t >= minTimestamp)
+    return aggregatedPnlHistory.filter(point => point.timestamp >= minTimestamp)
   }, [aggregatedPnlHistory, selectedInterval])
 
   const pnlChartData = useMemo(
     () =>
       filteredPnlHistory.map(point => ({
-        timestamp: point.t,
-        date: new Date(point.t * 1000).toISOString(),
-        value: point.p,
+        timestamp: point.timestamp,
+        date: new Date(point.timestamp * 1000).toISOString(),
+        value: toFiniteNumber(point.value) ?? 0,
       })),
     [filteredPnlHistory],
   )
@@ -1170,8 +1172,8 @@ export default function MarketForecastInvestmentPage() {
 
     const openInvestment = filteredOpenPositions.reduce((sum, position) => {
       const value =
-        toFiniteNumber(position.initialValue) ??
-        toFiniteNumber(position.currentValue) ??
+        toFiniteNumber(position.initial_value) ??
+        toFiniteNumber(position.current_value) ??
         0
       return (
         sum +
@@ -1180,7 +1182,7 @@ export default function MarketForecastInvestmentPage() {
     }, 0)
 
     const closedPnl = filteredClosedPositions.reduce((sum, position) => {
-      return sum + (toFiniteNumber(position.realizedPnl) ?? 0)
+      return sum + (toFiniteNumber(position.realized_pnl) ?? 0)
     }, 0)
 
     const pnlForSelectedRange = getPnlValueForRange(

@@ -9,7 +9,6 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
 from domain.global_position import (
-    DerivativeContractType,
     EquityType,
     FundType,
     PositionDirection,
@@ -21,7 +20,6 @@ from domain.transactions import (
     BaseTx,
     CryptoCurrencyTx,
     DepositTx,
-    DerivativeTx,
     FactoringTx,
     FundPortfolioTx,
     FundTx,
@@ -132,36 +130,6 @@ def _map_investment_row(
                 datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
             ),
             contract_address=row["asset_contract_address"],
-        )
-    elif row["product_type"] == ProductType.DERIVATIVE.value:
-        contract_type = None
-        direction = None
-        product_subtype = row["product_subtype"]
-        if product_subtype:
-            try:
-                contract_type = DerivativeContractType(product_subtype)
-            except ValueError:
-                try:
-                    direction = PositionDirection(product_subtype)
-                except ValueError:
-                    pass
-
-        return DerivativeTx(
-            **common,
-            symbol=row["ticker"] or row["name"],
-            size=Dezimal(row["shares"]),
-            price=Dezimal(row["price"]),
-            net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
-            fees=Dezimal(row["fees"]),
-            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=(
-                datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
-            ),
-            contract_address=row["asset_contract_address"],
-            linked_tx=row["linked_tx"],
-            direction=direction,
-            contract_type=contract_type,
-            underlying_symbol=row["market"] if row["market"] else None,
         )
     elif row["product_type"] == ProductType.MARKET_FORECAST.value:
         return MarketForecastTx(
@@ -315,34 +283,6 @@ class TransactionSQLRepository(TransactionPort):
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": (
                                 tx.order_date.isoformat() if tx.order_date else None
-                            ),
-                            "asset_contract_address": tx.contract_address,
-                        }
-                    )
-                elif isinstance(tx, DerivativeTx):
-                    entry.update(
-                        {
-                            "ticker": tx.symbol,
-                            "market": tx.underlying_symbol,
-                            "shares": str(tx.size),
-                            "price": str(tx.price),
-                            "net_amount": str(tx.net_amount)
-                            if tx.net_amount is not None
-                            else None,
-                            "fees": str(tx.fees),
-                            "retentions": str(tx.retentions) if tx.retentions else None,
-                            "order_date": (
-                                tx.order_date.isoformat() if tx.order_date else None
-                            ),
-                            "linked_tx": tx.linked_tx,
-                            "product_subtype": (
-                                tx.contract_type.value
-                                if tx.contract_type is not None
-                                else (
-                                    tx.direction.value
-                                    if tx.direction is not None
-                                    else None
-                                )
                             ),
                             "asset_contract_address": tx.contract_address,
                         }

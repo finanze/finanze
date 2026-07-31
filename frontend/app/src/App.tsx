@@ -178,10 +178,6 @@ function App() {
                 element={<MarketForecastInvestmentPage />}
               />
               <Route
-                path="/investments/bets"
-                element={<Navigate to="/investments/market-forecast" replace />}
-              />
-              <Route
                 path="/investments/commodities"
                 element={<CommoditiesInvestmentPage />}
               />

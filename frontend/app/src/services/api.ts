@@ -75,8 +75,8 @@ import {
 import type {
   MarketForecastClosedPositionsResponse,
   MarketForecastPnlResponse,
-  PolymarketPnlInterval,
-} from "../types/polymarket"
+  MarketForecastPnlInterval,
+} from "../types/marketForecast"
 import {
   EntitiesPosition,
   PositionQueryRequest,
@@ -370,7 +370,7 @@ export async function getTransactions(
 
 export async function getMarketForecastPnl(
   entityAccountIds?: string[],
-  interval: PolymarketPnlInterval = "all",
+  interval: MarketForecastPnlInterval = "all",
 ): Promise<MarketForecastPnlResponse> {
   const params = new URLSearchParams()
   entityAccountIds?.forEach(entityAccountId =>

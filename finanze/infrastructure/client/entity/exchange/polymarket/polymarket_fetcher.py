@@ -2,8 +2,9 @@ from collections import OrderedDict
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
+from application.ports.market_forecast_provider import MarketForecastProvider
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
@@ -16,6 +17,12 @@ from domain.global_position import (
     PositionDirection,
     ProductType,
 )
+from domain.market_forecast import (
+    MarketForecastClosedPosition,
+    MarketForecastClosedPositionsAccountData,
+    MarketForecastPnlAccountData,
+    MarketForecastPnlPoint,
+)
 from domain.native_entities import POLYMARKET
 from domain.transactions import MarketForecastTx, Transactions, TxType
 from infrastructure.client.entity.exchange.polymarket.polymarket_client import (
@@ -23,12 +30,49 @@ from infrastructure.client.entity.exchange.polymarket.polymarket_client import (
 )
 
 
-class PolymarketFetcher(FinancialEntityFetcher):
+class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
     def __init__(self):
         self._client = PolymarketClient()
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         return await self._client.setup(login_params)
+
+    async def get_closed_positions(
+        self, login_params: EntityLoginParams
+    ) -> MarketForecastClosedPositionsAccountData | None:
+        client = PolymarketClient()
+        result = await client.setup(login_params)
+        if result.code != LoginResultCode.CREATED:
+            return None
+
+        return MarketForecastClosedPositionsAccountData(
+            wallet_address=client.wallet_address,
+            profile=client.profile,
+            closed_positions=[
+                self._map_closed_position(position)
+                for position in await client.get_closed_positions()
+            ],
+        )
+
+    async def get_pnl_history(
+        self, login_params: EntityLoginParams, interval: str = "all"
+    ) -> MarketForecastPnlAccountData | None:
+        client = PolymarketClient()
+        result = await client.setup(login_params)
+        if result.code != LoginResultCode.CREATED:
+            return None
+
+        return MarketForecastPnlAccountData(
+            wallet_address=client.wallet_address,
+            profile=client.profile,
+            pnl_history=[
+                MarketForecastPnlPoint(
+                    timestamp=int(point["t"]),
+                    value=Dezimal(point["p"]),
+                )
+                for point in await client.get_user_pnl(interval=interval)
+            ],
+        )
 
     async def global_position(self) -> GlobalPosition:
         positions = await self._client.get_positions()
@@ -180,6 +224,78 @@ class PolymarketFetcher(FinancialEntityFetcher):
             title
             or outcome
             or str(entry.get("conditionId") or entry.get("asset") or "Polymarket")
+        )
+
+    @staticmethod
+    def _map_closed_position(position: dict) -> MarketForecastClosedPosition:
+        return MarketForecastClosedPosition(
+            title=position.get("title"),
+            slug=position.get("slug"),
+            event_slug=position.get("eventSlug"),
+            icon=position.get("icon"),
+            outcome=position.get("outcome"),
+            condition_id=position.get("conditionId"),
+            asset=position.get("asset"),
+            size=Dezimal(position["size"])
+            if position.get("size") is not None
+            else None,
+            avg_price=(
+                Dezimal(position["avgPrice"])
+                if position.get("avgPrice") is not None
+                else None
+            ),
+            price=Dezimal(position["price"])
+            if position.get("price") is not None
+            else None,
+            initial_value=(
+                Dezimal(position["initialValue"])
+                if position.get("initialValue") is not None
+                else None
+            ),
+            current_value=(
+                Dezimal(position["currentValue"])
+                if position.get("currentValue") is not None
+                else None
+            ),
+            cash_pnl=(
+                Dezimal(position["cashPnl"])
+                if position.get("cashPnl") is not None
+                else None
+            ),
+            percent_pnl=(
+                Dezimal(position["percentPnl"])
+                if position.get("percentPnl") is not None
+                else None
+            ),
+            cur_price=(
+                Dezimal(position["curPrice"])
+                if position.get("curPrice") is not None
+                else None
+            ),
+            redemption_value=(
+                Dezimal(position["redemptionValue"])
+                if position.get("redemptionValue") is not None
+                else None
+            ),
+            end_date=position.get("endDate"),
+            created_at=position.get("createdAt"),
+            updated_at=position.get("updatedAt"),
+            closed_at=position.get("closedAt"),
+            realized_pnl=(
+                Dezimal(position["realizedPnl"])
+                if position.get("realizedPnl") is not None
+                else None
+            ),
+            total_bought=(
+                Dezimal(position["totalBought"])
+                if position.get("totalBought") is not None
+                else None
+            ),
+            total_sold=(
+                Dezimal(position["totalSold"])
+                if position.get("totalSold") is not None
+                else None
+            ),
         )
 
     @staticmethod

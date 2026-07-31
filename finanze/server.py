@@ -138,9 +138,6 @@ from infrastructure.client.entity.exchange.binance.binance_fetcher import (
 from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
     PolymarketFetcher,
 )
-from infrastructure.client.entity.exchange.polymarket.polymarket_market_forecast_provider import (
-    PolymarketMarketForecastProvider,
-)
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
@@ -307,6 +304,7 @@ class FinanzeServer:
         ethplorer_client = EthplorerClient()
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
+        polymarket_fetcher = PolymarketFetcher()
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -341,7 +339,7 @@ class FinanzeServer:
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.CRESCENTA: CrescentaFetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
-                domain.native_entities.POLYMARKET: PolymarketFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
 
         external_entity_fetchers = {
@@ -595,7 +593,7 @@ class FinanzeServer:
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
-        market_forecast_provider = PolymarketMarketForecastProvider()
+        market_forecast_provider = polymarket_fetcher
         get_market_forecast_pnl = GetMarketForecastPnlImpl(
             entity_account_repository,
             credentials_port,

@@ -1,14 +1,18 @@
-import asyncio
 from uuid import UUID
 
 from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_account_port import EntityAccountPort
 from application.ports.market_forecast_provider import MarketForecastProvider
-from application.use_cases.market_forecast_common import (
-    build_market_forecast_account_payload,
-    build_market_forecast_login_params,
-    resolve_market_forecast_accounts,
+from domain.entity_account import EntityAccount
+from domain.entity_login import EntityLoginParams
+from domain.market_forecast import (
+    MarketForecastAccountSummary,
+    MarketForecastPnlAccount,
+    MarketForecastPnlPoint,
+    MarketForecastPnlResponse,
 )
+from domain.native_entities import POLYMARKET
+from domain.public_keychain import PublicKeychain
 from domain.use_cases.get_market_forecast_pnl import GetMarketForecastPnl
 
 
@@ -27,37 +31,51 @@ class GetMarketForecastPnlImpl(GetMarketForecastPnl):
         self,
         entity_account_ids: list[UUID] | None = None,
         interval: str = "all",
-    ) -> dict:
-        accounts = await resolve_market_forecast_accounts(
-            self._entity_account_port,
-            entity_account_ids,
-        )
-        account_payloads = await asyncio.gather(
-            *(self._fetch_account_data(account, interval) for account in accounts),
-            return_exceptions=True,
-        )
+    ) -> MarketForecastPnlResponse:
+        accounts = await self._resolve_accounts(entity_account_ids)
+        account_payloads = []
+        for account in accounts:
+            try:
+                account_payloads.append(
+                    await self._fetch_account_data(account, interval)
+                )
+            except Exception as error:
+                account_payloads.append(error)
 
         valid_payloads = [
             payload
             for payload in account_payloads
             if payload and not isinstance(payload, Exception)
         ]
-        return {
-            "interval": interval,
-            "accounts": valid_payloads,
-            "pnl_history": [
-                point for payload in valid_payloads for point in payload["pnl_history"]
+        return MarketForecastPnlResponse(
+            interval=interval,
+            accounts=valid_payloads,
+            pnl_history=[
+                point for account in valid_payloads for point in account.pnl_history
             ],
-        }
-
-    async def _fetch_account_data(self, account, interval: str) -> dict | None:
-        login_params = await build_market_forecast_login_params(
-            self._credentials_port,
-            account.id,
         )
-        if not login_params:
+
+    async def _resolve_accounts(
+        self, entity_account_ids: list[UUID] | None
+    ) -> list[EntityAccount]:
+        accounts = (
+            await self._entity_account_port.get_by_ids(entity_account_ids)
+            if entity_account_ids
+            else await self._entity_account_port.get_by_entity_id(POLYMARKET.id)
+        )
+        return [account for account in accounts if account.entity_id == POLYMARKET.id]
+
+    async def _fetch_account_data(
+        self, account: EntityAccount, interval: str
+    ) -> MarketForecastPnlAccount | None:
+        credentials = await self._credentials_port.get(account.id)
+        if not credentials:
             return None
 
+        login_params = EntityLoginParams(
+            credentials=credentials,
+            keychain=PublicKeychain({}),
+        )
         account_data = await self._provider.get_pnl_history(
             login_params,
             interval=interval,
@@ -65,18 +83,20 @@ class GetMarketForecastPnlImpl(GetMarketForecastPnl):
         if not account_data:
             return None
 
-        return {
-            **build_market_forecast_account_payload(
-                account,
-                account_data.wallet_address,
-                account_data.profile,
-            ),
-            "pnl_history": [
-                {
-                    **point,
-                    "entity_account_id": str(account.id),
-                    "wallet_address": account_data.wallet_address,
-                }
-                for point in account_data.pnl_history
-            ],
-        }
+        summary = MarketForecastAccountSummary(
+            entity_account_id=account.id,
+            entity_id=account.entity_id,
+            account_name=account.name,
+            wallet_address=account_data.wallet_address,
+            profile=account_data.profile,
+        )
+        points = [
+            MarketForecastPnlPoint(
+                timestamp=point.timestamp,
+                value=point.value,
+                entity_account_id=account.id,
+                wallet_address=account_data.wallet_address,
+            )
+            for point in account_data.pnl_history or []
+        ]
+        return MarketForecastPnlAccount(**summary.__dict__, pnl_history=points)

@@ -3,6 +3,9 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from aiocache import cached
+from aiocache.serializers import PickleSerializer
+
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_session import HttpSession, get_http_session
@@ -38,6 +41,8 @@ _POLYGON_RPC_ENDPOINTS = [
     "https://1rpc.io/matic",
 ]
 _ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+CLOSED_POSITIONS_CACHE_TTL = 60
+PNL_CACHE_TTL = 4 * 60 * 60
 
 
 class PolymarketClient:
@@ -136,6 +141,13 @@ class PolymarketClient:
     async def get_positions(self) -> list[dict[str, Any]]:
         return await self._get_collection(_POSITIONS_URL)
 
+    @cached(
+        ttl=CLOSED_POSITIONS_CACHE_TTL,
+        key_builder=lambda f, self: (
+            f"polymarket:closed_positions:{self.wallet_address}"
+        ),
+        serializer=PickleSerializer(),
+    )
     async def get_closed_positions(self) -> list[dict[str, Any]]:
         return await self._get_collection(_CLOSED_POSITIONS_URL)
 
@@ -145,6 +157,13 @@ class PolymarketClient:
     async def get_trades(self) -> list[dict[str, Any]]:
         return await self._get_collection(_TRADES_URL)
 
+    @cached(
+        ttl=PNL_CACHE_TTL,
+        key_builder=lambda f, self, interval="all", **kwargs: (
+            f"polymarket:pnl:{self.wallet_address}:{interval}"
+        ),
+        serializer=PickleSerializer(),
+    )
     async def get_user_pnl(self, interval: str = "all") -> list[dict[str, Any]]:
         response = await self._session.get(
             _USER_PNL_URL,

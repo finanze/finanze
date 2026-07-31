@@ -2,6 +2,8 @@ import abc
 from typing import Optional
 from uuid import UUID
 
+from domain.market_forecast import MarketForecastPnlResponse
+
 
 class GetMarketForecastPnl(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -9,5 +11,5 @@ class GetMarketForecastPnl(metaclass=abc.ABCMeta):
         self,
         entity_account_ids: Optional[list[UUID]] = None,
         interval: str = "all",
-    ) -> dict:
+    ) -> MarketForecastPnlResponse:
         raise NotImplementedError

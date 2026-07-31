@@ -84,9 +84,6 @@ class LazyComponents:
             from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
                 PolymarketFetcher,
             )
-            from infrastructure.client.entity.exchange.polymarket.polymarket_market_forecast_provider import (
-                PolymarketMarketForecastProvider,
-            )
             from infrastructure.client.financial.enablebanking.enablebanking_client import (
                 EnableBankingClient,
             )
@@ -254,6 +251,7 @@ class LazyComponents:
             ethplorer_client = EthplorerClient()
 
             enablebanking_client = EnableBankingClient()
+            polymarket_fetcher = PolymarketFetcher()
             external_entity_fetchers = {
                 ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
                     enablebanking_client
@@ -287,7 +285,7 @@ class LazyComponents:
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.CRESCENTA: CrescentaFetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
-                domain.native_entities.POLYMARKET: PolymarketFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
 
         public_key_derivation = PublicKeyDerivationAdapter()
@@ -419,7 +417,7 @@ class LazyComponents:
                 d.tx_handler,
             )
 
-            market_forecast_provider = PolymarketMarketForecastProvider()
+            market_forecast_provider = polymarket_fetcher
             self.get_market_forecast_pnl = GetMarketForecastPnlImpl(
                 d.entity_account_repo,
                 d.creds_repo,
