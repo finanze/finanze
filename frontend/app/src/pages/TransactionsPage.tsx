@@ -15,7 +15,6 @@ import {
   type AccountTx,
   type StockTx,
   type CryptoCurrencyTx,
-  type DerivativeTx,
   type MarketForecastTx,
   type FundTx,
   type FundPortfolioTx,
@@ -178,7 +177,6 @@ export default function TransactionsPage() {
       ProductType.FACTORING,
       ProductType.REAL_ESTATE_CF,
       ProductType.CRYPTO,
-      ProductType.DERIVATIVE,
       ProductType.MARKET_FORECAST,
     ]
     return supportedTypes.map(type => ({
@@ -828,82 +826,6 @@ export default function TransactionsPage() {
         )
       }
 
-      case ProductType.DERIVATIVE: {
-        const derivativeTx = tx as DerivativeTx
-        return (
-          <>
-            {commonFields}
-            {derivativeTx.symbol && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.symbol}:
-                </span>{" "}
-                {derivativeTx.symbol}
-              </div>
-            )}
-            {derivativeTx.underlying_symbol && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.underlyingSymbol}:
-                </span>{" "}
-                {derivativeTx.underlying_symbol}
-              </div>
-            )}
-            {derivativeTx.size !== undefined && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
-                <Sensitive>{derivativeTx.size.toLocaleString()}</Sensitive>
-              </div>
-            )}
-            {Number(derivativeTx.price || 0) !== 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.price}:
-                </span>{" "}
-                <Sensitive>
-                  {formatCurrency(
-                    derivativeTx.price,
-                    locale,
-                    settings.general.defaultCurrency,
-                    tx.currency,
-                  )}
-                </Sensitive>
-              </div>
-            )}
-            {derivativeTx.contract_type && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.contractType}:
-                </span>{" "}
-                {t.investments.derivatives.contractType?.[
-                  derivativeTx.contract_type
-                ] || derivativeTx.contract_type}
-              </div>
-            )}
-            {derivativeTx.direction && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.direction}:
-                </span>{" "}
-                {t.investments.derivatives.direction?.[
-                  derivativeTx.direction
-                ] || derivativeTx.direction}
-              </div>
-            )}
-            {derivativeTx.contract_address && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.contractAddress}:
-                </span>{" "}
-                <span className="font-mono break-all">
-                  {derivativeTx.contract_address}
-                </span>
-              </div>
-            )}
-          </>
-        )
-      }
-
       case ProductType.MARKET_FORECAST: {
         const marketForecastTx = tx as MarketForecastTx
         return (
@@ -1318,18 +1240,6 @@ export default function TransactionsPage() {
           cryptoTx.currency_amount ||
           cryptoTx.price ||
           cryptoTx.fees > 0
-        )
-      }
-      case ProductType.DERIVATIVE: {
-        const derivativeTx = tx as DerivativeTx
-        return !!(
-          derivativeTx.symbol ||
-          derivativeTx.underlying_symbol ||
-          derivativeTx.size ||
-          Number(derivativeTx.price || 0) !== 0 ||
-          derivativeTx.contract_type ||
-          derivativeTx.direction ||
-          derivativeTx.contract_address
         )
       }
       case ProductType.MARKET_FORECAST: {
