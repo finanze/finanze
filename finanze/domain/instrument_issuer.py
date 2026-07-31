@@ -19,7 +19,9 @@ class KnownIssuer(str, Enum):
     DWS = "DWS"
     EQT = "EQT"
     FIDELITY = "Fidelity"
+    FIRST_TRUST = "First Trust"
     FRANKLIN_TEMPLETON = "Franklin Templeton"
+    GENERALI = "Generali"
     GLOBAL_X = "Global X"
     GOLDMAN = "Goldman"
     HANETF = "HANetf"
@@ -32,7 +34,7 @@ class KnownIssuer(str, Enum):
     MY_INVESTOR = "MyInvestor"
     PIMCO = "PIMCO"
     ROBECO = "Robeco"
-    SPDR = "SPDR"
+    STATE_STREET = "State Street"
     UBS = "UBS"
     VANECK = "VanEck"
     VANGUARD = "Vanguard"
@@ -54,6 +56,10 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "dbx ": KnownIssuer.XTRACKERS,
     "franklin ": KnownIssuer.FRANKLIN_TEMPLETON,
     "templeton ": KnownIssuer.FRANKLIN_TEMPLETON,
+    "spdr ": KnownIssuer.STATE_STREET,
+    "ssga ": KnownIssuer.STATE_STREET,
+    "lyxor ": KnownIssuer.AMUNDI,
+    "sycomore ": KnownIssuer.GENERALI,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

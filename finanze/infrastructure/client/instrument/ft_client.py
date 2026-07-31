@@ -4,7 +4,7 @@ from typing import Optional
 
 from aiocache import cached, Cache
 from domain.instrument import InstrumentDataRequest, InstrumentOverview, InstrumentType
-from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_session import new_impersonated_http_session
 
 _ISIN_REGEX = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 _CURRENCY_REGEX = re.compile(r"^[A-Z]{3}$")
@@ -14,7 +14,7 @@ class FtClient:
     BASE_URL = "https://www.ft.com/search-api/suggestions"
 
     def __init__(self):
-        self._session = get_http_session()
+        self._session = new_impersonated_http_session()
         self._session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0"
@@ -70,7 +70,9 @@ class FtClient:
             return []
 
         params = {"partial": partial, "only": "equities", "count": str(count)}
-        response = await self._session.get(self.BASE_URL, params=params, timeout=10)
+        response = await self._session.request(
+            "GET", self.BASE_URL, params=params, timeout=10
+        )
         if response.ok:
             data = await response.json()
             if (
@@ -89,7 +91,6 @@ class FtClient:
         return []
 
     @staticmethod
-    @cached(cache=Cache.MEMORY, ttl=86400)
     def _parse_symbol(
         symbol: str,
     ) -> Optional[

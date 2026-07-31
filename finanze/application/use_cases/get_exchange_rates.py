@@ -31,6 +31,13 @@ def _to_decimal(value):
         return None
 
 
+def _valid_rate(value) -> Dezimal | None:
+    dec = _to_decimal(value)
+    if dec is None or not dec.is_finite() or dec <= 0:
+        return None
+    return value if isinstance(value, Dezimal) else Dezimal(dec)
+
+
 def _now() -> int:
     return int(time.time())
 
@@ -143,15 +150,29 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for base, quotes in matrix.items():
             invalid = []
             for quote, rate in quotes.items():
-                dec = _to_decimal(rate)
-                if dec is None:
-                    self._log.warning(f"Dropping non-numeric rate {base}->{quote}")
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(f"Dropping invalid rate {base}->{quote}: {rate}")
                     invalid.append(quote)
                 else:
-                    quotes[quote] = rate if isinstance(rate, Dezimal) else Dezimal(dec)
+                    quotes[quote] = valid
             for k in invalid:
                 del quotes[k]
         return matrix
+
+    def _merge_matrix(self, updates) -> None:
+        if self._fiat_matrix is None:
+            self._fiat_matrix = self._init_empty_matrix()
+        for base, quotes in updates.items():
+            target = self._fiat_matrix.setdefault(base, {})
+            for quote, rate in quotes.items():
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(
+                        f"Keeping previous rate for {base}->{quote}, got invalid value {rate}"
+                    )
+                    continue
+                target[quote] = valid
 
     def _init_empty_matrix(self):
         return {c: {} for c in SUPPORTED_CURRENCIES}
@@ -253,11 +274,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         if (_now() - self._last_base_refresh_ts) >= self.CACHE_TTL_SECONDS:
             base_rates = await self._exchange_rates_provider.get_matrix(timeout=2)
-            normalized_base = self._normalize_matrix(base_rates)
-            for base, quotes in normalized_base.items():
-                self._fiat_matrix.setdefault(base, {})
-                for quote, rate in quotes.items():
-                    self._fiat_matrix[base][quote] = rate
+            self._merge_matrix(self._normalize_matrix(base_rates))
 
         self._sync_base_fiat_rates_to_crypto_provider()
         return self._fiat_matrix
@@ -322,14 +339,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
             self._log.exception(f"Unexpected error during parallel fetch: {e}")
 
         if refreshed_base is not None:
-            for base, quotes in refreshed_base.items():
-                self._fiat_matrix.setdefault(base, {})
-                for quote, rate in quotes.items():
-                    self._fiat_matrix[base][quote] = (
-                        rate
-                        if isinstance(rate, Dezimal)
-                        else Dezimal(_to_decimal(rate))
-                    )
+            self._merge_matrix(refreshed_base)
             if not initial_load:
                 self._last_base_refresh_ts = _now()
             self._sync_base_fiat_rates_to_crypto_provider()
@@ -477,19 +487,26 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for commodity, (rate_data, symbol) in commodity_rates.items():
             try:
                 price_dec = _to_decimal(rate_data.price)
-                if price_dec is None or price_dec == 0:
+                if price_dec is None or price_dec <= 0:
                     continue
                 if base_currency != rate_data.currency:
                     base_to_rate_currency = self._fiat_matrix[base_currency].get(
                         rate_data.currency
                     )
                     base_to_rate_currency = _to_decimal(base_to_rate_currency)
-                    if base_to_rate_currency is None or base_to_rate_currency == 0:
+                    if base_to_rate_currency is None or base_to_rate_currency <= 0:
                         continue
                     rate = base_to_rate_currency / price_dec
                 else:
                     rate = Decimal(1) / price_dec
-                self._fiat_matrix[base_currency][symbol.upper()] = Dezimal(rate)
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(
+                        f"Keeping previous rate for {base_currency}->{symbol.upper()}, "
+                        f"computed invalid value {rate}"
+                    )
+                    continue
+                self._fiat_matrix[base_currency][symbol.upper()] = valid
             except Exception as e:
                 self._log.error(
                     f"Failed to apply commodity {commodity} for {base_currency}: {e}"
@@ -502,11 +519,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for key, rate in crypto_rates[base_currency].items():
                 try:
                     rate_dec = _to_decimal(rate)
-                    if rate_dec is None or rate_dec == 0:
+                    if rate_dec is None or rate_dec <= 0:
+                        self._log.warning(
+                            f"Keeping previous rate for {base_currency}->{key}, "
+                            f"got invalid price {rate}"
+                        )
                         continue
-                    self._fiat_matrix[base_currency][key] = Dezimal(
-                        Decimal(1) / rate_dec
-                    )
+                    valid = _valid_rate(Decimal(1) / rate_dec)
+                    if valid is None:
+                        continue
+                    self._fiat_matrix[base_currency][key] = valid
                 except Exception as e:
                     self._log.error(
                         f"Failed to apply crypto {key} for {base_currency}: {e}"

@@ -246,7 +246,10 @@ class DeferredComponents:
         )
         self.metal_client = MetalPriceClient()
         self.inst_provider = InstrumentProviderAdapter(
-            enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
+            enabled_clients=(
+                (["ft"] if INCLUDE_CONNECTIONS else [])
+                + ["yf", "finect", "tv", "ee", "le"]
+            )
         )
 
         self.tx_handler = TransactionHandler(client=db_client)

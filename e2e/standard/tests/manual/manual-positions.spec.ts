@@ -217,7 +217,7 @@ test.describe('Manual Positions - Deposits', () => {
 
         // Click Add
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual deposit')).toBeVisible({
+        await expect(page.getByText('Add deposit')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -259,7 +259,7 @@ test.describe('Manual Positions - Deposits', () => {
             .filter({ has: page.locator('.lucide-pencil') })
             .click()
 
-        await expect(page.getByText('Edit manual deposit')).toBeVisible({
+        await expect(page.getByText('Edit deposit')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -296,7 +296,7 @@ test.describe('Manual Positions - Deposits', () => {
 
         // Add manual deposit
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual deposit')).toBeVisible({
+        await expect(page.getByText('Add deposit')).toBeVisible({
             timeout: 5_000,
         })
         await selectEntity(page, 'Urbanitae', { inDialog: true })
@@ -328,7 +328,7 @@ test.describe('Manual Positions - Real Estate CF', () => {
         await navigateTo(page, 'Real Estate CF')
 
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual real estate CF')).toBeVisible({
+        await expect(page.getByText('Add real estate CF')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -370,9 +370,9 @@ test.describe('Manual Positions - Real Estate CF', () => {
         if (!hasManual) {
             // Create manual position for coexistence test
             await page.getByRole('button', { name: 'Add' }).click()
-            await expect(
-                page.getByText('Add manual real estate CF'),
-            ).toBeVisible({ timeout: 5_000 })
+            await expect(page.getByText('Add real estate CF')).toBeVisible({
+                timeout: 5_000,
+            })
             await selectEntity(page, 'Urbanitae', { inDialog: true })
             await page.locator('#name').fill('E2E RE Project')
             await page.locator('#amount').fill('5000')
@@ -408,7 +408,7 @@ test.describe('Manual Positions - Factoring', () => {
         await navigateTo(page, 'Factoring')
 
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual factoring')).toBeVisible({
+        await expect(page.getByText('Add factoring')).toBeVisible({
             timeout: 5_000,
         })
 
