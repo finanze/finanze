@@ -13,7 +13,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, type ReactNode } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/Popover"
 import {
   AlertCircle,
+  ChevronDown,
   ExternalLink,
   Landmark,
+  MoreHorizontal,
   Settings,
   Wallet,
   Smartphone,
   Bitcoin,
-  TrendingUpDown,
   X,
 } from "lucide-react"
 import {
@@ -48,6 +49,45 @@ import {
   ExternalEntityConnectionModals,
   ENABLE_BANKING_PROVIDER,
 } from "@/components/ExternalEntityConnection"
+
+interface CollapsibleEntityCategoryProps {
+  contentId: string
+  title: string
+  icon: ReactNode
+  children: ReactNode
+  initiallyExpanded?: boolean
+}
+
+function CollapsibleEntityCategory({
+  contentId,
+  title,
+  icon,
+  children,
+  initiallyExpanded = true,
+}: CollapsibleEntityCategoryProps) {
+  const [isExpanded, setIsExpanded] = useState(initiallyExpanded)
+
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between text-left text-lg font-medium text-gray-700 transition-colors hover:text-foreground dark:text-gray-300"
+        onClick={() => setIsExpanded(prev => !prev)}
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+      >
+        <span className="flex items-center">
+          {icon}
+          {title}
+        </span>
+        <ChevronDown
+          className={`h-5 w-5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      {isExpanded && <div id={contentId}>{children}</div>}
+    </div>
+  )
+}
 
 export default function EntityIntegrationsPage() {
   const {
@@ -408,11 +448,11 @@ export default function EntityIntegrationsPage() {
 
                     {/* Financial Institutions */}
                     {connectedFinancialEntities.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <Landmark className="h-5 w-5 mr-2" />
-                          {t.entities.financialInstitutions}
-                        </h3>
+                      <CollapsibleEntityCategory
+                        contentId="connected-financial-institutions"
+                        title={t.entities.financialInstitutions}
+                        icon={<Landmark className="mr-2 h-5 w-5" />}
+                      >
                         <motion.div
                           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                           variants={fadeListContainer}
@@ -442,16 +482,16 @@ export default function EntityIntegrationsPage() {
                             </motion.div>
                           ))}
                         </motion.div>
-                      </div>
+                      </CollapsibleEntityCategory>
                     )}
 
                     {/* Crypto Wallets */}
                     {connectedCryptoEntities.length > 0 && (
-                      <div className="space-y-3" id="crypto-enabled">
-                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <Wallet className="h-5 w-5 mr-2" />
-                          {t.entities.cryptoWallets}
-                        </h3>
+                      <CollapsibleEntityCategory
+                        contentId="crypto-enabled"
+                        title={t.entities.cryptoWallets}
+                        icon={<Wallet className="mr-2 h-5 w-5" />}
+                      >
                         <motion.div
                           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                           variants={fadeListContainer}
@@ -480,16 +520,16 @@ export default function EntityIntegrationsPage() {
                             </motion.div>
                           ))}
                         </motion.div>
-                      </div>
+                      </CollapsibleEntityCategory>
                     )}
 
                     {/* Crypto Exchanges */}
                     {connectedCryptoExchangeEntities.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <Bitcoin className="h-5 w-5 mr-2" />
-                          {t.entities.cryptoExchanges}
-                        </h3>
+                      <CollapsibleEntityCategory
+                        contentId="connected-crypto-exchanges"
+                        title={t.entities.cryptoExchanges}
+                        icon={<Bitcoin className="mr-2 h-5 w-5" />}
+                      >
                         <motion.div
                           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                           variants={fadeListContainer}
@@ -518,18 +558,18 @@ export default function EntityIntegrationsPage() {
                             </motion.div>
                           ))}
                         </motion.div>
-                      </div>
+                      </CollapsibleEntityCategory>
                     )}
 
-                    {/* Market Forecast Platforms */}
+                    {/* Other */}
                     {connectedMarketForecastEntities.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <TrendingUpDown className="h-5 w-5 mr-2" />
-                          {t.common.marketForecast}
-                        </h3>
+                      <CollapsibleEntityCategory
+                        contentId="connected-other"
+                        title={t.management.other}
+                        icon={<MoreHorizontal className="mr-2 h-5 w-5" />}
+                      >
                         <motion.div
-                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                          className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
                           variants={fadeListContainer}
                           initial={false}
                           animate="show"
@@ -556,7 +596,7 @@ export default function EntityIntegrationsPage() {
                             </motion.div>
                           ))}
                         </motion.div>
-                      </div>
+                      </CollapsibleEntityCategory>
                     )}
                   </motion.div>
                 )}
@@ -568,160 +608,162 @@ export default function EntityIntegrationsPage() {
 
                   {/* Financial Institutions */}
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Landmark className="h-5 w-5 mr-2" />
-                      {t.entities.financialInstitutions}
-                    </h3>
-                    <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                      variants={fadeListContainer}
+                    <CollapsibleEntityCategory
+                      contentId="available-financial-institutions"
+                      title={t.entities.financialInstitutions}
+                      icon={<Landmark className="mr-2 h-5 w-5" />}
                     >
-                      {/* Add External Entity Card */}
-                      {hasAvailableEntityProvider && (
-                        <motion.div variants={fadeListItem}>
-                          <Card
-                            className="transition-all border-l-4 border-l-gray-300 opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
-                            onClick={() => {
-                              if (hasProviderIntegration) {
-                                openAddExternalEntity()
-                              } else {
-                                goToEnableBankingSetup()
-                              }
-                            }}
-                          >
-                            <CardHeader className="pb-0 p-4">
-                              <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                                <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
-                                  <div className="w-12 h-12 mr-3 flex-shrink-0 relative select-none">
-                                    <div className="absolute inset-0">
-                                      <img
-                                        src="icons/santander.png"
-                                        alt=""
-                                        className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
-                                        style={{
-                                          transform:
-                                            "translate(-50%,-10%) rotate(-10deg)",
-                                        }}
-                                        draggable={false}
-                                      />
-                                      <img
-                                        src="icons/sabadell.png"
-                                        alt=""
-                                        className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
-                                        style={{
-                                          transform:
-                                            "translate(0,-45%) rotate(6deg)",
-                                        }}
-                                        draggable={false}
-                                      />
-                                      <img
-                                        src="icons/n26.png"
-                                        alt=""
-                                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
-                                        style={{
-                                          transform:
-                                            "translate(-55%,10%) rotate(9deg)",
-                                        }}
-                                        draggable={false}
-                                      />
-                                      <img
-                                        src="icons/vivid.png"
-                                        alt=""
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
-                                        style={{
-                                          transform:
-                                            "translate(0%,-45%) rotate(-7deg)",
-                                        }}
-                                        draggable={false}
-                                      />
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                      >
+                        {/* Add External Entity Card */}
+                        {hasAvailableEntityProvider && (
+                          <motion.div variants={fadeListItem}>
+                            <Card
+                              className="transition-all border-l-4 border-l-gray-300 opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
+                              onClick={() => {
+                                if (hasProviderIntegration) {
+                                  openAddExternalEntity()
+                                } else {
+                                  goToEnableBankingSetup()
+                                }
+                              }}
+                            >
+                              <CardHeader className="pb-0 p-4">
+                                <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
+                                    <div className="w-12 h-12 mr-3 flex-shrink-0 relative select-none">
+                                      <div className="absolute inset-0">
+                                        <img
+                                          src="icons/santander.png"
+                                          alt=""
+                                          className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
+                                          style={{
+                                            transform:
+                                              "translate(-50%,-10%) rotate(-10deg)",
+                                          }}
+                                          draggable={false}
+                                        />
+                                        <img
+                                          src="icons/sabadell.png"
+                                          alt=""
+                                          className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
+                                          style={{
+                                            transform:
+                                              "translate(0,-45%) rotate(6deg)",
+                                          }}
+                                          draggable={false}
+                                        />
+                                        <img
+                                          src="icons/n26.png"
+                                          alt=""
+                                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
+                                          style={{
+                                            transform:
+                                              "translate(-55%,10%) rotate(9deg)",
+                                          }}
+                                          draggable={false}
+                                        />
+                                        <img
+                                          src="icons/vivid.png"
+                                          alt=""
+                                          className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded pointer-events-none select-none"
+                                          style={{
+                                            transform:
+                                              "translate(0%,-45%) rotate(-7deg)",
+                                          }}
+                                          draggable={false}
+                                        />
+                                      </div>
                                     </div>
+                                    <span className="truncate">
+                                      {t.entities.moreFinancialInstitutionsCard}
+                                    </span>
                                   </div>
-                                  <span className="truncate">
-                                    {t.entities.moreFinancialInstitutionsCard}
-                                  </span>
-                                </div>
-                                {!hasProviderIntegration && (
-                                  <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Badge
-                                          variant="outline"
-                                          className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                  {!hasProviderIntegration && (
+                                    <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Badge
+                                            variant="outline"
+                                            className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                            onClick={e => e.stopPropagation()}
+                                          >
+                                            {
+                                              t.entities
+                                                .requiresProviderIntegration
+                                            }
+                                          </Badge>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                          className="w-80"
                                           onClick={e => e.stopPropagation()}
                                         >
-                                          {
-                                            t.entities
-                                              .requiresProviderIntegration
-                                          }
-                                        </Badge>
-                                      </PopoverTrigger>
-                                      <PopoverContent
-                                        className="w-80"
-                                        onClick={e => e.stopPropagation()}
-                                      >
-                                        <div className="space-y-2">
-                                          <div className="flex items-center gap-2">
-                                            <AlertCircle className="h-9 w-9 text-red-500" />
-                                            <h4 className="font-medium text-sm">
-                                              {
-                                                t.entities
-                                                  .setupIntegrationsMessage
-                                              }
-                                            </h4>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm ml-8">
-                                              • {enableBankingName}
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <AlertCircle className="h-9 w-9 text-red-500" />
+                                              <h4 className="font-medium text-sm">
+                                                {
+                                                  t.entities
+                                                    .setupIntegrationsMessage
+                                                }
+                                              </h4>
                                             </div>
+                                            <div className="space-y-1">
+                                              <div className="text-sm ml-8">
+                                                • {enableBankingName}
+                                              </div>
+                                            </div>
+                                            <Button
+                                              size="sm"
+                                              className="w-full mt-8"
+                                              onClick={goToEnableBankingSetup}
+                                            >
+                                              <Settings className="mr-2 h-3 w-3" />
+                                              {t.entities.goToSettings}
+                                            </Button>
                                           </div>
-                                          <Button
-                                            size="sm"
-                                            className="w-full mt-8"
-                                            onClick={goToEnableBankingSetup}
-                                          >
-                                            <Settings className="mr-2 h-3 w-3" />
-                                            {t.entities.goToSettings}
-                                          </Button>
-                                        </div>
-                                      </PopoverContent>
-                                    </Popover>
-                                  </div>
-                                )}
-                              </CardTitle>
-                            </CardHeader>
-                          </Card>
-                        </motion.div>
-                      )}
-                      {unconnectedFinancialEntities.map(entity => (
-                        <motion.div key={entity.id} variants={fadeListItem}>
-                          <EntityCard
-                            entity={entity}
-                            onSelect={() => handleEntitySelect(entity)}
-                            onRelogin={() => handleRelogin(entity)}
-                            onDisconnect={() => handleDisconnect(entity)}
-                            onManage={() => handleManage(entity)}
-                            onAddAccount={() => handleAddAccount(entity)}
-                            onExternalContinue={
-                              handleContinueExternalEntityLink
-                            }
-                            onExternalDisconnect={
-                              handleDisconnectExternalProvided
-                            }
-                            linkingExternalEntityId={linkingExternalEntityId}
-                            onExternalRelink={handleRelinkExternalProvided}
-                          />
-                        </motion.div>
-                      ))}
-                    </motion.div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )}
+                                </CardTitle>
+                              </CardHeader>
+                            </Card>
+                          </motion.div>
+                        )}
+                        {unconnectedFinancialEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                              onExternalRelink={handleRelinkExternalProvided}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </CollapsibleEntityCategory>
                   </div>
 
                   {/* Crypto Wallets */}
                   {unconnectedCryptoEntities.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <Wallet className="h-5 w-5 mr-2" />
-                        {t.entities.cryptoWallets}
-                      </h3>
+                    <CollapsibleEntityCategory
+                      contentId="available-crypto-wallets"
+                      title={t.entities.cryptoWallets}
+                      icon={<Wallet className="mr-2 h-5 w-5" />}
+                    >
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
@@ -747,16 +789,16 @@ export default function EntityIntegrationsPage() {
                           </motion.div>
                         ))}
                       </motion.div>
-                    </div>
+                    </CollapsibleEntityCategory>
                   )}
 
                   {/* Crypto Exchanges */}
                   {unconnectedCryptoExchangeEntities.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <Bitcoin className="h-5 w-5 mr-2" />
-                        {t.entities.cryptoExchanges}
-                      </h3>
+                    <CollapsibleEntityCategory
+                      contentId="available-crypto-exchanges"
+                      title={t.entities.cryptoExchanges}
+                      icon={<Bitcoin className="mr-2 h-5 w-5" />}
+                    >
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
@@ -782,18 +824,19 @@ export default function EntityIntegrationsPage() {
                           </motion.div>
                         ))}
                       </motion.div>
-                    </div>
+                    </CollapsibleEntityCategory>
                   )}
 
-                  {/* Market Forecast Platforms */}
+                  {/* Other */}
                   {unconnectedMarketForecastEntities.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <TrendingUpDown className="h-5 w-5 mr-2" />
-                        {t.common.marketForecast}
-                      </h3>
+                    <CollapsibleEntityCategory
+                      contentId="available-other"
+                      title={t.management.other}
+                      icon={<MoreHorizontal className="mr-2 h-5 w-5" />}
+                      initiallyExpanded={false}
+                    >
                       <motion.div
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
                         variants={fadeListContainer}
                       >
                         {unconnectedMarketForecastEntities.map(entity => (
@@ -817,7 +860,7 @@ export default function EntityIntegrationsPage() {
                           </motion.div>
                         ))}
                       </motion.div>
-                    </div>
+                    </CollapsibleEntityCategory>
                   )}
                 </motion.div>
               </motion.div>

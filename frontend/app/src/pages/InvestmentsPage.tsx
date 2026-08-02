@@ -1,11 +1,13 @@
 import React from "react"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import { ProductType } from "@/types/position"
+import { EntityStatus, EntityType } from "@/types"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
 import { getEntitiesWithProductType } from "@/utils/financialDataUtils"
@@ -14,7 +16,13 @@ export default function InvestmentsPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { isLoading, positionsData, realEstateList } = useFinancialData()
+  const { entities } = useAppContext()
   const { isPinned } = usePinnedShortcuts()
+  const hasConnectedMarketForecastPlatform = entities.some(
+    entity =>
+      entity.type === EntityType.MARKET_FORECAST_PLATFORM &&
+      entity.status === EntityStatus.CONNECTED,
+  )
 
   const investmentRoutes = React.useMemo(() => {
     const allRoutes = [
@@ -109,14 +117,15 @@ export default function InvestmentsPage() {
     return allRoutes
       .filter(
         route =>
-          __CONNECTIONS__ || route.productType !== ProductType.MARKET_FORECAST,
+          route.productType !== ProductType.MARKET_FORECAST ||
+          (__CONNECTIONS__ && hasConnectedMarketForecastPlatform),
       )
       .map(route => ({
         ...route,
         isDisabled: false,
         pinned: isPinned(route.assetId),
       }))
-  }, [t.common, t.realEstate, isPinned])
+  }, [t.common, t.realEstate, isPinned, hasConnectedMarketForecastPlatform])
 
   const sortedRoutes = React.useMemo(() => {
     const routesWithPositionInfo = investmentRoutes.map(route => {
