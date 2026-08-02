@@ -30,7 +30,7 @@ import {
   Wallet,
   Smartphone,
   Bitcoin,
-  ChartNoAxesColumn,
+  TrendingUpDown,
   X,
 } from "lucide-react"
 import {
@@ -525,7 +525,7 @@ export default function EntityIntegrationsPage() {
                     {connectedMarketForecastEntities.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                          <ChartNoAxesColumn className="h-5 w-5 mr-2" />
+                          <TrendingUpDown className="h-5 w-5 mr-2" />
                           {t.common.marketForecast}
                         </h3>
                         <motion.div
@@ -789,7 +789,7 @@ export default function EntityIntegrationsPage() {
                   {unconnectedMarketForecastEntities.length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <ChartNoAxesColumn className="h-5 w-5 mr-2" />
+                        <TrendingUpDown className="h-5 w-5 mr-2" />
                         {t.common.marketForecast}
                       </h3>
                       <motion.div

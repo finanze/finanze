@@ -6,6 +6,7 @@
     "fetching": "Fetching...",
     "saving": "Saving...",
     "refresh": "Refresh",
+    "update": "Update",
     "export": "Export",
     "success": "Success",
     "error": "Error",
@@ -349,6 +350,9 @@
     "labels": {
       "shares": "Shares",
       "entry": "Entry",
+      "initialInvestment": "Initial investment",
+      "realizedPnl": "Realized P&L",
+      "tradingActivity": "Trading activity",
       "mark": "Mark",
       "resolves": "Resolves",
       "closed": "Closed",
@@ -361,16 +365,24 @@
       "openExposure": "Open exposure",
       "costBasis": "Cost basis",
       "openPositions": "Open positions",
-      "closedPositions": "Closed positions",
-      "realizedPnl": "Realized PnL",
-      "pnlHistory": "PnL history",
-      "latestCumulativePnl": "Latest cumulative PnL",
-      "selectedRangePnl": "Selected range PnL"
+      "closedPositions": "positions",
+      "realizedPnl": "realized",
+      "pnlHistory": "PnL",
+      "unrealizedPnl": "Unrealized PnL",
+      "averageExposure": "Average exposure"
+    },
+    "empty": {
+      "connectionTitle": "Connect a market forecast platform",
+      "connectionDescription": "Market forecasts use connected data and cannot be entered manually.",
+      "openTitle": "No open market forecasts",
+      "openDescription": "Connected accounts have no active market forecasts right now.",
+      "pnlTitle": "No PnL history yet",
+      "pnlDescription": "PnL history will appear after market forecast activity is available."
     },
     "sections": {
-      "openTitle": "Open market forecasts",
+      "openTitle": "Open",
       "openDescription": "Active markets with current mark-to-market performance.",
-      "closedTitle": "Closed market forecasts",
+      "closedTitle": "Closed",
       "closedDescription": "Settled markets and realized profit or loss.",
       "positions": "positions"
     }
@@ -1198,12 +1210,14 @@
     "clear": "Clear",
     "productTypes": "Products",
     "options": "Options",
+    "area": "Area",
     "stacked": "Stacked",
     "lines": "Lines",
     "showTotal": "Total",
     "selectAll": "Select all",
     "clearAll": "Clear all",
     "ranges": {
+      "1D": "1D",
       "ALL": "All",
       "1Y": "1Y",
       "6M": "6M",

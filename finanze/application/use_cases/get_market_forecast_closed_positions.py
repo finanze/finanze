@@ -85,6 +85,7 @@ class GetMarketForecastClosedPositionsImpl(GetMarketForecastClosedPositions):
             entity_id=account.entity_id,
             account_name=account.name,
             wallet_address=account_data.wallet_address,
+            currency=account_data.currency,
             profile=account_data.profile,
         )
         positions = [

@@ -134,14 +134,13 @@ class PositionWriteQueries(str, Enum):
     """
 
     INSERT_MARKET_FORECAST_POSITION = """
-        INSERT INTO market_forecast_positions (id, global_position_id, symbol, market_type,
-                                               direction, size, entry_price, currency,
-                                               mark_price, market_value, unrealized_pnl,
-                                               underlying_symbol, expiry, name,
-                                               initial_investment, market_slug,
-                                               event_slug, outcome,
-                                               condition_id, token_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO market_forecast_positions (
+            id, global_position_id, size, entry_price, currency,
+            mark_price, market_value, unrealized_pnl, expiry, name,
+            initial_investment, market_key, event_key, outcome_key,
+            market_url, icon_url, outcome
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_CREDIT_POSITION = """

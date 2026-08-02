@@ -420,24 +420,21 @@ export interface DerivativePositions {
 
 export interface MarketForecastDetail {
   id: string
-  symbol: string
-  market_type?: string | null
-  direction: PositionDirection
   size: number
   entry_price: number
   currency: string
   mark_price?: number | null
   market_value?: number | null
   unrealized_pnl?: number | null
-  underlying_symbol?: string | null
   expiry?: string | null
   name?: string | null
   initial_investment?: number | null
-  market_slug?: string | null
-  event_slug?: string | null
+  market_key?: string | null
+  event_key?: string | null
+  outcome_key?: string | null
+  market_url?: string | null
+  icon_url?: string | null
   outcome?: string | null
-  condition_id?: string | null
-  token_id?: string | null
   source: DataSource
 }
 

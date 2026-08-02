@@ -247,9 +247,6 @@ async def _save_market_forecasts(
             (
                 str(detail.id),
                 str(position.id),
-                detail.symbol,
-                detail.market_type,
-                detail.direction.value,
                 str(detail.size),
                 str(detail.entry_price),
                 detail.currency,
@@ -258,17 +255,17 @@ async def _save_market_forecasts(
                 str(detail.unrealized_pnl)
                 if detail.unrealized_pnl is not None
                 else None,
-                detail.underlying_symbol,
                 detail.expiry.isoformat() if detail.expiry else None,
                 detail.name,
                 str(detail.initial_investment)
                 if detail.initial_investment is not None
                 else None,
-                detail.market_slug,
-                detail.event_slug,
+                detail.market_key,
+                detail.event_key,
+                detail.outcome_key,
+                detail.market_url,
+                detail.icon_url,
                 detail.outcome,
-                detail.condition_id,
-                detail.token_id,
             ),
         )
 
@@ -1365,9 +1362,6 @@ class PositionSQLRepository(PositionPort):
                 grouped.setdefault(gp_id, []).append(
                     MarketForecastDetail(
                         id=UUID(row["id"]),
-                        symbol=row["symbol"],
-                        market_type=row["market_type"],
-                        direction=PositionDirection(row["direction"]),
                         size=Dezimal(row["size"]),
                         entry_price=Dezimal(row["entry_price"]),
                         currency=row["currency"],
@@ -1380,7 +1374,6 @@ class PositionSQLRepository(PositionPort):
                         unrealized_pnl=Dezimal(row["unrealized_pnl"])
                         if row["unrealized_pnl"]
                         else None,
-                        underlying_symbol=row["underlying_symbol"],
                         expiry=date.fromisoformat(row["expiry"])
                         if row["expiry"]
                         else None,
@@ -1388,11 +1381,12 @@ class PositionSQLRepository(PositionPort):
                         initial_investment=Dezimal(row["initial_investment"])
                         if row["initial_investment"]
                         else None,
-                        market_slug=row["market_slug"],
-                        event_slug=row["event_slug"],
+                        market_key=row["market_key"],
+                        event_key=row["event_key"],
+                        outcome_key=row["outcome_key"],
+                        market_url=row["market_url"],
+                        icon_url=row["icon_url"],
                         outcome=row["outcome"],
-                        condition_id=row["condition_id"],
-                        token_id=row["token_id"],
                         source=source_map[gp_id],
                     )
                 )

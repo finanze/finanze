@@ -153,6 +153,10 @@ export function PortfolioDonutChart({
   }, [overflowItems])
 
   const getInvestmentRoute = (assetType: string) => {
+    if (assetType === "MARKET_FORECAST" && !__CONNECTIONS__) {
+      return null
+    }
+
     const routeMap: Record<string, string> = {
       STOCK_ETF: "/investments/stocks-etfs",
       FUND: "/investments/funds",
@@ -160,6 +164,7 @@ export function PortfolioDonutChart({
       FACTORING: "/investments/factoring",
       REAL_ESTATE_CF: "/investments/real-estate-cf",
       CRYPTO: "/investments/crypto",
+      MARKET_FORECAST: "/investments/market-forecast",
       COMMODITY: "/investments/commodities",
       PENDING_FLOWS: "/management/pending",
       CASH: "/banking",
@@ -175,6 +180,23 @@ export function PortfolioDonutChart({
       const route = getInvestmentRoute((item as DistributionItem).type)
       if (route) navigate(route)
     }
+  }
+
+  const handlePieClick = (data: unknown) => {
+    if (distributionView !== "by-asset" || !data || typeof data !== "object") {
+      return
+    }
+
+    const candidate = data as { payload?: unknown; type?: unknown }
+    const item =
+      candidate.payload && typeof candidate.payload === "object"
+        ? (candidate.payload as { type?: unknown })
+        : candidate
+    const assetType = typeof item.type === "string" ? item.type : null
+    if (!assetType) return
+
+    const route = getInvestmentRoute(assetType)
+    if (route) navigate(route)
   }
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -725,6 +747,7 @@ export function PortfolioDonutChart({
                   stroke="hsl(var(--background))"
                   strokeWidth={1}
                   paddingAngle={1}
+                  onClick={handlePieClick}
                 >
                   {currentDistribution.map((entry, index) => (
                     <Cell

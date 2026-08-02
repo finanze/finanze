@@ -5,20 +5,22 @@ export type MarketForecastDecimal = number | string
 export interface MarketForecastPnlPoint {
   timestamp: number
   value: MarketForecastDecimal
+  currency: string
   entity_account_id?: string | null
   wallet_address?: string | null
 }
 
 export interface MarketForecastPosition {
+  currency: string
   entity_account_id?: string | null
   wallet_address?: string | null
-  title?: string | null
-  slug?: string | null
-  event_slug?: string | null
-  icon?: string | null
+  name?: string | null
+  market_key?: string | null
+  event_key?: string | null
+  outcome_key?: string | null
+  market_url?: string | null
+  icon_url?: string | null
   outcome?: string | null
-  condition_id?: string | null
-  asset?: string | null
   size?: MarketForecastDecimal | null
   avg_price?: MarketForecastDecimal | null
   price?: MarketForecastDecimal | null
@@ -42,6 +44,7 @@ export interface MarketForecastAccountSummary {
   entity_id?: string
   account_name?: string | null
   wallet_address: string
+  currency: string
   profile?: Record<string, unknown> | null
 }
 

@@ -579,12 +579,8 @@ function DayDetailModal({
         const marketForecastTx = tx as MarketForecastTx
         return !!(
           marketForecastTx.symbol ||
-          marketForecastTx.underlying_symbol ||
           marketForecastTx.size ||
-          Number(marketForecastTx.price || 0) !== 0 ||
-          marketForecastTx.market_type ||
-          marketForecastTx.direction ||
-          marketForecastTx.contract_address
+          Number(marketForecastTx.price || 0) !== 0
         )
       }
       default:
@@ -983,14 +979,6 @@ function DayDetailModal({
                 {marketForecastTx.symbol}
               </div>
             )}
-            {marketForecastTx.underlying_symbol && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.underlyingSymbol}:
-                </span>{" "}
-                {marketForecastTx.underlying_symbol}
-              </div>
-            )}
             {marketForecastTx.size !== undefined &&
               marketForecastTx.size !== null && (
                 <div className={detailRowClass}>
@@ -1013,34 +1001,6 @@ function DayDetailModal({
                     tx.currency,
                   )}
                 </Sensitive>
-              </div>
-            )}
-            {marketForecastTx.market_type && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.market}:
-                </span>{" "}
-                {marketForecastTx.market_type}
-              </div>
-            )}
-            {marketForecastTx.direction && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.direction}:
-                </span>{" "}
-                {t.investments.derivatives.direction?.[
-                  marketForecastTx.direction
-                ] || marketForecastTx.direction}
-              </div>
-            )}
-            {marketForecastTx.contract_address && (
-              <div className={`${detailRowClass} break-all`}>
-                <span className={detailLabelClass}>
-                  {t.transactions.contractAddress}:
-                </span>{" "}
-                <span className="font-mono">
-                  {marketForecastTx.contract_address}
-                </span>
               </div>
             )}
           </div>

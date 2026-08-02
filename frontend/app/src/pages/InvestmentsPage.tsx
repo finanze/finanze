@@ -106,11 +106,16 @@ export default function InvestmentsPage() {
       },
     ]
     // Now always enabled (can navigate without positions)
-    return allRoutes.map(route => ({
-      ...route,
-      isDisabled: false,
-      pinned: isPinned(route.assetId),
-    }))
+    return allRoutes
+      .filter(
+        route =>
+          __CONNECTIONS__ || route.productType !== ProductType.MARKET_FORECAST,
+      )
+      .map(route => ({
+        ...route,
+        isDisabled: false,
+        pinned: isPinned(route.assetId),
+      }))
   }, [t.common, t.realEstate, isPinned])
 
   const sortedRoutes = React.useMemo(() => {

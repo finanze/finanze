@@ -6,6 +6,7 @@
     "fetching": "Obteniendo...",
     "saving": "Guardando...",
     "refresh": "Actualizar",
+    "update": "Actualizar",
     "export": "Exportar",
     "success": "Éxito",
     "error": "Error",
@@ -347,6 +348,9 @@
     "labels": {
       "shares": "Títulos",
       "entry": "Entrada",
+      "initialInvestment": "Inversión inicial",
+      "realizedPnl": "P&L realizado",
+      "tradingActivity": "Actividad de trading",
       "mark": "Precio actual",
       "resolves": "Resuelve",
       "closed": "Cerrada",
@@ -359,16 +363,24 @@
       "openExposure": "Exposición abierta",
       "costBasis": "Coste base",
       "openPositions": "Posiciones abiertas",
-      "closedPositions": "Posiciones cerradas",
-      "realizedPnl": "P&L realizado",
-      "pnlHistory": "Historial de P&L",
-      "latestCumulativePnl": "P&L acumulado más reciente",
-      "selectedRangePnl": "P&L del rango seleccionado"
+      "closedPositions": "posiciones",
+      "realizedPnl": "realizado",
+      "pnlHistory": "P&L",
+      "unrealizedPnl": "P&L no realizado",
+      "averageExposure": "Exposición media"
+    },
+    "empty": {
+      "connectionTitle": "Conecta una plataforma de pronósticos de mercado",
+      "connectionDescription": "Los pronósticos de mercado usan datos conectados y no se pueden introducir manualmente.",
+      "openTitle": "No hay pronósticos de mercado abiertos",
+      "openDescription": "Las cuentas conectadas no tienen pronósticos de mercado activos ahora mismo.",
+      "pnlTitle": "Aún no hay historial de P&L",
+      "pnlDescription": "El historial de P&L aparecerá cuando haya actividad de pronósticos de mercado."
     },
     "sections": {
-      "openTitle": "Pronósticos de mercado abiertos",
+      "openTitle": "Abiertos",
       "openDescription": "Mercados activos con rendimiento mark-to-market actual.",
-      "closedTitle": "Pronósticos de mercado cerrados",
+      "closedTitle": "Cerrados",
       "closedDescription": "Mercados liquidados y beneficio o pérdida realizada.",
       "positions": "posiciones"
     }
@@ -1197,12 +1209,14 @@
     "clear": "Limpiar",
     "productTypes": "Productos",
     "options": "Opciones",
+    "area": "Área",
     "stacked": "Apilado",
     "lines": "Líneas",
     "showTotal": "Total",
     "selectAll": "Seleccionar todo",
     "clearAll": "Limpiar todo",
     "ranges": {
+      "1D": "1D",
       "ALL": "Todo",
       "1Y": "1A",
       "6M": "6M",

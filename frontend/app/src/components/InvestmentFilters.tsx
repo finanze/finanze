@@ -18,6 +18,8 @@ interface InvestmentFiltersProps {
   placeholderOverride?: string
   extraFilters?: React.ReactNode
   entityImageOverride?: (entity: Entity) => string | null | undefined
+  showEntityFilter?: boolean
+  showWalletFilter?: boolean
 }
 
 export function InvestmentFilters({
@@ -32,6 +34,8 @@ export function InvestmentFilters({
   placeholderOverride,
   extraFilters,
   entityImageOverride,
+  showEntityFilter = true,
+  showWalletFilter = true,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
 
@@ -43,6 +47,8 @@ export function InvestmentFilters({
   }
 
   if (minimal) {
+    if (!showEntityFilter) return null
+
     return (
       <div className="max-w-sm">
         <EntitySelector
@@ -60,31 +66,38 @@ export function InvestmentFilters({
     <div className="pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between flex-wrap">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <Filter size={16} />
-            <span>{t.transactions.filters}:</span>
-          </div>
-          <div className="flex-1 min-w-[200px] max-w-sm">
-            <EntitySelector
-              entities={filteredEntities}
-              selectedEntityIds={selectedEntities}
-              onSelectionChange={onEntitiesChange}
-              entityImageOverride={entityImageOverride}
-            />
-          </div>
-          {walletOptions && walletOptions.length > 0 && onWalletsChange && (
+          {(showEntityFilter || showWalletFilter) && (
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Filter size={16} />
+              <span>{t.transactions.filters}:</span>
+            </div>
+          )}
+          {showEntityFilter && (
             <div className="flex-1 min-w-[200px] max-w-sm">
-              <MultiSelect
-                options={walletOptions}
-                value={selectedWallets || []}
-                onChange={onWalletsChange}
-                placeholder={
-                  walletPlaceholder ||
-                  t.walletManagement.walletFilterPlaceholder
-                }
+              <EntitySelector
+                entities={filteredEntities}
+                selectedEntityIds={selectedEntities}
+                onSelectionChange={onEntitiesChange}
+                entityImageOverride={entityImageOverride}
               />
             </div>
           )}
+          {showWalletFilter &&
+            walletOptions &&
+            walletOptions.length > 0 &&
+            onWalletsChange && (
+              <div className="flex-1 min-w-[200px] max-w-sm">
+                <MultiSelect
+                  options={walletOptions}
+                  value={selectedWallets || []}
+                  onChange={onWalletsChange}
+                  placeholder={
+                    walletPlaceholder ||
+                    t.walletManagement.walletFilterPlaceholder
+                  }
+                />
+              </div>
+            )}
           {extraFilters && (
             <div className="flex items-center gap-2">{extraFilters}</div>
           )}

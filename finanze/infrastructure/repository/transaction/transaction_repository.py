@@ -11,7 +11,6 @@ from domain.fetch_record import DataSource
 from domain.global_position import (
     EquityType,
     FundType,
-    PositionDirection,
     ProductType,
 )
 from domain.transactions import (
@@ -143,15 +142,6 @@ def _map_investment_row(
             order_date=(
                 datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
             ),
-            contract_address=row["asset_contract_address"],
-            linked_tx=row["linked_tx"],
-            direction=(
-                PositionDirection(row["product_subtype"])
-                if row["product_subtype"]
-                and row["product_subtype"] in PositionDirection._value2member_map_
-                else None
-            ),
-            underlying_symbol=row["market"] if row["market"] else None,
         )
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
@@ -291,7 +281,6 @@ class TransactionSQLRepository(TransactionPort):
                     entry.update(
                         {
                             "ticker": tx.symbol,
-                            "market": tx.underlying_symbol,
                             "shares": str(tx.size),
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
@@ -302,11 +291,6 @@ class TransactionSQLRepository(TransactionPort):
                             "order_date": (
                                 tx.order_date.isoformat() if tx.order_date else None
                             ),
-                            "linked_tx": tx.linked_tx,
-                            "product_subtype": (
-                                tx.direction.value if tx.direction is not None else None
-                            ),
-                            "asset_contract_address": tx.contract_address,
                         }
                     )
                 elif isinstance(tx, FundTx):

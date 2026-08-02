@@ -165,7 +165,10 @@ export function Sidebar() {
         hasData: (realEstateList?.length || 0) > 0,
       },
     ]
-    return routes
+    return routes.filter(
+      route =>
+        __CONNECTIONS__ || route.productType !== ProductType.MARKET_FORECAST,
+    )
   }, [t, positionsData, realEstateList])
 
   type ManagementRoute = {

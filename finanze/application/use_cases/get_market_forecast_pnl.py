@@ -88,12 +88,14 @@ class GetMarketForecastPnlImpl(GetMarketForecastPnl):
             entity_id=account.entity_id,
             account_name=account.name,
             wallet_address=account_data.wallet_address,
+            currency=account_data.currency,
             profile=account_data.profile,
         )
         points = [
             MarketForecastPnlPoint(
                 timestamp=point.timestamp,
                 value=point.value,
+                currency=point.currency,
                 entity_account_id=account.id,
                 wallet_address=account_data.wallet_address,
             )

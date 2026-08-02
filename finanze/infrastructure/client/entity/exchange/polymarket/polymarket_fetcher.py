@@ -14,7 +14,6 @@ from domain.global_position import (
     GlobalPosition,
     MarketForecastDetail,
     MarketForecastPositions,
-    PositionDirection,
     ProductType,
 )
 from domain.market_forecast import (
@@ -28,6 +27,8 @@ from domain.transactions import MarketForecastTx, Transactions, TxType
 from infrastructure.client.entity.exchange.polymarket.polymarket_client import (
     PolymarketClient,
 )
+
+POLYMARKET_CURRENCY = "USDC"
 
 
 class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
@@ -47,6 +48,7 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
 
         return MarketForecastClosedPositionsAccountData(
             wallet_address=client.wallet_address,
+            currency=POLYMARKET_CURRENCY,
             profile=client.profile,
             closed_positions=[
                 self._map_closed_position(position)
@@ -64,11 +66,13 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
 
         return MarketForecastPnlAccountData(
             wallet_address=client.wallet_address,
+            currency=POLYMARKET_CURRENCY,
             profile=client.profile,
             pnl_history=[
                 MarketForecastPnlPoint(
                     timestamp=int(point["t"]),
                     value=Dezimal(point["p"]),
+                    currency=POLYMARKET_CURRENCY,
                 )
                 for point in await client.get_user_pnl(interval=interval)
             ],
@@ -95,24 +99,25 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
             market_forecast_entries.append(
                 MarketForecastDetail(
                     id=uuid4(),
-                    symbol=self._build_symbol(position),
                     name=position.get("title") or self._build_symbol(position),
-                    market_type="BINARY",
-                    direction=PositionDirection.LONG,
                     size=size,
                     entry_price=avg_price,
-                    currency="USDC",
-                    mark_price=(current_value / size) if size != 0 else None,
+                    currency=POLYMARKET_CURRENCY,
+                    mark_price=(
+                        Dezimal(position["curPrice"])
+                        if position.get("curPrice") is not None
+                        else None
+                    ),
                     market_value=current_value,
                     unrealized_pnl=cash_pnl,
-                    underlying_symbol=position.get("outcome") or position.get("slug"),
                     expiry=self._parse_date(position.get("endDate")),
                     initial_investment=initial_investment,
-                    market_slug=position.get("slug"),
-                    event_slug=position.get("eventSlug"),
+                    market_key=position.get("conditionId"),
+                    event_key=position.get("eventSlug"),
+                    outcome_key=position.get("asset"),
+                    market_url=self._build_market_url(position),
+                    icon_url=position.get("icon"),
                     outcome=position.get("outcome"),
-                    condition_id=position.get("conditionId"),
-                    token_id=position.get("asset"),
                     source=DataSource.REAL,
                 )
             )
@@ -174,7 +179,6 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
         price = Dezimal(raw_trade.get("price", 0))
         amount = Dezimal(raw_trade.get("usdcSize") or (size * price))
         timestamp = self._client.parse_timestamp(raw_trade.get("timestamp"))
-        contract_address = raw_trade.get("asset")
         condition_id = raw_trade.get("conditionId")
         ref = str(
             raw_trade.get("transactionHash")
@@ -190,7 +194,7 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
             ref=ref,
             name=raw_trade.get("title") or self._build_symbol(raw_trade),
             amount=amount,
-            currency="USDC",
+            currency=POLYMARKET_CURRENCY,
             type=tx_type,
             date=timestamp,
             entity=POLYMARKET,
@@ -202,16 +206,6 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
             fees=Dezimal(0),
             net_amount=amount,
             order_date=timestamp,
-            contract_address=contract_address,
-            linked_tx=condition_id,
-            direction=PositionDirection.LONG,
-            market_type="BINARY",
-            underlying_symbol=raw_trade.get("outcome") or raw_trade.get("slug"),
-            market_slug=raw_trade.get("slug"),
-            event_slug=raw_trade.get("eventSlug"),
-            outcome=raw_trade.get("outcome"),
-            condition_id=condition_id,
-            token_id=raw_trade.get("asset"),
         )
 
     @staticmethod
@@ -229,13 +223,14 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
     @staticmethod
     def _map_closed_position(position: dict) -> MarketForecastClosedPosition:
         return MarketForecastClosedPosition(
-            title=position.get("title"),
-            slug=position.get("slug"),
-            event_slug=position.get("eventSlug"),
-            icon=position.get("icon"),
+            currency=POLYMARKET_CURRENCY,
+            name=position.get("title"),
+            market_key=position.get("conditionId"),
+            event_key=position.get("eventSlug"),
+            outcome_key=position.get("asset"),
+            market_url=PolymarketFetcher._build_market_url(position),
+            icon_url=position.get("icon"),
             outcome=position.get("outcome"),
-            condition_id=position.get("conditionId"),
-            asset=position.get("asset"),
             size=Dezimal(position["size"])
             if position.get("size") is not None
             else None,
@@ -303,3 +298,13 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
         if not value:
             return None
         return PolymarketClient.parse_timestamp(value).date()
+
+    @staticmethod
+    def _build_market_url(entry: dict) -> str | None:
+        market_slug = str(entry.get("slug") or "").strip()
+        event_slug = str(entry.get("eventSlug") or "").strip()
+        if event_slug and market_slug and event_slug != market_slug:
+            return f"https://polymarket.com/event/{event_slug}/{market_slug}"
+
+        final_slug = market_slug or event_slug
+        return f"https://polymarket.com/event/{final_slug}" if final_slug else None

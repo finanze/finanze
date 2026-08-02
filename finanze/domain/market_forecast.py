@@ -9,21 +9,23 @@ from pydantic.dataclasses import dataclass
 class MarketForecastPnlPoint:
     timestamp: int
     value: Dezimal
+    currency: str
     entity_account_id: UUID | None = None
     wallet_address: str | None = None
 
 
 @dataclass
 class MarketForecastClosedPosition:
+    currency: str
     entity_account_id: UUID | None = None
     wallet_address: str | None = None
-    title: str | None = None
-    slug: str | None = None
-    event_slug: str | None = None
-    icon: str | None = None
+    name: str | None = None
+    market_key: str | None = None
+    event_key: str | None = None
+    outcome_key: str | None = None
+    market_url: str | None = None
+    icon_url: str | None = None
     outcome: str | None = None
-    condition_id: str | None = None
-    asset: str | None = None
     size: Dezimal | None = None
     avg_price: Dezimal | None = None
     price: Dezimal | None = None
@@ -45,6 +47,7 @@ class MarketForecastClosedPosition:
 @dataclass
 class MarketForecastPnlAccountData:
     wallet_address: str
+    currency: str
     profile: dict[str, Any] | None = None
     pnl_history: list[MarketForecastPnlPoint] | None = None
 
@@ -52,6 +55,7 @@ class MarketForecastPnlAccountData:
 @dataclass
 class MarketForecastClosedPositionsAccountData:
     wallet_address: str
+    currency: str
     profile: dict[str, Any] | None = None
     closed_positions: list[MarketForecastClosedPosition] | None = None
 
@@ -62,6 +66,7 @@ class MarketForecastAccountSummary:
     entity_id: UUID
     account_name: str | None
     wallet_address: str
+    currency: str
     profile: dict[str, Any] | None
 
 

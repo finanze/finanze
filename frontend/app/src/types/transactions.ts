@@ -1,9 +1,4 @@
-import {
-  EquityType,
-  FundType,
-  PositionDirection,
-  ProductType,
-} from "./position"
+import { EquityType, FundType, ProductType } from "./position"
 import { DataSource, EntityOrigin } from "."
 
 export enum TxType {
@@ -90,18 +85,8 @@ export interface MarketForecastTx extends BaseInvestmentTx {
   price: number
   fees: number
   symbol: string
-  contract_address?: string
   retentions?: number
   order_date?: string
-  linked_tx?: string
-  direction?: PositionDirection
-  market_type?: string
-  underlying_symbol?: string
-  market_slug?: string
-  event_slug?: string
-  outcome?: string
-  condition_id?: string
-  token_id?: string
 }
 
 // Fund transaction interface

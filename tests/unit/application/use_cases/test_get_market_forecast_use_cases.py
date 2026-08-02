@@ -39,10 +39,11 @@ async def test_get_market_forecast_pnl_returns_aggregated_history():
     provider = AsyncMock()
     provider.get_pnl_history.return_value = MarketForecastPnlAccountData(
         wallet_address="0xabc",
+        currency="USDC",
         profile={"name": "Trader"},
         pnl_history=[
-            MarketForecastPnlPoint(timestamp=1, value=10),
-            MarketForecastPnlPoint(timestamp=2, value=12),
+            MarketForecastPnlPoint(timestamp=1, value=10, currency="USDC"),
+            MarketForecastPnlPoint(timestamp=2, value=12, currency="USDC"),
         ],
     )
 
@@ -58,7 +59,9 @@ async def test_get_market_forecast_pnl_returns_aggregated_history():
     assert len(result.accounts) == 1
     assert result.accounts[0].entity_account_id == account.id
     assert result.accounts[0].wallet_address == "0xabc"
+    assert result.accounts[0].currency == "USDC"
     assert result.accounts[0].pnl_history[0].entity_account_id == account.id
+    assert result.accounts[0].pnl_history[0].currency == "USDC"
     payload = TypeAdapter(MarketForecastPnlResponse).dump_python(
         result, mode="json", by_alias=True
     )
@@ -76,9 +79,12 @@ async def test_get_market_forecast_closed_positions_returns_aggregated_positions
     provider.get_closed_positions.return_value = (
         MarketForecastClosedPositionsAccountData(
             wallet_address="0xdef",
+            currency="USDC",
             profile={"name": "Closer"},
             closed_positions=[
-                MarketForecastClosedPosition(slug="market-1", realized_pnl=42)
+                MarketForecastClosedPosition(
+                    currency="USDC", market_key="market-1", realized_pnl=42
+                )
             ],
         )
     )
@@ -93,4 +99,6 @@ async def test_get_market_forecast_closed_positions_returns_aggregated_positions
 
     assert len(result.accounts) == 1
     assert result.accounts[0].entity_account_id == account.id
+    assert result.accounts[0].currency == "USDC"
     assert result.accounts[0].closed_positions[0].entity_account_id == account.id
+    assert result.accounts[0].closed_positions[0].currency == "USDC"

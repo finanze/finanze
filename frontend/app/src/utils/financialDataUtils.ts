@@ -86,12 +86,20 @@ const getExchangeRateEntry = (
   return null
 }
 
-export const convertCurrency = (
+export const tryConvertCurrency = (
   amount: number,
   fromCurrency: string,
   targetCurrency: string,
-  exchangeRates: ExchangeRates | null,
-): number => {
+  exchangeRates: ExchangeRates | null | undefined,
+): number | null => {
+  if (!Number.isFinite(amount)) {
+    return null
+  }
+
+  if (amount === 0) {
+    return 0
+  }
+
   const normalizedFromCurrency = normalizeCurrencyAlias(fromCurrency)
   const normalizedTargetCurrency = normalizeCurrencyAlias(targetCurrency)
 
@@ -105,10 +113,7 @@ export const convertCurrency = (
   }
 
   if (!exchangeRates) {
-    console.warn(
-      `Exchange rates not available when converting ${fromCurrency} -> ${targetCurrency}`,
-    )
-    return 0
+    return null
   }
 
   const rate = getExchangeRateEntry(
@@ -117,8 +122,63 @@ export const convertCurrency = (
     normalizedFromCurrency || fromCurrency,
   )
 
-  if (rate && rate !== 0) {
+  if (rate != null && rate !== 0 && Number.isFinite(rate)) {
     return amount / rate
+  }
+
+  return null
+}
+
+export interface CurrencyDisplayValue {
+  value: number
+  currency: string
+}
+
+export const getCurrencyDisplayValue = (
+  amount: number,
+  fromCurrency: string | null | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates | null | undefined,
+): CurrencyDisplayValue | null => {
+  const normalizedFromCurrency = fromCurrency?.trim()
+  if (!normalizedFromCurrency || !Number.isFinite(amount)) {
+    return null
+  }
+
+  const converted = tryConvertCurrency(
+    amount,
+    normalizedFromCurrency,
+    targetCurrency,
+    exchangeRates,
+  )
+  if (converted != null) {
+    return { value: converted, currency: targetCurrency }
+  }
+
+  return { value: amount, currency: normalizedFromCurrency }
+}
+
+export const convertCurrency = (
+  amount: number,
+  fromCurrency: string,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates | null,
+): number => {
+  const converted = tryConvertCurrency(
+    amount,
+    fromCurrency,
+    targetCurrency,
+    exchangeRates,
+  )
+  if (converted != null) {
+    return converted
+  }
+
+  if (!exchangeRates) {
+    console.warn(
+      `Exchange rates not available when converting ${fromCurrency} -> ${targetCurrency}`,
+    )
+    return 0
   }
 
   console.warn(

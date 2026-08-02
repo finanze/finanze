@@ -10,7 +10,6 @@ from domain.fetch_record import DataSource
 from domain.global_position import (
     EquityType,
     FundType,
-    PositionDirection,
     ProductType,
 )
 from pydantic.dataclasses import dataclass
@@ -104,15 +103,6 @@ class MarketForecastTx(BaseInvestmentTx):
     net_amount: Optional[Dezimal] = None
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
-    linked_tx: Optional[str] = None
-    direction: Optional[PositionDirection] = None
-    market_type: Optional[str] = None
-    underlying_symbol: Optional[str] = None
-    market_slug: Optional[str] = None
-    event_slug: Optional[str] = None
-    outcome: Optional[str] = None
-    condition_id: Optional[str] = None
-    token_id: Optional[str] = None
 
 
 @dataclass(kw_only=True)
