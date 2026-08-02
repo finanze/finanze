@@ -128,7 +128,6 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
                 total=round(available_balance, 2),
                 currency=available_balance_currency,
                 type=AccountType.VIRTUAL_WALLET,
-                name="Polymarket available balance",
                 source=DataSource.REAL,
             )
         )

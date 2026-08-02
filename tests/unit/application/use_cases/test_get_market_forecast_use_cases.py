@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ def _account(name: str = "Main") -> EntityAccount:
     return EntityAccount(
         id=uuid4(),
         entity_id=POLYMARKET.id,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         name=name,
     )
 

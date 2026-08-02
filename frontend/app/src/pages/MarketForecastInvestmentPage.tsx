@@ -337,6 +337,7 @@ function MarketForecastDetail({
       : toFiniteNumber(position.realized_pnl)
   const totalBought = toFiniteNumber(position.total_bought)
   const totalSold = toFiniteNumber(position.total_sold)
+  const hasSoldShares = totalSold != null && totalSold > 0
   const sourceCurrency = position.currency?.trim()
   const sourceCurrencyDiffers = hasDifferentCurrency(
     sourceCurrency,
@@ -399,8 +400,7 @@ function MarketForecastDetail({
         {(averagePrice != null ||
           initialValue != null ||
           pnl != null ||
-          (status === "closed" &&
-            (totalBought != null || totalSold != null))) && (
+          (status === "closed" && (totalBought != null || hasSoldShares))) && (
           <div
             className={cn(
               "mb-4 grid gap-y-3 text-sm",
@@ -432,7 +432,7 @@ function MarketForecastDetail({
                   </div>
                 )}
                 {status === "closed" &&
-                  (totalBought != null || totalSold != null) && (
+                  (totalBought != null || hasSoldShares) && (
                     <div className="mt-1 text-xs text-muted-foreground">
                       {totalBought != null && (
                         <>
@@ -442,8 +442,8 @@ function MarketForecastDetail({
                           {t.marketForecast.labels.bought.toLowerCase()}
                         </>
                       )}
-                      {totalBought != null && totalSold != null && " · "}
-                      {totalSold != null && (
+                      {totalBought != null && hasSoldShares && " · "}
+                      {hasSoldShares && (
                         <>
                           <Sensitive>
                             {formatNumber(totalSold, locale)}
@@ -516,7 +516,7 @@ function MarketForecastDetail({
 
             {averagePrice == null &&
               status === "closed" &&
-              (totalBought != null || totalSold != null) && (
+              (totalBought != null || hasSoldShares) && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground">
                     {t.marketForecast.labels.tradingActivity}
@@ -530,8 +530,8 @@ function MarketForecastDetail({
                         {t.marketForecast.labels.bought.toLowerCase()}
                       </>
                     )}
-                    {totalBought != null && totalSold != null && " · "}
-                    {totalSold != null && (
+                    {totalBought != null && hasSoldShares && " · "}
+                    {hasSoldShares && (
                       <>
                         <Sensitive>{formatNumber(totalSold, locale)}</Sensitive>{" "}
                         {t.marketForecast.labels.sold.toLowerCase()}
