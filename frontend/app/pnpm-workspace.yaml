@@ -18,9 +18,6 @@ overrides:
   glob@>=10.2.0 <10.5.0: ">=10.5.0"
   mdast-util-to-hast@>=13.0.0 <13.2.1: ">=13.2.1"
 
-ignoredBuiltDependencies:
-  - esbuild
-
-onlyBuiltDependencies:
-  - electron
-  - electron-winstaller
+allowBuilds:
+  electron-winstaller: true
+  esbuild: true
