@@ -81,6 +81,9 @@ class LazyComponents:
             from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
                 BinanceFetcher,
             )
+            from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+                PolymarketFetcher,
+            )
             from infrastructure.client.financial.enablebanking.enablebanking_client import (
                 EnableBankingClient,
             )
@@ -140,6 +143,12 @@ class LazyComponents:
             )
             from application.use_cases.fetch_external_financial_data import (
                 FetchExternalFinancialDataImpl,
+            )
+            from application.use_cases.get_market_forecast_closed_positions import (
+                GetMarketForecastClosedPositionsImpl,
+            )
+            from application.use_cases.get_market_forecast_pnl import (
+                GetMarketForecastPnlImpl,
             )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
             from application.use_cases.cancel_entity_login import (
@@ -242,6 +251,7 @@ class LazyComponents:
             ethplorer_client = EthplorerClient()
 
             enablebanking_client = EnableBankingClient()
+            polymarket_fetcher = PolymarketFetcher()
             external_entity_fetchers = {
                 ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
                     enablebanking_client
@@ -275,6 +285,7 @@ class LazyComponents:
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.CRESCENTA: CrescentaFetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
 
         public_key_derivation = PublicKeyDerivationAdapter()
@@ -404,6 +415,20 @@ class LazyComponents:
                 d.ext_int_repo,
                 d.last_fetches_repo,
                 d.tx_handler,
+            )
+
+            market_forecast_provider = polymarket_fetcher
+            self.get_market_forecast_pnl = GetMarketForecastPnlImpl(
+                d.entity_account_repo,
+                d.creds_repo,
+                market_forecast_provider,
+            )
+            self.get_market_forecast_closed_positions = (
+                GetMarketForecastClosedPositionsImpl(
+                    d.entity_account_repo,
+                    d.creds_repo,
+                    market_forecast_provider,
+                )
             )
 
         self.derive_crypto = DeriveCryptoAddressesImpl(

@@ -65,6 +65,8 @@ class NetworthTimelineQueries(str, Enum):
         UNION ALL
         SELECT global_position_id, 'DERIVATIVE', currency, market_value, NULL, NULL, NULL, NULL FROM derivative_positions
         UNION ALL
+        SELECT global_position_id, 'MARKET_FORECAST', currency, market_value, NULL, NULL, NULL, NULL FROM market_forecast_positions
+        UNION ALL
         SELECT global_position_id, 'CARD', currency, used, NULL, NULL, NULL, NULL FROM card_positions
         UNION ALL
         SELECT global_position_id, 'LOAN', currency, principal_outstanding, hash, NULL, NULL, NULL FROM loan_positions

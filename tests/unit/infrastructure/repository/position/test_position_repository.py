@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +20,7 @@ from domain.global_position import (
 from infrastructure.repository.position.position_repository import (
     PositionSQLRepository,
 )
+from infrastructure.repository.position.queries import PositionWriteQueries
 
 ENTITY_A = Entity(
     id=uuid.UUID("a0000000-0000-0000-0000-000000000001"),
@@ -67,6 +69,20 @@ def _make_repo(real_return=None, manual_return=None):
     repo._get_real_grouped_by_entity = AsyncMock(return_value=real_return or {})
     repo._get_non_real_grouped_by_entity = AsyncMock(return_value=manual_return or {})
     return repo
+
+
+def test_market_forecast_insert_has_matching_columns_and_values():
+    query = PositionWriteQueries.INSERT_MARKET_FORECAST_POSITION.value
+    columns_match = re.search(
+        r"market_forecast_positions \((.*?)\)\s*VALUES", query, re.S
+    )
+    values_match = re.search(r"VALUES \((.*?)\)", query, re.S)
+
+    assert columns_match is not None
+    assert values_match is not None
+    assert len(columns_match.group(1).split(",")) == len(
+        values_match.group(1).split(",")
+    )
 
 
 # ---------------------------------------------------------------------------

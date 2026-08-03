@@ -56,6 +56,10 @@ from domain.use_cases.unsettle_manual_investment import (
 )
 from domain.use_cases.delete_manual_historic_entry import DeleteManualHistoricEntry
 from domain.use_cases.query_pending_flows import QueryPendingFlows
+from domain.use_cases.get_market_forecast_closed_positions import (
+    GetMarketForecastClosedPositions,
+)
+from domain.use_cases.get_market_forecast_pnl import GetMarketForecastPnl
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
@@ -186,6 +190,10 @@ from infrastructure.controller.routes.instrument_details import instrument_detai
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
 from infrastructure.controller.routes.logout import logout
+from infrastructure.controller.routes.market_forecast_closed_positions import (
+    market_forecast_closed_positions,
+)
+from infrastructure.controller.routes.market_forecast_pnl import market_forecast_pnl
 from infrastructure.controller.routes.oauth_callback import oauth_callback
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
@@ -258,6 +266,8 @@ async def register_routes(
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
     get_periodic_flows_uc: GetPeriodicFlows,
+    get_market_forecast_pnl_uc: GetMarketForecastPnl,
+    get_market_forecast_closed_positions_uc: GetMarketForecastClosedPositions,
     save_pending_flow_uc: SavePendingFlow,
     update_pending_flow_uc: UpdatePendingFlow,
     delete_pending_flow_uc: DeletePendingFlow,
@@ -404,6 +414,16 @@ async def register_routes(
     @app.route("/api/v1/transactions", methods=["GET"])
     async def transactions_route():
         return await transactions(get_transactions_uc)
+
+    @app.route("/api/v1/market-forecast/pnl", methods=["GET"])
+    async def market_forecast_pnl_route():
+        return await market_forecast_pnl(get_market_forecast_pnl_uc)
+
+    @app.route("/api/v1/market-forecast/closed-positions", methods=["GET"])
+    async def market_forecast_closed_positions_route():
+        return await market_forecast_closed_positions(
+            get_market_forecast_closed_positions_uc
+        )
 
     @app.route("/api/v1/exchange-rates", methods=["GET"])
     async def exchange_rates_route():

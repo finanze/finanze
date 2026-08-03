@@ -71,6 +71,10 @@ from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
+from application.use_cases.get_market_forecast_closed_positions import (
+    GetMarketForecastClosedPositionsImpl,
+)
+from application.use_cases.get_market_forecast_pnl import GetMarketForecastPnlImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
@@ -130,6 +134,9 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
 from infrastructure.client.entity.exchange.binance.binance_fetcher import (
     BinanceFetcher,
+)
+from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+    PolymarketFetcher,
 )
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
@@ -297,6 +304,7 @@ class FinanzeServer:
         ethplorer_client = EthplorerClient()
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
+        polymarket_fetcher = PolymarketFetcher()
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -331,6 +339,7 @@ class FinanzeServer:
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.CRESCENTA: CrescentaFetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
 
         external_entity_fetchers = {
@@ -583,6 +592,17 @@ class FinanzeServer:
         )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
+        )
+        market_forecast_provider = polymarket_fetcher
+        get_market_forecast_pnl = GetMarketForecastPnlImpl(
+            entity_account_repository,
+            credentials_port,
+            market_forecast_provider,
+        )
+        get_market_forecast_closed_positions = GetMarketForecastClosedPositionsImpl(
+            entity_account_repository,
+            credentials_port,
+            market_forecast_provider,
         )
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
@@ -914,6 +934,8 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
+            get_market_forecast_pnl,
+            get_market_forecast_closed_positions,
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,

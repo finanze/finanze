@@ -14,6 +14,7 @@ import {
   type RealEstateCFTx,
   type DepositTx,
   type CryptoCurrencyTx,
+  type MarketForecastTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
@@ -574,6 +575,14 @@ function DayDetailModal({
           (cryptoTx.retentions != null && cryptoTx.retentions > 0)
         )
       }
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return !!(
+          marketForecastTx.symbol ||
+          marketForecastTx.size ||
+          Number(marketForecastTx.price || 0) !== 0
+        )
+      }
       default:
         return false
     }
@@ -947,6 +956,46 @@ function DayDetailModal({
                 <Sensitive>
                   {formatCurrency(
                     cryptoTx.retentions,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return (
+          <div className="space-y-1 pt-2">
+            {marketForecastTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {marketForecastTx.symbol}
+              </div>
+            )}
+            {marketForecastTx.size !== undefined &&
+              marketForecastTx.size !== null && (
+                <div className={detailRowClass}>
+                  <span className={detailLabelClass}>
+                    {t.transactions.size}:
+                  </span>{" "}
+                  {marketForecastTx.size.toLocaleString()}
+                </div>
+              )}
+            {Number(marketForecastTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    marketForecastTx.price,
                     locale,
                     settings.general.defaultCurrency,
                     tx.currency,

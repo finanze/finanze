@@ -14,6 +14,7 @@ export type PinnedShortcutId =
   | "factoring"
   | "real-estate-cf"
   | "crypto"
+  | "market-forecast"
   | "commodities"
   | "real-estate"
   | "management-recurring"
@@ -37,6 +38,7 @@ const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "factoring",
   "real-estate-cf",
   "crypto",
+  "market-forecast",
   "commodities",
   "real-estate",
   "management-recurring",
@@ -54,7 +56,6 @@ function loadPinnedShortcuts(): PinnedShortcutId[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
-
       const valid = parsed.filter((id): id is PinnedShortcutId =>
         KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId),
       )

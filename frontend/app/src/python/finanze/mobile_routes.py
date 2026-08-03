@@ -211,6 +211,20 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
                 "fetch_external_financial_data",
                 lz.fetch_external,
             ),
+            (
+                "GET",
+                "/api/v1/market-forecast/pnl",
+                "market_forecast_pnl",
+                "market_forecast_pnl",
+                lz.get_market_forecast_pnl,
+            ),
+            (
+                "GET",
+                "/api/v1/market-forecast/closed-positions",
+                "market_forecast_closed_positions",
+                "market_forecast_closed_positions",
+                lz.get_market_forecast_closed_positions,
+            ),
         ]
 
     routes += [

@@ -15,6 +15,7 @@ import {
   type AccountTx,
   type StockTx,
   type CryptoCurrencyTx,
+  type MarketForecastTx,
   type FundTx,
   type FundPortfolioTx,
   type FactoringTx,
@@ -176,6 +177,7 @@ export default function TransactionsPage() {
       ProductType.FACTORING,
       ProductType.REAL_ESTATE_CF,
       ProductType.CRYPTO,
+      ProductType.MARKET_FORECAST,
     ]
     return supportedTypes.map(type => ({
       value: type,
@@ -824,6 +826,44 @@ export default function TransactionsPage() {
         )
       }
 
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return (
+          <>
+            {commonFields}
+            {marketForecastTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {marketForecastTx.symbol}
+              </div>
+            )}
+            {marketForecastTx.size !== undefined && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.size}:</span>{" "}
+                <Sensitive>{marketForecastTx.size.toLocaleString()}</Sensitive>
+              </div>
+            )}
+            {Number(marketForecastTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    marketForecastTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+          </>
+        )
+      }
+
       case ProductType.FUND: {
         const fundTx = tx as FundTx
         return (
@@ -1164,6 +1204,14 @@ export default function TransactionsPage() {
           cryptoTx.currency_amount ||
           cryptoTx.price ||
           cryptoTx.fees > 0
+        )
+      }
+      case ProductType.MARKET_FORECAST: {
+        const marketForecastTx = tx as MarketForecastTx
+        return !!(
+          marketForecastTx.symbol ||
+          marketForecastTx.size ||
+          Number(marketForecastTx.price || 0) !== 0
         )
       }
       default:

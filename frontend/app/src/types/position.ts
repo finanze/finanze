@@ -22,6 +22,7 @@ export enum ProductType {
   BOND = "BOND",
   CREDIT = "CREDIT",
   DERIVATIVE = "DERIVATIVE",
+  MARKET_FORECAST = "MARKET_FORECAST",
 }
 
 export enum AccountType {
@@ -417,6 +418,30 @@ export interface DerivativePositions {
   entries: DerivativeDetail[]
 }
 
+export interface MarketForecastDetail {
+  id: string
+  size: number
+  entry_price: number
+  currency: string
+  mark_price?: number | null
+  market_value?: number | null
+  unrealized_pnl?: number | null
+  expiry?: string | null
+  name?: string | null
+  initial_investment?: number | null
+  market_key?: string | null
+  event_key?: string | null
+  outcome_key?: string | null
+  market_url?: string | null
+  icon_url?: string | null
+  outcome?: string | null
+  source: DataSource
+}
+
+export interface MarketForecastPositions {
+  entries: MarketForecastDetail[]
+}
+
 export interface CreditDetail {
   id: string
   currency: string
@@ -448,6 +473,7 @@ export type ProductPosition =
   | Commodities
   | Credits
   | DerivativePositions
+  | MarketForecastPositions
 
 export type ProductPositions = Record<ProductType, ProductPosition>
 export type PartialProductPositions = Partial<

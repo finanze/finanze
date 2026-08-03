@@ -736,7 +736,10 @@ export default function BankingPage() {
         )
         if (
           entityMeta &&
-          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+          ![
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
+          ].includes(entityMeta.type)
         ) {
           return []
         }
@@ -906,13 +909,24 @@ export default function BankingPage() {
         if (entityId.startsWith("new-")) {
           return false
         }
-        if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
+        if (
+          ![
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
+          ].includes(entity.type)
+        ) {
           return false
         }
         return ids.has(entityId)
       }) ?? []
     )
-  }, [accountPositions, cardPositions, loanPositions, entities])
+  }, [
+    accountPositions,
+    cardPositions,
+    loanPositions,
+    creditPositions,
+    entities,
+  ])
 
   useEffect(() => {
     if (bankingEntities.length === 0) {
@@ -935,7 +949,13 @@ export default function BankingPage() {
         return
       }
       const entityType = entities?.find(entity => entity.id === entityId)?.type
-      if (entityType && entityType !== EntityType.FINANCIAL_INSTITUTION) {
+      if (
+        entityType &&
+        ![
+          EntityType.FINANCIAL_INSTITUTION,
+          EntityType.CRYPTO_EXCHANGE,
+        ].includes(entityType)
+      ) {
         return
       }
       setSelectedEntities(prev =>

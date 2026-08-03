@@ -42,6 +42,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
     LISTED_ENTITY_TYPES = [
         EntityType.FINANCIAL_INSTITUTION,
         EntityType.CRYPTO_EXCHANGE,
+        EntityType.MARKET_FORECAST_PLATFORM,
         EntityType.CRYPTO_WALLET,
     ]
 
@@ -148,6 +149,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             elif (
                 entity.type == EntityType.FINANCIAL_INSTITUTION
                 or entity.type == EntityType.CRYPTO_EXCHANGE
+                or entity.type == EntityType.MARKET_FORECAST_PLATFORM
             ):
                 status = FinancialEntityStatus.DISCONNECTED
                 products = dict_entity.get("products")

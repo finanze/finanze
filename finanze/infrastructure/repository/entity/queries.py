@@ -45,7 +45,7 @@ class EntityQueries(str, Enum):
         )
         OR (
             e.origin = 'NATIVE'
-            AND e.type IN ('FINANCIAL_INSTITUTION', 'CRYPTO_EXCHANGE')
+            AND e.type IN ('FINANCIAL_INSTITUTION', 'CRYPTO_EXCHANGE', 'MARKET_FORECAST_PLATFORM')
             AND ea.entity_id IS NULL
         )
         OR (
