@@ -166,6 +166,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             account.entity_id,
             EntityType.FINANCIAL_INSTITUTION,
             EntityType.CRYPTO_EXCHANGE,
+            EntityType.MARKET_FORECAST_PLATFORM,
         )
         if not entity:
             raise EntityNotFound(account.entity_id)

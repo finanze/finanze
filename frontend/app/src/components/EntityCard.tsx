@@ -263,6 +263,9 @@ export function EntityCard({
 
   const isFinancialInstitution =
     entity.type === EntityType.FINANCIAL_INSTITUTION
+  const isMarketForecastPlatform =
+    entity.type === EntityType.MARKET_FORECAST_PLATFORM
+  const isFinancialLike = isFinancialInstitution || isMarketForecastPlatform
   const isCryptoExchange = entity.type === EntityType.CRYPTO_EXCHANGE
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
@@ -668,8 +671,8 @@ export function EntityCard({
                 !entityFetching &&
                 !isExternallyProvided && (
                   <div className="flex flex-col gap-2 mt-2 items-center w-full">
-                    {/* Financial institution buttons */}
-                    {isFinancialInstitution && (
+                    {/* Financial-like buttons */}
+                    {isFinancialLike && (
                       <div className="flex gap-2 flex-wrap justify-center w-full">
                         {!missingIntegrations && (
                           <>

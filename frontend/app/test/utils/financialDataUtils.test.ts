@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest"
 
 import {
   calculateCryptoAssetValue,
+  getCurrencyDisplayValue,
   getCryptoRateKey,
+  tryConvertCurrency,
 } from "@/utils/financialDataUtils"
 import {
   CryptoCurrencyType,
@@ -10,6 +12,7 @@ import {
 } from "@/types/position"
 import { DataSource } from "@/types"
 import type { ExchangeRates } from "@/types"
+import { formatCurrency } from "@/lib/formatters"
 
 const makeAsset = (
   overrides: Partial<CryptoCurrencyPosition>,
@@ -51,6 +54,54 @@ describe("getCryptoRateKey", () => {
   it("returns null when no symbol and no address", () => {
     const asset = makeAsset({ type: CryptoCurrencyType.NATIVE, symbol: "" })
     expect(getCryptoRateKey(asset)).toBeNull()
+  })
+})
+
+describe("tryConvertCurrency", () => {
+  it("converts USDC using the direct target-currency rate", () => {
+    const rates: ExchangeRates = { EUR: { USDC: 0.92 } }
+
+    expect(tryConvertCurrency(300, "USDC", "EUR", rates)).toBeCloseTo(
+      326.0869565,
+      6,
+    )
+  })
+
+  it("returns source value unchanged for same currency", () => {
+    expect(tryConvertCurrency(300, "USDC", "USDC", null)).toBe(300)
+  })
+
+  it("returns null when source rate is unavailable", () => {
+    expect(tryConvertCurrency(300, "USDC", "EUR", { EUR: {} })).toBeNull()
+  })
+
+  it("keeps zero valid without an exchange rate", () => {
+    expect(tryConvertCurrency(0, "USDC", "EUR", null)).toBe(0)
+  })
+
+  it("uses target currency when direct conversion exists", () => {
+    expect(
+      getCurrencyDisplayValue(300, "USDC", "EUR", { EUR: { USDC: 0.92 } }),
+    ).toEqual({ value: 300 / 0.92, currency: "EUR" })
+  })
+
+  it("keeps source currency when conversion is unavailable", () => {
+    const displayValue = getCurrencyDisplayValue(300, "USDC", "EUR", {
+      EUR: {},
+    })
+
+    expect(displayValue).toEqual({
+      value: 300,
+      currency: "USDC",
+    })
+    expect(
+      formatCurrency(
+        displayValue?.value ?? 0,
+        "en-US",
+        "EUR",
+        displayValue?.currency,
+      ),
+    ).toContain("USDC")
   })
 })
 

@@ -707,7 +707,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
           } else if (
             entity.type === EntityType.FINANCIAL_INSTITUTION ||
-            entity.type === EntityType.CRYPTO_EXCHANGE
+            entity.type === EntityType.CRYPTO_EXCHANGE ||
+            entity.type === EntityType.MARKET_FORECAST_PLATFORM
           ) {
             const accountId = entityAccountId || entity.accounts?.[0]?.id
             response = await fetchFinancialEntity({

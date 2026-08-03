@@ -6,6 +6,7 @@
     "fetching": "Recupero in corso...",
     "saving": "Salvataggio...",
     "refresh": "Aggiorna",
+    "update": "Aggiorna",
     "export": "Esporta",
     "success": "Successo",
     "error": "Errore",
@@ -67,6 +68,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Crowdfunding Immobiliare",
     "cryptoInvestments": "Crypto",
+    "marketForecast": "Previsione di Mercato",
     "distributionByEntity": "Distribuzione per Entità",
     "distributionByAsset": "Distribuzione per Bene",
     "distribution": "Distribuzione",
@@ -336,6 +338,53 @@
       "sortMaturity": "Scadenza",
       "sortStartDate": "Data di inizio",
       "sortInvested": "Importo"
+    }
+  },
+  "marketForecast": {
+    "untitledMarket": "Mercato senza titolo",
+    "chartPreviewUnavailable": "L'anteprima del grafico non è disponibile per questa previsione di mercato.",
+    "status": {
+      "open": "Aperta",
+      "closed": "Chiusa"
+    },
+    "labels": {
+      "shares": "Quote",
+      "entry": "Entrata",
+      "initialInvestment": "Investimento iniziale",
+      "realizedPnl": "P&L realizzato",
+      "tradingActivity": "Attività di trading",
+      "mark": "Prezzo attuale",
+      "resolves": "Si risolve",
+      "closed": "Chiusa",
+      "value": "Valore",
+      "bought": "Acquistato",
+      "sold": "Venduto",
+      "viewMarket": "Vedi mercato"
+    },
+    "summary": {
+      "openExposure": "Esposizione aperta",
+      "costBasis": "Costo base",
+      "openPositions": "Posizioni aperte",
+      "closedPositions": "posizioni",
+      "realizedPnl": "realizzato",
+      "pnlHistory": "PnL",
+      "unrealizedPnl": "PnL non realizzato",
+      "averageExposure": "Esposizione media"
+    },
+    "empty": {
+      "connectionTitle": "Collega una piattaforma di previsioni di mercato",
+      "connectionDescription": "Le previsioni di mercato usano dati collegati e non possono essere inserite manualmente.",
+      "openTitle": "Nessuna previsione di mercato aperta",
+      "openDescription": "Gli account collegati non hanno previsioni di mercato attive al momento.",
+      "pnlTitle": "Nessuno storico PnL",
+      "pnlDescription": "Lo storico PnL apparirà quando sarà disponibile attività sulle previsioni di mercato."
+    },
+    "sections": {
+      "openTitle": "Aperte",
+      "openDescription": "Mercati attivi con performance mark-to-market attuale.",
+      "closedTitle": "Chiuse",
+      "closedDescription": "Mercati regolati e profitto o perdita realizzati.",
+      "positions": "posizioni"
     }
   },
   "toast": {
@@ -1160,18 +1209,21 @@
     "clear": "Cancella",
     "productTypes": "Prodotti",
     "options": "Opzioni",
+    "area": "Area",
     "stacked": "Impilato",
     "lines": "Linee",
     "showTotal": "Totale",
     "selectAll": "Seleziona tutto",
     "clearAll": "Cancella tutto",
     "ranges": {
+      "1D": "1D",
       "ALL": "Tutto",
       "1Y": "1A",
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1S"
+      "1W": "1S",
+      "YTD": "YTD"
     }
   },
   "export": {
@@ -1564,6 +1616,7 @@
     "page": "Pagina",
     "of": "di",
     "selectEntities": "Seleziona entità...",
+    "selectAccounts": "Seleziona conti...",
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
     "form": {
@@ -1685,7 +1738,8 @@
       "PENDING_FLOWS": "In sospeso",
       "BOND": "Obbligazione",
       "DERIVATIVE": "Derivato",
-      "CREDIT": "Credito"
+      "CREDIT": "Credito",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Azionario",

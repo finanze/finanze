@@ -72,6 +72,11 @@ import {
   ContributionQueryRequest,
   ManualContributionsRequest,
 } from "../types/contributions"
+import type {
+  MarketForecastClosedPositionsResponse,
+  MarketForecastPnlResponse,
+  MarketForecastPnlInterval,
+} from "../types/marketForecast"
 import {
   EntitiesPosition,
   PositionQueryRequest,
@@ -361,6 +366,32 @@ export async function getTransactions(
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
   return (await getApiClient()).get(`/transactions${queryString}`)
+}
+
+export async function getMarketForecastPnl(
+  entityAccountIds?: string[],
+  interval: MarketForecastPnlInterval = "all",
+): Promise<MarketForecastPnlResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  params.append("interval", interval)
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/market-forecast/pnl${queryString}`)
+}
+
+export async function getMarketForecastClosedPositions(
+  entityAccountIds?: string[],
+): Promise<MarketForecastClosedPositionsResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(
+    `/market-forecast/closed-positions${queryString}`,
+  )
 }
 
 export async function getHistoric(

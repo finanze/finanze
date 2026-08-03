@@ -148,7 +148,7 @@ test.describe('Fetch Entity Data - Simple (Urbanitae)', () => {
             .getByRole('heading', { name: 'Summary' })
             .waitFor({ timeout: 10_000 })
 
-        await page.getByRole('button', { name: 'Data' }).click()
+        await page.getByRole('button', { name: 'Update' }).click()
 
         await page
             .locator('button[aria-label="Refresh Urbanitae"]')

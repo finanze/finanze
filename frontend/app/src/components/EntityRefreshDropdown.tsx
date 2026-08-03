@@ -7,14 +7,7 @@ import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Entity, EntityOrigin, EntityStatus, EntityType } from "@/types"
-import {
-  Database,
-  RefreshCw,
-  History,
-  ChevronDown,
-  AlertCircle,
-  X,
-} from "lucide-react"
+import { RefreshCw, History, ChevronDown, AlertCircle, X } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
 import { formatTimeAgoAbbr } from "@/lib/timeUtils"
@@ -30,7 +23,11 @@ import {
 } from "@/services/autoRefreshService"
 import { isAutoRefreshCompatibleEntity } from "@/utils/autoRefreshUtils"
 
-export function EntityRefreshDropdown() {
+export function EntityRefreshDropdown({
+  entityType,
+}: {
+  entityType?: EntityType
+} = {}) {
   const { entities } = useAppContext()
   const {
     scrape,
@@ -56,6 +53,7 @@ export function EntityRefreshDropdown() {
     () =>
       entities?.filter(
         entity =>
+          (!entityType || entity.type === entityType) &&
           entity.status !== EntityStatus.DISCONNECTED &&
           entity.origin !== "MANUAL" &&
           !(
@@ -63,13 +61,14 @@ export function EntityRefreshDropdown() {
             entity.status !== EntityStatus.CONNECTED
           ),
       ) || [],
-    [entities],
+    [entities, entityType],
   )
 
   const financialEntities = connectedEntities.filter(
     entity =>
       entity.type === EntityType.FINANCIAL_INSTITUTION ||
-      entity.type === EntityType.CRYPTO_EXCHANGE,
+      entity.type === EntityType.CRYPTO_EXCHANGE ||
+      entity.type === EntityType.MARKET_FORECAST_PLATFORM,
   )
   // Only include crypto entities that have connected wallets
   const cryptoEntities = connectedEntities.filter(
@@ -81,6 +80,9 @@ export function EntityRefreshDropdown() {
 
   // Check if any crypto entities are being fetched
   const isCryptoFetching = cryptoEntities.some(entity =>
+    fetchingEntityIds.includes(entity.id),
+  )
+  const isFilteredEntityFetching = connectedEntities.some(entity =>
     fetchingEntityIds.includes(entity.id),
   )
 
@@ -268,17 +270,18 @@ export function EntityRefreshDropdown() {
     <div className="relative">
       <Button
         variant="outline"
-        className="flex items-center gap-1 h-9 px-3 text-sm"
+        className="flex h-9 items-center gap-1 px-2 text-sm sm:px-3"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
+        aria-label={t.common.update}
       >
-        {fetchingEntityIds.length > 0 ? (
+        {isFilteredEntityFetching ? (
           <LoadingSpinner size="sm" />
         ) : (
-          <Database className="h-4 w-4" />
+          <RefreshCw className="h-4 w-4" />
         )}
-        {t.dashboard.data}
+        <span className="hidden sm:inline">{t.common.update}</span>
         <ChevronDown className="h-4 w-4" />
       </Button>
 

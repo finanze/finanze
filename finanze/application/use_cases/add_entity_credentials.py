@@ -50,7 +50,10 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
         entity_id = login_request.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
+            entity_id,
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
+            EntityType.MARKET_FORECAST_PLATFORM,
         )
         if not entity:
             raise EntityNotFound(entity_id)

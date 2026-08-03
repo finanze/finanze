@@ -12,6 +12,7 @@ import FactoringInvestmentPage from "./pages/FactoringInvestmentPage"
 import RealEstateCFInvestmentPage from "./pages/RealEstateCFInvestmentPage"
 import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
 import CommoditiesInvestmentPage from "./pages/CommoditiesInvestmentPage"
+import MarketForecastInvestmentPage from "./pages/MarketForecastInvestmentPage"
 import InvestmentsPage from "./pages/InvestmentsPage"
 import BankingPage from "./pages/BankingPage"
 import RealEstatePage from "./pages/RealEstatePage"
@@ -171,6 +172,10 @@ function App() {
               <Route
                 path="/investments/crypto"
                 element={<CryptoInvestmentPage />}
+              />
+              <Route
+                path="/investments/market-forecast"
+                element={<MarketForecastInvestmentPage />}
               />
               <Route
                 path="/investments/commodities"
