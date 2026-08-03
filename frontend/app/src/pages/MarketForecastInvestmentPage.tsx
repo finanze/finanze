@@ -658,8 +658,17 @@ function MarketForecastPositionCard({
 
   return (
     <Card
-      className="overflow-hidden border-l-4 transition-all hover:shadow-sm"
-      style={{ borderLeftColor: getMarketForecastCardBorderColor(pnl, status) }}
+      className={cn(
+        "overflow-hidden border-l-4 transition-all hover:shadow-sm",
+        pnl < 0 && "border-l-red-600 dark:border-l-red-400",
+      )}
+      style={
+        pnl < 0
+          ? undefined
+          : {
+              borderLeftColor: getMarketForecastCardBorderColor(pnl, status),
+            }
+      }
     >
       <CardContent className="p-0">
         <div
