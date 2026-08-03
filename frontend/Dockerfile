@@ -8,7 +8,7 @@ ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@11.20.0
 
 COPY ./app/package.json ./app/pnpm-lock.yaml ./app/pnpm-workspace.yaml ./
 
