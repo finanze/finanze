@@ -129,7 +129,7 @@ test.describe('Multi-Scrape - Simple Entities', () => {
             .getByRole('heading', { name: 'Summary' })
             .waitFor({ timeout: 10_000 })
 
-        await page.getByRole('button', { name: 'Data' }).click()
+        await page.getByRole('button', { name: 'Update' }).click()
         await page
             .locator('button[aria-label="Refresh Urbanitae"]')
             .waitFor({ timeout: 5_000 })
@@ -162,7 +162,7 @@ test.describe('Multi-Scrape - 2FA PIN Queue', () => {
             .getByRole('heading', { name: 'Summary' })
             .waitFor({ timeout: 10_000 })
 
-        await page.getByRole('button', { name: 'Data' }).click()
+        await page.getByRole('button', { name: 'Update' }).click()
         await page
             .locator('button[aria-label="Refresh Wecity"]')
             .waitFor({ timeout: 5_000 })
@@ -223,7 +223,7 @@ test.describe('Multi-Scrape - Mixed Simple and 2FA', () => {
             .getByRole('heading', { name: 'Summary' })
             .waitFor({ timeout: 10_000 })
 
-        await page.getByRole('button', { name: 'Data' }).click()
+        await page.getByRole('button', { name: 'Update' }).click()
         await page
             .locator('button[aria-label="Refresh Urbanitae"]')
             .waitFor({ timeout: 5_000 })
