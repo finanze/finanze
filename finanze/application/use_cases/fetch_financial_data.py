@@ -246,6 +246,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
 
             elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
+                await self._sessions_port.delete(entity_account_id)
                 await self._credentials_port.update_expiration(
                     entity_account_id, datetime.now(tzlocal())
                 )

@@ -105,6 +105,12 @@ class TradeRepublicApi:
             method=method, url=f"{self._host}{url_path}", data=payload
         )
 
+    async def has_websocket_auth(self) -> bool:
+        return any(
+            cookie.name == "tr_session" and cookie.value
+            for cookie in self._websession.cookie_jar
+        )
+
     async def _get_ws(self):
         if self._ws and self._ws.close_code is None:
             return self._ws
@@ -640,3 +646,4 @@ class TradeRepublicError(ValueError):
         self.subscription_id = subscription_id
         self.subscription = subscription
         self.error = error_message
+        super().__init__(subscription_id, subscription, error_message)

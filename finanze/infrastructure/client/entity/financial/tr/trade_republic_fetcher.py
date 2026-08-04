@@ -209,6 +209,9 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         name = details.get("name") or position.get("instrumentName")
         kid_url = details.get("kidLink")
 
+        raw_issuer = details.get("issuer")
+        issuer = resolve_issuer(raw_issuer, name)
+
         return FundDetail(
             id=uuid4(),
             name=name,
@@ -222,6 +225,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             type=FundType.PRIVATE_EQUITY,
             asset_type=AssetType.OTHER,
             currency=currency,
+            issuer=issuer,
         )
 
     async def _instrument_mapper(

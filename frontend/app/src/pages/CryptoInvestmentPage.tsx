@@ -1593,7 +1593,9 @@ function CryptoInvestmentContent({
                       entityGroup.entity.origin === "MANUAL"
                         ? "object-cover"
                         : "object-contain"
-                    }`}
+                    } pointer-events-none select-none`}
+                    draggable={false}
+                    style={{ WebkitUserSelect: "none" }}
                     onError={event => {
                       event.currentTarget.style.display = "none"
                     }}
@@ -1895,7 +1897,9 @@ function CryptoInvestmentContent({
                                           <img
                                             src={assetView.iconUrl}
                                             alt={assetView.displayName}
-                                            className="h-full w-full object-contain"
+                                            className="h-full w-full object-contain pointer-events-none select-none"
+                                            draggable={false}
+                                            style={{ WebkitUserSelect: "none" }}
                                             onError={event => {
                                               event.currentTarget.classList.add(
                                                 "hidden",
@@ -2062,7 +2066,9 @@ function CryptoInvestmentContent({
                                           <img
                                             src={assetView.iconUrl}
                                             alt={assetView.displayName}
-                                            className="h-full w-full object-contain"
+                                            className="h-full w-full object-contain pointer-events-none select-none"
+                                            draggable={false}
+                                            style={{ WebkitUserSelect: "none" }}
                                             onError={event => {
                                               event.currentTarget.classList.add(
                                                 "hidden",
@@ -2203,7 +2209,9 @@ function CryptoInvestmentContent({
                                 <img
                                   src={assetView.iconUrl}
                                   alt={assetView.displayName}
-                                  className="h-full w-full object-contain"
+                                  className="h-full w-full object-contain pointer-events-none select-none"
+                                  draggable={false}
+                                  style={{ WebkitUserSelect: "none" }}
                                   onError={event => {
                                     event.currentTarget.classList.add("hidden")
                                     const fallback =
@@ -2522,7 +2530,9 @@ function CryptoInvestmentContent({
                       networkGroup.entity.origin === "MANUAL"
                         ? "object-cover"
                         : "object-contain"
-                    }`}
+                    } pointer-events-none select-none`}
+                    draggable={false}
+                    style={{ WebkitUserSelect: "none" }}
                     onError={event => {
                       event.currentTarget.style.display = "none"
                     }}
@@ -2600,7 +2610,9 @@ function CryptoInvestmentContent({
                                 <img
                                   src={assetSummary.iconUrl}
                                   alt={assetSummary.displayName}
-                                  className="h-full w-full object-contain"
+                                  className="h-full w-full object-contain pointer-events-none select-none"
+                                  draggable={false}
+                                  style={{ WebkitUserSelect: "none" }}
                                   onError={event => {
                                     event.currentTarget.classList.add("hidden")
                                     const fallback =

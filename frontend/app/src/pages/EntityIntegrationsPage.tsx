@@ -388,7 +388,7 @@ export default function EntityIntegrationsPage() {
   return (
     <>
       <motion.div
-        className="space-y-6"
+        className="space-y-6 select-none"
         variants={fadeListContainer}
         initial="hidden"
         animate="show"

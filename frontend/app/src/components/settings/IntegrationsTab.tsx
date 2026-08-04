@@ -774,7 +774,9 @@ export function IntegrationsTab() {
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain flex-shrink-0"
+                  className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
+                  draggable={false}
+                  style={{ WebkitUserSelect: "none" }}
                 />
                 <div className="min-w-0">
                   <CardTitle className="text-lg break-words">{title}</CardTitle>
