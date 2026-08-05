@@ -7,7 +7,7 @@ from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from domain.entity_account import EntityAccount
 from domain.entity_login import EntityDisconnectRequest
 from domain.exception.exceptions import EntityNotFound
-from domain.native_entities import BINANCE, MY_INVESTOR
+from domain.native_entities import BINANCE, MY_INVESTOR, POLYMARKET
 
 
 class TestDisconnectEntityExecute:
@@ -55,6 +55,23 @@ class TestDisconnectEntityExecute:
         )
         entity_account_id = uuid4()
         entity_account = self._make_entity_account(BINANCE.id, entity_account_id)
+        entity_account_port.get_by_id.return_value = entity_account
+
+        await use_case.execute(
+            EntityDisconnectRequest(entity_account_id=entity_account_id)
+        )
+
+        credentials_port.delete.assert_called_once_with(entity_account_id)
+        sessions_port.delete.assert_called_once_with(entity_account_id)
+        entity_account_port.soft_delete.assert_called_once_with(entity_account_id)
+
+    @pytest.mark.asyncio
+    async def test_market_forecast_platform_deletes_by_entity_account_id(self):
+        use_case, credentials_port, sessions_port, entity_account_port, _, _, _ = (
+            self._build_use_case()
+        )
+        entity_account_id = uuid4()
+        entity_account = self._make_entity_account(POLYMARKET.id, entity_account_id)
         entity_account_port.get_by_id.return_value = entity_account
 
         await use_case.execute(

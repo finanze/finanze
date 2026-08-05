@@ -9,7 +9,7 @@ from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from domain import native_entities
-from domain.entity import EntityType
+from domain.entity import EntityType, is_account_scoped_entity
 from domain.entity_login import EntityDisconnectRequest
 from domain.exception.exceptions import EntityNotFound
 from domain.use_cases.disconnect_entity import DisconnectEntity
@@ -55,10 +55,10 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         if not entity:
             raise EntityNotFound(entity_id)
 
-        is_account_scoped = entity.type == EntityType.CRYPTO_EXCHANGE
+        is_account_scoped = is_account_scoped_entity(entity)
 
         if is_account_scoped:
-            # Disconnect single crypto exchange account
+            # Disconnect single account-scoped entity account
             await self._credentials_port.delete(entity_account_id)
             await self._sessions_port.delete(entity_account_id)
             await self._entity_account_port.soft_delete(entity_account_id)

@@ -131,6 +131,7 @@ function getPolymarketAccountLabel(args: {
   accountName?: string | null
   profile?: Record<string, unknown> | null
   walletAddress?: string | null
+  fallback?: string
 }): string {
   const customName = args.customName?.trim()
   if (customName) return customName
@@ -141,7 +142,7 @@ function getPolymarketAccountLabel(args: {
   const profileName = getProfileDisplayName(args.profile)
   if (profileName) return profileName
 
-  return abbreviateAddress(args.walletAddress) || "Polymarket"
+  return abbreviateAddress(args.walletAddress) || args.fallback || ""
 }
 
 function getPositionValue(
@@ -270,10 +271,12 @@ function MarketForecastDateBadge({
   value,
   locale,
   className,
+  label,
 }: {
   value: string
   locale: string
   className?: string
+  label?: string
 }) {
   return (
     <span
@@ -283,6 +286,7 @@ function MarketForecastDateBadge({
       )}
     >
       <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
+      {label && <span>{label}</span>}
       <span className="font-semibold text-foreground">
         {formatDate(value, locale)}
       </span>
@@ -569,6 +573,8 @@ interface MarketForecastPositionCardProps {
   defaultCurrency: string
   exchangeRates: ExchangeRates | null | undefined
   entityName?: string
+  accountLabel?: string
+  onAccountClick?: () => void
   isExpanded: boolean
   onToggleDetails: () => void
   isDarkMode: boolean
@@ -581,6 +587,8 @@ function MarketForecastPositionCard({
   defaultCurrency,
   exchangeRates,
   entityName,
+  accountLabel,
+  onAccountClick,
   isExpanded,
   onToggleDetails,
   isDarkMode,
@@ -617,7 +625,8 @@ function MarketForecastPositionCard({
   const markPrice =
     toFiniteNumber(position.cur_price) ?? toFiniteNumber(position.price)
   const resolvedAt = position.end_date || position.updated_at || null
-  const closedAt = position.closed_at || position.updated_at || null
+  const closedAt =
+    position.closed_at || position.end_date || position.updated_at || null
   const positionValue =
     status === "closed" && initialInvestment != null
       ? initialInvestment + pnl
@@ -693,7 +702,7 @@ function MarketForecastPositionCard({
                 <img
                   src={iconUrl}
                   alt=""
-                  className="h-12 w-12 shrink-0 self-center rounded-xl border bg-muted object-cover"
+                  className="h-12 w-12 shrink-0 self-center rounded-xl bg-transparent object-cover"
                   onError={() => setIconLoadFailed(true)}
                 />
               ) : (
@@ -721,7 +730,7 @@ function MarketForecastPositionCard({
                       {position.outcome}
                     </Badge>
                   )}
-                  {entityName && (
+                  {(!accountLabel || !onAccountClick) && entityName && (
                     <EntityBadge
                       name={entityName}
                       className="text-xs"
@@ -730,18 +739,42 @@ function MarketForecastPositionCard({
                       data-no-expand
                     />
                   )}
+                  {accountLabel && onAccountClick && (
+                    <EntityBadge
+                      name={accountLabel}
+                      className="text-xs"
+                      title={accountLabel}
+                      showVirtualTag={false}
+                      onClick={onAccountClick}
+                      onKeyDown={event => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          onAccountClick()
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      data-no-expand
+                    />
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-muted-foreground">
-                  {(formattedShares || formattedMarkPrice) && (
-                    <span className="inline-flex items-center gap-1">
-                      {formattedShares && (
-                        <Sensitive>{formattedShares}</Sensitive>
-                      )}
-                      {formattedShares && formattedMarkPrice && <span>×</span>}
-                      {formattedMarkPrice && <span>{formattedMarkPrice}</span>}
-                    </span>
-                  )}
+                  {status === "open" &&
+                    (formattedShares || formattedMarkPrice) && (
+                      <span className="inline-flex items-center gap-1">
+                        {formattedShares && (
+                          <Sensitive>{formattedShares}</Sensitive>
+                        )}
+                        {formattedShares && formattedMarkPrice && (
+                          <span>×</span>
+                        )}
+                        {formattedMarkPrice && (
+                          <span>{formattedMarkPrice}</span>
+                        )}
+                      </span>
+                    )}
                   {status === "open" && resolvedAt && (
                     <MarketForecastDateBadge
                       value={resolvedAt}
@@ -750,10 +783,12 @@ function MarketForecastPositionCard({
                     />
                   )}
                   {status === "closed" && closedAt && (
-                    <span className="hidden sm:inline">
-                      {t.marketForecast.labels.closed}{" "}
-                      {formatDate(closedAt, locale)}
-                    </span>
+                    <MarketForecastDateBadge
+                      value={closedAt}
+                      locale={locale}
+                      label={t.marketForecast.labels.closed}
+                      className="ml-2"
+                    />
                   )}
                 </div>
               </div>
@@ -942,17 +977,19 @@ function MarketForecastInvestmentContent() {
   }, [polymarketEntities])
 
   const showEntityFilter = polymarketEntities.length > 1
-  const showAccountFilter = accountToEntityMap.size > 1
-
-  const accountEntityNames = useMemo(() => {
-    const map = new Map<string, string>()
-    polymarketEntities.forEach(entity => {
-      ;(entity.accounts ?? []).forEach(account => {
-        map.set(account.id, entity.name)
-      })
-    })
-    return map
-  }, [polymarketEntities])
+  const connectedAccountCount = useMemo(
+    () =>
+      polymarketEntities.reduce(
+        (count, entity) =>
+          count +
+          (entity.accounts ?? []).filter(
+            account => account.status === EntityStatus.CONNECTED,
+          ).length,
+        0,
+      ),
+    [polymarketEntities],
+  )
+  const showAccountFilter = connectedAccountCount > 1
 
   const allMarketForecastAccounts = useMemo(() => {
     const map = new Map<string, MarketForecastAccountSummary>()
@@ -978,12 +1015,34 @@ function MarketForecastInvestmentContent() {
     return map
   }, [allMarketForecastAccounts])
 
+  const accountLabels = useMemo(() => {
+    const map = new Map<string, string>()
+    polymarketEntities.forEach(entity => {
+      ;(entity.accounts ?? []).forEach(account => {
+        if (account.status !== EntityStatus.CONNECTED) return
+        const accountData = marketForecastAccountMap.get(account.id)
+        map.set(
+          account.id,
+          getPolymarketAccountLabel({
+            customName: account.name,
+            accountName: accountData?.account_name,
+            profile: accountData?.profile,
+            walletAddress: accountData?.wallet_address,
+            fallback: entity.name,
+          }),
+        )
+      })
+    })
+    return map
+  }, [marketForecastAccountMap, polymarketEntities])
+
   const accountOptions = useMemo<MultiSelectOption[]>(() => {
     const seen = new Set<string>()
     const options: MultiSelectOption[] = []
 
     polymarketEntities.forEach(entity => {
       ;(entity.accounts ?? []).forEach(account => {
+        if (account.status !== EntityStatus.CONNECTED) return
         if (!account.id || seen.has(account.id)) return
         if (
           selectedEntities.length > 0 &&
@@ -993,12 +1052,15 @@ function MarketForecastInvestmentContent() {
         }
 
         const accountData = marketForecastAccountMap.get(account.id)
-        const label = getPolymarketAccountLabel({
-          customName: account.name,
-          accountName: accountData?.account_name,
-          profile: accountData?.profile,
-          walletAddress: accountData?.wallet_address,
-        })
+        const label =
+          accountLabels.get(account.id) ||
+          getPolymarketAccountLabel({
+            customName: account.name,
+            accountName: accountData?.account_name,
+            profile: accountData?.profile,
+            walletAddress: accountData?.wallet_address,
+            fallback: entity.name,
+          })
 
         seen.add(account.id)
         options.push({
@@ -1009,7 +1071,17 @@ function MarketForecastInvestmentContent() {
     })
 
     return options.sort((a, b) => a.label.localeCompare(b.label, locale))
-  }, [marketForecastAccountMap, polymarketEntities, selectedEntities, locale])
+  }, [
+    accountLabels,
+    marketForecastAccountMap,
+    polymarketEntities,
+    selectedEntities,
+    locale,
+  ])
+
+  const handleAccountFilter = (accountId: string) => {
+    setSelectedAccounts([accountId])
+  }
 
   useEffect(() => {
     if (accountOptions.length === 0) {
@@ -1072,7 +1144,9 @@ function MarketForecastInvestmentContent() {
       setError(null)
 
       const accountIds = polymarketEntities.flatMap(entity =>
-        (entity.accounts ?? []).map(account => account.id),
+        (entity.accounts ?? [])
+          .filter(account => account.status === EntityStatus.CONNECTED)
+          .map(account => account.id),
       )
 
       try {
@@ -1118,7 +1192,9 @@ function MarketForecastInvestmentContent() {
       setError(null)
       try {
         const accountIds = polymarketEntities.flatMap(entity =>
-          (entity.accounts ?? []).map(account => account.id),
+          (entity.accounts ?? [])
+            .filter(account => account.status === EntityStatus.CONNECTED)
+            .map(account => account.id),
         )
         const response = await getMarketForecastClosedPositions(accountIds)
         if (!cancelled) {
@@ -1575,7 +1651,21 @@ function MarketForecastInvestmentContent() {
                 exchangeRates={exchangeRates}
                 entityName={
                   position.entity_account_id
-                    ? accountEntityNames.get(position.entity_account_id)
+                    ? polymarketEntities.find(
+                        entity =>
+                          entity.id ===
+                          accountToEntityMap.get(position.entity_account_id!),
+                      )?.name
+                    : undefined
+                }
+                accountLabel={
+                  showAccountFilter && position.entity_account_id
+                    ? accountLabels.get(position.entity_account_id)
+                    : undefined
+                }
+                onAccountClick={
+                  position.entity_account_id
+                    ? () => handleAccountFilter(position.entity_account_id!)
                     : undefined
                 }
                 isExpanded={expandedPositionKey === positionKey}
@@ -1678,7 +1768,23 @@ function MarketForecastInvestmentContent() {
                     exchangeRates={exchangeRates}
                     entityName={
                       position.entity_account_id
-                        ? accountEntityNames.get(position.entity_account_id)
+                        ? polymarketEntities.find(
+                            entity =>
+                              entity.id ===
+                              accountToEntityMap.get(
+                                position.entity_account_id!,
+                              ),
+                          )?.name
+                        : undefined
+                    }
+                    accountLabel={
+                      showAccountFilter && position.entity_account_id
+                        ? accountLabels.get(position.entity_account_id)
+                        : undefined
+                    }
+                    onAccountClick={
+                      position.entity_account_id
+                        ? () => handleAccountFilter(position.entity_account_id!)
                         : undefined
                     }
                     isExpanded={expandedPositionKey === positionKey}

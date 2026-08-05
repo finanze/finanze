@@ -176,7 +176,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         if features and not all(f in entity.features for f in features):
             return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
 
-        lock = self._get_lock(account.entity_id)
+        lock = self._get_lock(entity_account_id)
 
         if lock.locked():
             raise ExecutionConflict()

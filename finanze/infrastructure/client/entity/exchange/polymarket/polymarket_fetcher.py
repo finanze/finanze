@@ -1,4 +1,6 @@
 from collections import OrderedDict
+from contextvars import ContextVar
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -34,34 +36,62 @@ POLYMARKET_CURRENCY = "USDC"
 class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
     def __init__(self):
         self._client = PolymarketClient()
+        self._task_client: ContextVar[PolymarketClient | None] = ContextVar(
+            "polymarket_client", default=None
+        )
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
-        return await self._client.setup(login_params)
+        self._task_client.set(None)
+        client = PolymarketClient()
+        result = await client.setup(login_params)
+        if result.code == LoginResultCode.CREATED:
+            self._task_client.set(client)
+        return result
+
+    def _get_client(self) -> PolymarketClient:
+        return self._task_client.get() or self._client
+
+    async def _get_logged_in_client(
+        self, login_params: EntityLoginParams
+    ) -> PolymarketClient | None:
+        result = await self.login(login_params)
+        if result.code != LoginResultCode.CREATED:
+            return None
+        return self._get_client()
 
     async def get_closed_positions(
         self, login_params: EntityLoginParams
     ) -> MarketForecastClosedPositionsAccountData | None:
-        client = PolymarketClient()
-        result = await client.setup(login_params)
-        if result.code != LoginResultCode.CREATED:
+        client = await self._get_logged_in_client(login_params)
+        if client is None:
             return None
+
+        closed_positions = await client.get_closed_positions()
+        closed_position_keys = {
+            self._position_key(position) for position in closed_positions
+        }
+        redeemable_positions = [
+            self._map_redeemable_position(position)
+            for position in await client.get_positions()
+            if position.get("redeemable") is True
+            and self._position_key(position) not in closed_position_keys
+        ]
 
         return MarketForecastClosedPositionsAccountData(
             wallet_address=client.wallet_address,
             currency=POLYMARKET_CURRENCY,
             profile=client.profile,
             closed_positions=[
-                self._map_closed_position(position)
-                for position in await client.get_closed_positions()
-            ],
+                self._map_closed_position(position) for position in closed_positions
+            ]
+            + redeemable_positions,
         )
 
     async def get_pnl_history(
         self, login_params: EntityLoginParams, interval: str = "all"
     ) -> MarketForecastPnlAccountData | None:
-        client = PolymarketClient()
-        result = await client.setup(login_params)
-        if result.code != LoginResultCode.CREATED:
+        client = await self._get_logged_in_client(login_params)
+        if client is None:
             return None
 
         return MarketForecastPnlAccountData(
@@ -79,17 +109,18 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
         )
 
     async def global_position(self) -> GlobalPosition:
-        positions = await self._client.get_positions()
+        client = self._get_client()
+        positions = await client.get_positions()
         (
             available_balance,
             available_balance_currency,
-        ) = await self._client.get_available_balance()
+        ) = await client.get_available_balance()
         market_forecast_entries: list[MarketForecastDetail] = []
         account_entries: list[Account] = []
 
         for position in positions:
             size = Dezimal(position.get("size", 0))
-            if size == 0:
+            if size <= 0 or position.get("redeemable") is True:
                 continue
 
             avg_price = Dezimal(position.get("avgPrice", 0))
@@ -149,26 +180,29 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        trades = await self._client.get_trades()
-        activity = await self._client.get_activity()
+        client = self._get_client()
+        trades = await client.get_trades()
+        activity = await client.get_activity()
 
         txs_by_ref: OrderedDict[str, MarketForecastTx] = OrderedDict()
 
         for raw_trade in trades:
-            tx = self._map_trade(raw_trade)
+            tx = self._map_trade(raw_trade, client)
             if tx.ref in registered_txs:
                 continue
             txs_by_ref.setdefault(tx.ref, tx)
 
         for raw_activity in activity:
-            tx = self._map_trade(raw_activity)
+            tx = self._map_trade(raw_activity, client)
             if tx.ref in registered_txs:
                 continue
             txs_by_ref.setdefault(tx.ref, tx)
 
         return Transactions(investment=list(txs_by_ref.values()))
 
-    def _map_trade(self, raw_trade: dict) -> MarketForecastTx:
+    def _map_trade(
+        self, raw_trade: dict, client: PolymarketClient | None = None
+    ) -> MarketForecastTx:
         tx_type = (
             TxType.BUY
             if str(raw_trade.get("side", "BUY")).upper() == "BUY"
@@ -177,7 +211,9 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
         size = Dezimal(raw_trade.get("size", 0))
         price = Dezimal(raw_trade.get("price", 0))
         amount = Dezimal(raw_trade.get("usdcSize") or (size * price))
-        timestamp = self._client.parse_timestamp(raw_trade.get("timestamp"))
+        timestamp = (client or self._get_client()).parse_timestamp(
+            raw_trade.get("timestamp")
+        )
         condition_id = raw_trade.get("conditionId")
         ref = str(
             raw_trade.get("transactionHash")
@@ -274,7 +310,8 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
             end_date=position.get("endDate"),
             created_at=position.get("createdAt"),
             updated_at=position.get("updatedAt"),
-            closed_at=position.get("closedAt"),
+            closed_at=position.get("closedAt")
+            or PolymarketFetcher._parse_datetime(position.get("timestamp")),
             realized_pnl=(
                 Dezimal(position["realizedPnl"])
                 if position.get("realizedPnl") is not None
@@ -293,10 +330,38 @@ class PolymarketFetcher(FinancialEntityFetcher, MarketForecastProvider):
         )
 
     @staticmethod
+    def _map_redeemable_position(position: dict) -> MarketForecastClosedPosition:
+        resolved_position = dict(position)
+        if resolved_position.get("cashPnl") is not None:
+            resolved_position["realizedPnl"] = resolved_position["cashPnl"]
+        return PolymarketFetcher._map_closed_position(resolved_position)
+
+    @staticmethod
+    def _position_key(position: dict) -> tuple[str, str]:
+        return (
+            str(position.get("conditionId") or position.get("slug") or ""),
+            str(position.get("asset") or position.get("outcome") or ""),
+        )
+
+    @staticmethod
     def _parse_date(value: str | None):
         if not value:
             return None
         return PolymarketClient.parse_timestamp(value).date()
+
+    @staticmethod
+    def _parse_datetime(value: str | int | float | None):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromtimestamp(float(text), tz=timezone.utc).isoformat()
+        except ValueError:
+            return text
 
     @staticmethod
     def _build_market_url(entry: dict) -> str | None:
