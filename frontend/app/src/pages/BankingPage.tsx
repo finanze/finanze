@@ -142,11 +142,11 @@ interface CreditsSummary {
   count: number
 }
 
-const BANKING_ACCOUNT_ENTITY_TYPES = [
+const BANKING_ACCOUNT_ENTITY_TYPES: EntityType[] = [
   EntityType.FINANCIAL_INSTITUTION,
   EntityType.CRYPTO_EXCHANGE,
   EntityType.MARKET_FORECAST_PLATFORM,
-] as const
+]
 
 const formatIban = (iban?: string | null, reveal?: boolean) => {
   if (!iban) return null
