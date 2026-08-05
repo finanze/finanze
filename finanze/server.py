@@ -644,7 +644,9 @@ class FinanzeServer:
             crypto_wallet_repository
         )
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
-            crypto_wallet_repository
+            crypto_wallet_repository,
+            position_repository,
+            transaction_handler,
         )
         get_crypto_wallet_addresses = GetCryptoWalletAddressesImpl(
             crypto_wallet_repository
