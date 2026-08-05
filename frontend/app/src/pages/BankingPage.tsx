@@ -142,6 +142,12 @@ interface CreditsSummary {
   count: number
 }
 
+const BANKING_ACCOUNT_ENTITY_TYPES = [
+  EntityType.FINANCIAL_INSTITUTION,
+  EntityType.CRYPTO_EXCHANGE,
+  EntityType.MARKET_FORECAST_PLATFORM,
+] as const
+
 const formatIban = (iban?: string | null, reveal?: boolean) => {
   if (!iban) return null
   if (reveal) {
@@ -736,10 +742,7 @@ export default function BankingPage() {
         )
         if (
           entityMeta &&
-          ![
-            EntityType.FINANCIAL_INSTITUTION,
-            EntityType.CRYPTO_EXCHANGE,
-          ].includes(entityMeta.type)
+          !BANKING_ACCOUNT_ENTITY_TYPES.includes(entityMeta.type)
         ) {
           return []
         }
@@ -909,12 +912,7 @@ export default function BankingPage() {
         if (entityId.startsWith("new-")) {
           return false
         }
-        if (
-          ![
-            EntityType.FINANCIAL_INSTITUTION,
-            EntityType.CRYPTO_EXCHANGE,
-          ].includes(entity.type)
-        ) {
+        if (!BANKING_ACCOUNT_ENTITY_TYPES.includes(entity.type)) {
           return false
         }
         return ids.has(entityId)
@@ -949,13 +947,7 @@ export default function BankingPage() {
         return
       }
       const entityType = entities?.find(entity => entity.id === entityId)?.type
-      if (
-        entityType &&
-        ![
-          EntityType.FINANCIAL_INSTITUTION,
-          EntityType.CRYPTO_EXCHANGE,
-        ].includes(entityType)
-      ) {
+      if (entityType && !BANKING_ACCOUNT_ENTITY_TYPES.includes(entityType)) {
         return
       }
       setSelectedEntities(prev =>
