@@ -41,6 +41,7 @@ import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
 import { getExternalLoginAPI } from "@/lib/externalLogin"
 import { getChallengeWindowAPI } from "@/lib/challengeWindow"
+import { getConnectedAccountIds } from "@/utils/entityUtils"
 
 export interface FetchOptions {
   deep?: boolean
@@ -148,6 +149,39 @@ const formatEntityError = (
   fallback: string,
 ): string => (message || fallback).replace("{entity}", entityName)
 
+const getDefaultAccountName = (
+  entity: Entity,
+  credentials: Record<string, string>,
+  accountName?: string,
+): string | undefined => {
+  const explicitName = accountName?.trim()
+  if (explicitName) return explicitName
+
+  for (const [credentialName, credentialType] of Object.entries(
+    entity.credentials_template ?? {},
+  )) {
+    if (
+      credentialType !== CredentialType.USER &&
+      credentialType !== CredentialType.EMAIL
+    ) {
+      continue
+    }
+    const credentialValue = credentials[credentialName]?.trim()
+    if (credentialValue) return credentialValue
+  }
+
+  return undefined
+}
+
+const getNewAccountName = (
+  entity: Entity,
+  accountId: string,
+  accountName?: string,
+): string | undefined =>
+  entity.accounts?.some(account => account.id === accountId)
+    ? undefined
+    : accountName
+
 export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
@@ -183,6 +217,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     string,
     string
   > | null>(null)
+  const pendingAccountNameRef = useRef<string | undefined>(undefined)
   const [view, setView] = useState<
     "entities" | "login" | "features" | "external-login"
   >("entities")
@@ -266,6 +301,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
     setCurrentAction(null)
     setStoredCredentials(null)
+    pendingAccountNameRef.current = undefined
     setPinError(false)
     scrapeManualLogin.current = {
       active: false,
@@ -440,6 +476,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setIsLoggingIn(true)
         setPinError(false)
+        if (pin === undefined) {
+          pendingAccountNameRef.current = getDefaultAccountName(
+            selectedEntity,
+            credentials,
+            accountName,
+          )
+        }
 
         if (!storedCredentials) {
           setStoredCredentials(credentials)
@@ -455,7 +498,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           credentials: credentials,
           code: pin,
           processId: processId || undefined,
-          accountName,
+          accountName: pendingAccountNameRef.current,
         })
 
         if (response.code === "CODE_REQUESTED") {
@@ -469,6 +512,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 entity: selectedEntity.id,
                 credentials: credentials,
                 processId: response.processId || undefined,
+                accountName: pendingAccountNameRef.current,
               })
               if (
                 confirmResponse.code === "CREATED" ||
@@ -479,6 +523,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   updateEntityAccount(
                     selectedEntity.id,
                     confirmResponse.entityAccountId,
+                    getNewAccountName(
+                      selectedEntity,
+                      confirmResponse.entityAccountId,
+                      pendingAccountNameRef.current,
+                    ),
                   )
                 }
                 showToast(
@@ -549,7 +598,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
           if (response.entityAccountId) {
-            updateEntityAccount(selectedEntity.id, response.entityAccountId)
+            updateEntityAccount(
+              selectedEntity.id,
+              response.entityAccountId,
+              getNewAccountName(
+                selectedEntity,
+                response.entityAccountId,
+                pendingAccountNameRef.current,
+              ),
+            )
           }
 
           if (scrapeManualLogin.current.active) {
@@ -648,6 +705,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       showToast,
       storedCredentials,
       t,
+      updateEntityAccount,
       updateEntityStatus,
     ],
   )
@@ -673,6 +731,31 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
       try {
         setPinError(false)
+
+        if (entity && !entityAccountId) {
+          const accountIds = getConnectedAccountIds(entity)
+          if (accountIds.length > 0) {
+            for (const [index, accountId] of accountIds.entries()) {
+              await scrapeRef.current(
+                entity,
+                features,
+                {
+                  ...options,
+                  silent: index < accountIds.length - 1 || silent,
+                },
+                accountId,
+                externalCredentials,
+              )
+              if (
+                pendingScrapeParamsRef.current.has(entity.id) ||
+                scrapeManualLogin.current.active
+              ) {
+                return
+              }
+            }
+            return
+          }
+        }
 
         if (entity) {
           setFetchingEntityState(prev => ({
@@ -710,7 +793,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             entity.type === EntityType.CRYPTO_EXCHANGE ||
             entity.type === EntityType.MARKET_FORECAST_PLATFORM
           ) {
-            const accountId = entityAccountId || entity.accounts?.[0]?.id
+            const accountId =
+              entityAccountId ||
+              entity.accounts?.find(
+                account => account.status === EntityStatus.CONNECTED,
+              )?.id
             response = await fetchFinancialEntity({
               entity: entity.id,
               features: features,
@@ -754,6 +841,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             const challengeDomainValue =
               response.details?.challengeDomain || null
             if (processIdValue && entity) {
+              pendingScrapeParamsRef.current.set(entity.id, {
+                entity,
+                features,
+                options: {
+                  deep: options.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                },
+                processId: processIdValue,
+                pinLength: entity.pin?.positions || 4,
+                currentAction: "scrape",
+                entityAccountId,
+              })
               const opened =
                 challengeDomainValue &&
                 openChallengeWindow(processIdValue, challengeDomainValue)
@@ -784,7 +883,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setSelectedEntity(entity)
               setInAppConfirmation(true)
               try {
-                const accountId = entityAccountId || entity.accounts?.[0]?.id
+                const accountId =
+                  entityAccountId ||
+                  entity.accounts?.find(
+                    account => account.status === EntityStatus.CONNECTED,
+                  )?.id
                 const confirmResponse = await fetchFinancialEntity({
                   entity: entity.id,
                   features: features,
@@ -1181,12 +1284,21 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           entity: selectedEntity.id,
           credentials: storedCredentials,
           token: token,
+          accountName: pendingAccountNameRef.current,
         })
           .then(response => {
             if (response.code === "CREATED" || response.code === "RESUMED") {
               updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
               if (response.entityAccountId) {
-                updateEntityAccount(selectedEntity.id, response.entityAccountId)
+                updateEntityAccount(
+                  selectedEntity.id,
+                  response.entityAccountId,
+                  getNewAccountName(
+                    selectedEntity,
+                    response.entityAccountId,
+                    pendingAccountNameRef.current,
+                  ),
+                )
               }
               showToast(
                 t.common.loginSuccessEntity.replace(
@@ -1236,10 +1348,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             setIsLoggingIn(false)
           })
       } else {
-        scrape(selectedEntity, selectedFeatures, {
-          ...fetchOptions,
-          token: token,
-        })
+        const pendingParams = pendingScrapeParamsRef.current.get(
+          selectedEntity.id,
+        )
+        scrape(
+          selectedEntity,
+          selectedFeatures,
+          {
+            ...fetchOptions,
+            token: token,
+          },
+          pendingParams?.entityAccountId,
+        )
       }
     },
     [
@@ -1254,6 +1374,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       setView,
       showToast,
       t,
+      updateEntityAccount,
       updateEntityStatus,
     ],
   )
@@ -1267,9 +1388,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setIsLoggingIn(true)
 
+        const accountName = scrapeManualLogin.current.entityAccountId
+          ? undefined
+          : getDefaultAccountName(selectedEntity, credentials)
+
         const loginResponse = await loginEntity({
           entity: selectedEntity.id,
           credentials,
+          accountName,
         })
 
         if (
@@ -1280,6 +1406,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             updateEntityAccount(
               selectedEntity.id,
               loginResponse.entityAccountId,
+              getNewAccountName(
+                selectedEntity,
+                loginResponse.entityAccountId,
+                accountName,
+              ),
             )
           }
           const features = scrapeManualLogin.current.features
@@ -1321,6 +1452,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 entity: selectedEntity.id,
                 credentials,
                 processId: loginResponse.processId || undefined,
+                accountName,
               })
               if (
                 confirmResponse.code === LoginResultCode.CREATED ||
@@ -1330,6 +1462,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   updateEntityAccount(
                     selectedEntity.id,
                     confirmResponse.entityAccountId,
+                    getNewAccountName(
+                      selectedEntity,
+                      confirmResponse.entityAccountId,
+                      accountName,
+                    ),
                   )
                 }
                 const features = scrapeManualLogin.current.features

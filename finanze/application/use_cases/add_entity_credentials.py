@@ -11,9 +11,9 @@ from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from dateutil.tz import tzlocal
 from domain import native_entities
-from domain.entity import Entity, EntityType
+from domain.entity import Entity, EntityType, is_account_scoped_entity
 from domain.entity_account import EntityAccount
-from domain.native_entity import CredentialType, NativeCryptoExchangeEntity
+from domain.native_entity import CredentialType
 from domain.entity_login import (
     EntityLoginParams,
     EntityLoginRequest,
@@ -85,7 +85,17 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
         if login_result.code != LoginResultCode.CREATED:
             return login_result
 
-        is_crypto_exchange = isinstance(entity, NativeCryptoExchangeEntity)
+        account_name = login_request.account_name
+        if not account_name or not account_name.strip():
+            for credential_name, credential_type in entity.credentials_template.items():
+                if credential_type not in (CredentialType.USER, CredentialType.EMAIL):
+                    continue
+                credential_value = credentials.get(credential_name, "").strip()
+                if credential_value:
+                    account_name = credential_value
+                    break
+
+        is_account_scoped = is_account_scoped_entity(entity)
         entity_account_id = login_request.entity_account_id
 
         async with self._transaction_handler_port.start():
@@ -94,14 +104,13 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
                 await self._credentials_port.delete(entity_account_id)
                 await self._sessions_port.delete(entity_account_id)
             else:
-                if is_crypto_exchange:
-                    # New account for crypto exchange
+                if is_account_scoped:
                     entity_account_id = uuid4()
                     account = EntityAccount(
                         id=entity_account_id,
                         entity_id=entity.id,
                         created_at=datetime.now(tzlocal()),
-                        name=login_request.account_name,
+                        name=account_name,
                     )
                     await self._entity_account_port.create(account)
                 else:
@@ -119,7 +128,7 @@ class AddEntityCredentialsImpl(AddEntityCredentials):
                             id=entity_account_id,
                             entity_id=entity.id,
                             created_at=datetime.now(tzlocal()),
-                            name=login_request.account_name,
+                            name=account_name,
                         )
                         await self._entity_account_port.create(account)
 

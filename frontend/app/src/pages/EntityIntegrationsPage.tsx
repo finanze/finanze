@@ -49,6 +49,7 @@ import {
   ExternalEntityConnectionModals,
   ENABLE_BANKING_PROVIDER,
 } from "@/components/ExternalEntityConnection"
+import { isAccountScopedEntity } from "@/utils/entityUtils"
 
 interface CollapsibleEntityCategoryProps {
   contentId: string
@@ -276,7 +277,7 @@ export default function EntityIntegrationsPage() {
     ) {
       selectEntity(entity)
       setShowManageWallets(true)
-    } else if (entity.type === EntityType.CRYPTO_EXCHANGE) {
+    } else if (isAccountScopedEntity(entity.type)) {
       selectEntity(entity)
       setShowManageAccounts(true)
     }
@@ -1132,7 +1133,7 @@ export default function EntityIntegrationsPage() {
         )}
       </AnimatePresence>
 
-      {/* Manage Accounts Dialog for crypto exchanges */}
+      {/* Manage Accounts Dialog for account-scoped entities */}
       {selectedEntity && (
         <ManageAccountsDialog
           entity={selectedEntity}

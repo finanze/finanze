@@ -89,7 +89,11 @@ interface AppContextType {
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   updateEntityLastFetch: (entityId: string, features: string[]) => void
   updateEntityVirtualFeatures: (entityId: string, features: string[]) => void
-  updateEntityAccount: (entityId: string, accountId: string) => void
+  updateEntityAccount: (
+    entityId: string,
+    accountId: string,
+    accountName?: string | null,
+  ) => void
   showToast: (
     message: React.ReactNode,
     type: "success" | "error" | "warning" | "info",
@@ -453,17 +457,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const updateEntityAccount = useCallback(
-    (entityId: string, accountId: string) => {
+    (entityId: string, accountId: string, accountName?: string | null) => {
       setEntities(prevEntities =>
         prevEntities.map(entity => {
           if (entity.id !== entityId) return entity
           const existing = entity.accounts || []
-          if (existing.some(a => a.id === accountId)) return entity
+          const existingAccount = existing.find(a => a.id === accountId)
+          if (existingAccount) {
+            if (
+              accountName === undefined ||
+              existingAccount.name === accountName
+            ) {
+              return entity
+            }
+            return {
+              ...entity,
+              accounts: existing.map(account =>
+                account.id === accountId
+                  ? { ...account, name: accountName }
+                  : account,
+              ),
+            }
+          }
           return {
             ...entity,
             accounts: [
               ...existing,
-              { id: accountId, name: null, status: EntityStatus.CONNECTED },
+              {
+                id: accountId,
+                name: accountName ?? null,
+                status: EntityStatus.CONNECTED,
+              },
             ],
           }
         }),

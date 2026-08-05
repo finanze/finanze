@@ -309,6 +309,14 @@ class TestMigrateStaleReferences:
 
 
 class TestExecute:
+    def test_fetch_lock_is_scoped_to_entity_account(self):
+        uc, _, _, _ = _build_use_case()
+        first_account_id = uuid4()
+        second_account_id = uuid4()
+
+        assert uc._get_lock(first_account_id) is not uc._get_lock(second_account_id)
+        assert uc._get_lock(first_account_id) is uc._get_lock(first_account_id)
+
     @pytest.mark.asyncio
     async def test_login_required_clears_stored_session(self):
         uc, _, _, _ = _build_use_case()

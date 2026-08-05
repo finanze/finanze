@@ -12,13 +12,14 @@ from domain.entity_login import (
     LoginConfirmationType,
     LoginResultCode,
 )
-from domain.native_entities import MY_INVESTOR, UNICAJA, MINTOS
+from domain.native_entities import MY_INVESTOR, POLYMARKET, UNICAJA, MINTOS
 
 LOGIN_ENTITY_URL = "/api/v1/entities/login"
 
 MY_INVESTOR_ID = "e0000000-0000-0000-0000-000000000001"
 UNICAJA_ID = "e0000000-0000-0000-0000-000000000002"
 MINTOS_ID = "e0000000-0000-0000-0000-000000000007"
+POLYMARKET_ID = "fe000000-0000-0000-0000-000000000001"
 
 
 def _setup_fetcher(entity_fetchers, entity, login_result):
@@ -121,6 +122,35 @@ class TestSuccessfulLogin:
         body = await response.get_json()
         assert body["code"] == "CREATED"
         assert "entityAccountId" in body
+
+    @pytest.mark.asyncio
+    async def test_market_forecast_login_creates_account(
+        self, client, entity_fetchers, entity_account_port
+    ):
+        _setup_entity_account_port_no_existing(entity_account_port)
+        _setup_fetcher(
+            entity_fetchers,
+            POLYMARKET,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+
+        response = await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": POLYMARKET_ID,
+                "credentials": {"identifier": "market-user"},
+                "accountName": "Main",
+            },
+        )
+
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CREATED"
+        assert "entityAccountId" in body
+        entity_account_port.create.assert_awaited_once()
+        created_account = entity_account_port.create.await_args[0][0]
+        assert created_account.entity_id == uuid.UUID(POLYMARKET_ID)
+        assert created_account.name == "Main"
 
     @pytest.mark.asyncio
     async def test_credentials_saved_after_created(

@@ -35,6 +35,7 @@ import {
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useNavigate } from "react-router-dom"
 import { getImageUrl } from "@/services/api"
+import { isAccountScopedEntity } from "@/utils/entityUtils"
 
 interface EntityCardProps {
   entity: Entity
@@ -263,10 +264,8 @@ export function EntityCard({
 
   const isFinancialInstitution =
     entity.type === EntityType.FINANCIAL_INSTITUTION
-  const isMarketForecastPlatform =
-    entity.type === EntityType.MARKET_FORECAST_PLATFORM
-  const isFinancialLike = isFinancialInstitution || isMarketForecastPlatform
-  const isCryptoExchange = entity.type === EntityType.CRYPTO_EXCHANGE
+  const isFinancialLike = isFinancialInstitution
+  const isAccountScoped = isAccountScopedEntity(entity.type)
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
   const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED
@@ -493,8 +492,8 @@ export function EntityCard({
                 </div>
               )}
 
-              {/* Show account badges for crypto exchange entities */}
-              {isCryptoExchange &&
+              {/* Show account badges for account-scoped entities */}
+              {isAccountScoped &&
                 effectiveStatus === EntityStatus.CONNECTED &&
                 entity.accounts &&
                 entity.accounts.length > 0 && (
@@ -726,8 +725,8 @@ export function EntityCard({
                       </div>
                     )}
 
-                    {/* Crypto exchange buttons */}
-                    {isCryptoExchange && !missingIntegrations && (
+                    {/* Account-scoped entity buttons */}
+                    {isAccountScoped && !missingIntegrations && (
                       <div className="flex gap-2 flex-wrap justify-center w-full">
                         <Button
                           variant="ghost"
