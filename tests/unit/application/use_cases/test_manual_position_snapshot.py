@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from dateutil.tz import tzlocal
 
+from application.use_cases.position_snapshot_ids import regenerate_snapshot_ids
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
@@ -97,7 +98,7 @@ class TestRegenerateSnapshotIds:
         )
 
         old_acc_id = account.id
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert account.id != old_acc_id
         assert card.related_account == account.id
@@ -117,7 +118,7 @@ class TestRegenerateSnapshotIds:
             }
         )
 
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert card.related_account == orphan_id
 
@@ -145,7 +146,7 @@ class TestRegenerateSnapshotIds:
         )
 
         old_pf_id = portfolio.id
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert portfolio.id != old_pf_id
         assert fund.portfolio.id == portfolio.id
@@ -171,7 +172,7 @@ class TestRegenerateSnapshotIds:
             }
         )
 
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert fund.portfolio.id == orphan_id
 
@@ -192,7 +193,7 @@ class TestRegenerateSnapshotIds:
         )
 
         old_acc_id = account.id
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert account.id != old_acc_id
         assert portfolio.account_id == account.id
@@ -206,7 +207,7 @@ class TestRegenerateSnapshotIds:
             }
         )
 
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert portfolio.account_id == orphan_id
 
@@ -251,7 +252,7 @@ class TestRegenerateSnapshotIds:
 
         old_acc_id = acc_id
         old_pf_id = pf_id
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert account.id != old_acc_id
         assert portfolio.id != old_pf_id
@@ -276,7 +277,7 @@ class TestRegenerateSnapshotIds:
         )
 
         old_id = dep.id
-        ManualPositionSnapshotWriter._regenerate_snapshot_ids(position)
+        regenerate_snapshot_ids(position)
 
         assert dep.id != old_id
 

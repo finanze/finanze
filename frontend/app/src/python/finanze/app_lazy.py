@@ -476,7 +476,11 @@ class LazyComponents:
         self.update_settings = UpdateSettingsImpl(d.config_loader)
 
         self.up_crypto = UpdateCryptoWalletConnectionImpl(d.wallet_repo)
-        self.del_crypto = DeleteCryptoWalletConnectionImpl(d.wallet_repo)
+        self.del_crypto = DeleteCryptoWalletConnectionImpl(
+            d.wallet_repo,
+            d.position_repo,
+            d.tx_handler,
+        )
         self.get_wallet_addrs = GetCryptoWalletAddressesImpl(d.wallet_repo)
 
         self.save_commodities = SaveCommoditiesImpl(

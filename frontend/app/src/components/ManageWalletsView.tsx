@@ -46,7 +46,7 @@ interface ManageWalletsViewProps {
   entityId: string
   onBack: () => void
   onAddWallet: () => void
-  onWalletUpdated?: () => void
+  onWalletUpdated?: () => void | Promise<void>
   onClose?: () => void
 }
 
@@ -83,7 +83,7 @@ export function ManageWalletsView({
 }: ManageWalletsViewProps) {
   const { t, locale } = useI18n()
   const { entities, settings, exchangeRates } = useAppContext()
-  const { positionsData } = useFinancialData()
+  const { positionsData, refreshEntity } = useFinancialData()
   const [wallets, setWallets] = useState<WalletEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -331,7 +331,7 @@ export function ManageWalletsView({
       })
 
       if (onWalletUpdated) {
-        onWalletUpdated()
+        await onWalletUpdated()
       }
 
       setWallets(prevWallets =>
@@ -380,6 +380,8 @@ export function ManageWalletsView({
     try {
       await deleteCryptoWallet(walletToDelete.connectionId)
 
+      await refreshEntity(entityId)
+
       setWallets(prevWallets =>
         prevWallets.filter(
           entry => entry.connectionId !== walletToDelete.connectionId,
@@ -387,7 +389,7 @@ export function ManageWalletsView({
       )
 
       if (onWalletUpdated) {
-        onWalletUpdated()
+        await onWalletUpdated()
       }
 
       setShowDeleteConfirm(false)
