@@ -67,6 +67,12 @@ describe("tryConvertCurrency", () => {
     )
   })
 
+  it("converts PUSD via the USD alias", () => {
+    const rates: ExchangeRates = { EUR: { USD: 1.1 } }
+
+    expect(tryConvertCurrency(110, "pUSD", "EUR", rates)).toBeCloseTo(100)
+  })
+
   it("returns source value unchanged for same currency", () => {
     expect(tryConvertCurrency(300, "USDC", "USDC", null)).toBe(300)
   })
