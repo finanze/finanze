@@ -367,32 +367,6 @@ class TestNetworthTimelineRepositoryIntegration:
         assert '"ACCOUNT": "33.33"' in row["breakdown"]
 
     @pytest.mark.asyncio
-    async def test_polymarket_cash_and_positions_are_included(self, setup):
-        repository, conn = setup
-        entity = uuid4()
-        gp = _insert_gp(conn, entity, "2025-08-01")
-        _insert(conn, "account_positions", gp, "total", "110", currency="pUSD")
-        _insert(
-            conn,
-            "market_forecast_positions",
-            gp,
-            "market_value",
-            "92",
-            currency="USDC",
-        )
-        conn.commit()
-
-        rates = {"EUR": {"USD": Dezimal("1.1"), "USDC": Dezimal("0.92")}}
-        result = await _use_case(repository, rates=rates).execute(
-            NetworthTimelineQuery()
-        )
-
-        point = result.points[0]
-        assert point.breakdown["ACCOUNT"] == Dezimal(100)
-        assert point.breakdown["MARKET_FORECAST"] == Dezimal(100)
-        assert point.total == Dezimal(200)
-
-    @pytest.mark.asyncio
     async def test_sheets_import_replaces_previous(self, setup):
         repository, conn = setup
         entity = uuid4()

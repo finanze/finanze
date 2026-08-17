@@ -13,7 +13,7 @@ from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
 from domain.commodity import COMMODITY_SYMBOLS
-from domain.constants import CURRENCY_ALIASES, SUPPORTED_CURRENCIES
+from domain.constants import SUPPORTED_CURRENCIES
 from domain.crypto import CryptoCurrencyType
 from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
@@ -98,7 +98,7 @@ async def _default_job_scheduler(
 
 class GetExchangeRatesImpl(GetExchangeRates):
     BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB"]
-    IGNORED_CRYPTO_SYMBOLS = set(CURRENCY_ALIASES)
+    IGNORED_CRYPTO_SYMBOLS = {"BNFCR"}
     DEFAULT_TIMEOUT = 8
     CACHE_TTL_SECONDS = 300
     STORAGE_REFRESH_SECONDS = 1 * 60 * 60
@@ -393,58 +393,28 @@ class GetExchangeRatesImpl(GetExchangeRates):
         self,
     ) -> tuple[set[str], set[str]]:
         crypto_entity_positions = await self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(
-                products=[
-                    ProductType.CRYPTO,
-                    ProductType.ACCOUNT,
-                    ProductType.MARKET_FORECAST,
-                ]
-            )
+            PositionQueryRequest(products=[ProductType.CRYPTO])
         )
         native_symbols: set[str] = set()
         token_addresses: set[str] = set()
         for position in crypto_entity_positions.values():
-            if ProductType.CRYPTO in position.products:
-                for wallet in position.products[ProductType.CRYPTO].entries:
-                    for asset in wallet.assets:
-                        if (
-                            asset.symbol
-                            and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
-                        ):
-                            continue
-                        if (
-                            asset.type == CryptoCurrencyType.TOKEN
-                            and asset.contract_address
-                        ):
-                            token_addresses.add(asset.contract_address.lower())
-                        elif asset.symbol:
-                            native_symbols.add(asset.symbol.upper())
-            self._collect_non_fiat_currencies(position, native_symbols)
-        return native_symbols, token_addresses
-
-    def _collect_non_fiat_currencies(self, position, native_symbols: set[str]) -> None:
-        currencies: list[str] = []
-        accounts = position.products.get(ProductType.ACCOUNT)
-        if accounts:
-            currencies.extend(
-                account.currency for account in accounts.entries if account.currency
-            )
-        forecasts = position.products.get(ProductType.MARKET_FORECAST)
-        if forecasts:
-            currencies.extend(
-                entry.currency for entry in forecasts.entries if entry.currency
-            )
-
-        supported = {currency.upper() for currency in SUPPORTED_CURRENCIES}
-        for currency in currencies:
-            symbol = currency.upper()
-            if (
-                symbol in supported
-                or symbol in self.IGNORED_CRYPTO_SYMBOLS
-                or symbol in native_symbols
-            ):
+            if ProductType.CRYPTO not in position.products:
                 continue
-            native_symbols.add(symbol)
+            for wallet in position.products[ProductType.CRYPTO].entries:
+                for asset in wallet.assets:
+                    if (
+                        asset.symbol
+                        and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
+                    ):
+                        continue
+                    if (
+                        asset.type == CryptoCurrencyType.TOKEN
+                        and asset.contract_address
+                    ):
+                        token_addresses.add(asset.contract_address.lower())
+                    elif asset.symbol:
+                        native_symbols.add(asset.symbol.upper())
+        return native_symbols, token_addresses
 
     async def _get_crypto_price_map(
         self, native_symbols: set[str], token_addresses: set[str]

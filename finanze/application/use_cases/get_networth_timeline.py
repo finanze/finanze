@@ -13,7 +13,6 @@ from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
 from domain.commodity import CommodityType, to_troy_ounces
-from domain.constants import CURRENCY_ALIASES, resolve_currency_alias
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates, HistoricMetalRates
 from domain.global_position import ProductType
@@ -747,16 +746,12 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
             for s in snapshots
             if s.holder_deleted_at is not None
         )
-        aliases = ",".join(
-            f"{src}:{dst}" for src, dst in sorted(CURRENCY_ALIASES.items())
-        )
         raw = "|".join(
             [
                 target_currency,
                 ",".join(excluded_ids),
                 ",".join(sorted(mortgage_refs)),
                 ",".join(deleted_holders),
-                aliases,
             ]
         )
         return hashlib.sha256(raw.encode()).hexdigest()
@@ -768,14 +763,11 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         target_currency: str,
         rates: ExchangeRates,
     ) -> Optional[Dezimal]:
-        source = resolve_currency_alias(source_currency)
-        if not source or source == target_currency:
+        if not source_currency or source_currency == target_currency:
             return value
-        quotes = rates.get(target_currency) or {}
-        rate = quotes.get(source)
-        if rate is None and source != source_currency:
-            rate = quotes.get(source_currency)
-        if rate is None:
+        try:
+            rate = rates[target_currency][source_currency]
+        except KeyError:
             self._log.warning(
                 "Missing exchange rate %s->%s for net worth timeline",
                 source_currency,

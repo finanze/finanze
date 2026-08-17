@@ -90,9 +90,8 @@ class NetworthTimelineState:
     """Memoization state of the computed timeline cache.
 
     ``inputs_signature`` is a hash of the inputs that affect every stored value
-    (target currency, excluded entities, property-linked mortgages, currency
-    aliases). When it changes, the cache is stale and must be rebuilt from
-    scratch.
+    (target currency, excluded entities, property-linked mortgages). When it
+    changes, the cache is stale and must be rebuilt from scratch.
     ``last_computed_date`` is the most recent day already memoized.
     """
 

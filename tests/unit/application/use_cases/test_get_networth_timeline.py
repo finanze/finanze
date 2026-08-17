@@ -211,45 +211,6 @@ class TestCompute:
         assert result["points"][0].breakdown["ACCOUNT"] == Dezimal(100)
 
     @pytest.mark.asyncio
-    async def test_pusd_cash_converts_via_usd_alias(self):
-        snapshots = [
-            _snapshot(
-                "e1||REAL",
-                date(2025, 1, 1),
-                [_holding("ACCOUNT", "110", currency="pUSD")],
-            )
-        ]
-        rates = {"EUR": {"USD": Dezimal("1.1")}}
-        use_case, port = _build(snapshots=snapshots, rates=rates)
-
-        await use_case.execute(NetworthTimelineQuery())
-
-        result = _persisted(port)
-        assert result["points"][0].breakdown["ACCOUNT"] == Dezimal(100)
-
-    @pytest.mark.asyncio
-    async def test_usdc_cash_and_market_forecast_convert_with_direct_rate(self):
-        snapshots = [
-            _snapshot(
-                "e1||REAL",
-                date(2025, 1, 1),
-                [
-                    _holding("ACCOUNT", "92", currency="USDC"),
-                    _holding("MARKET_FORECAST", "184", currency="USDC"),
-                ],
-            )
-        ]
-        rates = {"EUR": {"USDC": Dezimal("0.92")}}
-        use_case, port = _build(snapshots=snapshots, rates=rates)
-
-        await use_case.execute(NetworthTimelineQuery())
-
-        point = _persisted(port)["points"][0]
-        assert point.breakdown["ACCOUNT"] == Dezimal(100)
-        assert point.breakdown["MARKET_FORECAST"] == Dezimal(200)
-        assert point.total == Dezimal(300)
-
-    @pytest.mark.asyncio
     async def test_missing_rate_skips_value(self):
         snapshots = [
             _snapshot(

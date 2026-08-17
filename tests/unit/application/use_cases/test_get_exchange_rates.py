@@ -10,15 +10,10 @@ from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.global_position import (
-    Account,
-    AccountType,
-    Accounts,
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
     GlobalPosition,
-    MarketForecastDetail,
-    MarketForecastPositions,
     ProductType,
 )
 
@@ -198,110 +193,6 @@ class TestIgnoredCryptoSymbols:
             j for j in captured_jobs if j[1][0] in ("crypto", "crypto_batch")
         ]
         assert len(crypto_jobs) == 0
-
-
-class TestNonFiatPositionCurrencies:
-    def _account_gp(self, currency):
-        entity = _make_entity()
-        account = Account(
-            id=uuid4(),
-            total=Dezimal("100"),
-            currency=currency,
-            type=AccountType.VIRTUAL_WALLET,
-        )
-        gp = GlobalPosition(
-            id=uuid4(),
-            entity=entity,
-            products={ProductType.ACCOUNT: Accounts(entries=[account])},
-        )
-        position_port = AsyncMock()
-        position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
-        return position_port
-
-    @pytest.mark.asyncio
-    async def test_usdc_account_currency_is_priced(self):
-        crypto_provider = AsyncMock()
-        crypto_provider.set_base_fiat_rates = MagicMock()
-        crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
-            return_value={"USDC": {"EUR": Dezimal("0.92")}}
-        )
-        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
-
-        uc = _build_use_case(
-            position_port=self._account_gp("USDC"),
-            crypto_asset_info_provider=crypto_provider,
-            job_scheduler=_run_jobs_sequentially,
-        )
-
-        matrix = await uc.execute(initial_load=False)
-
-        symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
-        assert "USDC" in symbols_arg
-        assert matrix["EUR"]["USDC"] == Dezimal(1) / Dezimal("0.92")
-
-    @pytest.mark.asyncio
-    async def test_pusd_account_currency_is_not_fetched(self):
-        crypto_provider = AsyncMock()
-        crypto_provider.set_base_fiat_rates = MagicMock()
-
-        captured_jobs = []
-
-        async def fake_scheduler(jobs, timeout):
-            captured_jobs.extend(jobs)
-            return await _run_jobs_sequentially(jobs, timeout)
-
-        uc = _build_use_case(
-            position_port=self._account_gp("pUSD"),
-            crypto_asset_info_provider=crypto_provider,
-            job_scheduler=fake_scheduler,
-        )
-
-        await uc.execute(initial_load=False)
-
-        crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
-        crypto_jobs = [
-            j for j in captured_jobs if j[1][0] in ("crypto", "crypto_batch")
-        ]
-        assert len(crypto_jobs) == 0
-
-    @pytest.mark.asyncio
-    async def test_market_forecast_usdc_is_priced(self):
-        entity = _make_entity()
-        forecast = MarketForecastDetail(
-            id=uuid4(),
-            size=Dezimal("10"),
-            entry_price=Dezimal("0.5"),
-            currency="USDC",
-            market_value=Dezimal("6"),
-        )
-        gp = GlobalPosition(
-            id=uuid4(),
-            entity=entity,
-            products={
-                ProductType.MARKET_FORECAST: MarketForecastPositions(entries=[forecast])
-            },
-        )
-        position_port = AsyncMock()
-        position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
-
-        crypto_provider = AsyncMock()
-        crypto_provider.set_base_fiat_rates = MagicMock()
-        crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
-            return_value={"USDC": {"EUR": Dezimal("0.92")}}
-        )
-        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
-
-        uc = _build_use_case(
-            position_port=position_port,
-            crypto_asset_info_provider=crypto_provider,
-            job_scheduler=_run_jobs_sequentially,
-        )
-
-        matrix = await uc.execute(initial_load=False)
-
-        symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
-        assert "USDC" in symbols_arg
-        assert matrix["EUR"]["USDC"] == Dezimal(1) / Dezimal("0.92")
 
 
 class TestCryptoRateKeying:
