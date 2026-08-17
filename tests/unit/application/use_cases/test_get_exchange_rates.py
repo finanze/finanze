@@ -6,6 +6,7 @@ import pytest
 from dateutil.tz import tzlocal
 
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
+from domain.constants import PUSD_CONTRACT_ADDRESS, PUSD_SYMBOL
 from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
@@ -119,24 +120,12 @@ class TestIgnoredCryptoSymbols:
         crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
             return_value={"BTC": {"EUR": Dezimal("50000")}}
         )
-
-        captured_jobs = []
-
-        async def fake_scheduler(jobs, timeout):
-            captured_jobs.extend(jobs)
-            outcomes = []
-            for job_factory, meta in jobs:
-                try:
-                    result = await job_factory()
-                    outcomes.append((meta[0], meta[1], result, None))
-                except Exception as e:
-                    outcomes.append((meta[0], meta[1], None, e))
-            return outcomes
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
 
         uc = _build_use_case(
             position_port=position_port,
             crypto_asset_info_provider=crypto_provider,
-            job_scheduler=fake_scheduler,
+            job_scheduler=_run_jobs_sequentially,
         )
 
         await uc.execute(initial_load=False)
@@ -147,7 +136,7 @@ class TestIgnoredCryptoSymbols:
         assert "BTC" in symbols_arg
 
     @pytest.mark.asyncio
-    async def test_only_ignored_symbols_results_in_no_crypto_fetch(self):
+    async def test_only_ignored_symbols_results_in_no_symbol_fetch(self):
         entity = _make_entity()
         wallet = CryptoCurrencyWallet(
             id=uuid4(),
@@ -164,35 +153,19 @@ class TestIgnoredCryptoSymbols:
 
         crypto_provider = AsyncMock()
         crypto_provider.set_base_fiat_rates = MagicMock()
-
-        captured_jobs = []
-
-        async def fake_scheduler(jobs, timeout):
-            captured_jobs.extend(jobs)
-            outcomes = []
-            for job_factory, meta in jobs:
-                try:
-                    result = await job_factory()
-                    outcomes.append((meta[0], meta[1], result, None))
-                except Exception as e:
-                    outcomes.append((meta[0], meta[1], None, e))
-            return outcomes
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
 
         uc = _build_use_case(
             position_port=position_port,
             crypto_asset_info_provider=crypto_provider,
-            job_scheduler=fake_scheduler,
+            job_scheduler=_run_jobs_sequentially,
         )
 
         await uc.execute(initial_load=False)
 
         crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
-        crypto_provider.get_prices_by_addresses.assert_not_called()
-
-        crypto_jobs = [
-            j for j in captured_jobs if j[1][0] in ("crypto", "crypto_batch")
-        ]
-        assert len(crypto_jobs) == 0
+        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
+        assert addresses_arg == [PUSD_CONTRACT_ADDRESS]
 
 
 class TestCryptoRateKeying:
@@ -227,7 +200,6 @@ class TestCryptoRateKeying:
 
         matrix = await uc.execute(initial_load=False)
 
-        crypto_provider.get_prices_by_addresses.assert_not_called()
         symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
         assert "BTC" in symbols_arg
         assert matrix["EUR"]["BTC"] == Dezimal(1) / Dezimal("50000")
@@ -265,7 +237,7 @@ class TestCryptoRateKeying:
 
         crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert addresses_arg == ["0xabc123"]
+        assert set(addresses_arg) == {"0xabc123", PUSD_CONTRACT_ADDRESS}
         assert matrix["EUR"]["0xabc123"] == Dezimal(1) / Dezimal("50000")
         assert "BTCB" not in matrix["EUR"]
 
@@ -307,7 +279,7 @@ class TestCryptoRateKeying:
         matrix = await uc.execute(initial_load=False)
 
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert set(addresses_arg) == {"0xaaa", "0xbbb"}
+        assert set(addresses_arg) == {"0xaaa", "0xbbb", PUSD_CONTRACT_ADDRESS}
         assert matrix["EUR"]["0xaaa"] == Dezimal(1) / Dezimal("50000")
         assert matrix["EUR"]["0xbbb"] == Dezimal(1) / Dezimal("0.06")
 
@@ -350,9 +322,93 @@ class TestCryptoRateKeying:
         symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
         assert symbols_arg == ["BTC"]
-        assert addresses_arg == ["0xaaa"]
+        assert set(addresses_arg) == {"0xaaa", PUSD_CONTRACT_ADDRESS}
         assert matrix["EUR"]["BTC"] == Dezimal(1) / Dezimal("50000")
         assert matrix["EUR"]["0xaaa"] == Dezimal(1) / Dezimal("0.06")
+
+
+class TestPusdRate:
+    def _empty_position_port(self):
+        position_port = AsyncMock()
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        return position_port
+
+    @pytest.mark.asyncio
+    async def test_pusd_is_priced_without_any_crypto_position(self):
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_prices_by_addresses = AsyncMock(
+            return_value={
+                PUSD_CONTRACT_ADDRESS: {
+                    "EUR": Dezimal("0.86"),
+                    "USD": Dezimal("0.999"),
+                }
+            }
+        )
+
+        uc = _build_use_case(
+            position_port=self._empty_position_port(),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=False)
+
+        crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
+        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
+        assert addresses_arg == [PUSD_CONTRACT_ADDRESS]
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.86")
+        assert matrix["USD"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.999")
+
+    @pytest.mark.asyncio
+    async def test_pusd_falls_back_to_usd_when_price_is_missing(self):
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(
+            return_value={
+                "EUR": {"USD": Dezimal("1.15")},
+                "USD": {"EUR": Dezimal("0.86")},
+            }
+        )
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            position_port=self._empty_position_port(),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=False)
+
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal("1.15")
+        assert matrix["USD"][PUSD_SYMBOL] == Dezimal(1)
+
+    @pytest.mark.asyncio
+    async def test_quoted_pusd_price_is_not_overwritten_by_fallback(self):
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(
+            return_value={"EUR": {"USD": Dezimal("1.15")}}
+        )
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_prices_by_addresses = AsyncMock(
+            return_value={PUSD_CONTRACT_ADDRESS: {"EUR": Dezimal("0.86")}}
+        )
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            position_port=self._empty_position_port(),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=False)
+
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.86")
 
 
 class TestPreviousRatesArePreserved:

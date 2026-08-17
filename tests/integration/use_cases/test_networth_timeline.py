@@ -208,6 +208,26 @@ class TestNetworthTimelineRepositoryIntegration:
         assert "CRYPTO" not in by_day["2025-01-01"].breakdown
 
     @pytest.mark.asyncio
+    async def test_polygon_pusd_cash_is_counted(self, setup):
+        repository, conn = setup
+        entity = uuid4()
+        gp = _insert_gp(conn, entity, "2025-01-01")
+        _insert(conn, "account_positions", gp, "total", "1000")
+        # Polymarket stores its Polygon cash with the token symbol as written by
+        # the client ("pUSD"), while the rate matrix is keyed in upper case.
+        _insert(conn, "account_positions", gp, "total", "200", currency="pUSD")
+        conn.commit()
+
+        rates = {"EUR": {"PUSD": Dezimal("1.25")}}
+        result = await _use_case(repository, rates=rates).execute(
+            NetworthTimelineQuery()
+        )
+
+        point = result.points[0]
+        # 1000 EUR + 200 pUSD / 1.25 = 1160 EUR
+        assert point.breakdown["ACCOUNT"] == Dezimal(1160)
+
+    @pytest.mark.asyncio
     async def test_no_calculation_reads_only(self, setup):
         repository, conn = setup
         result = await _use_case(repository).execute(

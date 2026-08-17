@@ -32,6 +32,8 @@ from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 
 _DEBT_TYPES = {ProductType.CARD, ProductType.LOAN, ProductType.CREDIT}
 
+_CALC_VERSION = "2"
+
 _HistoricRates = dict[CommodityType, Optional[HistoricMetalRates]]
 
 
@@ -119,7 +121,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
 
         state = await self._port.get_state()
         base_signature = self._signature(
-            target_currency, excluded_ids, mortgage_refs, snapshots
+            target_currency, excluded_ids, mortgage_refs, snapshots, rates
         )
         historic, historic_part = await self._resolve_historic_rates(
             snapshots, state, base_signature, yesterday, force=recalculate
@@ -748,6 +750,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         )
         raw = "|".join(
             [
+                _CALC_VERSION,
                 target_currency,
                 ",".join(excluded_ids),
                 ",".join(sorted(mortgage_refs)),
@@ -763,11 +766,13 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
         target_currency: str,
         rates: ExchangeRates,
     ) -> Optional[Dezimal]:
-        if not source_currency or source_currency == target_currency:
+        if not source_currency or source_currency.upper() == target_currency.upper():
             return value
-        try:
-            rate = rates[target_currency][source_currency]
-        except KeyError:
+        quotes = rates.get(target_currency) or rates.get(target_currency.upper()) or {}
+        rate = quotes.get(source_currency)
+        if rate is None:
+            rate = quotes.get(source_currency.upper())
+        if rate is None:
             self._log.warning(
                 "Missing exchange rate %s->%s for net worth timeline",
                 source_currency,
