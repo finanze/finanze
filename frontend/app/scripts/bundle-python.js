@@ -258,6 +258,7 @@ const BACKGROUND_PATTERNS = [
   "finanze/domain/public_key.py",
   "finanze/domain/real_estate.py",
   "finanze/domain/tracking.py",
+  "finanze/domain/transactions.py",
   "finanze/domain/user.py",
   "finanze/domain/virtual_data.py",
   "finanze/domain/use_cases/update_tracked_quotes.py",
@@ -290,6 +291,7 @@ const BACKGROUND_PATTERNS = [
   "finanze/application/use_cases/get_networth_timeline.py",
   "finanze/application/use_cases/get_gains_timeline.py",
   "finanze/application/use_cases/manual_position_snapshot.py",
+  "finanze/application/use_cases/position_snapshot_ids.py",
   "finanze/infrastructure/repository/db/",
   "finanze/infrastructure/repository/position/",
   "finanze/infrastructure/repository/virtual/",
@@ -315,7 +317,6 @@ const BACKGROUND_ONLY_PATTERNS = [
   "init_background.py",
   "finanze/app_background.py",
   "finanze/domain/gains_timeline.py",
-  "finanze/domain/instrument_history.py",
   "finanze/domain/use_cases/get_gains_timeline.py",
   "finanze/application/ports/gains_timeline_port.py",
   "finanze/application/ports/instrument_history_provider.py",
@@ -537,15 +538,25 @@ function copyPyodideAssets(sourceDir, destDir) {
   }
 }
 
+function resolvePython() {
+  const virtualEnv = process.env.VIRTUAL_ENV
+  if (virtualEnv) {
+    const venvPython = path.join(virtualEnv, "bin", "python")
+    if (fs.existsSync(venvPython)) return venvPython
+  }
+  return process.env.PYTHON || "python"
+}
+
 function minifyPythonFiles(destRoot) {
   if (process.env.FINANZE_PYTHON_MINIFY === "0") return
 
-  const result = spawnSync("python3", [MINIFY_SCRIPT, destRoot], {
+  const python = resolvePython()
+  const result = spawnSync(python, [MINIFY_SCRIPT, destRoot], {
     stdio: "inherit",
   })
   if (result.status !== 0) {
     throw new Error(
-      `Python minification failed (exit code: ${result.status ?? "unknown"}). Install dev requirements (python-minifier) or set FINANZE_PYTHON_MINIFY=0 to skip.`,
+      `Python minification failed with ${python} (exit code: ${result.status ?? "unknown"}). Install dev requirements (python-minifier) or set FINANZE_PYTHON_MINIFY=0 to skip.`,
     )
   }
 }
