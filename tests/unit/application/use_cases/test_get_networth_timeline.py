@@ -477,6 +477,25 @@ class TestControlFlow:
         assert _persisted(port)["wipe"] is True
 
     @pytest.mark.asyncio
+    async def test_persistently_missing_rate_does_not_rebuild(self):
+        snapshots = [
+            _snapshot(
+                "e1||REAL",
+                date(2025, 1, 1),
+                [_holding("ACCOUNT", "100"), _holding("ACCOUNT", "200", "pUSD")],
+            )
+        ]
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), snapshots)
+        state = NetworthTimelineState(
+            inputs_signature=signature, last_computed_date=date(2025, 1, 1)
+        )
+        use_case, port = _build(snapshots=snapshots, state=state)
+
+        await use_case.execute(NetworthTimelineQuery())
+
+        port.persist.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_incremental_persists_only_new_days(self):
         snapshots = [
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")]),

@@ -6,6 +6,7 @@ from typing import Any
 from aiocache import cached
 from aiocache.serializers import PickleSerializer
 
+from domain.constants import PUSD_CONTRACT_ADDRESS
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_session import HttpSession, get_http_session
@@ -19,7 +20,7 @@ _TRADES_URL = "https://data-api.polymarket.com/trades"
 _USER_PNL_URL = "https://user-pnl-api.polymarket.com/user-pnl"
 _POLYGON_BALANCE_TOKENS = [
     {
-        "contract": "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb",
+        "contract": PUSD_CONTRACT_ADDRESS,
         "symbol": "pUSD",
         "decimals": 6,
     },

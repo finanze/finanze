@@ -13,7 +13,11 @@ from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
 from domain.commodity import COMMODITY_SYMBOLS
-from domain.constants import SUPPORTED_CURRENCIES
+from domain.constants import (
+    PUSD_CONTRACT_ADDRESS,
+    PUSD_SYMBOL,
+    SUPPORTED_CURRENCIES,
+)
 from domain.crypto import CryptoCurrencyType
 from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
@@ -396,7 +400,8 @@ class GetExchangeRatesImpl(GetExchangeRates):
             PositionQueryRequest(products=[ProductType.CRYPTO])
         )
         native_symbols: set[str] = set()
-        token_addresses: set[str] = set()
+
+        token_addresses: set[str] = {PUSD_CONTRACT_ADDRESS}
         for position in crypto_entity_positions.values():
             if ProductType.CRYPTO not in position.products:
                 continue
@@ -444,6 +449,10 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for addr, fiat_prices in address_prices.items():
                 price_map[addr.lower()] = fiat_prices
 
+        pusd_prices = price_map.get(PUSD_CONTRACT_ADDRESS)
+        if pusd_prices:
+            price_map[PUSD_SYMBOL] = pusd_prices
+
         return price_map
 
     async def _schedule_crypto_rates(self, timeout: int, initial_load: bool):
@@ -479,6 +488,18 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for base_currency in SUPPORTED_CURRENCIES:
             self._apply_commodity_rates(base_currency, commodity_rates)
             self._apply_crypto_rates(base_currency, crypto_rates)
+            self._apply_pusd_fallback(base_currency)
+
+    def _apply_pusd_fallback(self, base_currency):
+        if self._fiat_matrix is None:
+            return
+        quotes = self._fiat_matrix.get(base_currency)
+        if quotes is None or PUSD_SYMBOL in quotes:
+            return
+        usdc_rate = quotes.get("USDC")
+        if usdc_rate is None:
+            return
+        quotes[PUSD_SYMBOL] = usdc_rate
 
     def _apply_commodity_rates(self, base_currency, commodity_rates):
         if self._fiat_matrix is None:
