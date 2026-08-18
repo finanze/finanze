@@ -10,11 +10,6 @@ from pydantic.dataclasses import dataclass
 REAL_ESTATE_BUCKET = "REAL_ESTATE"
 REAL_ESTATE_RESIDENCE_BUCKET = "REAL_ESTATE_RESIDENCE"
 
-# Commodity market values were not refreshed daily before this date, so stored
-# valuations may be stale: days before the cutoff are revalued from historic
-# metal prices, days from it onwards trust the stored (daily-updated) values.
-COMMODITY_HISTORIC_CUTOFF = date(2026, 6, 12)
-
 
 @dataclass
 class NetworthTimelinePoint:

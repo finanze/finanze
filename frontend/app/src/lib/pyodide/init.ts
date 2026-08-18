@@ -1,3 +1,4 @@
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import {
   initPyodide,
   loadAppModules,
@@ -291,6 +292,19 @@ async function backgroundGetNetworthTimeline(query?: {
   )
 }
 
+async function backgroundGetGainsTimeline(
+  query: GainsTimelineQuery,
+): Promise<unknown> {
+  if (backgroundConnectedPromise) {
+    await backgroundConnectedPromise
+  }
+  return callBackgroundPythonFunction(
+    "init_background",
+    "get_gains_timeline",
+    query,
+  )
+}
+
 export {
   API_PREFIX,
   withApiPrefix,
@@ -306,4 +320,5 @@ export {
   backgroundUpdateQuotes,
   backgroundUpdateLoans,
   backgroundGetNetworthTimeline,
+  backgroundGetGainsTimeline,
 }

@@ -250,6 +250,8 @@ const BACKGROUND_PATTERNS = [
   "finanze/domain/native_entities.py",
   "finanze/domain/native_entity.py",
   "finanze/domain/networth_timeline.py",
+  "finanze/domain/gains_timeline.py",
+  "finanze/domain/instrument_history.py",
   "finanze/domain/platform.py",
   "finanze/domain/position_aggregation.py",
   "finanze/domain/profitability.py",
@@ -261,6 +263,7 @@ const BACKGROUND_PATTERNS = [
   "finanze/domain/use_cases/update_tracked_quotes.py",
   "finanze/domain/use_cases/update_tracked_loans.py",
   "finanze/domain/use_cases/get_networth_timeline.py",
+  "finanze/domain/use_cases/get_gains_timeline.py",
   "finanze/application/ports/crypto_asset_port.py",
   "finanze/application/ports/crypto_wallet_port.py",
   "finanze/application/ports/data_manager.py",
@@ -275,6 +278,9 @@ const BACKGROUND_PATTERNS = [
   "finanze/application/ports/manual_position_data_port.py",
   "finanze/application/ports/position_port.py",
   "finanze/application/ports/networth_timeline_port.py",
+  "finanze/application/ports/gains_timeline_port.py",
+  "finanze/application/ports/instrument_history_provider.py",
+  "finanze/application/ports/instrument_price_history_port.py",
   "finanze/application/ports/real_estate_port.py",
   "finanze/application/ports/tracked_updates_port.py",
   "finanze/application/ports/transaction_handler_port.py",
@@ -282,6 +288,7 @@ const BACKGROUND_PATTERNS = [
   "finanze/application/use_cases/update_tracked_quotes.py",
   "finanze/application/use_cases/update_tracked_loans.py",
   "finanze/application/use_cases/get_networth_timeline.py",
+  "finanze/application/use_cases/get_gains_timeline.py",
   "finanze/application/use_cases/manual_position_snapshot.py",
   "finanze/infrastructure/repository/db/",
   "finanze/infrastructure/repository/position/",
@@ -291,6 +298,8 @@ const BACKGROUND_PATTERNS = [
   "finanze/infrastructure/repository/entity/entity_repository.py",
   "finanze/infrastructure/repository/entity/queries.py",
   "finanze/infrastructure/repository/networth_timeline/",
+  "finanze/infrastructure/repository/gains_timeline/",
+  "finanze/infrastructure/repository/instrument_history/",
   "finanze/infrastructure/repository/crypto/",
   "finanze/infrastructure/repository/common/",
   "finanze/infrastructure/calculations/",
@@ -300,6 +309,21 @@ const BACKGROUND_PATTERNS = [
   "finanze/infrastructure/file_storage/preference_exchange_storage.py",
   "finanze/infrastructure/user_files/capacitor_data_manager.py",
   "finanze/infrastructure/user_files/user_data_manager.py",
+]
+
+const BACKGROUND_ONLY_PATTERNS = [
+  "init_background.py",
+  "finanze/app_background.py",
+  "finanze/domain/gains_timeline.py",
+  "finanze/domain/instrument_history.py",
+  "finanze/domain/use_cases/get_gains_timeline.py",
+  "finanze/application/ports/gains_timeline_port.py",
+  "finanze/application/ports/instrument_history_provider.py",
+  "finanze/application/ports/instrument_price_history_port.py",
+  "finanze/application/use_cases/get_gains_timeline.py",
+  "finanze/infrastructure/repository/gains_timeline/",
+  "finanze/infrastructure/repository/instrument_history/",
+  "finanze/infrastructure/controller/routes/gains_timeline.py",
 ]
 
 function matchesPatterns(relativePath, patterns) {
@@ -335,6 +359,10 @@ function isLazyFile(relativePath) {
 
 function isBackgroundFile(relativePath) {
   return matchesPatterns(relativePath, BACKGROUND_PATTERNS)
+}
+
+function isBackgroundOnlyFile(relativePath) {
+  return matchesPatterns(relativePath, BACKGROUND_ONLY_PATTERNS)
 }
 
 // Ensure destination exists
@@ -464,7 +492,7 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
       coreFileList.push(relativeToDest)
     } else if (isLazyFile(relativeToDest)) {
       lazyFileList.push(relativeToDest)
-    } else {
+    } else if (!isBackgroundOnlyFile(relativeToDest)) {
       deferredFileList.push(relativeToDest)
     }
 

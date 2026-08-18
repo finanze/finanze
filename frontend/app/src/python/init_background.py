@@ -39,3 +39,7 @@ async def get_networth_timeline(
         to_date=to_date,
         no_calculation=no_calculation,
     )
+
+
+async def get_gains_timeline(query: dict | None = None) -> dict:
+    return await app.get_gains_timeline(query)

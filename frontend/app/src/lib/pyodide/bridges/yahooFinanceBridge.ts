@@ -272,7 +272,96 @@ async function resolveSymbol(
   }
 }
 
+async function yfChart(
+  symbol: string,
+  fromDate: string,
+  toDate: string,
+): Promise<{
+  points: Array<{ date: string; price: number }>
+  currency: string | null
+  splits: Array<{ date: string; ratio: number }>
+}> {
+  const period1 = Math.floor(new Date(`${fromDate}T00:00:00Z`).getTime() / 1000)
+  const period2 = Math.floor(new Date(`${toDate}T00:00:00Z`).getTime() / 1000)
+  const params = new URLSearchParams({
+    period1: String(period1),
+    period2: String(period2),
+    interval: "1d",
+    events: "div,splits",
+  })
+
+  const res = await fetch(
+    `${YF_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?${params}`,
+    { headers: { "User-Agent": USER_AGENT }, credentials: "include" },
+  )
+  if (!res.ok) throw new Error(`Chart failed: ${res.status}`)
+
+  const data = await res.json()
+  const result = data.chart?.result?.[0]
+  if (!result) return { points: [], currency: null, splits: [] }
+
+  const timestamps: number[] = result.timestamp ?? []
+  const closes: Array<number | null> =
+    result.indicators?.quote?.[0]?.close ?? []
+  const currency: string | null = result.meta?.currency ?? null
+
+  const points: Array<{ date: string; price: number }> = []
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = closes[i]
+    if (close === null || close === undefined) continue
+    points.push({
+      date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+      price: close,
+    })
+  }
+
+  const splits: Array<{ date: string; ratio: number }> = []
+  const splitEvents = result.events?.splits ?? {}
+  for (const key of Object.keys(splitEvents)) {
+    const ev = splitEvents[key]
+    const numerator = Number(ev?.numerator)
+    const denominator = Number(ev?.denominator)
+    if (!numerator || !denominator) continue
+    splits.push({
+      date: new Date(Number(ev.date) * 1000).toISOString().slice(0, 10),
+      ratio: numerator / denominator,
+    })
+  }
+
+  return { points, currency, splits }
+}
+
+async function getHistory(
+  symbol: string,
+  fromDate: string,
+  toDate: string,
+): Promise<string> {
+  try {
+    const { points, currency } = await yfChart(symbol, fromDate, toDate)
+    return JSON.stringify({ points, currency })
+  } catch (error) {
+    appConsole.warn("[YahooFinanceBridge] getHistory failed", symbol, error)
+    return JSON.stringify({ points: [], currency: null })
+  }
+}
+
+async function getSplits(
+  symbol: string,
+  fromDate: string,
+  toDate: string,
+): Promise<string> {
+  try {
+    const { splits } = await yfChart(symbol, fromDate, toDate)
+    return JSON.stringify(splits)
+  } catch (error) {
+    appConsole.warn("[YahooFinanceBridge] getSplits failed", symbol, error)
+    return JSON.stringify([])
+  }
+}
+
 export const yahooFinanceBridge = {
   lookup,
   getInstrumentInfo,
+  getHistory,
+  getSplits,
 }

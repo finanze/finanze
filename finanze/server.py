@@ -68,6 +68,7 @@ from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_gains_timeline import GetGainsTimelineImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
@@ -259,6 +260,12 @@ from infrastructure.repository.real_estate.real_estate_repository import (
 from infrastructure.repository.networth_timeline.networth_timeline_repository import (
     NetworthTimelineSQLRepository,
 )
+from infrastructure.repository.gains_timeline.gains_timeline_repository import (
+    GainsTimelineSQLRepository,
+)
+from infrastructure.repository.instrument_history.instrument_price_history_repository import (
+    InstrumentPriceHistorySQLRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
 from infrastructure.repository.tracked_updates.tracked_updates_repository import (
@@ -391,6 +398,10 @@ class FinanzeServer:
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
         networth_timeline_repository = NetworthTimelineSQLRepository(client=db_client)
+        gains_timeline_repository = GainsTimelineSQLRepository(client=db_client)
+        instrument_price_history_repository = InstrumentPriceHistorySQLRepository(
+            client=db_client
+        )
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
@@ -583,6 +594,14 @@ class FinanzeServer:
             auto_contrib_repository, entity_repository
         )
         get_historic = GetHistoricImpl(historic_repository, entity_repository)
+        get_gains_timeline = GetGainsTimelineImpl(
+            gains_timeline_repository,
+            exchange_rate_storage,
+            entity_repository,
+            historic_metal_price_client,
+            instrument_provider,
+            instrument_price_history_repository,
+        )
         get_networth_timeline = GetNetworthTimelineImpl(
             networth_timeline_repository,
             exchange_rate_storage,
@@ -915,6 +934,7 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_historic,
+            get_gains_timeline,
             get_networth_timeline,
             get_transactions,
             get_exchange_rates,

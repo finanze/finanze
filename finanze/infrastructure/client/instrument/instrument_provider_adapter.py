@@ -18,7 +18,7 @@ MAX_INSTRUMENTS_RETURNED = 15
 class InstrumentProviderAdapter(InstrumentInfoProvider):
     def __init__(self, enabled_clients: Optional[list[str]] = None):
         if enabled_clients is None:
-            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je", "le"]
+            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je", "jeh", "le"]
 
         self._clients_enabled = {name.lower() for name in enabled_clients}
         self._log = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         self._tv = None
         self._ee = None
         self._je = None
+        self._jeh = None
         self._le = None
 
         if "ft" in self._clients_enabled:
@@ -62,6 +63,13 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             from infrastructure.client.instrument.jetf_client import JustEtfClient
 
             self._je = JustEtfClient()
+
+        if "jeh" in self._clients_enabled:
+            from infrastructure.client.instrument.justetf_history_client import (
+                JustEtfHistoryClient,
+            )
+
+            self._jeh = JustEtfHistoryClient()
 
         if "le" in self._clients_enabled:
             from infrastructure.client.instrument.local_etf_client import LocalEtfClient
@@ -202,6 +210,70 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             return None
 
         return self._normalize_info(info)
+
+    def _history_chain(
+        self, instrument_type: InstrumentType, preferred_source: Optional[str]
+    ) -> list[tuple[str, object]]:
+        if instrument_type == InstrumentType.STOCK:
+            chain = [("yfinance", self._yf)]
+        elif instrument_type == InstrumentType.ETF:
+            chain = [
+                ("finect", self._finect),
+                ("justetf", self._jeh),
+                ("yfinance", self._yf),
+            ]
+        else:
+            chain = [("finect", self._finect), ("yfinance", self._yf)]
+
+        chain = [(source, client) for source, client in chain if client is not None]
+        chain.sort(key=lambda entry: entry[0] != preferred_source)
+        return chain
+
+    async def get_history(
+        self,
+        request: InstrumentDataRequest,
+        from_date,
+        to_date,
+        preferred_symbol=None,
+        preferred_source=None,
+    ):
+        for source, client in self._history_chain(request.type, preferred_source):
+            symbol = preferred_symbol if source == preferred_source else None
+            try:
+                points, resolved, resolved_source = await client.get_history(
+                    request, from_date, to_date, symbol
+                )
+                if points:
+                    return points, resolved, resolved_source
+                self._log.debug("%s returned no history, trying next provider", source)
+            except Exception:
+                self._log.exception(
+                    "%s get_history failed, trying next provider", source
+                )
+        return [], None, None
+
+    async def get_splits(
+        self,
+        request: InstrumentDataRequest,
+        from_date,
+        to_date,
+        preferred_symbol=None,
+        preferred_source=None,
+    ):
+        if self._yf is None:
+            return None
+        try:
+            return await self._yf.get_splits(
+                request,
+                from_date,
+                to_date,
+                preferred_symbol if preferred_source == "yfinance" else None,
+            )
+        except Exception:
+            self._log.exception(
+                "InstrumentProviderAdapter get_splits failed, returning None"
+            )
+            return None
 
     async def _get_instrument_info(
         self, query: str, instrument_type: InstrumentType

@@ -60,6 +60,16 @@ async function navigateToCommodities(page: Page) {
     await page.waitForTimeout(500)
 }
 
+async function navigateToCommoditiesOnNarrowScreen(page: Page) {
+    await page.getByRole('button', { name: 'Investments' }).click()
+    await page
+        .getByRole('heading', { name: 'My Assets' })
+        .first()
+        .waitFor({ timeout: 10_000 })
+    await page.getByRole('heading', { name: 'Commodities' }).click()
+    await page.waitForTimeout(500)
+}
+
 async function saveToServer(page: Page) {
     const saveBtn = page.getByTestId('save-commodities')
     await expect(saveBtn).toBeVisible({ timeout: 5_000 })
@@ -209,5 +219,97 @@ test.describe('Manual Commodities', () => {
         await expect(page.getByText('E2E Delete Coin')).not.toBeVisible({
             timeout: 10_000,
         })
+    })
+
+    test('loads the evolution timeline only after expanding it on narrow screens', async ({
+        authenticatedPage: page,
+    }) => {
+        const gainsRequests: URL[] = []
+        let captureGainsRequests = false
+        await page.route('**/gains-timeline**', async (route) => {
+            if (captureGainsRequests) {
+                gainsRequests.push(new URL(route.request().url()))
+            }
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    currency: 'EUR',
+                    points: [
+                        {
+                            date: '2025-01-01',
+                            value: 2000,
+                            cost_basis: 2000,
+                            net_contributions: 2000,
+                            gain: 0,
+                            period_return: 0,
+                            index: 100,
+                            breakdown: {},
+                        },
+                        {
+                            date: '2025-02-01',
+                            value: 2100,
+                            cost_basis: 2000,
+                            net_contributions: 2000,
+                            gain: 100,
+                            period_return: 0.05,
+                            index: 105,
+                            breakdown: {},
+                        },
+                    ],
+                }),
+            })
+        })
+
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToCommodities(page)
+
+        const hasCommodity = await page
+            .getByText('E2E Gains Coin')
+            .isVisible({ timeout: 3_000 })
+            .catch(() => false)
+        if (!hasCommodity) {
+            await createCommodity(page, 'E2E Gains Coin')
+        }
+
+        await page.getByRole('button', { name: 'My Assets' }).click()
+        await page
+            .getByRole('heading', { name: 'My Assets' })
+            .first()
+            .waitFor({ timeout: 10_000 })
+
+        captureGainsRequests = true
+        await page.setViewportSize({ width: 390, height: 844 })
+        await navigateToCommoditiesOnNarrowScreen(page)
+
+        const timeline = page.getByTestId('evolution-timeline')
+        const toggle = timeline.getByTestId('evolution-timeline-toggle')
+        await expect(toggle).toBeVisible({ timeout: 10_000 })
+        await expect(
+            timeline.getByTestId('evolution-timeline-period-1Y'),
+        ).toHaveCount(0)
+        await page.waitForTimeout(200)
+        expect(gainsRequests).toHaveLength(0)
+
+        await toggle.click()
+        await expect(
+            timeline.getByTestId('evolution-timeline-period-1Y'),
+        ).toHaveAttribute('aria-pressed', 'true')
+        await expect.poll(() => gainsRequests.length).toBe(1)
+        expect(gainsRequests[0].searchParams.getAll('product_type')).toEqual([
+            'COMMODITY',
+        ])
+        expect(gainsRequests[0].searchParams.get('from_date')).toMatch(
+            /^\d{4}-\d{2}-\d{2}$/,
+        )
+        await expect(
+            timeline.getByTestId('evolution-timeline-chart'),
+        ).toBeVisible({
+            timeout: 10_000,
+        })
+        const chartBounds = await timeline
+            .getByTestId('evolution-timeline-chart')
+            .boundingBox()
+        expect(chartBounds?.width).toBeGreaterThan(350)
     })
 })

@@ -10,6 +10,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { EditDialog } from "@/components/ui/EditDialog"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import {
   formatCurrency,
@@ -86,6 +87,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { WalletAddressesDialog } from "@/components/WalletAddressesDialog"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 
 const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
 const normalizeDerivativeCurrency = (currency: string) =>
@@ -1074,6 +1076,52 @@ function CryptoInvestmentContent({
       .filter((group): group is EntityWalletGroup => group !== null)
       .sort((a, b) => b.totalValue - a.totalValue)
   }, [entityFilteredWalletGroups, selectedWalletFilters])
+
+  const { selectedPersistedWalletIds, hasUnsupportedWalletScope } =
+    useMemo(() => {
+      const walletIdsByIdentifier = new Map<string, string>()
+      entityFilteredWalletGroups.forEach(group => {
+        group.wallets.forEach(({ wallet }) => {
+          if (!wallet.id) return
+          walletIdsByIdentifier.set(getWalletIdentifier(wallet), wallet.id)
+        })
+      })
+
+      const walletIds = selectedWalletFilters.flatMap(identifier => {
+        const walletId = walletIdsByIdentifier.get(identifier)
+        return walletId ? [walletId] : []
+      })
+
+      return {
+        selectedPersistedWalletIds: [...new Set(walletIds)],
+        hasUnsupportedWalletScope:
+          walletIds.length !== selectedWalletFilters.length,
+      }
+    }, [entityFilteredWalletGroups, selectedWalletFilters])
+
+  const gainsQuery = useMemo<GainsTimelineQuery | null>(() => {
+    if (hasUnsupportedWalletScope) return null
+
+    return {
+      assets: [
+        {
+          product_type: ProductType.CRYPTO,
+          wallet_ids:
+            selectedWalletFilters.length > 0
+              ? selectedPersistedWalletIds
+              : undefined,
+        },
+      ],
+      base_currency: settings.general.defaultCurrency,
+      entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+    }
+  }, [
+    hasUnsupportedWalletScope,
+    selectedEntities,
+    selectedPersistedWalletIds,
+    selectedWalletFilters.length,
+    settings.general.defaultCurrency,
+  ])
 
   const filteredDerivativeEntityIds = useMemo(() => {
     return new Set(filteredCryptoWallets.map(g => g.entity.id))
@@ -2817,108 +2865,123 @@ function CryptoInvestmentContent({
         <div className="space-y-6">
           <Card className="-mx-6 rounded-none border-x-0">
             <CardContent className="pt-6">
-              <InvestmentDistributionChart
-                data={chartData}
-                title={t.common.distribution}
-                locale={locale}
-                currency={settings.general.defaultCurrency}
-                hideLegend
-                containerClassName="overflow-visible w-full"
-                variant="bare"
-                orbitBubbles={orbitBubbleData}
-                onSliceClick={slice => {
-                  const identifier = (slice as { id?: string }).id ?? slice.name
-                  const ref = symbolRefs.current[identifier]
-                  if (ref) {
-                    ref.scrollIntoView({
-                      behavior: "smooth",
-                      block: "center",
-                    })
-                    setHighlightedAsset(identifier)
-                    setTimeout(
-                      () =>
-                        setHighlightedAsset(prev =>
-                          prev === identifier ? null : prev,
-                        ),
-                      1500,
-                    )
-                  }
-                }}
-                toggleConfig={{
-                  activeView: "asset",
-                  onViewChange: () => {},
-                  options: [{ value: "asset", label: t.investments.byAsset }],
-                }}
-                badges={[
-                  {
-                    icon: <Layers className="h-3 w-3" />,
-                    value: `${totalCryptoAssets} ${totalCryptoAssets === 1 ? t.investments.asset : t.investments.assets}`,
-                  },
-                  {
-                    icon: <Wallet className="h-3 w-3" />,
-                    value: `${totalFilteredWallets} ${totalFilteredWallets === 1 ? t.walletManagement.wallet : t.walletManagement.wallets}`,
-                  },
-                  ...(includeDerivatives && cryptoDerivatives.length > 0
-                    ? [
-                        {
-                          icon: <FlaskConical className="h-3 w-3" />,
-                          value: `${cryptoDerivatives.length} ${cryptoDerivatives.length === 1 ? t.investments.derivatives.singular : t.investments.derivatives.plural}`,
-                        },
-                      ]
-                    : []),
-                ]}
-                centerContent={{
-                  rawValue: totalValue,
-                  infoRows: [
+              <div
+                className={cn(
+                  "grid gap-6 lg:items-stretch",
+                  gainsQuery && "lg:grid-cols-2",
+                )}
+              >
+                <InvestmentDistributionChart
+                  data={chartData}
+                  title={t.common.distribution}
+                  locale={locale}
+                  currency={settings.general.defaultCurrency}
+                  hideLegend
+                  containerClassName="overflow-visible w-full"
+                  variant="bare"
+                  orbitBubbles={orbitBubbleData}
+                  onSliceClick={slice => {
+                    const identifier =
+                      (slice as { id?: string }).id ?? slice.name
+                    const ref = symbolRefs.current[identifier]
+                    if (ref) {
+                      ref.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      })
+                      setHighlightedAsset(identifier)
+                      setTimeout(
+                        () =>
+                          setHighlightedAsset(prev =>
+                            prev === identifier ? null : prev,
+                          ),
+                        1500,
+                      )
+                    }
+                  }}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
                     {
-                      label: t.dashboard.totalValue,
-                      value: formatCurrency(
-                        totalValue,
-                        locale,
-                        settings.general.defaultCurrency,
-                      ),
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${totalCryptoAssets} ${totalCryptoAssets === 1 ? t.investments.asset : t.investments.assets}`,
                     },
-                    ...(hasNegativePositions
+                    {
+                      icon: <Wallet className="h-3 w-3" />,
+                      value: `${totalFilteredWallets} ${totalFilteredWallets === 1 ? t.walletManagement.wallet : t.walletManagement.wallets}`,
+                    },
+                    ...(includeDerivatives && cryptoDerivatives.length > 0
                       ? [
                           {
-                            label: t.investments.actives,
-                            value: formatCurrency(
-                              activesValue,
-                              locale,
-                              settings.general.defaultCurrency,
-                            ),
-                            valueClassName: "text-green-500",
-                          },
-                          {
-                            label: t.investments.passives,
-                            value: formatCurrency(
-                              passivesValue,
-                              locale,
-                              settings.general.defaultCurrency,
-                            ),
-                            valueClassName: "text-red-500",
+                            icon: <FlaskConical className="h-3 w-3" />,
+                            value: `${cryptoDerivatives.length} ${cryptoDerivatives.length === 1 ? t.investments.derivatives.singular : t.investments.derivatives.plural}`,
                           },
                         ]
                       : []),
-                    ...(totalGain !== null
-                      ? [
-                          {
-                            label: t.investments.sortAbsoluteGain,
-                            value: formatGainLoss(
-                              totalGain,
-                              locale,
-                              settings.general.defaultCurrency,
-                            ),
-                            valueClassName:
-                              totalGain >= 0
-                                ? "text-green-500"
-                                : "text-red-500",
-                          },
-                        ]
-                      : []),
-                  ],
-                }}
-              />
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    infoRows: [
+                      {
+                        label: t.dashboard.totalValue,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          settings.general.defaultCurrency,
+                        ),
+                      },
+                      ...(hasNegativePositions
+                        ? [
+                            {
+                              label: t.investments.actives,
+                              value: formatCurrency(
+                                activesValue,
+                                locale,
+                                settings.general.defaultCurrency,
+                              ),
+                              valueClassName: "text-green-500",
+                            },
+                            {
+                              label: t.investments.passives,
+                              value: formatCurrency(
+                                passivesValue,
+                                locale,
+                                settings.general.defaultCurrency,
+                              ),
+                              valueClassName: "text-red-500",
+                            },
+                          ]
+                        : []),
+                      ...(totalGain !== null
+                        ? [
+                            {
+                              label: t.investments.sortAbsoluteGain,
+                              value: formatGainLoss(
+                                totalGain,
+                                locale,
+                                settings.general.defaultCurrency,
+                              ),
+                              valueClassName:
+                                totalGain >= 0
+                                  ? "text-green-500"
+                                  : "text-red-500",
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
+                />
+                {gainsQuery && (
+                  <InvestmentEvolutionTimeline
+                    supportsGains={false}
+                    query={gainsQuery}
+                    currency={settings.general.defaultCurrency}
+                  />
+                )}
+              </div>
             </CardContent>
           </Card>
 
