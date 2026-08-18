@@ -3,6 +3,7 @@ from typing import Optional
 
 
 class KnownIssuer(str, Enum):
+    TWENTY_ONE_SHARES = "21Shares"
     ALLIANZ = "Allianz"
     AMUNDI = "Amundi"
     ANDBANK = "Andbank"

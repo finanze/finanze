@@ -1,4 +1,5 @@
 const KNOWN_ISSUER_ICONS: Record<string, string> = {
+  "21Shares": "21shares",
   Allianz: "allianz",
   Amundi: "amundi",
   Andbank: "andbank",
