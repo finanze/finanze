@@ -361,12 +361,12 @@ class TestPusdRate:
         assert matrix["USD"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.999")
 
     @pytest.mark.asyncio
-    async def test_pusd_falls_back_to_usd_when_price_is_missing(self):
+    async def test_pusd_falls_back_to_usdc_when_price_is_missing(self):
         exchange_rates_provider = AsyncMock()
         exchange_rates_provider.get_matrix = AsyncMock(
             return_value={
-                "EUR": {"USD": Dezimal("1.15")},
-                "USD": {"EUR": Dezimal("0.86")},
+                "EUR": {"USD": Dezimal("1.15"), "USDC": Dezimal("1.158")},
+                "USD": {"EUR": Dezimal("0.86"), "USDC": Dezimal("1.001")},
             }
         )
 
@@ -383,8 +383,8 @@ class TestPusdRate:
 
         matrix = await uc.execute(initial_load=False)
 
-        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal("1.15")
-        assert matrix["USD"][PUSD_SYMBOL] == Dezimal(1)
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal("1.158")
+        assert matrix["USD"][PUSD_SYMBOL] == Dezimal("1.001")
 
     @pytest.mark.asyncio
     async def test_quoted_pusd_price_is_not_overwritten_by_fallback(self):

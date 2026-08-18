@@ -496,10 +496,10 @@ class GetExchangeRatesImpl(GetExchangeRates):
         quotes = self._fiat_matrix.get(base_currency)
         if quotes is None or PUSD_SYMBOL in quotes:
             return
-        usd_rate = Dezimal(1) if base_currency == "USD" else quotes.get("USD")
-        if usd_rate is None:
+        usdc_rate = quotes.get("USDC")
+        if usdc_rate is None:
             return
-        quotes[PUSD_SYMBOL] = usd_rate
+        quotes[PUSD_SYMBOL] = usdc_rate
 
     def _apply_commodity_rates(self, base_currency, commodity_rates):
         if self._fiat_matrix is None:
