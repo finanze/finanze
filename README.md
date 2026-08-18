@@ -6,7 +6,7 @@
 <h1 align="center">Finanze — Self-hosted Personal Finance & Net Worth Tracker</h1>
 
 <p align="center">
-<a href="https://finanze.me">Finanze</a> is a private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
+<a href="https://finanze.me">Finanze</a> is an Open Source, private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
 It connects to real financial entities via public ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
 </p>
 
@@ -335,6 +335,12 @@ important ones are::
 - `USERNAME` and `PASSWORD` optional, to auto start session on load.
 - `MULTI_USER` optional, to allow multiple user sign up (only recommended for local development).
 - Other Selenium related ones.
+
+## License
+
+Finanze is open-source software licensed under the [AGPLv3](./LICENSE). 
+
+If you are interested in using Finanze in a proprietary environment or need a commercial license that bypasses AGPLv3 obligations, please contact us at `contact@finanze.me`.
 
 ## Attributions & Credits
 
