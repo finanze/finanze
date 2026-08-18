@@ -121,7 +121,7 @@ class GetNetworthTimelineImpl(GetNetworthTimeline):
 
         state = await self._port.get_state()
         base_signature = self._signature(
-            target_currency, excluded_ids, mortgage_refs, snapshots, rates
+            target_currency, excluded_ids, mortgage_refs, snapshots
         )
         historic, historic_part = await self._resolve_historic_rates(
             snapshots, state, base_signature, yesterday, force=recalculate

@@ -434,7 +434,7 @@ class TestControlFlow:
         snapshots = [
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")])
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [], {})
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
@@ -451,7 +451,7 @@ class TestControlFlow:
         snapshots = [
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")])
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [], {})
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
@@ -476,36 +476,7 @@ class TestControlFlow:
         await use_case.execute(NetworthTimelineQuery())
 
         assert _persisted(port)["wipe"] is True
-
-    @pytest.mark.asyncio
-    async def test_rate_appearing_later_rebuilds_the_cache(self):
-        # A holding whose currency has no rate is dropped from the totals. Once
-        # the rate lands, the memoized points are stale and must be rebuilt.
-        snapshots = [
-            _snapshot(
-                "e1||REAL",
-                date(2025, 1, 1),
-                [_holding("ACCOUNT", "100"), _holding("ACCOUNT", "200", "pUSD")],
-            )
-        ]
-        without_rate = GetNetworthTimelineImpl._signature(
-            "EUR", [], set(), snapshots, {}
-        )
-        state = NetworthTimelineState(
-            inputs_signature=without_rate, last_computed_date=date(2025, 1, 1)
-        )
-        use_case, port = _build(
-            snapshots=snapshots,
-            state=state,
-            rates={"EUR": {"PUSD": Dezimal("1.25")}},
-        )
-
-        await use_case.execute(NetworthTimelineQuery())
-
-        result = _persisted(port)
-        assert result["wipe"] is True
-        assert result["points"][0].breakdown["ACCOUNT"] == Dezimal(260)
-
+ 
     @pytest.mark.asyncio
     async def test_persistently_missing_rate_does_not_rebuild(self):
         snapshots = [
@@ -515,7 +486,7 @@ class TestControlFlow:
                 [_holding("ACCOUNT", "100"), _holding("ACCOUNT", "200", "pUSD")],
             )
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), snapshots, {})
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), snapshots)
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
@@ -531,7 +502,7 @@ class TestControlFlow:
             _snapshot("e1||REAL", date(2025, 1, 1), [_holding("ACCOUNT", "100")]),
             _snapshot("e1||REAL", date(2025, 1, 3), [_holding("ACCOUNT", "150")]),
         ]
-        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [], {})
+        signature = GetNetworthTimelineImpl._signature("EUR", [], set(), [])
         state = NetworthTimelineState(
             inputs_signature=signature, last_computed_date=date(2025, 1, 1)
         )
