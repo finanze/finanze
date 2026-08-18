@@ -1227,6 +1227,32 @@
       "YTD": "YTD"
     }
   },
+  "evolutionChart": {
+    "title": "Evolution",
+    "value": "Value",
+    "gain": "Gain",
+    "twr": "TWR",
+    "beta": "Beta feature",
+    "betaNotice": "Value evolution and gains are still in beta and may contain errors.",
+    "show": "Show evolution",
+    "hide": "Hide evolution",
+    "loading": "Loading evolution",
+    "fullRangeHint": "The full history can take a while the first time",
+    "noData": "No evolution history available yet",
+    "error": "Could not load evolution history",
+    "retry": "Retry",
+    "period": "Period",
+    "dateRange": "Date range",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear",
+    "ranges": {
+      "ALL": "All",
+      "1Y": "1Y",
+      "YTD": "YTD",
+      "1M": "1M"
+    }
+  },
   "export": {
     "title": "Export & Import",
     "intro": "Coordinate how data flows between Finanze and your spreadsheets.",

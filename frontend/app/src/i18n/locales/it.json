@@ -1226,6 +1226,32 @@
       "YTD": "YTD"
     }
   },
+  "evolutionChart": {
+    "title": "Andamento",
+    "value": "Valore",
+    "gain": "Guadagno",
+    "twr": "TWR",
+    "beta": "Funzione in beta",
+    "betaNotice": "L'andamento del valore e i guadagni sono in beta e possono contenere errori.",
+    "show": "Mostra andamento",
+    "hide": "Nascondi andamento",
+    "loading": "Caricamento andamento",
+    "fullRangeHint": "Lo storico completo può richiedere tempo la prima volta",
+    "noData": "Nessun andamento disponibile",
+    "error": "Impossibile caricare l'andamento",
+    "retry": "Riprova",
+    "period": "Periodo",
+    "dateRange": "Intervallo di date",
+    "from": "Da",
+    "to": "A",
+    "clear": "Cancella",
+    "ranges": {
+      "ALL": "Tutto",
+      "1Y": "1A",
+      "YTD": "YTD",
+      "1M": "1M"
+    }
+  },
   "export": {
     "title": "Esporta e Importa",
     "intro": "Coordina come i dati fluiscono tra Finanze e i tuoi fogli di calcolo.",

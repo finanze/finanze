@@ -1226,6 +1226,32 @@
       "YTD": "YTD"
     }
   },
+  "evolutionChart": {
+    "title": "Evolución",
+    "value": "Valor",
+    "gain": "Ganancia",
+    "twr": "TWR",
+    "beta": "Función en beta",
+    "betaNotice": "La evolución del valor y las ganancias están en beta y pueden contener errores.",
+    "show": "Mostrar evolución",
+    "hide": "Ocultar evolución",
+    "loading": "Cargando evolución",
+    "fullRangeHint": "El historial completo puede tardar la primera vez",
+    "noData": "Aún no hay evolución disponible",
+    "error": "No se pudo cargar la evolución",
+    "retry": "Reintentar",
+    "period": "Periodo",
+    "dateRange": "Rango de fechas",
+    "from": "Desde",
+    "to": "Hasta",
+    "clear": "Limpiar",
+    "ranges": {
+      "ALL": "Todo",
+      "1Y": "1A",
+      "YTD": "YTD",
+      "1M": "1M"
+    }
+  },
   "export": {
     "title": "Exportar e Importar",
     "intro": "Coordina cómo fluye la información entre Finanze y tus hojas.",

@@ -90,6 +90,7 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 | DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
 | Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
 | B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                     |
+| Crescenta           | -               | -     | ✅    | -              | -        | -          | -                   | -      | -     |                     |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
@@ -133,6 +134,7 @@ Not all entities support the same features, in general we can group data in the 
 | DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
 | B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
+| Crescenta           | ✅              | -                         | ✅                             | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
@@ -174,6 +176,10 @@ currently the following are supported:
 At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
 
 Some financial entities such as Trade Republic support crypto too.
+
+#### Other entity types
+
+This app also is capable of tracking market forecast platforms such as Polymarket, tracking transactions, PnL and current & historic positions (not manual data).
 
 ### Commodities
 

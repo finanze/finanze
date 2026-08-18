@@ -179,6 +179,15 @@ from infrastructure.repository.db.versions.v0.v10.v0100_0_crescenta import (
 from infrastructure.repository.db.versions.v0.v10.v0100_1_polymarket import (
     V01001Polymarket,
 )
+from infrastructure.repository.db.versions.v0.v10.v0100_2_clear_sego_real_txs import (
+    V01002ClearSegoRealTransactions,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_3_instrument_price_history import (
+    V01003InstrumentPriceHistory,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_4_crypto_etp_to_crypto_positions import (
+    V01004CryptoEtpToCryptoPositions,
+)
 
 versions = [
     V0Genesis(),
@@ -252,4 +261,7 @@ versions = [
     V0908HistoricSource(),
     V0100Crescenta(),
     V01001Polymarket(),
+    V01002ClearSegoRealTransactions(),
+    V01003InstrumentPriceHistory(),
+    V01004CryptoEtpToCryptoPositions(),
 ]
