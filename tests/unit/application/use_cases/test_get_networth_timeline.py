@@ -476,7 +476,7 @@ class TestControlFlow:
         await use_case.execute(NetworthTimelineQuery())
 
         assert _persisted(port)["wipe"] is True
- 
+
     @pytest.mark.asyncio
     async def test_persistently_missing_rate_does_not_rebuild(self):
         snapshots = [
