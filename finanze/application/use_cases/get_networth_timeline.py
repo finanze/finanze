@@ -12,12 +12,11 @@ from application.ports.historic_metal_price_provider import HistoricMetalPricePr
 from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
-from domain.commodity import CommodityType, to_troy_ounces
+from domain.commodity import COMMODITY_HISTORIC_CUTOFF, CommodityType, to_troy_ounces
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates, HistoricMetalRates
 from domain.global_position import ProductType
 from domain.networth_timeline import (
-    COMMODITY_HISTORIC_CUTOFF,
     REAL_ESTATE_BUCKET,
     REAL_ESTATE_RESIDENCE_BUCKET,
     HoldingValuation,

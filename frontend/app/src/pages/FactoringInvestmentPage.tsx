@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -66,6 +67,7 @@ import { DeleteHistoricEntryDialog } from "@/components/manual/DeleteHistoricEnt
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { unsettleManualInvestment } from "@/services/api"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import {
   mergeManualDisplayItems,
   type ManualDisplayItem,
@@ -442,6 +444,15 @@ function FactoringViewContent({
   >({})
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
     {},
+  )
+  const gainsQuery = useMemo<GainsTimelineQuery>(
+    () => ({
+      assets: [{ product_type: ProductType.FACTORING }],
+      base_currency: defaultCurrency,
+      calculation_mode: "HYBRID",
+      entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+    }),
+    [defaultCurrency, selectedEntities],
   )
 
   const toggleCardExpanded = useCallback((key: string) => {
@@ -1037,72 +1048,80 @@ function FactoringViewContent({
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
               <CardContent className="pt-6">
-                <InvestmentDistributionChart
-                  data={chartData}
-                  title={t.common.distribution}
-                  locale={locale}
-                  currency={defaultCurrency}
-                  hideLegend
-                  containerClassName="overflow-visible w-full"
-                  variant="bare"
-                  onSliceClick={handleSliceClick}
-                  orbitBubbles={orbitBubbleData}
-                  orbitBubblesCollapsedHidden
-                  toggleConfig={{
-                    activeView: "asset",
-                    onViewChange: () => {},
-                    options: [{ value: "asset", label: t.investments.byAsset }],
-                  }}
-                  badges={[
-                    {
-                      icon: <Layers className="h-3 w-3" />,
-                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
-                    },
-                    {
-                      icon: <Percent className="h-3 w-3" />,
-                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
-                      sensitive: true,
-                    },
-                    {
-                      icon: <TrendingUp className="h-3 w-3" />,
-                      value: formatCurrency(
-                        totalProfit,
-                        locale,
-                        defaultCurrency,
-                      ),
-                      sensitive: true,
-                    },
-                  ]}
-                  centerContent={{
-                    rawValue: totalValue,
-                    gainPercentage:
-                      weightedAverageProfitability > 0
-                        ? weightedAverageProfitability
-                        : undefined,
-                    infoRows: [
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+                  <InvestmentDistributionChart
+                    data={chartData}
+                    title={t.common.distribution}
+                    locale={locale}
+                    currency={defaultCurrency}
+                    hideLegend
+                    containerClassName="overflow-visible w-full"
+                    variant="bare"
+                    onSliceClick={handleSliceClick}
+                    orbitBubbles={orbitBubbleData}
+                    orbitBubblesCollapsedHidden
+                    toggleConfig={{
+                      activeView: "asset",
+                      onViewChange: () => {},
+                      options: [
+                        { value: "asset", label: t.investments.byAsset },
+                      ],
+                    }}
+                    badges={[
                       {
-                        label: t.dashboard.investedAmount,
+                        icon: <Layers className="h-3 w-3" />,
+                        value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                      },
+                      {
+                        icon: <Percent className="h-3 w-3" />,
+                        value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                        sensitive: true,
+                      },
+                      {
+                        icon: <TrendingUp className="h-3 w-3" />,
                         value: formatCurrency(
-                          totalValue,
+                          totalProfit,
                           locale,
                           defaultCurrency,
                         ),
+                        sensitive: true,
                       },
-                      ...(totalProfit > 0
-                        ? [
-                            {
-                              label: t.investments.expectedProfit,
-                              value: formatCurrency(
-                                totalProfit,
-                                locale,
-                                defaultCurrency,
-                              ),
-                            },
-                          ]
-                        : []),
-                    ],
-                  }}
-                />
+                    ]}
+                    centerContent={{
+                      rawValue: totalValue,
+                      gainPercentage:
+                        weightedAverageProfitability > 0
+                          ? weightedAverageProfitability
+                          : undefined,
+                      infoRows: [
+                        {
+                          label: t.dashboard.investedAmount,
+                          value: formatCurrency(
+                            totalValue,
+                            locale,
+                            defaultCurrency,
+                          ),
+                        },
+                        ...(totalProfit > 0
+                          ? [
+                              {
+                                label: t.investments.expectedProfit,
+                                value: formatCurrency(
+                                  totalProfit,
+                                  locale,
+                                  defaultCurrency,
+                                ),
+                              },
+                            ]
+                          : []),
+                      ],
+                    }}
+                  />
+                  <InvestmentEvolutionTimeline
+                    query={gainsQuery}
+                    currency={defaultCurrency}
+                  />
+                </div>
               </CardContent>
             </Card>
 
