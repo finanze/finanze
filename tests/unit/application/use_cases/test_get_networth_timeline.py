@@ -7,12 +7,11 @@ import pytest
 
 from application.ports.networth_timeline_port import NetworthTimelinePort
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
-from domain.commodity import CommodityType, WeightUnit
+from domain.commodity import COMMODITY_HISTORIC_CUTOFF, CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.exchange_rate import HistoricMetalRates
 from domain.global_position import ProductType
 from domain.networth_timeline import (
-    COMMODITY_HISTORIC_CUTOFF,
     HoldingValuation,
     MortgageValuation,
     NetworthTimelinePoint,
