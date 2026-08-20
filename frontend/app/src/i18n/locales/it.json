@@ -515,6 +515,7 @@
     "REMOTE_FAILED": "L'entità non ha risposto correttamente, riprova più tardi.",
     "LINK_EXPIRED": "Il link di connessione è scaduto. Ricollega l'entità per continuare.",
     "PARTIALLY_COMPLETED": "Non tutte le fonti sono state caricate correttamente per {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Alcune funzionalità non sono state caricate per {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",

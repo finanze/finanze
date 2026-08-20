@@ -107,6 +107,40 @@ def handle_cooldown(last_fetches, update_cooldown) -> Optional[FetchResult]:
     return None
 
 
+def split_features_by_cooldown(
+    last_fetches,
+    features: List[Feature],
+    update_cooldown: int,
+) -> tuple[List[Feature], Optional[FetchResult]]:
+    now = datetime.now(tzlocal())
+    last_by_feature: dict[Feature, datetime] = {}
+    for record in last_fetches or []:
+        existing = last_by_feature.get(record.feature)
+        if existing is None or record.date > existing:
+            last_by_feature[record.feature] = record.date
+
+    pending: List[Feature] = []
+    cooled_waits: List[int] = []
+    cooled_last = None
+    for feature in features:
+        last_fetch = last_by_feature.get(feature)
+        if last_fetch and (now - last_fetch).seconds < update_cooldown:
+            cooled_waits.append(update_cooldown - (now - last_fetch).seconds)
+            if cooled_last is None or last_fetch > cooled_last:
+                cooled_last = last_fetch
+        else:
+            pending.append(feature)
+
+    if features and not pending:
+        details = {
+            "lastUpdate": cooled_last.astimezone(tzlocal()).isoformat(),
+            "wait": min(cooled_waits),
+        }
+        return [], FetchResult(FetchResultCode.COOLDOWN, details=details)
+
+    return pending, None
+
+
 class FetchFinancialDataImpl(FetchFinancialData):
     def __init__(
         self,
@@ -182,12 +216,17 @@ class FetchFinancialDataImpl(FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
+            if not features:
+                features = DEFAULT_FEATURES
+
             last_fetch = await self._last_fetches_port.get_by_entity_account_id(
                 entity_account_id
             )
-            result = handle_cooldown(last_fetch, POSITION_UPDATE_COOLDOWN_SECONDS)
-            if result:
-                return result
+            features, cooldown_result = split_features_by_cooldown(
+                last_fetch, features, POSITION_UPDATE_COOLDOWN_SECONDS
+            )
+            if cooldown_result:
+                return cooldown_result
 
             credentials = await self._credentials_port.get(entity_account_id)
             # Incorporate any extra credentials from the request (e.g., for manual login)
@@ -275,9 +314,6 @@ class FetchFinancialDataImpl(FetchFinancialData):
                         entity_account_id, entity.id, session
                     )
 
-            if not features:
-                features = DEFAULT_FEATURES
-
             return await self.get_data(
                 entity,
                 features,
@@ -294,91 +330,191 @@ class FetchFinancialDataImpl(FetchFinancialData):
         options: FetchOptions,
         entity_account_id: UUID,
     ) -> FetchResult:
+        completed: List[Feature] = []
+        failed: List[Feature] = []
+        last_error: Optional[Exception] = None
+
         position = None
-        if Feature.POSITION in features:
-            position = await specific_fetcher.global_position()
-            position.entity_account_id = entity_account_id
-            await self._enrich_crypto_assets(position)
-            await self._enrich_loans(position)
-
         auto_contributions = None
-        if Feature.AUTO_CONTRIBUTIONS in features:
-            auto_contributions = await specific_fetcher.auto_contributions()
-            if auto_contributions:
-                for contrib in auto_contributions.periodic:
-                    contrib.entity_account_id = entity_account_id
-
         transactions = None
-        historical_position = None
-        if Feature.TRANSACTIONS in features:
-            registered_txs = {}
-            if not options.deep:
-                registered_txs = (
-                    await self._transaction_port.get_refs_by_entity_account(
-                        entity_account_id
-                    )
+        historic = None
+        transactions_ok = False
+
+        if Feature.POSITION in features:
+            try:
+                position = await self._fetch_and_store_position(
+                    entity, specific_fetcher, entity_account_id
                 )
+                completed.append(Feature.POSITION)
+            except Exception as e:
+                self._log.exception(e)
+                failed.append(Feature.POSITION)
+                last_error = e
 
-            transactions = await specific_fetcher.transactions(registered_txs, options)
+        if Feature.AUTO_CONTRIBUTIONS in features:
+            try:
+                auto_contributions = await self._fetch_and_store_auto_contributions(
+                    entity, specific_fetcher, entity_account_id
+                )
+                completed.append(Feature.AUTO_CONTRIBUTIONS)
+            except Exception as e:
+                self._log.exception(e)
+                failed.append(Feature.AUTO_CONTRIBUTIONS)
+                last_error = e
 
-            if transactions:
-                for tx in transactions.investment or []:
-                    tx.entity_account_id = entity_account_id
-                for tx in transactions.account or []:
-                    tx.entity_account_id = entity_account_id
+        if Feature.TRANSACTIONS in features:
+            try:
+                transactions = await self._fetch_and_store_transactions(
+                    entity, specific_fetcher, options, entity_account_id
+                )
+                completed.append(Feature.TRANSACTIONS)
+                transactions_ok = True
+            except Exception as e:
+                self._log.exception(e)
+                failed.append(Feature.TRANSACTIONS)
+                last_error = e
 
-                if Feature.HISTORIC in features:
-                    historical_position = await specific_fetcher.historical_position()
+        if Feature.HISTORIC in features and transactions_ok and transactions:
+            try:
+                historic = await self._fetch_and_store_historic(
+                    entity, specific_fetcher, entity_account_id
+                )
+                completed.append(Feature.HISTORIC)
+            except Exception as e:
+                self._log.exception(e)
+                failed.append(Feature.HISTORIC)
+                last_error = e
+
+        if failed and not completed:
+            if last_error is None:
+                raise RuntimeError("All requested features failed")
+            raise last_error
+
+        data = FetchedData(
+            position=position,
+            auto_contributions=auto_contributions,
+            transactions=transactions,
+            historic=historic,
+        )
+        details = {
+            "completedFeatures": [feature.value for feature in completed],
+        }
+        if failed:
+            details["failedFeatures"] = [feature.value for feature in failed]
+            return FetchResult(
+                FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
+            )
+        return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
+
+    async def _fetch_and_store_position(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        entity_account_id: UUID,
+    ) -> Optional[GlobalPosition]:
+        position = await specific_fetcher.global_position()
+        if not position:
+            async with self._transaction_handler_port.start():
+                await self._update_last_fetch(
+                    entity.id, [Feature.POSITION], entity_account_id
+                )
+            return None
+
+        position.entity_account_id = entity_account_id
+        await self._enrich_crypto_assets(position)
+        await self._enrich_loans(position)
 
         old_position_id = None
-        if position and position.entity_account_id:
+        if position.entity_account_id:
             old_position_id = await self._position_port.get_latest_real_position_id(
                 position.entity_account_id
             )
 
         async with self._transaction_handler_port.start():
-            if position:
-                await self._position_port.save(position)
-                await self._migrate_stale_references(old_position_id, position)
-                await self._sync_linked_loan_flows(position)
+            await self._position_port.save(position)
+            await self._migrate_stale_references(old_position_id, position)
+            await self._sync_linked_loan_flows(position)
+            await self._update_last_fetch(
+                entity.id, [Feature.POSITION], entity_account_id
+            )
+        return position
 
+    async def _fetch_and_store_auto_contributions(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        entity_account_id: UUID,
+    ):
+        auto_contributions = await specific_fetcher.auto_contributions()
+        if auto_contributions:
+            for contrib in auto_contributions.periodic:
+                contrib.entity_account_id = entity_account_id
+
+        async with self._transaction_handler_port.start():
             if auto_contributions:
                 await self._auto_contr_repository.save(
                     entity.id, auto_contributions, DataSource.REAL
                 )
+            await self._update_last_fetch(
+                entity.id, [Feature.AUTO_CONTRIBUTIONS], entity_account_id
+            )
+        return auto_contributions
 
-            if Feature.TRANSACTIONS in features and options.deep:
+    async def _fetch_and_store_transactions(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        options: FetchOptions,
+        entity_account_id: UUID,
+    ):
+        registered_txs = {}
+        if not options.deep:
+            registered_txs = await self._transaction_port.get_refs_by_entity_account(
+                entity_account_id
+            )
+
+        transactions = await specific_fetcher.transactions(registered_txs, options)
+
+        if transactions:
+            for tx in transactions.investment or []:
+                tx.entity_account_id = entity_account_id
+            for tx in transactions.account or []:
+                tx.entity_account_id = entity_account_id
+
+        async with self._transaction_handler_port.start():
+            if options.deep:
                 await self._transaction_port.delete_by_entity_account_id(
                     entity_account_id
                 )
-
-            historic = None
             if transactions:
                 await self._transaction_port.save(transactions)
-
-                if Feature.HISTORIC in features:
-                    historic_entries = await self.build_historic(
-                        entity,
-                        historical_position,
-                        specific_fetcher,
-                        entity_account_id=entity_account_id,
-                    )
-                    historic = Historic(historic_entries)
-
-                    await self._historic_port.delete_by_entity_account_id(
-                        entity_account_id
-                    )
-                    await self._historic_port.save(historic.entries)
-
-            await self._update_last_fetch(entity.id, features, entity_account_id)
-
-            data = FetchedData(
-                position=position,
-                auto_contributions=auto_contributions,
-                transactions=transactions,
-                historic=historic,
+            await self._update_last_fetch(
+                entity.id, [Feature.TRANSACTIONS], entity_account_id
             )
-            return FetchResult(FetchResultCode.COMPLETED, data=data)
+        return transactions
+
+    async def _fetch_and_store_historic(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        entity_account_id: UUID,
+    ) -> Historic:
+        historical_position = await specific_fetcher.historical_position()
+        historic_entries = await self.build_historic(
+            entity,
+            historical_position,
+            specific_fetcher,
+            entity_account_id=entity_account_id,
+        )
+        historic = Historic(historic_entries)
+
+        async with self._transaction_handler_port.start():
+            await self._historic_port.delete_by_entity_account_id(entity_account_id)
+            await self._historic_port.save(historic.entries)
+            await self._update_last_fetch(
+                entity.id, [Feature.HISTORIC], entity_account_id
+            )
+        return historic
 
     def _compute_historic_entry(
         self, entity, inv, txs_by_name, entity_account_id: UUID = None

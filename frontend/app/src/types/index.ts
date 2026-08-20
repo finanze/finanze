@@ -336,6 +336,8 @@ export interface FetchResponse {
     challengeType?: ChallengeType
     challengeDomain?: string
     credentials?: Record<string, string>
+    failedFeatures?: Feature[]
+    completedFeatures?: Feature[]
   }
   data?: any
 }

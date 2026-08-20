@@ -879,3 +879,177 @@ class TestChallengeFlow:
         assert body["code"] == "CODE_REQUESTED"
         assert body["confirmationType"] == "CHALLENGE"
         assert body["details"]["challengeType"] == "AWSWAF"
+
+
+class TestIsolatedFeaturePersist:
+    @pytest.mark.asyncio
+    async def test_position_saved_when_transactions_fail(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        position_port,
+        transaction_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        position = _make_position()
+        fetcher = _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+            position=position,
+        )
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["POSITION", "TRANSACTIONS"],
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "PARTIALLY_COMPLETED"
+        assert body["details"]["failedFeatures"] == ["TRANSACTIONS"]
+        assert body["details"]["completedFeatures"] == ["POSITION"]
+        position_port.save.assert_awaited_once_with(position)
+        transaction_port.save.assert_not_awaited()
+        saved_records = last_fetches_port.save.await_args[0][0]
+        assert [record.feature for record in saved_records] == [Feature.POSITION]
+
+    @pytest.mark.asyncio
+    async def test_transactions_saved_when_position_fails(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        position_port,
+        transaction_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        test_tx = AccountTx(
+            id=uuid.uuid4(),
+            ref="TX-PARTIAL-001",
+            name="Fetched Transfer",
+            amount=Dezimal("1500"),
+            currency="EUR",
+            type=TxType.TRANSFER_IN,
+            date=datetime.now(timezone.utc),
+            entity=MY_INVESTOR,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal("0"),
+            retentions=Dezimal("0"),
+        )
+        fetcher = _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+        fetcher.transactions = AsyncMock(
+            return_value=Transactions(account=[test_tx], investment=[])
+        )
+        transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["POSITION", "TRANSACTIONS"],
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "PARTIALLY_COMPLETED"
+        assert body["details"]["failedFeatures"] == ["POSITION"]
+        assert body["details"]["completedFeatures"] == ["TRANSACTIONS"]
+        position_port.save.assert_not_awaited()
+        transaction_port.save.assert_awaited_once()
+        saved_records = last_fetches_port.save.await_args[0][0]
+        assert [record.feature for record in saved_records] == [Feature.TRANSACTIONS]
+
+    @pytest.mark.asyncio
+    async def test_mixed_cooldown_fetches_pending_feature_only(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        position_port,
+        transaction_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        test_tx = AccountTx(
+            id=uuid.uuid4(),
+            ref="TX-COOL-001",
+            name="Fetched Transfer",
+            amount=Dezimal("1500"),
+            currency="EUR",
+            type=TxType.TRANSFER_IN,
+            date=datetime.now(timezone.utc),
+            entity=MY_INVESTOR,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal("0"),
+            retentions=Dezimal("0"),
+        )
+        fetcher = _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+        fetcher.transactions = AsyncMock(
+            return_value=Transactions(account=[test_tx], investment=[])
+        )
+        transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        last_fetches_port.get_by_entity_account_id = AsyncMock(
+            return_value=[
+                FetchRecord(
+                    entity_id=uuid.UUID(MY_INVESTOR_ID),
+                    feature=Feature.POSITION,
+                    date=datetime.now(timezone.utc),
+                    entity_account_id=uuid.UUID(ENTITY_ACCOUNT_ID),
+                )
+            ]
+        )
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["POSITION", "TRANSACTIONS"],
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "COMPLETED"
+        assert body["details"]["completedFeatures"] == ["TRANSACTIONS"]
+        fetcher.global_position.assert_not_awaited()
+        fetcher.transactions.assert_awaited_once()
+        position_port.save.assert_not_awaited()
+        transaction_port.save.assert_awaited_once()

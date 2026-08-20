@@ -514,6 +514,7 @@
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "No se pudieron cargar algunas características de {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
     "DISABLED": "Importación de datos deshabilitada en configuración.",
     "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",

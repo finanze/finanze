@@ -516,6 +516,7 @@
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",

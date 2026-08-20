@@ -9,7 +9,7 @@ import {
 } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
-import { useI18n } from "@/i18n"
+import { useI18n, type Translations } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
   CredentialType,
@@ -148,6 +148,28 @@ const formatEntityError = (
   entityName: string,
   fallback: string,
 ): string => (message || fallback).replace("{entity}", entityName)
+
+const formatPartialFetchMessage = (
+  t: Translations,
+  entityName: string,
+  failedFeatures?: Feature[],
+): string => {
+  if (failedFeatures && failedFeatures.length > 0) {
+    const labels = failedFeatures
+      .map(feature => t.features[feature] || feature)
+      .join(", ")
+    return t.errors.PARTIALLY_COMPLETED_FEATURES.replace(
+      "{entity}",
+      entityName,
+    ).replace("{features}", labels)
+  }
+  return t.errors.PARTIALLY_COMPLETED.replace("{entity}", entityName)
+}
+
+const featuresToStampLastFetch = (
+  completedFeatures: Feature[] | undefined,
+  requestedFeatures: Feature[],
+): Feature[] => completedFeatures ?? requestedFeatures
 
 const getDefaultAccountName = (
   entity: Entity,
@@ -903,9 +925,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   const isPartial =
                     confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
                   const successMessage = isPartial
-                    ? t.errors.PARTIALLY_COMPLETED.replace(
-                        "{entity}",
+                    ? formatPartialFetchMessage(
+                        t,
                         entity.name,
+                        confirmResponse.details?.failedFeatures,
                       )
                     : t.common.fetchSuccessEntity.replace(
                         "{entity}",
@@ -915,7 +938,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   if (!isPartial) {
                     recordAutoRefreshSuccess(entity.id)
                   }
-                  updateEntityLastFetch(entity.id, features)
+                  updateEntityLastFetch(
+                    entity.id,
+                    featuresToStampLastFetch(
+                      confirmResponse.details?.completedFeatures,
+                      features,
+                    ),
+                  )
                   pendingScrapeParamsRef.current.delete(entity.id)
                   if (activePinEntityId === entity.id) {
                     setActivePinEntityId(null)
@@ -1058,16 +1087,23 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
           const entityName = entity?.name || t.common.crypto
-          const warningMessage = t.errors.PARTIALLY_COMPLETED.replace(
-            "{entity}",
+          const warningMessage = formatPartialFetchMessage(
+            t,
             entityName,
+            response.details?.failedFeatures,
           )
           notify(warningMessage, "warning")
 
           let advancedToNext = false
 
           if (entity) {
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)
@@ -1113,7 +1149,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entity.name,
             )
             recordAutoRefreshSuccess(entity.id)
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)

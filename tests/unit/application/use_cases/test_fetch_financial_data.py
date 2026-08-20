@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -12,7 +12,8 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.entity_account import EntityAccount
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
-from domain.fetch_result import FetchRequest, FetchResultCode
+from domain.fetch_record import DataSource, FetchRecord
+from domain.fetch_result import FetchOptions, FetchRequest, FetchResultCode
 from domain.global_position import (
     Account,
     AccountType,
@@ -28,8 +29,9 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
-from domain.native_entities import TRADE_REPUBLIC
+from domain.native_entities import TRADE_REPUBLIC, URBANITAE
 from domain.public_keychain import PublicKeychain
+from domain.transactions import AccountTx, Transactions, TxType
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +45,12 @@ def _build_use_case():
 
     real_estate_port = AsyncMock()
 
+    transaction_handler_port = MagicMock()
+    tx_ctx = MagicMock()
+    tx_ctx.__aenter__ = AsyncMock(return_value=None)
+    tx_ctx.__aexit__ = AsyncMock(return_value=None)
+    transaction_handler_port.start = MagicMock(return_value=tx_ctx)
+
     uc = FetchFinancialDataImpl(
         position_port=position_port,
         auto_contr_port=AsyncMock(),
@@ -55,7 +63,7 @@ def _build_use_case():
         last_fetches_port=AsyncMock(),
         crypto_asset_registry_port=AsyncMock(),
         crypto_asset_info_provider=AsyncMock(),
-        transaction_handler_port=MagicMock(),
+        transaction_handler_port=transaction_handler_port,
         keychain_loader=AsyncMock(),
         entity_account_port=AsyncMock(),
         loan_calculator=loan_calculator,
@@ -514,3 +522,296 @@ class TestSyncLinkedLoanFlows:
         await uc._sync_linked_loan_flows(position)
 
         real_estate_port.sync_linked_loan_flows.assert_not_awaited()
+
+
+def _saved_features(uc):
+    features = []
+    for call in uc._last_fetches_port.save.await_args_list:
+        for record in call.args[0]:
+            features.append(record.feature)
+    return features
+
+
+def _make_account_tx(entity):
+    return AccountTx(
+        id=uuid4(),
+        ref="TX-001",
+        name="Transfer",
+        amount=Dezimal("100"),
+        currency="EUR",
+        type=TxType.TRANSFER_IN,
+        date=datetime.now(tzlocal()),
+        entity=entity,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal("0"),
+        retentions=Dezimal("0"),
+    )
+
+
+class TestIsolatedFeaturePersist:
+    @pytest.mark.asyncio
+    async def test_position_saved_when_transactions_fail(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        position = _make_position()
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=position)
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        assert result.details["failedFeatures"] == [Feature.TRANSACTIONS.value]
+        assert result.details["completedFeatures"] == [Feature.POSITION.value]
+        position_port.save.assert_awaited_once_with(position)
+        uc._transaction_port.save.assert_not_awaited()
+        uc._transaction_port.delete_by_entity_account_id.assert_not_awaited()
+        assert _saved_features(uc) == [Feature.POSITION]
+
+    @pytest.mark.asyncio
+    async def test_transactions_saved_when_position_fails(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        txs = Transactions(account=[_make_account_tx(entity)], investment=[])
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+        fetcher.transactions = AsyncMock(return_value=txs)
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        assert result.details["failedFeatures"] == [Feature.POSITION.value]
+        assert result.details["completedFeatures"] == [Feature.TRANSACTIONS.value]
+        position_port.save.assert_not_awaited()
+        uc._transaction_port.save.assert_awaited_once_with(txs)
+        assert _saved_features(uc) == [Feature.TRANSACTIONS]
+
+    @pytest.mark.asyncio
+    async def test_auto_contributions_fail_does_not_block_position(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        position = _make_position()
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=position)
+        fetcher.auto_contributions = AsyncMock(side_effect=RuntimeError("contrib boom"))
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        assert result.details["failedFeatures"] == [Feature.AUTO_CONTRIBUTIONS.value]
+        assert result.details["completedFeatures"] == [Feature.POSITION.value]
+        position_port.save.assert_awaited_once_with(position)
+        uc._auto_contr_repository.save.assert_not_awaited()
+        assert _saved_features(uc) == [Feature.POSITION]
+
+    @pytest.mark.asyncio
+    async def test_historic_fail_keeps_saved_transactions(self):
+        uc, _, _, _ = _build_use_case()
+        entity = URBANITAE
+        txs = Transactions(account=[_make_account_tx(entity)], investment=[])
+        fetcher = AsyncMock()
+        fetcher.transactions = AsyncMock(return_value=txs)
+        fetcher.historical_position = AsyncMock(side_effect=RuntimeError("hist boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.TRANSACTIONS, Feature.HISTORIC],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        assert result.details["failedFeatures"] == [Feature.HISTORIC.value]
+        assert result.details["completedFeatures"] == [Feature.TRANSACTIONS.value]
+        uc._transaction_port.save.assert_awaited_once_with(txs)
+        uc._historic_port.save.assert_not_awaited()
+        uc._historic_port.delete_by_entity_account_id.assert_not_awaited()
+        assert _saved_features(uc) == [Feature.TRANSACTIONS]
+
+    @pytest.mark.asyncio
+    async def test_all_units_fail_reraises(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        account_id = uuid4()
+
+        with pytest.raises(RuntimeError, match="txs boom"):
+            await uc.get_data(
+                entity,
+                [Feature.POSITION, Feature.TRANSACTIONS],
+                fetcher,
+                FetchOptions(),
+                account_id,
+            )
+
+        position_port.save.assert_not_awaited()
+        uc._transaction_port.save.assert_not_awaited()
+        uc._last_fetches_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_deep_delete_skipped_when_transactions_fail(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        position = _make_position()
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=position)
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(deep=True),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        uc._transaction_port.delete_by_entity_account_id.assert_not_awaited()
+        uc._transaction_port.get_refs_by_entity_account.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_historic_skipped_when_transactions_fail(self):
+        uc, _, _, _ = _build_use_case()
+        entity = URBANITAE
+        fetcher = AsyncMock()
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        account_id = uuid4()
+
+        with pytest.raises(RuntimeError, match="txs boom"):
+            await uc.get_data(
+                entity,
+                [Feature.TRANSACTIONS, Feature.HISTORIC],
+                fetcher,
+                FetchOptions(),
+                account_id,
+            )
+
+        fetcher.historical_position.assert_not_awaited()
+        uc._historic_port.save.assert_not_awaited()
+
+
+async def _prepare_logged_in_execute(uc, entity, account_id, last_fetches=None):
+    account = EntityAccount(
+        id=account_id,
+        entity_id=entity.id,
+        created_at=datetime.now(tzlocal()),
+    )
+    fetcher = AsyncMock()
+    fetcher.login.return_value = EntityLoginResult(LoginResultCode.RESUMED)
+    uc._entity_account_port.get_by_id.return_value = account
+    uc._last_fetches_port.get_by_entity_account_id.return_value = last_fetches or []
+    uc._credentials_port.get.return_value = {
+        "phone": "+49123456789",
+        "password": "1234",
+    }
+    uc._sessions_port.get.return_value = None
+    uc._keychain_loader.load.return_value = PublicKeychain({})
+    uc._entity_fetchers[entity] = fetcher
+    return fetcher
+
+
+class TestPerFeatureCooldown:
+    @pytest.mark.asyncio
+    async def test_mixed_cooldown_fetches_pending_feature_only(self):
+        uc, position_port, _, _ = _build_use_case()
+        account_id = uuid4()
+        txs = Transactions(account=[_make_account_tx(TRADE_REPUBLIC)], investment=[])
+        recent = FetchRecord(
+            entity_id=TRADE_REPUBLIC.id,
+            feature=Feature.POSITION,
+            date=datetime.now(tzlocal()),
+            entity_account_id=account_id,
+        )
+        stale = FetchRecord(
+            entity_id=TRADE_REPUBLIC.id,
+            feature=Feature.TRANSACTIONS,
+            date=datetime.now(tzlocal()) - timedelta(minutes=10),
+            entity_account_id=account_id,
+        )
+        fetcher = await _prepare_logged_in_execute(
+            uc, TRADE_REPUBLIC, account_id, last_fetches=[recent, stale]
+        )
+        fetcher.transactions = AsyncMock(return_value=txs)
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.POSITION, Feature.TRANSACTIONS],
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.global_position.assert_not_awaited()
+        fetcher.transactions.assert_awaited_once()
+        position_port.save.assert_not_awaited()
+        uc._transaction_port.save.assert_awaited_once_with(txs)
+        assert result.details["completedFeatures"] == [Feature.TRANSACTIONS.value]
+        assert "failedFeatures" not in result.details
+
+    @pytest.mark.asyncio
+    async def test_all_requested_features_cooled_skips_login(self):
+        uc, _, _, _ = _build_use_case()
+        account_id = uuid4()
+        recent_pos = FetchRecord(
+            entity_id=TRADE_REPUBLIC.id,
+            feature=Feature.POSITION,
+            date=datetime.now(tzlocal()),
+            entity_account_id=account_id,
+        )
+        recent_txs = FetchRecord(
+            entity_id=TRADE_REPUBLIC.id,
+            feature=Feature.TRANSACTIONS,
+            date=datetime.now(tzlocal()),
+            entity_account_id=account_id,
+        )
+        fetcher = await _prepare_logged_in_execute(
+            uc, TRADE_REPUBLIC, account_id, last_fetches=[recent_pos, recent_txs]
+        )
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.POSITION, Feature.TRANSACTIONS],
+            )
+        )
+
+        assert result.code == FetchResultCode.COOLDOWN
+        fetcher.login.assert_not_awaited()
+        assert "wait" in result.details
+        assert "lastUpdate" in result.details
