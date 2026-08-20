@@ -37,7 +37,11 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import {
+  getTransactionDisplayAmount,
+  getTransactionDisplaySign,
+  getTransactionDisplayType,
+} from "@/utils/financialDataUtils"
 import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
@@ -860,6 +864,22 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
+            {marketForecastTx.retentions != null &&
+              marketForecastTx.retentions > 0 && (
+                <div className={detailRowClass}>
+                  <span className={detailLabelClass}>
+                    {t.transactions.retentions}:
+                  </span>{" "}
+                  <Sensitive>
+                    {formatCurrency(
+                      marketForecastTx.retentions,
+                      locale,
+                      settings.general.defaultCurrency,
+                      tx.currency,
+                    )}
+                  </Sensitive>
+                </div>
+              )}
           </>
         )
       }
@@ -894,6 +914,21 @@ export default function TransactionsPage() {
                 <Sensitive>
                   {formatCurrency(
                     fundTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+            {fundTx.retentions != null && fundTx.retentions > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.retentions}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.retentions,
                     locale,
                     settings.general.defaultCurrency,
                     tx.currency,
@@ -981,7 +1016,7 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
-            {accountTx.retentions > 0 && (
+            {accountTx.retentions != null && accountTx.retentions !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
@@ -1164,6 +1199,7 @@ export default function TransactionsPage() {
           fundTx.shares ||
           fundTx.price ||
           fundTx.fees > 0 ||
+          (fundTx.retentions != null && fundTx.retentions > 0) ||
           fundTx.market
         )
       }
@@ -1203,7 +1239,8 @@ export default function TransactionsPage() {
           cryptoTx.symbol ||
           cryptoTx.currency_amount ||
           cryptoTx.price ||
-          cryptoTx.fees > 0
+          cryptoTx.fees > 0 ||
+          (cryptoTx.retentions != null && cryptoTx.retentions > 0)
         )
       }
       case ProductType.MARKET_FORECAST: {
@@ -1211,7 +1248,9 @@ export default function TransactionsPage() {
         return !!(
           marketForecastTx.symbol ||
           marketForecastTx.size ||
-          Number(marketForecastTx.price || 0) !== 0
+          Number(marketForecastTx.price || 0) !== 0 ||
+          (marketForecastTx.retentions != null &&
+            marketForecastTx.retentions > 0)
         )
       }
       default:
@@ -1580,6 +1619,15 @@ export default function TransactionsPage() {
                                 {dayGroup.transactions.map(tx => {
                                   const isExpanded = expandedCards.has(tx.id)
                                   const hasDetails = hasTransactionDetails(tx)
+                                  const displayAmount =
+                                    getTransactionDisplayAmount(
+                                      tx.amount,
+                                      tx.net_amount,
+                                    )
+                                  const displayType = getTransactionDisplayType(
+                                    tx.type,
+                                    displayAmount,
+                                  )
                                   return (
                                     <div
                                       key={tx.id}
@@ -1645,9 +1693,7 @@ export default function TransactionsPage() {
                                             <div className="text-right">
                                               <div
                                                 className={`font-semibold ${
-                                                  getTransactionDisplayType(
-                                                    tx.type,
-                                                  ) === "in"
+                                                  displayType === "in"
                                                     ? "text-green-600 dark:text-green-400"
                                                     : tx.type === TxType.FEE
                                                       ? "text-red-600 dark:text-red-400"
@@ -1655,15 +1701,12 @@ export default function TransactionsPage() {
                                                 }`}
                                               >
                                                 <Sensitive>
-                                                  {getTransactionDisplayType(
+                                                  {getTransactionDisplaySign(
                                                     tx.type,
-                                                  ) === "in"
-                                                    ? "+"
-                                                    : tx.type === TxType.FEE
-                                                      ? "-"
-                                                      : ""}
+                                                    displayAmount,
+                                                  )}
                                                   {formatCurrency(
-                                                    tx.net_amount ?? tx.amount,
+                                                    Math.abs(displayAmount),
                                                     locale,
                                                     settings.general
                                                       .defaultCurrency,
@@ -1833,6 +1876,14 @@ export default function TransactionsPage() {
                             {dayGroup.transactions.map(tx => {
                               const isExpanded = expandedCards.has(tx.id)
                               const hasDetails = hasTransactionDetails(tx)
+                              const displayAmount = getTransactionDisplayAmount(
+                                tx.amount,
+                                tx.net_amount,
+                              )
+                              const displayType = getTransactionDisplayType(
+                                tx.type,
+                                displayAmount,
+                              )
                               return (
                                 <div
                                   key={tx.id}
@@ -1895,25 +1946,20 @@ export default function TransactionsPage() {
                                         <div className="text-right">
                                           <div
                                             className={`font-semibold ${
-                                              getTransactionDisplayType(
-                                                tx.type,
-                                              ) === "in"
+                                              displayType === "in"
                                                 ? "text-green-600 dark:text-green-400"
                                                 : tx.type === TxType.FEE
                                                   ? "text-red-600 dark:text-red-400"
                                                   : "text-gray-900 dark:text-gray-100"
                                             }`}
                                           >
-                                            {getTransactionDisplayType(
+                                            {getTransactionDisplaySign(
                                               tx.type,
-                                            ) === "in"
-                                              ? "+"
-                                              : tx.type === TxType.FEE
-                                                ? "-"
-                                                : ""}
+                                              displayAmount,
+                                            )}
                                             <Sensitive>
                                               {formatCurrency(
-                                                tx.net_amount ?? tx.amount,
+                                                Math.abs(displayAmount),
                                                 locale,
                                                 settings.general
                                                   .defaultCurrency,

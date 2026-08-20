@@ -2883,6 +2883,7 @@
       "price": "Purchase price",
       "expenses": "Purchase expenses",
       "addExpense": "Add",
+      "totalExpenses": "Total expenses",
       "totalCost": "Total cost",
       "purchaseConceptDescription": "Purchase expense concept",
       "suggestedConcepts": "Suggested concepts:",

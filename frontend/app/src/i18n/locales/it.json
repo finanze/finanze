@@ -2878,6 +2878,7 @@
       "price": "Prezzo di acquisto",
       "expenses": "Spese di acquisto",
       "addExpense": "Aggiungi",
+      "totalExpenses": "Totale spese",
       "totalCost": "Costo totale",
       "purchaseConceptDescription": "Concetto di spesa di acquisto",
       "suggestedConcepts": "Concetti suggeriti:",

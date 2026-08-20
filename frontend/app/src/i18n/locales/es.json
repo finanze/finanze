@@ -2895,6 +2895,7 @@
       "price": "Precio de compraventa",
       "expenses": "Gastos de compra",
       "addExpense": "Añadir",
+      "totalExpenses": "Total de gastos",
       "totalCost": "Coste total",
       "purchaseConceptDescription": "Concepto de gasto de compraventa",
       "suggestedConcepts": "Conceptos sugeridos:",

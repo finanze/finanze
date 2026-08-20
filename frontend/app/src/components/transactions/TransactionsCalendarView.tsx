@@ -19,7 +19,11 @@ import {
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import {
+  getTransactionDisplayAmount,
+  getTransactionDisplaySign,
+  getTransactionDisplayType,
+} from "@/utils/financialDataUtils"
 import {
   getIconForTxType,
   getProductTypeColor,
@@ -580,7 +584,9 @@ function DayDetailModal({
         return !!(
           marketForecastTx.symbol ||
           marketForecastTx.size ||
-          Number(marketForecastTx.price || 0) !== 0
+          Number(marketForecastTx.price || 0) !== 0 ||
+          (marketForecastTx.retentions != null &&
+            marketForecastTx.retentions > 0)
         )
       }
       default:
@@ -816,7 +822,7 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
-            {accountTx.retentions !== undefined && accountTx.retentions > 0 && (
+            {accountTx.retentions != null && accountTx.retentions !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
@@ -1003,6 +1009,22 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
+            {marketForecastTx.retentions != null &&
+              marketForecastTx.retentions > 0 && (
+                <div className={detailRowClass}>
+                  <span className={detailLabelClass}>
+                    {t.transactions.retentions}:
+                  </span>{" "}
+                  <Sensitive>
+                    {formatCurrency(
+                      marketForecastTx.retentions,
+                      locale,
+                      settings.general.defaultCurrency,
+                      tx.currency,
+                    )}
+                  </Sensitive>
+                </div>
+              )}
           </div>
         )
       }
@@ -1078,6 +1100,14 @@ function DayDetailModal({
             {day.transactions.map(tx => {
               const isExpanded = expandedTxs.has(tx.id)
               const hasDetails = hasExtraDetails(tx)
+              const displayAmount = getTransactionDisplayAmount(
+                tx.amount,
+                tx.net_amount,
+              )
+              const displayType = getTransactionDisplayType(
+                tx.type,
+                displayAmount,
+              )
 
               return (
                 <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
@@ -1089,7 +1119,7 @@ function DayDetailModal({
                         </p>
                         <span
                           className={`font-semibold text-sm sm:text-base shrink-0 ${
-                            getTransactionDisplayType(tx.type) === "in"
+                            displayType === "in"
                               ? "text-green-600 dark:text-green-400"
                               : tx.type === TxType.FEE
                                 ? "text-red-600 dark:text-red-400"
@@ -1097,13 +1127,9 @@ function DayDetailModal({
                           }`}
                         >
                           <Sensitive>
-                            {getTransactionDisplayType(tx.type) === "in"
-                              ? "+"
-                              : tx.type === TxType.FEE
-                                ? "-"
-                                : ""}
+                            {getTransactionDisplaySign(tx.type, displayAmount)}
                             {formatCurrency(
-                              tx.net_amount ?? tx.amount,
+                              Math.abs(displayAmount),
                               locale,
                               settings.general.defaultCurrency,
                               tx.currency,
