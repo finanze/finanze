@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Indietro",
+    "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
     "fetching": "Recupero in corso...",

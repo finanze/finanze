@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
     "fetching": "Fetching...",
