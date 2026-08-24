@@ -508,8 +508,12 @@ class TradeRepublicClient:
         self._tr_api._weblogin = True
 
     async def close(self):
-        if self._tr_api and self._tr_api._ws:
-            await self._tr_api._ws.close()
+        if not self._tr_api:
+            return
+        try:
+            await self._tr_api.close()
+        except Exception:
+            self._log.debug("Error closing Trade Republic websocket", exc_info=True)
 
     @cached(ttl=120, noself=True)
     async def get_portfolio(self):

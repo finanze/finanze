@@ -723,6 +723,98 @@ class TestIsolatedFeaturePersist:
 
         fetcher.historical_position.assert_not_awaited()
         uc._historic_port.save.assert_not_awaited()
+        fetcher.close.assert_awaited_once()
+
+
+class TestFetcherCloseAfterFeatures:
+    @pytest.mark.asyncio
+    async def test_close_once_after_all_requested_features(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        position = _make_position()
+        txs = Transactions(account=[_make_account_tx(entity)], investment=[])
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=position)
+        fetcher.auto_contributions = AsyncMock(return_value=None)
+        fetcher.transactions = AsyncMock(return_value=txs)
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_after_partial_failure(self):
+        uc, position_port, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        position = _make_position()
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=position)
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+        account_id = uuid4()
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            account_id,
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_when_all_features_fail(self):
+        uc, _, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        account_id = uuid4()
+
+        with pytest.raises(RuntimeError, match="txs boom"):
+            await uc.get_data(
+                entity,
+                [Feature.POSITION, Feature.TRANSACTIONS],
+                fetcher,
+                FetchOptions(),
+                account_id,
+            )
+
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_error_does_not_hide_feature_error(self):
+        uc, _, _, _ = _build_use_case()
+        entity = TRADE_REPUBLIC
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+        fetcher.close = AsyncMock(side_effect=RuntimeError("close boom"))
+        account_id = uuid4()
+
+        with pytest.raises(RuntimeError, match="pos boom"):
+            await uc.get_data(
+                entity,
+                [Feature.POSITION],
+                fetcher,
+                FetchOptions(),
+                account_id,
+            )
+
+        fetcher.close.assert_awaited_once()
 
 
 async def _prepare_logged_in_execute(uc, entity, account_id, last_fetches=None):

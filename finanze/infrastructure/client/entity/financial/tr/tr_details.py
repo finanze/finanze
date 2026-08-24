@@ -21,6 +21,10 @@
 # SOFTWARE.
 
 
+import asyncio
+import logging
+
+
 class TRDetails:
     DATA_TYPES = [
         "stockDetails",
@@ -32,6 +36,8 @@ class TRDetails:
         "instrument",
         "instrumentSuitability",
     ]
+
+    FETCH_TIMEOUT = 15
 
     def __init__(self, tr, isin):
         self.instrument_suitability = None
@@ -45,6 +51,7 @@ class TRDetails:
 
         self._tr = tr
         self._isin = isin
+        self._log = logging.getLogger(__name__)
 
     async def fetch(self, data: list = DATA_TYPES):
         recv = 0
@@ -56,7 +63,6 @@ class TRDetails:
             await self._tr.subscribe({"type": "etfDetails", "id": self._isin})
         if "neonNews" in data:
             await self._tr.news(self._isin)
-        # await self.tr.subscribe_news(self.isin)
         if "ticker" in data:
             await self._tr.ticker(self._isin, exchange="LSX")
         if "performance" in data:
@@ -66,13 +72,19 @@ class TRDetails:
         if "instrumentSuitability" in data:
             await self._tr.instrument_suitability(self._isin)
 
-        # await self.tr.add_watchlist(self.isin)
-        # await self.tr.remove_watchlist(self.isin)
-        # await self.tr.savings_plan_parameters(self.isin)
-        # await self.tr.unsubscribe_news(self.isin)
-
-        while True:
-            _subscription_id, subscription, response = await self._tr.recv()
+        while recv < len(data):
+            try:
+                _subscription_id, subscription, response = await asyncio.wait_for(
+                    self._tr.recv(), self.FETCH_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                self._log.warning(
+                    "Timed out waiting for Trade Republic details for %s (%s/%s topics)",
+                    self._isin,
+                    recv,
+                    len(data),
+                )
+                return
 
             if "stockDetails" in data and subscription["type"] == "stockDetails":
                 recv += 1
@@ -104,6 +116,5 @@ class TRDetails:
             ):
                 recv += 1
                 self.instrument_suitability = response
-
-            if recv == len(data):
-                return
+            else:
+                recv += 1

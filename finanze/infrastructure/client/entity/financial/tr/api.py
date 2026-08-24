@@ -152,6 +152,18 @@ class TradeRepublicApi:
 
         return self._ws
 
+    async def close(self):
+        ws = self._ws
+        self._ws = None
+        self.subscriptions.clear()
+        self._previous_responses.clear()
+        if ws is None:
+            return
+        try:
+            await ws.close()
+        except Exception:
+            self.log.debug("Error closing Trade Republic websocket", exc_info=True)
+
     async def _next_subscription_id(self):
         async with self._lock:
             subscription_id = self._subscription_id_counter

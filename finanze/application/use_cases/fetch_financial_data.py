@@ -340,71 +340,80 @@ class FetchFinancialDataImpl(FetchFinancialData):
         historic = None
         transactions_ok = False
 
-        if Feature.POSITION in features:
-            try:
-                position = await self._fetch_and_store_position(
-                    entity, specific_fetcher, entity_account_id
-                )
-                completed.append(Feature.POSITION)
-            except Exception as e:
-                self._log.exception(e)
-                failed.append(Feature.POSITION)
-                last_error = e
+        try:
+            if Feature.POSITION in features:
+                try:
+                    position = await self._fetch_and_store_position(
+                        entity, specific_fetcher, entity_account_id
+                    )
+                    completed.append(Feature.POSITION)
+                except Exception as e:
+                    self._log.exception(e)
+                    failed.append(Feature.POSITION)
+                    last_error = e
 
-        if Feature.AUTO_CONTRIBUTIONS in features:
-            try:
-                auto_contributions = await self._fetch_and_store_auto_contributions(
-                    entity, specific_fetcher, entity_account_id
-                )
-                completed.append(Feature.AUTO_CONTRIBUTIONS)
-            except Exception as e:
-                self._log.exception(e)
-                failed.append(Feature.AUTO_CONTRIBUTIONS)
-                last_error = e
+            if Feature.AUTO_CONTRIBUTIONS in features:
+                try:
+                    auto_contributions = await self._fetch_and_store_auto_contributions(
+                        entity, specific_fetcher, entity_account_id
+                    )
+                    completed.append(Feature.AUTO_CONTRIBUTIONS)
+                except Exception as e:
+                    self._log.exception(e)
+                    failed.append(Feature.AUTO_CONTRIBUTIONS)
+                    last_error = e
 
-        if Feature.TRANSACTIONS in features:
-            try:
-                transactions = await self._fetch_and_store_transactions(
-                    entity, specific_fetcher, options, entity_account_id
-                )
-                completed.append(Feature.TRANSACTIONS)
-                transactions_ok = True
-            except Exception as e:
-                self._log.exception(e)
-                failed.append(Feature.TRANSACTIONS)
-                last_error = e
+            if Feature.TRANSACTIONS in features:
+                try:
+                    transactions = await self._fetch_and_store_transactions(
+                        entity, specific_fetcher, options, entity_account_id
+                    )
+                    completed.append(Feature.TRANSACTIONS)
+                    transactions_ok = True
+                except Exception as e:
+                    self._log.exception(e)
+                    failed.append(Feature.TRANSACTIONS)
+                    last_error = e
 
-        if Feature.HISTORIC in features and transactions_ok and transactions:
-            try:
-                historic = await self._fetch_and_store_historic(
-                    entity, specific_fetcher, entity_account_id
-                )
-                completed.append(Feature.HISTORIC)
-            except Exception as e:
-                self._log.exception(e)
-                failed.append(Feature.HISTORIC)
-                last_error = e
+            if Feature.HISTORIC in features and transactions_ok and transactions:
+                try:
+                    historic = await self._fetch_and_store_historic(
+                        entity, specific_fetcher, entity_account_id
+                    )
+                    completed.append(Feature.HISTORIC)
+                except Exception as e:
+                    self._log.exception(e)
+                    failed.append(Feature.HISTORIC)
+                    last_error = e
 
-        if failed and not completed:
-            if last_error is None:
-                raise RuntimeError("All requested features failed")
-            raise last_error
+            if failed and not completed:
+                if last_error is None:
+                    raise RuntimeError("All requested features failed")
+                raise last_error
 
-        data = FetchedData(
-            position=position,
-            auto_contributions=auto_contributions,
-            transactions=transactions,
-            historic=historic,
-        )
-        details = {
-            "completedFeatures": [feature.value for feature in completed],
-        }
-        if failed:
-            details["failedFeatures"] = [feature.value for feature in failed]
-            return FetchResult(
-                FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
+            data = FetchedData(
+                position=position,
+                auto_contributions=auto_contributions,
+                transactions=transactions,
+                historic=historic,
             )
-        return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
+            details = {
+                "completedFeatures": [feature.value for feature in completed],
+            }
+            if failed:
+                details["failedFeatures"] = [feature.value for feature in failed]
+                return FetchResult(
+                    FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
+                )
+            return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
+        finally:
+            await self._close_fetcher(specific_fetcher)
+
+    async def _close_fetcher(self, specific_fetcher: FinancialEntityFetcher):
+        try:
+            await specific_fetcher.close()
+        except Exception:
+            self._log.debug("Error closing financial entity fetcher", exc_info=True)
 
     async def _fetch_and_store_position(
         self,
