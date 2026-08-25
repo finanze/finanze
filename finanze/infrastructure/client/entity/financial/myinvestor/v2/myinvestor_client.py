@@ -1,7 +1,7 @@
 import logging
 from datetime import date, datetime
 from typing import Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from aiocache import cached, Cache
@@ -35,6 +35,8 @@ class MyInvestorAPIV2Client:
         self._log = logging.getLogger(__name__)
         self._session = get_http_session()
         self._skey: Optional[str] = None
+        self._device_id: Optional[str] = None
+        self._signature_complete = False
 
     async def _execute_request(
         self,
@@ -78,7 +80,7 @@ class MyInvestorAPIV2Client:
     async def _post_request(
         self,
         path: str,
-        body: dict,
+        body: dict | None = None,
         raw: bool = False,
         base_url: str = BASE_URL,
         headers: dict | None = None,
@@ -87,17 +89,34 @@ class MyInvestorAPIV2Client:
             path, "POST", body=body, raw=raw, base_url=base_url, headers=headers
         )
 
-    async def login(
+    def _resolve_device_id(
         self,
-        username: str,
-        password: str,
-        login_options: LoginOptions,
         session: Optional[EntitySession],
-        process_id: str = None,
-        code: str = None,
-        captcha_token: str = None,
-        keychain: Optional[PublicKeychain] = None,
-    ) -> EntityLoginResult:
+        process_id: Optional[str],
+        code: Optional[str],
+        captcha_token: Optional[str],
+    ) -> str:
+        if session and session.payload and session.payload.get("device_id"):
+            self._device_id = session.payload["device_id"]
+            return self._device_id
+
+        continuation = bool(
+            process_id or code or captcha_token or self._signature_complete
+        )
+        if self._device_id and continuation:
+            return self._device_id
+
+        self._device_id = str(uuid4())
+        return self._device_id
+
+    def _init_login_headers(
+        self,
+        session: Optional[EntitySession],
+        process_id: Optional[str],
+        code: Optional[str],
+        captcha_token: Optional[str],
+        keychain: Optional[PublicKeychain],
+    ) -> str:
         if keychain:
             entry = keychain.get("MYI_SKEY")
             if entry:
@@ -112,93 +131,240 @@ class MyInvestorAPIV2Client:
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
-
-        device_id = session.payload.get("device_id") if session else str(uuid4())
-
-        self._headers["x-device-id"] = device_id
         self._headers["x-myinvestor-app"] = "version=3.125.0,platform=web"
 
-        headers = {**self._headers}
+        device_id = self._resolve_device_id(session, process_id, code, captcha_token)
+        self._headers["x-device-id"] = device_id
+        return device_id
 
+    @staticmethod
+    def _auth_headers(base_headers: dict, captcha_token: Optional[str]) -> dict:
+        headers = {**base_headers}
         if captcha_token:
             headers["X-Recaptcha-Token"] = captcha_token
             headers["X-Recaptcha-Action"] = "SECURITY_CHECK"
+        return headers
 
+    @staticmethod
+    def _is_uuid(value: str) -> bool:
+        try:
+            UUID(value)
+            return True
+        except (ValueError, TypeError, AttributeError):
+            return False
+
+    @staticmethod
+    def _flatten_signature_methods(raw_methods) -> list[str]:
+        flat = []
+        for method in raw_methods or []:
+            if isinstance(method, list):
+                flat.extend(method)
+            else:
+                flat.append(method)
+        return flat
+
+    async def login(
+        self,
+        username: str,
+        password: str,
+        login_options: LoginOptions,
+        session: Optional[EntitySession],
+        process_id: str = None,
+        code: str = None,
+        captcha_token: str = None,
+        keychain: Optional[PublicKeychain] = None,
+    ) -> EntityLoginResult:
+        device_id = self._init_login_headers(
+            session, process_id, code, captcha_token, keychain
+        )
+        headers = self._auth_headers(self._headers, captcha_token)
         request = {"customerId": username, "password": password}
 
         if code and process_id:
-            if len(code) != 6:
-                return EntityLoginResult(LoginResultCode.INVALID_CODE)
-
-            opt_id, signature_request_id = process_id.split("|")
-            request["otpId"] = opt_id
-            request["signatureRequestId"] = signature_request_id
-            request["code"] = code
-
-            response = await self._post_request(
-                "/login/api/v2/auth/token",
-                body=request,
-                raw=True,
-                base_url=self.LOGIN_URL,
-                headers=headers,
+            return await self._complete_otp(
+                request, process_id, code, headers, device_id, login_options
             )
 
-            if response.ok:
-                return await self._handle_ok_login(response, device_id)
-
-            elif response.status == 400:
-                return EntityLoginResult(LoginResultCode.INVALID_CODE)
-            elif response.status == 403:
-                return await self._handle_forbidden_login(response)
-            else:
-                return EntityLoginResult(
-                    LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {response.status}",
-                )
-
-        elif not process_id and not code:
-            response = await self._post_request(
-                "/login/api/v2/auth/token",
-                body=request,
-                raw=True,
-                base_url=self.LOGIN_URL,
-                headers=headers,
-            )
-
-            if response.ok:
-                if response.status == 202:
-                    if login_options.avoid_new_login:
-                        return EntityLoginResult(LoginResultCode.NOT_LOGGED)
-
-                    try:
-                        data = (await response.json())["payload"]["data"]
-                        otp_id = data["otpId"]
-                        signature_request_id = data["signatureRequestId"]
-                        process_id = f"{otp_id}|{signature_request_id}"
-                        return EntityLoginResult(
-                            LoginResultCode.CODE_REQUESTED, process_id=process_id
-                        )
-                    except KeyError:
-                        return EntityLoginResult(
-                            LoginResultCode.UNEXPECTED_ERROR,
-                            message="OTP not found in response",
-                        )
-
-                else:
-                    return await self._handle_ok_login(response, device_id)
-
-            elif response.status == 400:
-                return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
-            elif response.status == 403:
-                return await self._handle_forbidden_login(response)
-            else:
-                return EntityLoginResult(
-                    LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {response.status}",
-                )
-
-        else:
+        if process_id or code:
             raise ValueError("Invalid params")
+
+        return await self._request_token(request, headers, device_id, login_options)
+
+    async def _request_token(
+        self,
+        request: dict,
+        headers: dict,
+        device_id: str,
+        login_options: LoginOptions,
+    ) -> EntityLoginResult:
+        response = await self._post_request(
+            "/login/api/v2/auth/token",
+            body=request,
+            raw=True,
+            base_url=self.LOGIN_URL,
+            headers=headers,
+        )
+
+        if response.ok:
+            if response.status == 202:
+                if login_options.avoid_new_login:
+                    return EntityLoginResult(LoginResultCode.NOT_LOGGED)
+                if self._signature_complete:
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Unexpected pending signature after OTP",
+                    )
+                return await self._start_otp(response)
+
+            return await self._handle_ok_login(response, device_id)
+
+        if response.status == 400:
+            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
+        if response.status == 403:
+            return await self._handle_forbidden_login(response)
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message=f"Got unexpected response code {response.status}",
+        )
+
+    async def _start_otp(self, response: HttpResponse) -> EntityLoginResult:
+        try:
+            data = (await response.json())["payload"]["data"]
+        except (KeyError, TypeError):
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="OTP not found in response",
+            )
+
+        otp_id = data.get("otpId")
+        signature_request_id = data.get("signatureRequestId")
+        if otp_id and signature_request_id:
+            return EntityLoginResult(
+                LoginResultCode.CODE_REQUESTED,
+                process_id=f"{otp_id}|{signature_request_id}",
+            )
+
+        methods = self._flatten_signature_methods(data.get("pendingSignatureMethods"))
+        if signature_request_id and "OTP_SMS" in methods:
+            return await self._request_sms_otp(signature_request_id)
+
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message="OTP not found in response",
+        )
+
+    async def _request_sms_otp(self, signature_request_id: str) -> EntityLoginResult:
+        response = await self._post_request(
+            f"/signature/api/v3/public/signature/{signature_request_id}?method=OTP_SMS",
+            body=None,
+            raw=True,
+            base_url=self.LOGIN_URL,
+            headers=self._headers,
+        )
+        if not response.ok:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected response code {response.status}",
+            )
+
+        try:
+            data = (await response.json())["payload"]["data"]
+            signature_id = data["signatureId"]
+        except (KeyError, TypeError):
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="OTP not found in response",
+            )
+
+        return EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            process_id=f"{signature_request_id}|{signature_id}",
+        )
+
+    async def _complete_otp(
+        self,
+        request: dict,
+        process_id: str,
+        code: str,
+        headers: dict,
+        device_id: str,
+        login_options: LoginOptions,
+    ) -> EntityLoginResult:
+        if len(code) != 6:
+            return EntityLoginResult(LoginResultCode.INVALID_CODE)
+
+        if "|" not in process_id:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="Invalid process id",
+            )
+
+        left, right = process_id.split("|", 1)
+        if not left or not right:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="Invalid process id",
+            )
+
+        if self._is_uuid(left):
+            validate_result = await self._validate_sms_otp(left, right, code)
+            if validate_result:
+                return validate_result
+            self._signature_complete = True
+            return await self._request_token(request, headers, device_id, login_options)
+
+        request["otpId"] = left
+        request["signatureRequestId"] = right
+        request["code"] = code
+
+        response = await self._post_request(
+            "/login/api/v2/auth/token",
+            body=request,
+            raw=True,
+            base_url=self.LOGIN_URL,
+            headers=headers,
+        )
+
+        if response.ok:
+            return await self._handle_ok_login(response, device_id)
+        if response.status == 400:
+            return EntityLoginResult(LoginResultCode.INVALID_CODE)
+        if response.status == 403:
+            return await self._handle_forbidden_login(response)
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message=f"Got unexpected response code {response.status}",
+        )
+
+    async def _validate_sms_otp(
+        self, signature_request_id: str, signature_id: str, code: str
+    ) -> Optional[EntityLoginResult]:
+        response = await self._post_request(
+            f"/signature/api/v3/public/signature/{signature_request_id}/validate/{signature_id}",
+            body={"code": code},
+            raw=True,
+            base_url=self.LOGIN_URL,
+            headers=self._headers,
+        )
+        if response.status == 400:
+            return EntityLoginResult(LoginResultCode.INVALID_CODE)
+        if not response.ok:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected response code {response.status}",
+            )
+
+        try:
+            data = (await response.json())["payload"]["data"]
+        except (KeyError, TypeError):
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="OTP validation failed",
+            )
+
+        if data.get("status") != "COMPLETE":
+            return EntityLoginResult(LoginResultCode.INVALID_CODE)
+        return None
 
     async def _handle_forbidden_login(
         self, response: HttpResponse
@@ -254,6 +420,7 @@ class MyInvestorAPIV2Client:
 
         session = self._create_session(token_data, device_id)
 
+        self._signature_complete = False
         return EntityLoginResult(LoginResultCode.CREATED, session=session)
 
     async def refresh_token(self, refresh_token: str) -> HttpResponse:

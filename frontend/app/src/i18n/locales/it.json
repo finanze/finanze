@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Indietro",
+    "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
     "fetching": "Recupero in corso...",
@@ -496,7 +497,8 @@
     "cancelLoginDescription": "Vuoi uscire dal processo di accesso?",
     "cancelFetchDescription": "Vuoi uscire dal processo di recupero?",
     "pendingRequests": "Altre entità richiedono un codice",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Codice di verifica"
   },
   "errors": {
     "INVALID_CODE": "Codice fornito non valido",
@@ -515,6 +517,7 @@
     "REMOTE_FAILED": "L'entità non ha risposto correttamente, riprova più tardi.",
     "LINK_EXPIRED": "Il link di connessione è scaduto. Ricollega l'entità per continuare.",
     "PARTIALLY_COMPLETED": "Non tutte le fonti sono state caricate correttamente per {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Alcune funzionalità non sono state caricate per {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
@@ -2878,6 +2881,7 @@
       "price": "Prezzo di acquisto",
       "expenses": "Spese di acquisto",
       "addExpense": "Aggiungi",
+      "totalExpenses": "Totale spese",
       "totalCost": "Costo totale",
       "purchaseConceptDescription": "Concetto di spesa di acquisto",
       "suggestedConcepts": "Concetti suggeriti:",

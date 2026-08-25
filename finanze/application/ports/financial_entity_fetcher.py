@@ -15,6 +15,9 @@ class FinancialEntityFetcher(metaclass=abc.ABCMeta):
     def cancel_login(self) -> None:
         pass
 
+    async def close(self) -> None:
+        pass
+
     async def global_position(self) -> GlobalPosition:
         raise FeatureNotSupported
 

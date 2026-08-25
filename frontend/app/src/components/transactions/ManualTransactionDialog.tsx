@@ -1739,29 +1739,11 @@ export function ManualTransactionDialog({
                                     <Label htmlFor="transaction-shares">
                                       {field.labelKey}
                                     </Label>
-                                    <Input
+                                    <DecimalInput
                                       id="transaction-shares"
-                                      type={
-                                        field.type === "number"
-                                          ? "number"
-                                          : "text"
-                                      }
-                                      inputMode={
-                                        field.type === "number"
-                                          ? "decimal"
-                                          : undefined
-                                      }
-                                      step={
-                                        field.type === "number"
-                                          ? (field.step ?? "0.01")
-                                          : undefined
-                                      }
                                       value={formState.extra.shares ?? ""}
-                                      onChange={event =>
-                                        handleExtraChange(
-                                          "shares",
-                                          event.target.value,
-                                        )
+                                      onStringChange={value =>
+                                        handleExtraChange("shares", value)
                                       }
                                       className={error ? "border-red-500" : ""}
                                     />
@@ -1779,40 +1761,17 @@ export function ManualTransactionDialog({
                                       {priceField?.labelKey ??
                                         t.transactions.price}
                                     </Label>
-                                    <div className="relative">
-                                      <Input
-                                        id="transaction-price"
-                                        type={
-                                          priceField?.type === "number"
-                                            ? "number"
-                                            : "text"
-                                        }
-                                        inputMode={
-                                          priceField?.type === "number"
-                                            ? "decimal"
-                                            : undefined
-                                        }
-                                        step={
-                                          priceField?.type === "number"
-                                            ? (priceField.step ?? "0.01")
-                                            : undefined
-                                        }
-                                        value={formState.extra.price ?? ""}
-                                        onChange={event =>
-                                          handleExtraChange(
-                                            "price",
-                                            event.target.value,
-                                          )
-                                        }
-                                        className={cn(
-                                          "pr-10",
-                                          priceError && "border-red-500",
-                                        )}
-                                      />
-                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                                        {currencySymbol}
-                                      </span>
-                                    </div>
+                                    <DecimalInput
+                                      id="transaction-price"
+                                      value={formState.extra.price ?? ""}
+                                      onStringChange={value =>
+                                        handleExtraChange("price", value)
+                                      }
+                                      suffix={currencySymbol}
+                                      className={cn(
+                                        priceError && "border-red-500",
+                                      )}
+                                    />
                                     {priceError && (
                                       <p className="text-xs text-red-600 dark:text-red-400">
                                         {priceError}

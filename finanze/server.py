@@ -289,6 +289,7 @@ class FinanzeServer:
         self._args = args
         self._quart_app = None
         self._db_client = None
+        self._financial_entity_fetchers = None
         self._log = logging.getLogger(__name__)
 
     async def _init(self):
@@ -348,6 +349,8 @@ class FinanzeServer:
                 domain.native_entities.BINANCE: BinanceFetcher(),
                 domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
+
+        self._financial_entity_fetchers = financial_entity_fetchers
 
         external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),
@@ -1056,8 +1059,20 @@ class FinanzeServer:
             raise
         finally:
             self._log.info("Finanze server shutting down.")
+            await self._close_financial_entity_fetchers()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _close_financial_entity_fetchers(self):
+        fetchers = self._financial_entity_fetchers or {}
+        for fetcher in fetchers.values():
+            close = getattr(fetcher, "close", None)
+            if close is None:
+                continue
+            try:
+                await close()
+            except Exception:
+                self._log.debug("Error closing financial entity fetcher", exc_info=True)
 
     def _check_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

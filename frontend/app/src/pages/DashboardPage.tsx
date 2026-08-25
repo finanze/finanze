@@ -3203,11 +3203,7 @@ export default function DashboardPage() {
                                             }`}
                                           >
                                             <Sensitive>
-                                              {tx.displayType === "in"
-                                                ? "+"
-                                                : tx.type === TxType.FEE
-                                                  ? "-"
-                                                  : ""}
+                                              {tx.displaySign}
                                               {tx.formattedAmount}
                                             </Sensitive>
                                           </p>

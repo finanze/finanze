@@ -507,7 +507,14 @@ const sumMarketForecastValues = (
   )
 }
 
-export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
+export const getTransactionDisplayType = (
+  txType: TxType,
+  amount?: number,
+): "in" | "out" => {
+  if (amount != null && amount < 0) {
+    return "out"
+  }
+
   if (
     [
       TxType.BUY,
@@ -526,6 +533,30 @@ export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
   } else {
     return "in"
   }
+}
+
+export const getTransactionDisplayAmount = (
+  amount: number,
+  netAmount?: number | null,
+): number => {
+  const displayAmount = netAmount ?? amount
+  return amount < 0 ? -Math.abs(displayAmount) : displayAmount
+}
+
+export const getTransactionDisplaySign = (
+  txType: TxType,
+  amount: number,
+): "+" | "-" | "" => {
+  if (amount < 0) {
+    return "-"
+  }
+  if (getTransactionDisplayType(txType, amount) === "in") {
+    return "+"
+  }
+  if (txType === TxType.FEE) {
+    return "-"
+  }
+  return ""
 }
 
 export interface AssetDistributionItem {
@@ -641,6 +672,7 @@ export interface GroupedTransaction {
   type: TxType
   product_type: string
   displayType: "in" | "out"
+  displaySign: "+" | "-" | ""
   entity: string
 }
 
@@ -2785,22 +2817,30 @@ export const getRecentTransactions = (
     .filter(
       tx => tx.type !== TxType.SWITCH_FROM && tx.type !== TxType.SWITCH_TO,
     )
-    .map(tx => ({
-      date: tx.date,
-      description: tx.name,
-      amount: tx.amount,
-      currency: tx.currency,
-      formattedAmount: formatCurrency(
-        tx.net_amount ?? tx.amount,
-        locale,
-        defaultCurrency,
-        tx.currency,
-      ),
-      type: tx.type,
-      product_type: tx.product_type,
-      displayType: getTransactionDisplayType(tx.type),
-      entity: tx.entity.name,
-    }))
+    .map(tx => {
+      const displayAmount = getTransactionDisplayAmount(
+        tx.amount,
+        tx.net_amount,
+      )
+
+      return {
+        date: tx.date,
+        description: tx.name,
+        amount: tx.amount,
+        currency: tx.currency,
+        formattedAmount: formatCurrency(
+          Math.abs(displayAmount),
+          locale,
+          defaultCurrency,
+          tx.currency,
+        ),
+        type: tx.type,
+        product_type: tx.product_type,
+        displayType: getTransactionDisplayType(tx.type, displayAmount),
+        displaySign: getTransactionDisplaySign(tx.type, displayAmount),
+        entity: tx.entity.name,
+      }
+    })
     .forEach(tx => {
       const dateKey = formatDate(tx.date, locale)
       if (!groupedTxs[dateKey]) {

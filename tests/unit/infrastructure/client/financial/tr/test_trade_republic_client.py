@@ -249,6 +249,39 @@ class TestCancelLogin:
         assert client._cancel_event.is_set()
 
 
+class TestClose:
+    @pytest.mark.asyncio
+    async def test_close_delegates_to_api_and_nulls_ws(self):
+        api = TradeRepublicApi("+49123456789", "1234")
+        ws = AsyncMock()
+        api._ws = ws
+        api.subscriptions["1"] = {"type": "compactPortfolioByType"}
+        api._previous_responses["1"] = "cached"
+
+        client = TradeRepublicClient()
+        client._tr_api = api
+
+        await client.close()
+
+        ws.close.assert_awaited_once()
+        assert api._ws is None
+        assert api.subscriptions == {}
+        assert api._previous_responses == {}
+
+    @pytest.mark.asyncio
+    async def test_close_without_api_is_noop(self):
+        client = TradeRepublicClient()
+
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_close_swallows_api_errors(self):
+        client = _make_client()
+        client._tr_api.close = AsyncMock(side_effect=RuntimeError("already closed"))
+
+        await client.close()
+
+
 class TestLoginV2Flow:
     @pytest.mark.asyncio
     async def test_login_with_waf_token_uses_v2(self):

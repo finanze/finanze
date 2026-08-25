@@ -9,7 +9,7 @@ import {
 } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
-import { useI18n } from "@/i18n"
+import { useI18n, type Translations } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
   CredentialType,
@@ -22,6 +22,7 @@ import {
   EntityStatus,
   EntityType,
   EntityOrigin,
+  PinChannel,
 } from "@/types"
 import {
   loginEntity,
@@ -42,6 +43,7 @@ import { useCloud } from "@/context/CloudContext"
 import { getExternalLoginAPI } from "@/lib/externalLogin"
 import { getChallengeWindowAPI } from "@/lib/challengeWindow"
 import { getConnectedAccountIds } from "@/utils/entityUtils"
+import { startSmsOtpListening, stopSmsOtpListening } from "@/lib/mobile/smsOtp"
 
 export interface FetchOptions {
   deep?: boolean
@@ -149,6 +151,28 @@ const formatEntityError = (
   fallback: string,
 ): string => (message || fallback).replace("{entity}", entityName)
 
+const formatPartialFetchMessage = (
+  t: Translations,
+  entityName: string,
+  failedFeatures?: Feature[],
+): string => {
+  if (failedFeatures && failedFeatures.length > 0) {
+    const labels = failedFeatures
+      .map(feature => t.features[feature] || feature)
+      .join(", ")
+    return t.errors.PARTIALLY_COMPLETED_FEATURES.replace(
+      "{entity}",
+      entityName,
+    ).replace("{features}", labels)
+  }
+  return t.errors.PARTIALLY_COMPLETED.replace("{entity}", entityName)
+}
+
+const featuresToStampLastFetch = (
+  completedFeatures: Feature[] | undefined,
+  requestedFeatures: Feature[],
+): Feature[] => completedFeatures ?? requestedFeatures
+
 const getDefaultAccountName = (
   entity: Entity,
   credentials: Record<string, string>,
@@ -181,6 +205,9 @@ const getNewAccountName = (
   entity.accounts?.some(account => account.id === accountId)
     ? undefined
     : accountName
+
+const entityHasSmsPin = (entity: Entity | null | undefined): boolean =>
+  entity?.pin?.channel === PinChannel.SMS
 
 export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -286,6 +313,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
+    void stopSmsOtpListening()
     setPinRequired(false)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
@@ -493,6 +521,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        if (entityHasSmsPin(selectedEntity) && pin === undefined) {
+          await startSmsOtpListening()
+        }
+
         const response = await loginEntity({
           entity: selectedEntity.id,
           credentials: credentials,
@@ -505,6 +537,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setProcessId(response.processId || null)
           setCurrentAction("login")
           if (response.confirmationType === LoginConfirmationType.IN_APP) {
+            void stopSmsOtpListening()
             setInAppConfirmation(true)
             setIsLoggingIn(true)
             try {
@@ -576,6 +609,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            void stopSmsOtpListening()
             if (
               response.challengeType === ChallengeType.RECAPTCHA &&
               response.processId
@@ -764,6 +798,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }))
         }
 
+        if (entity && !silent && !options.code && entityHasSmsPin(entity)) {
+          await startSmsOtpListening()
+        }
+
         let response
         let httpError: number | undefined
         if (entity) {
@@ -836,6 +874,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            void stopSmsOtpListening()
             const processIdValue = response.details?.processId || null
             const challengeTypeValue = response.details?.challengeType || null
             const challengeDomainValue =
@@ -878,6 +917,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             response.confirmationType === LoginConfirmationType.IN_APP &&
             entity
           ) {
+            void stopSmsOtpListening()
             const processIdValue = response.details?.processId || null
             if (processIdValue) {
               setSelectedEntity(entity)
@@ -903,9 +943,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   const isPartial =
                     confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
                   const successMessage = isPartial
-                    ? t.errors.PARTIALLY_COMPLETED.replace(
-                        "{entity}",
+                    ? formatPartialFetchMessage(
+                        t,
                         entity.name,
+                        confirmResponse.details?.failedFeatures,
                       )
                     : t.common.fetchSuccessEntity.replace(
                         "{entity}",
@@ -915,7 +956,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   if (!isPartial) {
                     recordAutoRefreshSuccess(entity.id)
                   }
-                  updateEntityLastFetch(entity.id, features)
+                  updateEntityLastFetch(
+                    entity.id,
+                    featuresToStampLastFetch(
+                      confirmResponse.details?.completedFeatures,
+                      features,
+                    ),
+                  )
                   pendingScrapeParamsRef.current.delete(entity.id)
                   if (activePinEntityId === entity.id) {
                     setActivePinEntityId(null)
@@ -1058,16 +1105,23 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
           const entityName = entity?.name || t.common.crypto
-          const warningMessage = t.errors.PARTIALLY_COMPLETED.replace(
-            "{entity}",
+          const warningMessage = formatPartialFetchMessage(
+            t,
             entityName,
+            response.details?.failedFeatures,
           )
           notify(warningMessage, "warning")
 
           let advancedToNext = false
 
           if (entity) {
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)
@@ -1113,7 +1167,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entity.name,
             )
             recordAutoRefreshSuccess(entity.id)
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)
@@ -1392,6 +1452,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           ? undefined
           : getDefaultAccountName(selectedEntity, credentials)
 
+        if (entityHasSmsPin(selectedEntity)) {
+          await startSmsOtpListening()
+        }
+
         const loginResponse = await loginEntity({
           entity: selectedEntity.id,
           credentials,
@@ -1446,6 +1510,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setCurrentAction("login")
           setStoredCredentials(credentials)
           if (loginResponse.confirmationType === LoginConfirmationType.IN_APP) {
+            void stopSmsOtpListening()
             setInAppConfirmation(true)
             try {
               const confirmResponse = await loginEntity({
@@ -1525,6 +1590,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             loginResponse.challengeType === ChallengeType.RECAPTCHA &&
             loginResponse.processId
           ) {
+            void stopSmsOtpListening()
             const domain = loginResponse.details?.challengeDomain
             if (
               domain &&

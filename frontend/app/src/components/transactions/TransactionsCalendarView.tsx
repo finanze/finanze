@@ -19,7 +19,11 @@ import {
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import {
+  getTransactionDisplayAmount,
+  getTransactionDisplaySign,
+  getTransactionDisplayType,
+} from "@/utils/financialDataUtils"
 import {
   getIconForTxType,
   getProductTypeColor,
@@ -521,6 +525,8 @@ function DayDetailModal({
   }
 
   const hasExtraDetails = (tx: TransactionItem): boolean => {
+    if (tx.type === TxType.DIVIDEND && tx.amount !== undefined) return true
+
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
         const stockTx = tx as StockTx
@@ -580,7 +586,9 @@ function DayDetailModal({
         return !!(
           marketForecastTx.symbol ||
           marketForecastTx.size ||
-          Number(marketForecastTx.price || 0) !== 0
+          Number(marketForecastTx.price || 0) !== 0 ||
+          (marketForecastTx.retentions != null &&
+            marketForecastTx.retentions > 0)
         )
       }
       default:
@@ -591,6 +599,22 @@ function DayDetailModal({
   const renderTransactionDetails = (tx: TransactionItem) => {
     const detailRowClass = "text-sm text-gray-600 dark:text-gray-400"
     const detailLabelClass = "font-medium text-gray-500 dark:text-gray-300"
+    const grossAmountField =
+      tx.type === TxType.DIVIDEND && tx.amount !== undefined ? (
+        <div className={detailRowClass}>
+          <span className={detailLabelClass}>
+            {t.transactions.grossAmount}:
+          </span>{" "}
+          <Sensitive>
+            {formatCurrency(
+              tx.amount,
+              locale,
+              settings.general.defaultCurrency,
+              tx.currency,
+            )}
+          </Sensitive>
+        </div>
+      ) : null
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
@@ -634,6 +658,7 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
             {stockTx.fees !== undefined && stockTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -707,6 +732,7 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
             {fundTx.fees !== undefined && fundTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -753,6 +779,7 @@ function DayDetailModal({
         }
         return (
           <div className="space-y-1 pt-2">
+            {grossAmountField}
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -788,6 +815,7 @@ function DayDetailModal({
         const accountTx = tx as AccountTx
         return (
           <div className="space-y-1 pt-2">
+            {grossAmountField}
             {tx.type === TxType.INTEREST && tx.amount !== undefined && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
@@ -816,7 +844,7 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
-            {accountTx.retentions !== undefined && accountTx.retentions > 0 && (
+            {accountTx.retentions != null && accountTx.retentions !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
@@ -868,6 +896,7 @@ function DayDetailModal({
         const simpleTx = tx as FactoringTx | RealEstateCFTx | DepositTx
         return (
           <div className="space-y-1 pt-2">
+            {grossAmountField}
             {simpleTx.fees !== undefined && simpleTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -935,6 +964,7 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
             {cryptoTx.fees != null && cryptoTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -1003,6 +1033,23 @@ function DayDetailModal({
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
+            {marketForecastTx.retentions != null &&
+              marketForecastTx.retentions > 0 && (
+                <div className={detailRowClass}>
+                  <span className={detailLabelClass}>
+                    {t.transactions.retentions}:
+                  </span>{" "}
+                  <Sensitive>
+                    {formatCurrency(
+                      marketForecastTx.retentions,
+                      locale,
+                      settings.general.defaultCurrency,
+                      tx.currency,
+                    )}
+                  </Sensitive>
+                </div>
+              )}
           </div>
         )
       }
@@ -1078,6 +1125,14 @@ function DayDetailModal({
             {day.transactions.map(tx => {
               const isExpanded = expandedTxs.has(tx.id)
               const hasDetails = hasExtraDetails(tx)
+              const displayAmount = getTransactionDisplayAmount(
+                tx.amount,
+                tx.net_amount,
+              )
+              const displayType = getTransactionDisplayType(
+                tx.type,
+                displayAmount,
+              )
 
               return (
                 <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
@@ -1089,7 +1144,7 @@ function DayDetailModal({
                         </p>
                         <span
                           className={`font-semibold text-sm sm:text-base shrink-0 ${
-                            getTransactionDisplayType(tx.type) === "in"
+                            displayType === "in"
                               ? "text-green-600 dark:text-green-400"
                               : tx.type === TxType.FEE
                                 ? "text-red-600 dark:text-red-400"
@@ -1097,13 +1152,9 @@ function DayDetailModal({
                           }`}
                         >
                           <Sensitive>
-                            {getTransactionDisplayType(tx.type) === "in"
-                              ? "+"
-                              : tx.type === TxType.FEE
-                                ? "-"
-                                : ""}
+                            {getTransactionDisplaySign(tx.type, displayAmount)}
                             {formatCurrency(
-                              tx.net_amount ?? tx.amount,
+                              Math.abs(displayAmount),
                               locale,
                               settings.general.defaultCurrency,
                               tx.currency,

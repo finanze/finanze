@@ -102,9 +102,7 @@ export interface Entity {
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
   session_category?: EntitySessionCategory
-  pin?: {
-    positions: number
-  }
+  pin?: PinDetails
   connected?: CryptoWalletConnection[]
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
@@ -126,6 +124,18 @@ export enum EntitySessionCategory {
   MEDIUM = "MEDIUM",
   // No session, renewable or weeks-long session
   UNDEFINED = "UNDEFINED",
+}
+
+export enum PinChannel {
+  SMS = "SMS",
+  EMAIL = "EMAIL",
+  APP = "APP",
+}
+
+export interface PinDetails {
+  positions: number
+  channel?: PinChannel
+  pattern?: string | null
 }
 
 export enum EntitySetupLoginType {
@@ -336,6 +346,8 @@ export interface FetchResponse {
     challengeType?: ChallengeType
     challengeDomain?: string
     credentials?: Record<string, string>
+    failedFeatures?: Feature[]
+    completedFeatures?: Feature[]
   }
   data?: any
 }

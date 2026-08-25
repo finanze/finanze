@@ -20,6 +20,7 @@
 # SOFTWARE.
 
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -37,6 +38,7 @@ class TRTimeline:
         "timelineActivityLog",
         "timelineDetailV2",
     ]
+    FETCH_TIMEOUT = 15
 
     def __init__(
         self,
@@ -74,7 +76,16 @@ class TRTimeline:
 
         while True:
             try:
-                _, subscription, response = await self._tr.recv()
+                _, subscription, response = await asyncio.wait_for(
+                    self._tr.recv(), self.FETCH_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                self._log.warning(
+                    "Timed out waiting for Trade Republic timeline (%s/%s details)",
+                    self._received_detail,
+                    self._requested_detail,
+                )
+                return self.events
             except TradeRepublicError as e:
                 self._log.error(
                     f'Error response for subscription "{e.subscription}". Re-subscribing...'
@@ -96,7 +107,11 @@ class TRTimeline:
                 "timelineActivityLog" in self._requested_data
                 and subscription.get("type", "") == "timelineActivityLog"
             ):
-                await self._process_and_request_next_timeline_activity_log(response)
+                result = await self._process_and_request_next_timeline_activity_log(
+                    response
+                )
+                if result is not None:
+                    return result
 
             elif (
                 "timelineDetailV2" in self._requested_data
@@ -153,7 +168,9 @@ class TRTimeline:
                 await self._request_timeline_activity_log()
             else:
                 if self._timeline_events:
-                    await self._request_all_timeline_details()
+                    result = await self._request_all_timeline_details()
+                    if result is not None:
+                        return result
                 else:
                     return []
         return None
@@ -189,7 +206,10 @@ class TRTimeline:
             await self._tr.timeline_activity_log(after)
         else:
             self._log.info("Received last relevant timeline activity log")
-            await self._request_all_timeline_details()
+            result = await self._request_all_timeline_details()
+            if result is not None:
+                return result
+        return None
 
     async def _request_all_timeline_details(self):
         for event in self._timeline_events.values():
@@ -213,6 +233,9 @@ class TRTimeline:
                 await self._tr.timeline_detail_v2(event["id"])
 
         self._log.info("All timeline details requested")
+        if self._requested_detail == 0:
+            return self.events
+        return None
 
     async def _process_timeline_detail(self, response) -> Optional[list]:
         self._received_detail += 1

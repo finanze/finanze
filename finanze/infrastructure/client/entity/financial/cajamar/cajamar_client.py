@@ -46,7 +46,7 @@ def _generate_device_id() -> str:
 class CajamarClient:
     BASE_URL = "https://api.cajamar.es/amea-web/abh"
     API_VERSION = "/v19.39.0"
-    APP_VERSION = "1.134.17"
+    APP_VERSION = "1.143.51"
 
     def __init__(self):
         self._headers = {}
@@ -264,7 +264,7 @@ class CajamarClient:
 
     async def _login(self, password: str):
         data = {
-            "appVersion": "1.134.17",
+            "appVersion": self.APP_VERSION,
             "deviceName": "LG G2",
             "hasScreenLock": True,
             "jailbreak": False,
@@ -273,6 +273,7 @@ class CajamarClient:
             "password": password,
             "screenHeight": 1920,
             "screenWidth": 1080,
+            "userValidation": True,
         }
 
         return await self._post_request("/login", body=data, raw=True)
@@ -314,8 +315,8 @@ class CajamarClient:
             self.API_VERSION + f"/card/{card_id}/transactions", params=params
         )
 
-    async def get_loan(self, loan_account_id: str):
-        params = {"arorigin": "C"}
+    async def get_loan(self, loan_account_id: str, origin: str | None = None):
+        params = {"arorigin": origin} if origin else None
         return await self._post_request(
             self.API_VERSION + f"/account/{loan_account_id}/loan", params=params
         )
@@ -327,6 +328,27 @@ class CajamarClient:
         return await self._post_request(
             self.API_VERSION + f"/account/{loan_account_id}/statements",
             params=params,
+        )
+
+    async def get_fidis_intro(self):
+        return await self._post_request(self.API_VERSION + "/FIDIS")
+
+    async def get_fidis_details(self, index: int, optk: str):
+        return await self._post_request(
+            self.API_VERSION + "/FIDIS/details",
+            body={"index": index, "optk": optk},
+        )
+
+    async def get_leasing(self, leasing_id: str, association: str | None = None):
+        body = {"association": association} if association is not None else {}
+        return await self._post_request(
+            self.API_VERSION + f"/leasing/{leasing_id}",
+            body=body,
+        )
+
+    async def get_confirming(self, confirming_id: str):
+        return await self._post_request(
+            self.API_VERSION + f"/confirming/{confirming_id}"
         )
 
     async def get_company_capital_contributions(self):

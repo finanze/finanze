@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
     "fetching": "Fetching...",
@@ -497,7 +498,8 @@
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
     "pendingRequests": "Other entities need a code",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Verification code"
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",
@@ -516,6 +518,7 @@
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
@@ -2883,6 +2886,7 @@
       "price": "Purchase price",
       "expenses": "Purchase expenses",
       "addExpense": "Add",
+      "totalExpenses": "Total expenses",
       "totalCost": "Total cost",
       "purchaseConceptDescription": "Purchase expense concept",
       "suggestedConcepts": "Suggested concepts:",

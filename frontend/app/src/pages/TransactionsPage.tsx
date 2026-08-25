@@ -37,7 +37,11 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { Sensitive } from "@/components/ui/Sensitive"
-import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import {
+  getTransactionDisplayAmount,
+  getTransactionDisplaySign,
+  getTransactionDisplayType,
+} from "@/utils/financialDataUtils"
 import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
@@ -51,8 +55,11 @@ import {
   Trash2,
   List,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Layers,
   ArrowLeftRight,
+  ArrowUp,
   Landmark,
   SlidersHorizontal,
 } from "lucide-react"
@@ -85,6 +92,94 @@ interface TransactionFilters {
 type TransactionItem = TransactionsResult["transactions"][number]
 
 const ITEMS_PER_PAGE = 20
+
+interface TransactionPaginationProps {
+  currentPage: number
+  canGoPrevious: boolean
+  canGoNext: boolean
+  loading: boolean
+  onPageChange: (page: number) => void
+  showScrollToTop?: boolean
+  onScrollToTop?: () => void
+  className?: string
+}
+
+function TransactionPagination({
+  currentPage,
+  canGoPrevious,
+  canGoNext,
+  loading,
+  onPageChange,
+  showScrollToTop,
+  onScrollToTop,
+  className,
+}: TransactionPaginationProps) {
+  const { t } = useI18n()
+  const hasScrollToTop = Boolean(showScrollToTop && onScrollToTop)
+
+  return (
+    <nav
+      aria-label={`${t.transactions.page} ${currentPage}`}
+      className={cn(
+        "grid items-center",
+        hasScrollToTop ? "grid-cols-[1fr_auto_1fr]" : "grid-cols-1",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-center gap-0.5",
+          hasScrollToTop && "col-start-2",
+        )}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={!canGoPrevious || loading}
+          aria-label={t.transactions.previous}
+          title={t.transactions.previous}
+          className="h-7 w-7 text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-100"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <span
+          aria-live="polite"
+          aria-label={`${t.transactions.page} ${currentPage}`}
+          className="min-w-[1.5rem] select-none px-1 text-center text-sm font-bold text-gray-600 dark:text-gray-300"
+        >
+          {currentPage}
+        </span>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={!canGoNext || loading}
+          aria-label={t.transactions.next}
+          title={t.transactions.next}
+          className="h-7 w-7 text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-100"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {showScrollToTop && onScrollToTop && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onScrollToTop}
+          aria-label={t.common.backToTop}
+          title={t.common.backToTop}
+          className="col-start-3 h-7 w-7 justify-self-end text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-100"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+      )}
+    </nav>
+  )
+}
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
@@ -120,6 +215,27 @@ export default function TransactionsPage() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>("list")
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const pageRootRef = useRef<HTMLDivElement>(null)
+  const [showScrollToTop, setShowScrollToTop] = useState(false)
+
+  useEffect(() => {
+    const scrollContainer = pageRootRef.current?.closest<HTMLElement>("main")
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      setShowScrollToTop(scrollContainer.scrollTop > 240)
+    }
+
+    handleScroll()
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true })
+    return () => scrollContainer.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  const handleScrollToTop = () => {
+    pageRootRef.current
+      ?.closest<HTMLElement>("main")
+      ?.scrollTo({ top: 0, behavior: "smooth" })
+  }
 
   const today = new Date()
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth())
@@ -672,6 +788,22 @@ export default function TransactionsPage() {
 
   const renderTransactionDetails = (tx: any) => {
     const commonFields = <>{getSourceInfo(tx.source)}</>
+    const grossAmountField =
+      tx.type === TxType.DIVIDEND && tx.amount !== undefined ? (
+        <div className={detailRowClass}>
+          <span className={detailLabelClass}>
+            {t.transactions.grossAmount}:
+          </span>{" "}
+          <Sensitive>
+            {formatCurrency(
+              tx.amount,
+              locale,
+              settings.general.defaultCurrency,
+              tx.currency,
+            )}
+          </Sensitive>
+        </div>
+      ) : null
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
@@ -716,6 +848,7 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
             {stockTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -794,6 +927,7 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
             {cryptoTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -860,6 +994,23 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
+            {grossAmountField}
+            {marketForecastTx.retentions != null &&
+              marketForecastTx.retentions > 0 && (
+                <div className={detailRowClass}>
+                  <span className={detailLabelClass}>
+                    {t.transactions.retentions}:
+                  </span>{" "}
+                  <Sensitive>
+                    {formatCurrency(
+                      marketForecastTx.retentions,
+                      locale,
+                      settings.general.defaultCurrency,
+                      tx.currency,
+                    )}
+                  </Sensitive>
+                </div>
+              )}
           </>
         )
       }
@@ -888,12 +1039,28 @@ export default function TransactionsPage() {
                 )}
               </Sensitive>
             </div>
+            {grossAmountField}
             {fundTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 <Sensitive>
                   {formatCurrency(
                     fundTx.fees,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
+            {fundTx.retentions != null && fundTx.retentions > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.retentions}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.retentions,
                     locale,
                     settings.general.defaultCurrency,
                     tx.currency,
@@ -917,6 +1084,7 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {grossAmountField}
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -953,6 +1121,7 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {grossAmountField}
             {tx.type === TxType.INTEREST && tx.amount !== undefined && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
@@ -981,7 +1150,7 @@ export default function TransactionsPage() {
                 </Sensitive>
               </div>
             )}
-            {accountTx.retentions > 0 && (
+            {accountTx.retentions != null && accountTx.retentions !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.retentions}:
@@ -1030,6 +1199,7 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {grossAmountField}
             {factoringTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -1067,6 +1237,7 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {grossAmountField}
             {realEstateTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -1104,6 +1275,7 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {grossAmountField}
             {depositTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -1137,11 +1309,18 @@ export default function TransactionsPage() {
       }
 
       default:
-        return commonFields
+        return (
+          <>
+            {commonFields}
+            {grossAmountField}
+          </>
+        )
     }
   }
 
   const hasTransactionDetails = (tx: any): boolean => {
+    if (tx.type === TxType.DIVIDEND && tx.amount !== undefined) return true
+
     if (tx.source !== DataSource.REAL) return true
 
     switch (tx.product_type) {
@@ -1164,6 +1343,7 @@ export default function TransactionsPage() {
           fundTx.shares ||
           fundTx.price ||
           fundTx.fees > 0 ||
+          (fundTx.retentions != null && fundTx.retentions > 0) ||
           fundTx.market
         )
       }
@@ -1203,7 +1383,8 @@ export default function TransactionsPage() {
           cryptoTx.symbol ||
           cryptoTx.currency_amount ||
           cryptoTx.price ||
-          cryptoTx.fees > 0
+          cryptoTx.fees > 0 ||
+          (cryptoTx.retentions != null && cryptoTx.retentions > 0)
         )
       }
       case ProductType.MARKET_FORECAST: {
@@ -1211,7 +1392,9 @@ export default function TransactionsPage() {
         return !!(
           marketForecastTx.symbol ||
           marketForecastTx.size ||
-          Number(marketForecastTx.price || 0) !== 0
+          Number(marketForecastTx.price || 0) !== 0 ||
+          (marketForecastTx.retentions != null &&
+            marketForecastTx.retentions > 0)
         )
       }
       default:
@@ -1408,7 +1591,7 @@ export default function TransactionsPage() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div ref={pageRootRef} className="space-y-6">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
             {t.transactions.title}
@@ -1543,12 +1726,6 @@ export default function TransactionsPage() {
           <>
             {/* Desktop Results Card */}
             <Card className="hidden md:block overflow-hidden">
-              {loadingTxs && (
-                <div className="flex justify-end px-6 pt-4">
-                  <LoadingSpinner size="sm" />
-                </div>
-              )}
-
               {transactions.transactions.length === 0 ? (
                 <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
                   <div className="text-gray-400 dark:text-gray-600">
@@ -1562,11 +1739,29 @@ export default function TransactionsPage() {
                 <>
                   {/* Desktop Grouped List */}
                   <div className="px-6 pt-6 pb-4 space-y-6">
-                    {groupedTransactions.map(monthGroup => (
+                    {groupedTransactions.map((monthGroup, monthIndex) => (
                       <div key={monthGroup.monthKey}>
-                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 capitalize">
-                          {monthGroup.monthLabel}
-                        </h3>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <h3 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 capitalize">
+                            {monthGroup.monthLabel}
+                          </h3>
+                          {monthIndex === 0 && (
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {loadingTxs && <LoadingSpinner size="sm" />}
+                              <TransactionPagination
+                                currentPage={currentPage}
+                                canGoPrevious={currentPage > 1}
+                                canGoNext={
+                                  transactions?.transactions.length >=
+                                  ITEMS_PER_PAGE
+                                }
+                                loading={loadingTxs}
+                                onPageChange={handlePageChange}
+                                className="shrink-0"
+                              />
+                            </div>
+                          )}
+                        </div>
                         <div className="space-y-1">
                           {monthGroup.days.map(dayGroup => (
                             <div key={dayGroup.dateKey}>
@@ -1580,6 +1775,15 @@ export default function TransactionsPage() {
                                 {dayGroup.transactions.map(tx => {
                                   const isExpanded = expandedCards.has(tx.id)
                                   const hasDetails = hasTransactionDetails(tx)
+                                  const displayAmount =
+                                    getTransactionDisplayAmount(
+                                      tx.amount,
+                                      tx.net_amount,
+                                    )
+                                  const displayType = getTransactionDisplayType(
+                                    tx.type,
+                                    displayAmount,
+                                  )
                                   return (
                                     <div
                                       key={tx.id}
@@ -1645,9 +1849,7 @@ export default function TransactionsPage() {
                                             <div className="text-right">
                                               <div
                                                 className={`font-semibold ${
-                                                  getTransactionDisplayType(
-                                                    tx.type,
-                                                  ) === "in"
+                                                  displayType === "in"
                                                     ? "text-green-600 dark:text-green-400"
                                                     : tx.type === TxType.FEE
                                                       ? "text-red-600 dark:text-red-400"
@@ -1655,15 +1857,12 @@ export default function TransactionsPage() {
                                                 }`}
                                               >
                                                 <Sensitive>
-                                                  {getTransactionDisplayType(
+                                                  {getTransactionDisplaySign(
                                                     tx.type,
-                                                  ) === "in"
-                                                    ? "+"
-                                                    : tx.type === TxType.FEE
-                                                      ? "-"
-                                                      : ""}
+                                                    displayAmount,
+                                                  )}
                                                   {formatCurrency(
-                                                    tx.net_amount ?? tx.amount,
+                                                    Math.abs(displayAmount),
                                                     locale,
                                                     settings.general
                                                       .defaultCurrency,
@@ -1761,44 +1960,21 @@ export default function TransactionsPage() {
                     ))}
                   </div>
 
-                  {/* Desktop Pagination */}
-                  <div className="flex justify-center items-center gap-3 px-6 pb-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1 || loadingTxs}
-                      className="px-3 py-2"
-                    >
-                      ←
-                    </Button>
-
-                    <span className="text-sm text-gray-600 dark:text-gray-400 px-3">
-                      {t.transactions.page} {currentPage}
-                    </span>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={
-                        transactions?.transactions.length < ITEMS_PER_PAGE ||
-                        loadingTxs
-                      }
-                      className="px-3 py-2"
-                    >
-                      →
-                    </Button>
-                  </div>
+                  <TransactionPagination
+                    currentPage={currentPage}
+                    canGoPrevious={currentPage > 1}
+                    canGoNext={
+                      transactions?.transactions.length >= ITEMS_PER_PAGE
+                    }
+                    loading={loadingTxs}
+                    onPageChange={handlePageChange}
+                    showScrollToTop={showScrollToTop}
+                    onScrollToTop={handleScrollToTop}
+                    className="w-full px-6 pb-6"
+                  />
                 </>
               )}
             </Card>
-
-            {loadingTxs && (
-              <div className="md:hidden flex justify-end mb-4">
-                <LoadingSpinner size="sm" />
-              </div>
-            )}
 
             {/* Mobile No Results */}
             {transactions.transactions.length === 0 && (
@@ -1815,11 +1991,29 @@ export default function TransactionsPage() {
             {/* Mobile Grouped List */}
             {transactions.transactions.length > 0 && (
               <div className="md:hidden space-y-6">
-                {groupedTransactions.map(monthGroup => (
+                {groupedTransactions.map((monthGroup, monthIndex) => (
                   <div key={monthGroup.monthKey}>
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 capitalize">
-                      {monthGroup.monthLabel}
-                    </h3>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 capitalize">
+                        {monthGroup.monthLabel}
+                      </h3>
+                      {monthIndex === 0 && (
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {loadingTxs && <LoadingSpinner size="sm" />}
+                          <TransactionPagination
+                            currentPage={currentPage}
+                            canGoPrevious={currentPage > 1}
+                            canGoNext={
+                              transactions?.transactions.length >=
+                              ITEMS_PER_PAGE
+                            }
+                            loading={loadingTxs}
+                            onPageChange={handlePageChange}
+                            className="shrink-0"
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="space-y-1">
                       {monthGroup.days.map(dayGroup => (
                         <div key={dayGroup.dateKey}>
@@ -1833,6 +2027,14 @@ export default function TransactionsPage() {
                             {dayGroup.transactions.map(tx => {
                               const isExpanded = expandedCards.has(tx.id)
                               const hasDetails = hasTransactionDetails(tx)
+                              const displayAmount = getTransactionDisplayAmount(
+                                tx.amount,
+                                tx.net_amount,
+                              )
+                              const displayType = getTransactionDisplayType(
+                                tx.type,
+                                displayAmount,
+                              )
                               return (
                                 <div
                                   key={tx.id}
@@ -1895,25 +2097,20 @@ export default function TransactionsPage() {
                                         <div className="text-right">
                                           <div
                                             className={`font-semibold ${
-                                              getTransactionDisplayType(
-                                                tx.type,
-                                              ) === "in"
+                                              displayType === "in"
                                                 ? "text-green-600 dark:text-green-400"
                                                 : tx.type === TxType.FEE
                                                   ? "text-red-600 dark:text-red-400"
                                                   : "text-gray-900 dark:text-gray-100"
                                             }`}
                                           >
-                                            {getTransactionDisplayType(
+                                            {getTransactionDisplaySign(
                                               tx.type,
-                                            ) === "in"
-                                              ? "+"
-                                              : tx.type === TxType.FEE
-                                                ? "-"
-                                                : ""}
+                                              displayAmount,
+                                            )}
                                             <Sensitive>
                                               {formatCurrency(
-                                                tx.net_amount ?? tx.amount,
+                                                Math.abs(displayAmount),
                                                 locale,
                                                 settings.general
                                                   .defaultCurrency,
@@ -2003,35 +2200,18 @@ export default function TransactionsPage() {
                   </div>
                 ))}
 
-                {/* Mobile Pagination */}
-                <div className="flex justify-center items-center mt-6 gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || loadingTxs}
-                    className="px-3 py-2"
-                  >
-                    ←
-                  </Button>
-
-                  <span className="text-sm text-gray-600 dark:text-gray-400 px-3">
-                    {t.transactions.page} {currentPage}
-                  </span>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={
-                      transactions?.transactions.length < ITEMS_PER_PAGE ||
-                      loadingTxs
-                    }
-                    className="px-3 py-2"
-                  >
-                    →
-                  </Button>
-                </div>
+                <TransactionPagination
+                  currentPage={currentPage}
+                  canGoPrevious={currentPage > 1}
+                  canGoNext={
+                    transactions?.transactions.length >= ITEMS_PER_PAGE
+                  }
+                  loading={loadingTxs}
+                  onPageChange={handlePageChange}
+                  showScrollToTop={showScrollToTop}
+                  onScrollToTop={handleScrollToTop}
+                  className="mt-6 w-full"
+                />
               </div>
             )}
           </>

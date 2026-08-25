@@ -5172,9 +5172,7 @@ export function RealEstateFormModal({
                 flows={formData.flows}
                 purchasePrice={formData.purchase_info.price || 0}
                 purchaseExpenses={formData.purchase_info.expenses}
-                estimatedMarketValue={
-                  formData.valuation_info.estimated_market_value || 0
-                }
+                estimatedMarketValue={getDerivedMarketValuation()?.amount ?? 0}
                 marginalTaxRate={formData.rental_data?.marginal_tax_rate}
                 amortizationsAnnual={(
                   formData.rental_data?.amortizations || []

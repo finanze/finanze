@@ -10,9 +10,17 @@ from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
 
 
+class PinChannel(str, Enum):
+    SMS = "SMS"
+    EMAIL = "EMAIL"
+    APP = "APP"
+
+
 @dataclass
 class PinDetails:
     positions: int
+    channel: Optional[PinChannel] = None
+    pattern: Optional[str] = None
 
 
 class CredentialType(str, Enum):
