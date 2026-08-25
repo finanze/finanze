@@ -221,7 +221,12 @@ CAJAMAR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
-    products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.CARD,
+        ProductType.LOAN,
+        ProductType.CREDIT,
+    ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
