@@ -338,7 +338,7 @@ important ones are::
 
 ## License
 
-Finanze is open-source software licensed under the [AGPLv3](./LICENSE). 
+Finanze is open-source software licensed under the [AGPLv3](./LICENSE).
 
 If you are interested in using Finanze in a proprietary environment or need a commercial license that bypasses AGPLv3 obligations, please contact us at `contact@finanze.me`.
 
