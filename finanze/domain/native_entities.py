@@ -10,6 +10,7 @@ from domain.entity import (
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
 from domain.native_entity import (
+    PinChannel,
     PinDetails,
     CredentialType,
     EntitySetupLoginType,
@@ -37,7 +38,7 @@ MY_INVESTOR = NativeFinancialEntity(
     ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
@@ -78,7 +79,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     ],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.SHORT,
-    pin=PinDetails(positions=4),
+    pin=PinDetails(positions=4, channel=PinChannel.SMS),
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
@@ -114,7 +115,7 @@ WECITY = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.REAL_ESTATE_CF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -132,7 +133,7 @@ SEGO = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.FACTORING],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.EMAIL),
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -288,7 +289,7 @@ B100 = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.CARD],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PIN,

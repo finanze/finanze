@@ -497,7 +497,8 @@
     "cancelLoginDescription": "Vuoi uscire dal processo di accesso?",
     "cancelFetchDescription": "Vuoi uscire dal processo di recupero?",
     "pendingRequests": "Altre entità richiedono un codice",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Codice di verifica"
   },
   "errors": {
     "INVALID_CODE": "Codice fornito non valido",

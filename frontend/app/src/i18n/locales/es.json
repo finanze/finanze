@@ -496,7 +496,8 @@
     "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
     "cancelFetchDescription": "¿Quieres salir del proceso de actualización?",
     "pendingRequests": "Otra entidad necesita código",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Código de verificación"
   },
   "errors": {
     "INVALID_CODE": "Código inválido",

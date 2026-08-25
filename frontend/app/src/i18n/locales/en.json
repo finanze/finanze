@@ -498,7 +498,8 @@
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
     "pendingRequests": "Other entities need a code",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Verification code"
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",
