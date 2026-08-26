@@ -178,6 +178,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 historic = await self._resolve_historic_rates(
                     snapshots, query, yesterday
                 )
+                self._inherit_transfer_portfolios(flows)
                 history_by_key = await self._load_replay_history(
                     query,
                     snapshots,
@@ -306,6 +307,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     flow.portfolio_name,
                     flow.equity_type,
                     flow.wallet_id,
+                    flow.related_portfolios,
                 )
             ),
             key=lambda flow: flow.moment,
@@ -1535,8 +1537,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     covering_snapshot_day[key] = snapshot_day
                     covering_identity[key] = identity
 
-        bounds: dict[_AssetIdentity, list[date]] = {}
-        flow_days: dict[_AssetIdentity, set[date]] = defaultdict(set)
+        bounds: dict[tuple[str, ProductType, str, str, str], list[date]] = {}
+        flow_days: dict[tuple[str, ProductType, str, str, str], set[date]] = (
+            defaultdict(set)
+        )
+        identities_by_key: dict[
+            tuple[str, ProductType, str, str, str], _AssetIdentity
+        ] = {}
         for flow in flows:
             if (
                 flow.product_type not in _REPLAY_PRODUCT_TYPES
@@ -1548,24 +1555,28 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     flow.portfolio_name,
                     flow.equity_type,
                     flow.wallet_id,
+                    flow.related_portfolios,
                 )
             ):
                 continue
             identity = GetGainsTimelineImpl._flow_identity(flow)
+            key = GetGainsTimelineImpl._identity_key(identity)
             flow_day = flow.moment.date()
-            entry = bounds.setdefault(identity, [flow_day, flow_day])
+            entry = bounds.setdefault(key, [flow_day, flow_day])
             entry[0] = min(entry[0], flow_day)
             entry[1] = max(entry[1], flow_day)
-            flow_days[identity].add(flow_day)
+            flow_days[key].add(flow_day)
+            existing = identities_by_key.get(key)
+            if existing is None or (not existing[4] and identity[4]):
+                identities_by_key[key] = identity
 
-        windows: dict[_AssetIdentity, tuple[date, date]] = {}
+        windows: dict[_AssetIdentity, tuple[date, date, date]] = {}
         days: set[date] = set()
-        for identity, (first_day, last_day) in bounds.items():
-            key = GetGainsTimelineImpl._identity_key(identity)
+        for key, (first_day, last_day) in bounds.items():
             replay_from = latest_pre_range.get(key)
             eligible = [
                 day
-                for day in flow_days[identity]
+                for day in flow_days[key]
                 if replay_from is None or day > replay_from
             ]
             if not eligible:
@@ -1582,11 +1593,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 range_from is not None
                 and last < range_from
                 and self._net_quantity_is_zero(
-                    flow for flow in flows if self._flow_identity(flow) == identity
+                    flow
+                    for flow in flows
+                    if GetGainsTimelineImpl._identity_key(
+                        GetGainsTimelineImpl._flow_identity(flow)
+                    )
+                    == key
                 )
             ):
                 continue
-            window_identity = covering_identity.get(key, identity)
+            window_identity = covering_identity.get(key, identities_by_key[key])
             tail_end = (covering - timedelta(days=1)) if covering else yesterday
             windows[window_identity] = (first, end, tail_end)
             days.update(day for day in eligible if first <= day <= end)
@@ -2155,6 +2171,84 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             return pending_transfer_outs.pop(index)
         return None
 
+    @staticmethod
+    def _asset_portfolio_key(
+        flow: GainsFlow,
+    ) -> tuple[str, ProductType, str, str, Optional[UUID]]:
+        return (
+            flow.holder,
+            flow.product_type,
+            flow.asset_key,
+            flow.currency,
+            flow.wallet_id,
+        )
+
+    @classmethod
+    def _inherit_transfer_portfolios(cls, flows: list[GainsFlow]) -> None:
+        if not any(flow.portfolio_name for flow in flows):
+            return
+        related: dict[tuple[str, ProductType, str, str, Optional[UUID]], set[str]] = (
+            defaultdict(set)
+        )
+
+        def remember(flow: GainsFlow) -> None:
+            key = cls._asset_portfolio_key(flow)
+            if flow.portfolio_name:
+                related[key].add(flow.portfolio_name)
+            related[key].update(flow.related_portfolios)
+
+        def attach(flow: GainsFlow, portfolios: set[str]) -> bool:
+            if not portfolios:
+                return False
+            changed = False
+            existing = set(flow.related_portfolios)
+            extra = portfolios - existing
+            extra.discard(flow.portfolio_name)
+            if extra:
+                flow.related_portfolios = sorted(existing | extra)
+                changed = True
+            if not flow.portfolio_name and len(portfolios) == 1:
+                flow.portfolio_name = next(iter(portfolios))
+                changed = True
+            remember(flow)
+            return changed
+
+        for flow in flows:
+            remember(flow)
+
+        for outgoing in flows:
+            if outgoing.transaction_type not in _TRANSFER_OUT_TYPES:
+                continue
+            destinations: set[str] = set()
+            if outgoing.portfolio_name:
+                destinations.add(outgoing.portfolio_name)
+            destinations.update(outgoing.related_portfolios)
+            for incoming in flows:
+                if incoming.transaction_type not in _TRANSFER_IN_TYPES:
+                    continue
+                if not incoming.portfolio_name:
+                    continue
+                max_days = 1 if incoming.transaction_type == TxType.SWITCH_TO else 7
+                if (
+                    incoming.holder == outgoing.holder
+                    and incoming.product_type == outgoing.product_type
+                    and incoming.currency == outgoing.currency
+                    and incoming.wallet_id == outgoing.wallet_id
+                    and incoming.asset_key != outgoing.asset_key
+                    and abs((incoming.moment.date() - outgoing.moment.date()).days)
+                    <= max_days
+                ):
+                    destinations.add(incoming.portfolio_name)
+            attach(outgoing, destinations)
+
+        changed = True
+        while changed:
+            changed = False
+            for flow in flows:
+                inherited = related.get(cls._asset_portfolio_key(flow), set())
+                if inherited and attach(flow, inherited):
+                    changed = True
+
     @classmethod
     def _internal_transfer_flow_ids(cls, flows: list[GainsFlow]) -> set[int]:
         pending_transfer_outs: list[GainsFlow] = []
@@ -2703,7 +2797,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         portfolio_name: Optional[str] = None,
         equity_type: Optional[EquityType] = None,
         wallet_id: Optional[UUID] = None,
+        related_portfolios: Optional[list[str]] = None,
     ) -> bool:
+        portfolios = set()
+        if portfolio_name:
+            portfolios.add(portfolio_name)
+        if related_portfolios:
+            portfolios.update(related_portfolios)
         return any(
             product_type == asset_filter.product_type
             and (
@@ -2719,7 +2819,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             )
             and (
                 not asset_filter.portfolio_names
-                or portfolio_name in asset_filter.portfolio_names
+                or bool(portfolios.intersection(asset_filter.portfolio_names))
             )
             and (
                 not asset_filter.equity_types

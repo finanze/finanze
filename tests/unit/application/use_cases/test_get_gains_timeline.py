@@ -2369,6 +2369,161 @@ class TestGetGainsTimelineReplay:
         )
 
     @pytest.mark.asyncio
+    async def test_switch_inherits_portfolio_onto_predecessor_buys(self):
+        buy_day = date(2023, 8, 9)
+        switch_day = date(2024, 2, 8)
+        later_day = date(2024, 3, 1)
+
+        def fund_flow(
+            day, asset_key, transaction_type, amount, quantity, portfolio=None
+        ):
+            return GainsFlow(
+                holder="indexa",
+                product_type=ProductType.FUND,
+                asset_key=asset_key,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                portfolio_name=portfolio,
+                transaction_type=transaction_type,
+            )
+
+        use_case, _ = _build(
+            [
+                AssetSnapshot(
+                    holder="indexa",
+                    moment=datetime(later_day.year, later_day.month, later_day.day, 12),
+                    valuations=[
+                        AssetValuation(
+                            product_type=ProductType.FUND,
+                            asset_key="IE00NEW",
+                            currency="EUR",
+                            market_value=Dezimal(1600),
+                            cost_basis=Dezimal(1500),
+                            quantity=Dezimal(15),
+                            portfolio_name="AMNAYXT2",
+                        )
+                    ],
+                )
+            ],
+            [
+                fund_flow(buy_day, "IE00OLD", TxType.BUY, "1500", "15"),
+                fund_flow(switch_day, "IE00OLD", TxType.SWITCH_FROM, "1500", "15"),
+                fund_flow(
+                    switch_day, "IE00NEW", TxType.SWITCH_TO, "1500", "15", "AMNAYXT2"
+                ),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[
+                    GainsAssetFilter(
+                        product_type=ProductType.FUND, portfolio_names=["AMNAYXT2"]
+                    )
+                ],
+                entities=[uuid4()],
+                from_date=buy_day,
+            )
+        )
+
+        assert result.points
+        assert result.points[0].date == buy_day
+        assert result.points[0].metrics.net_contributions == Dezimal(1500)
+        assert use_case._port.get_flows.return_value[0].related_portfolios == [
+            "AMNAYXT2"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_unpaired_transfer_in_does_not_create_false_loss(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        buy_day = date(2023, 8, 10)
+        transfer_day = date(2023, 12, 22)
+        later_day = date(2024, 3, 1)
+        price = Dezimal("290")
+
+        def fund_flow(day, transaction_type, amount, quantity, portfolio=None):
+            return GainsFlow(
+                holder="indexa",
+                product_type=ProductType.FUND,
+                asset_key="IE00OLD",
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                portfolio_name=portfolio,
+                transaction_type=transaction_type,
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = [
+            AssetSnapshot(
+                holder="indexa",
+                moment=datetime(later_day.year, later_day.month, later_day.day, 12),
+                valuations=[
+                    AssetValuation(
+                        product_type=ProductType.FUND,
+                        asset_key="IE00OLD",
+                        currency="EUR",
+                        market_value=Dezimal("3190"),
+                        cost_basis=Dezimal("3238.70"),
+                        quantity=Dezimal("11"),
+                        portfolio_name="AMNAYXT2",
+                    )
+                ],
+            )
+        ]
+        port.get_flows.return_value = [
+            fund_flow(buy_day, TxType.BUY, "600", "2"),
+            fund_flow(transfer_day, TxType.TRANSFER_IN, "2638.70", "9.1"),
+            fund_flow(date(2024, 2, 12), TxType.BUY, "87", "0.3", "AMNAYXT2"),
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = [
+            InstrumentPricePoint(date=buy_day, price=price, currency="EUR"),
+            InstrumentPricePoint(date=transfer_day, price=price, currency="EUR"),
+        ]
+        history_storage.get_covered_range.return_value = (buy_day, later_day)
+        history_storage.get_resolved_symbol.return_value = None
+        history_storage.is_splits_checked.return_value = True
+        history_provider = AsyncMock()
+        history_provider.get_history.return_value = ([], None, None)
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[
+                    GainsAssetFilter(
+                        product_type=ProductType.FUND, portfolio_names=["AMNAYXT2"]
+                    )
+                ],
+                entities=[uuid4()],
+                from_date=buy_day,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        transfer = by_day[transfer_day]
+        assert transfer.net_contributions == Dezimal("3238.70")
+        assert transfer.value == Dezimal("11.1") * price
+        assert transfer.gain == transfer.value - Dezimal("3238.70")
+        assert abs(transfer.gain) < Dezimal(30)
+
+    @pytest.mark.asyncio
     async def test_orphan_sell_does_not_count_as_gain(self):
         orphan_sell_day = date(2023, 6, 15)
         port = AsyncMock(spec=GainsTimelinePort)

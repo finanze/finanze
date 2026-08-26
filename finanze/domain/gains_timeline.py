@@ -157,6 +157,7 @@ class GainsFlow:
     transaction_type: Optional[TxType] = None
     wallet_id: Optional[UUID] = None
     name: Optional[str] = None
+    related_portfolios: list[str] = field(default_factory=list)
 
 
 @dataclass
