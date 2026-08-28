@@ -179,6 +179,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     snapshots, query, yesterday
                 )
                 self._inherit_transfer_portfolios(flows)
+                self._apply_asset_continuations(flows)
                 history_by_key = await self._load_replay_history(
                     query,
                     snapshots,
@@ -349,6 +350,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             return GainsTimeline(currency=query.base_currency)
 
         internal_transfer_flow_ids = self._internal_transfer_flow_ids(flows)
+        transfer_pairs = self._replay_transfer_pairs(flows)
+        carried_transfer_books: dict[int, Dezimal] = {}
         fund_transfer_costs, fund_transfer_sources = self._detect_fund_transfers(
             snapshots, flows
         )
@@ -366,6 +369,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         replay_positions: dict[_AssetIdentity, _ReplayPosition] = {}
         replay_ended: set[_AssetIdentity] = set()
         orphan_sell_flow_ids: set[int] = set()
+        orphan_income_flow_ids = self._orphan_income_flow_ids(flows, snapshots)
         replay_identity_by_key: dict[
             tuple[str, ProductType, str, str, str], _AssetIdentity
         ] = {self._identity_key(identity): identity for identity in replay_windows}
@@ -404,8 +408,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     replay_identity is not None
                     and replay_windows[replay_identity][0] <= flow.moment.date()
                 ):
-                    self._update_replay_position(
-                        replay_positions, flow, identity=replay_identity
+                    self._carry_replay_transfer_book(
+                        replay_positions,
+                        replay_identity_by_key,
+                        transfer_pairs,
+                        carried_transfer_books,
+                        flow,
+                        replay_identity,
                     )
                 flow_index += 1
             while (
@@ -559,10 +568,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     <= replay_windows[replay_identity][1]
                 )
                 if replay_active:
-                    self._update_replay_position(
+                    self._carry_replay_transfer_book(
                         replay_positions,
+                        replay_identity_by_key,
+                        transfer_pairs,
+                        carried_transfer_books,
                         flow,
-                        identity=replay_identity,
+                        replay_identity,
                         orphan_sell_flow_ids=orphan_sell_flow_ids,
                     )
                     replay_touched_today = True
@@ -581,6 +593,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             query.accrue_fixed_income,
                             provenance,
                             orphan_sell_flow_ids,
+                            orphan_income_flow_ids,
                         )
                     elif self._requires_market_position_observation(flow):
                         pending_market_flows[identity].append(flow)
@@ -596,6 +609,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             query.accrue_fixed_income,
                             provenance,
                             orphan_sell_flow_ids,
+                            orphan_income_flow_ids,
                         )
                 if flow.transaction_type in _INFLOW_TYPES:
                     transfer_exit_sources.discard(identity)
@@ -841,14 +855,24 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             query.base_currency,
                             rates,
                         )
+                        # the replayed book is native, the stored cost is converted
+                        replay_book = self._convert(
+                            replay_book,
+                            replay_identity[3],
+                            query.base_currency,
+                            rates,
+                        )
                         baseline = (
                             opening_values.get(identity, Dezimal(0))
                             if self._identity_key(identity) in seeded_opening_keys
                             else Dezimal(0)
                         )
-                        expected_book = replay_book + baseline
-                        if stored_cost is not None and stored_cost != expected_book:
-                            correction = stored_cost - expected_book
+                        if (
+                            stored_cost is not None
+                            and replay_book is not None
+                            and stored_cost != replay_book + baseline
+                        ):
+                            correction = stored_cost - (replay_book + baseline)
                             period_flows[identity] += correction
                             contributions[identity] += correction
                             provenance.add(
@@ -1631,21 +1655,27 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         flow: GainsFlow,
         identity: Optional[_AssetIdentity] = None,
         orphan_sell_flow_ids: Optional[set[int]] = None,
-    ) -> None:
+        inflow_book: Optional[Dezimal] = None,
+    ) -> Optional[Dezimal]:
+        """Returns the book value removed, so paired transfers can carry it over."""
         if flow.transaction_type not in _POSITION_CHANGING_TYPES:
-            return
+            return None
         if identity is None:
             identity = self._flow_identity(flow)
         position = positions.setdefault(identity, _ReplayPosition())
         quantity = self._split_adjusted_quantity(flow)
         if flow.transaction_type in _INFLOW_TYPES:
-            cash = self._transaction_cash(flow)
-            position.book_value += cash if cash is not None else flow.amount
+            if inflow_book is not None:
+                position.book_value += inflow_book
+            else:
+                cash = self._transaction_cash(flow)
+                position.book_value += cash if cash is not None else flow.amount
             if position.quantity is not None and quantity is not None:
                 position.quantity += quantity
             else:
                 position.quantity = None
-            return
+            return None
+        removed = position.book_value
         if (
             position.quantity is not None
             and quantity is not None
@@ -1666,6 +1696,54 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 orphan_sell_flow_ids.add(id(flow))
             position.quantity = Dezimal(0)
             position.book_value = Dezimal(0)
+        return removed - position.book_value
+
+    def _carry_replay_transfer_book(
+        self,
+        positions: dict[_AssetIdentity, _ReplayPosition],
+        replay_identity_by_key: dict[
+            tuple[str, ProductType, str, str, str], _AssetIdentity
+        ],
+        transfer_pairs: dict[int, GainsFlow],
+        carried_books: dict[int, Dezimal],
+        flow: GainsFlow,
+        identity: Optional[_AssetIdentity],
+        orphan_sell_flow_ids: Optional[set[int]] = None,
+    ) -> None:
+        inflow_book: Optional[Dezimal] = None
+        outgoing = transfer_pairs.get(id(flow))
+        if outgoing is not None:
+            inflow_book = carried_books.pop(id(outgoing), None)
+            if inflow_book is None:
+                # source leg not replayed yet: take what it is about to release
+                source_identity = replay_identity_by_key.get(
+                    self._identity_key(self._flow_identity(outgoing))
+                )
+                source = (
+                    positions.get(source_identity)
+                    if source_identity is not None
+                    else None
+                )
+                if source is not None and source.book_value > 0:
+                    quantity = self._split_adjusted_quantity(outgoing)
+                    if (
+                        source.quantity is not None
+                        and quantity is not None
+                        and source.quantity > 0
+                    ):
+                        ratio = min(quantity / source.quantity, Dezimal(1))
+                        inflow_book = source.book_value * ratio
+                    else:
+                        inflow_book = source.book_value
+        removed = self._update_replay_position(
+            positions,
+            flow,
+            identity=identity,
+            orphan_sell_flow_ids=orphan_sell_flow_ids,
+            inflow_book=inflow_book,
+        )
+        if removed is not None and removed > 0:
+            carried_books[id(flow)] = removed
 
     async def _load_replay_history(
         self,
@@ -2249,6 +2327,164 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 if inherited and attach(flow, inherited):
                     changed = True
 
+    @staticmethod
+    def _normalized_asset_name(name: Optional[str]) -> Optional[str]:
+        if not name:
+            return None
+        return " ".join(name.upper().split()) or None
+
+    @staticmethod
+    def _position_quantity_totals(
+        flows: list[GainsFlow],
+    ) -> tuple[Optional[Dezimal], Optional[Dezimal]]:
+        inflow = Dezimal(0)
+        outflow = Dezimal(0)
+        for flow in flows:
+            if flow.transaction_type not in _POSITION_CHANGING_TYPES:
+                continue
+            if flow.quantity is None:
+                return None, None
+            if flow.transaction_type in _INFLOW_TYPES:
+                inflow += flow.quantity
+            else:
+                outflow += flow.quantity
+        return inflow, outflow
+
+    @classmethod
+    def _apply_asset_continuations(cls, flows: list[GainsFlow]) -> None:
+        """Merge books across an ISIN change (reverse split, renaming, merger).
+
+        The broker reports the same instrument under a new ISIN with no opening
+        purchase, leaving the old key's book open forever. Quantities are scaled
+        onto the surviving key so the exit closes the whole position.
+        """
+        groups: dict[tuple, dict[str, list[GainsFlow]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        for flow in flows:
+            name = cls._normalized_asset_name(flow.name)
+            if not name or not flow.asset_key:
+                continue
+            groups[
+                (flow.holder, flow.product_type, flow.currency, flow.wallet_id, name)
+            ][flow.asset_key].append(flow)
+
+        for by_asset in groups.values():
+            if len(by_asset) < 2:
+                continue
+            ordered = sorted(
+                by_asset.items(),
+                key=lambda item: min(flow.moment for flow in item[1]),
+            )
+            carried: list[GainsFlow] = []
+            for index in range(len(ordered) - 1):
+                old_flows = carried + ordered[index][1]
+                new_key, new_flows = ordered[index + 1]
+                carried = []
+                if max(flow.moment for flow in old_flows) >= min(
+                    flow.moment for flow in new_flows
+                ):
+                    continue
+                old_in, old_out = cls._position_quantity_totals(old_flows)
+                new_in, new_out = cls._position_quantity_totals(new_flows)
+                if old_in is None or new_in is None:
+                    continue
+                # old book still open, new key never bought: same holding, new ISIN
+                if (
+                    old_in <= 0
+                    or old_out != 0
+                    or new_in != 0
+                    or new_out is None
+                    or new_out <= 0
+                ):
+                    continue
+                ratio = new_out / old_in
+                for flow in old_flows:
+                    flow.asset_key = new_key
+                    if ratio != 1 and flow.quantity is not None:
+                        flow.quantity = flow.quantity * ratio
+                carried = old_flows
+
+    @classmethod
+    def _orphan_income_flow_ids(
+        cls,
+        flows: list[GainsFlow],
+        snapshots: list[AssetSnapshot],
+    ) -> set[int]:
+        """Income booked before the position was ever seen has no basis behind it."""
+        established: dict[tuple[str, ProductType, str, str, str], date] = {}
+
+        def record(key, day: date) -> None:
+            if day < established.get(key, date.max):
+                established[key] = day
+
+        for snapshot in snapshots:
+            snapshot_day = snapshot.moment.date()
+            for valuation in snapshot.valuations:
+                record(
+                    cls._identity_key(
+                        cls._valuation_identity(snapshot.holder, valuation)
+                    ),
+                    snapshot_day,
+                )
+        for flow in flows:
+            if flow.transaction_type in _INFLOW_TYPES:
+                record(cls._identity_key(cls._flow_identity(flow)), flow.moment.date())
+
+        orphans: set[int] = set()
+        for flow in flows:
+            if flow.transaction_type != TxType.DIVIDEND:
+                continue
+            if flow.product_type in _FIXED_INCOME_TYPES:
+                continue
+            first = established.get(cls._identity_key(cls._flow_identity(flow)))
+            if first is None or flow.moment.date() < first:
+                orphans.add(id(flow))
+        return orphans
+
+    @classmethod
+    def _replay_transfer_pairs(cls, flows: list[GainsFlow]) -> dict[int, GainsFlow]:
+        """Pairs each transfer-in with its source leg, regardless of list order."""
+        outgoing_flows = [
+            flow for flow in flows if flow.transaction_type in _TRANSFER_OUT_TYPES
+        ]
+        used: set[int] = set()
+        pairs: dict[int, GainsFlow] = {}
+        for incoming in flows:
+            if incoming.transaction_type not in _TRANSFER_IN_TYPES:
+                continue
+            max_days = (
+                1
+                if incoming.transaction_type in {TxType.SWITCH_TO, TxType.SWAP_TO}
+                else 7
+            )
+            best: Optional[GainsFlow] = None
+            best_gap: Optional[int] = None
+            for outgoing in outgoing_flows:
+                if id(outgoing) in used:
+                    continue
+                if (
+                    outgoing.holder != incoming.holder
+                    or outgoing.product_type != incoming.product_type
+                    or outgoing.currency != incoming.currency
+                    or outgoing.wallet_id != incoming.wallet_id
+                    or outgoing.asset_key == incoming.asset_key
+                ):
+                    continue
+                gap = abs((incoming.moment.date() - outgoing.moment.date()).days)
+                if gap > max_days:
+                    continue
+                delta = abs(outgoing.amount - incoming.amount)
+                reference = max(abs(outgoing.amount), abs(incoming.amount), Dezimal(1))
+                if delta / reference > Dezimal("0.02"):
+                    continue
+                if best_gap is None or gap < best_gap:
+                    best, best_gap = outgoing, gap
+            if best is not None:
+                used.add(id(best))
+                pairs[id(incoming)] = best
+        return pairs
+
     @classmethod
     def _internal_transfer_flow_ids(cls, flows: list[GainsFlow]) -> set[int]:
         pending_transfer_outs: list[GainsFlow] = []
@@ -2671,10 +2907,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         accrual_mode: FixedIncomeAccrual,
         provenance: set[GainsFlowProvenance],
         orphan_sell_flow_ids: Optional[set[int]] = None,
+        excluded_flow_ids: Optional[set[int]] = None,
     ):
         is_orphan_sell = (
             orphan_sell_flow_ids is not None and id(flow) in orphan_sell_flow_ids
-        )
+        ) or (excluded_flow_ids is not None and id(flow) in excluded_flow_ids)
         cash = self._transaction_cash(flow, accrual_mode)
         if cash not in (None, Dezimal(0)) and not is_orphan_sell:
             converted = self._convert(cash, flow.currency, target_currency, rates)

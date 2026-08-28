@@ -2524,6 +2524,183 @@ class TestGetGainsTimelineReplay:
         assert abs(transfer.gain) < Dezimal(30)
 
     @pytest.mark.asyncio
+    async def test_isin_change_closes_book_on_merger_exit(self):
+        # Liberbank ES0168675009 -> ES0168675090 (reverse split) -> swapped into
+        # Unicaja and sold; the old ISIN never receives an outflow of its own.
+        old_isin = "ES0168675009"
+        new_isin = "ES0168675090"
+        merged_isin = "ES0180907000"
+        swap_day = date(2021, 8, 1)
+        sell_day = date(2021, 10, 31)
+
+        def stock_flow(day, asset, ttype, amount, quantity, name):
+            return GainsFlow(
+                holder="ing",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=asset,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=ttype,
+                name=name,
+            )
+
+        use_case, _ = _build(
+            [],
+            [
+                stock_flow(
+                    date(2014, 3, 16), old_isin, TxType.BUY, "857", "1000", "LIBERBANK"
+                ),
+                stock_flow(
+                    date(2014, 7, 21),
+                    old_isin,
+                    TxType.BUY,
+                    "309.50",
+                    "500",
+                    "LIBERBANK",
+                ),
+                stock_flow(
+                    date(2014, 8, 5), old_isin, TxType.BUY, "307.50", "500", "LIBERBANK"
+                ),
+                stock_flow(
+                    date(2019, 5, 12),
+                    new_isin,
+                    TxType.DIVIDEND,
+                    "4.93",
+                    "681",
+                    "LIBERBANK",
+                ),
+                stock_flow(
+                    swap_day, new_isin, TxType.SWAP_FROM, "0", "681", "LIBERBANK"
+                ),
+                stock_flow(
+                    swap_day, merged_isin, TxType.SWAP_TO, "0", "245", "UNICAJA"
+                ),
+                stock_flow(
+                    sell_day, merged_isin, TxType.SELL, "232.63", "245", "UNICAJA"
+                ),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        last = result.points[-1].metrics
+        assert last.value == Dezimal(0)
+        # 1474 invested, 232.63 back on the merged sale, 4.93 of dividends
+        assert last.net_contributions == Dezimal("1236.44")
+        assert last.gain == Dezimal("-1236.44")
+
+        by_day = {point.date: point.metrics for point in result.points}
+        # the swap carries the book onto the surviving ISIN instead of zeroing it
+        assert by_day[swap_day].cost_basis == Dezimal("1474.00")
+
+    @pytest.mark.asyncio
+    async def test_foreign_currency_handover_does_not_shift_contributions(self):
+        buy_day = date(2025, 1, 6)
+        snapshot_day = date(2025, 9, 15)
+
+        use_case, _ = _build(
+            [
+                AssetSnapshot(
+                    holder="broker",
+                    moment=datetime(
+                        snapshot_day.year, snapshot_day.month, snapshot_day.day, 12
+                    ),
+                    valuations=[
+                        AssetValuation(
+                            product_type=ProductType.STOCK_ETF,
+                            asset_key="US0378331005",
+                            currency="USD",
+                            market_value=Dezimal(12000),
+                            cost_basis=Dezimal(10000),
+                            quantity=Dezimal(100),
+                        )
+                    ],
+                )
+            ],
+            [
+                GainsFlow(
+                    holder="broker",
+                    product_type=ProductType.STOCK_ETF,
+                    asset_key="US0378331005",
+                    moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                    amount=Dezimal(10000),
+                    currency="USD",
+                    quantity=Dezimal(100),
+                    transaction_type=TxType.BUY,
+                )
+            ],
+            rates={"EUR": {"USD": Dezimal(2)}},
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+                base_currency="EUR",
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        before = by_day[snapshot_day - timedelta(days=1)]
+        after = by_day[snapshot_day]
+        # the stored cost matches the replayed book, so handover must not move it
+        assert before.net_contributions == Dezimal(5000)
+        assert after.net_contributions == Dezimal(5000)
+        assert after.value == Dezimal(6000)
+        assert after.gain == Dezimal(1000)
+
+    @pytest.mark.asyncio
+    async def test_dividends_before_any_holding_are_not_gains(self):
+        dividend_day = date(2013, 12, 19)
+        buy_day = date(2022, 6, 23)
+        sell_day = date(2022, 9, 12)
+
+        def stock_flow(day, ttype, amount, quantity):
+            return GainsFlow(
+                holder="ing",
+                product_type=ProductType.STOCK_ETF,
+                asset_key="ES0124244E34",
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=ttype,
+                name="MAPFRE",
+            )
+
+        use_case, _ = _build(
+            [],
+            [
+                stock_flow(dividend_day, TxType.DIVIDEND, "50.85", "1017"),
+                stock_flow(date(2014, 1, 16), TxType.SELL, "1778.48", "517"),
+                stock_flow(buy_day, TxType.BUY, "1489.50", "900"),
+                stock_flow(sell_day, TxType.SELL, "1555.20", "900"),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        # nothing was owned yet, so the dividend cannot show up as profit
+        assert by_day[result.points[0].date].gain == Dezimal(0)
+        assert by_day[result.points[0].date].net_contributions == Dezimal(0)
+        last = result.points[-1].metrics
+        assert last.value == Dezimal(0)
+        assert last.gain == Dezimal("65.70")
+
+    @pytest.mark.asyncio
     async def test_orphan_sell_does_not_count_as_gain(self):
         orphan_sell_day = date(2023, 6, 15)
         port = AsyncMock(spec=GainsTimelinePort)
