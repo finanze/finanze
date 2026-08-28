@@ -226,6 +226,18 @@
       "viewModes": {
         "wallets": "Por billetera",
         "network": "Por origen"
+      },
+      "defi": {
+        "title": "Posiciones DeFi",
+        "unknownProtocol": "Otros",
+        "chainLabel": "Red",
+        "roles": {
+          "SUPPLIED": "Suministrado",
+          "BORROWED": "Prestado",
+          "STAKED": "En staking",
+          "LP": "Pool de liquidez",
+          "REWARD": "Recompensa"
+        }
       }
     },
     "derivatives": {
@@ -1874,7 +1886,8 @@
       "addressDuplicate": "Dirección duplicada. Elimínala o edítala antes de continuar.",
       "maxAddresses": "Puedes agregar hasta 10 direcciones por billetera.",
       "allFailed": "No pudimos agregar ninguna de las direcciones. Revisa los errores abajo.",
-      "generic": "No se pudo agregar la billetera. Inténtalo nuevamente."
+      "generic": "No se pudo agregar la billetera. Inténtalo nuevamente.",
+      "integrationFieldRequired": "Este campo es obligatorio."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Esta dirección ya está conectada.",
@@ -1887,6 +1900,14 @@
       "partialSuccessSingle": "1 dirección agregada correctamente.",
       "partialSuccessMultiple": "{count} direcciones agregadas correctamente.",
       "allFailed": "No se agregó ninguna dirección."
+    },
+    "includeWalletTokens": {
+      "label": "Rastrear también los tokens de la billetera",
+      "description": "Incluye los saldos de tokens sueltos de la billetera además de las posiciones DeFi. Desactívalo si haces seguimiento de esas billeteras en otro lugar."
+    },
+    "integrationSetup": {
+      "heading": "Configuración de {integration} requerida",
+      "helper": "Necesario para conectar a través de este proveedor."
     },
     "submit": "Agregar billetera",
     "derived": {

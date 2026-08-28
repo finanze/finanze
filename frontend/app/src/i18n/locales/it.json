@@ -228,6 +228,18 @@
       "viewModes": {
         "wallets": "Per wallet",
         "network": "Per origine"
+      },
+      "defi": {
+        "title": "Posizioni DeFi",
+        "unknownProtocol": "Altro",
+        "chainLabel": "Rete",
+        "roles": {
+          "SUPPLIED": "Fornito",
+          "BORROWED": "Preso in prestito",
+          "STAKED": "In staking",
+          "LP": "Pool di liquidità",
+          "REWARD": "Ricompensa"
+        }
       }
     },
     "derivatives": {
@@ -1870,7 +1882,8 @@
       "addressDuplicate": "Indirizzo duplicato. Rimuovilo o modificalo prima di continuare.",
       "maxAddresses": "Puoi aggiungere fino a 10 indirizzi per wallet.",
       "allFailed": "Non siamo riusciti ad aggiungere nessuno degli indirizzi. Rivedi gli errori sottostanti.",
-      "generic": "Impossibile aggiungere il wallet. Riprova."
+      "generic": "Impossibile aggiungere il wallet. Riprova.",
+      "integrationFieldRequired": "Questo campo è obbligatorio."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Questo indirizzo è già connesso.",
@@ -1883,6 +1896,14 @@
       "partialSuccessSingle": "1 indirizzo aggiunto con successo.",
       "partialSuccessMultiple": "{count} indirizzi aggiunti con successo.",
       "allFailed": "Nessun indirizzo è stato aggiunto."
+    },
+    "includeWalletTokens": {
+      "label": "Traccia anche i token del wallet",
+      "description": "Includi i saldi dei token del wallet oltre alle posizioni DeFi. Disattiva se tracci questi wallet altrove."
+    },
+    "integrationSetup": {
+      "heading": "Configurazione di {integration} richiesta",
+      "helper": "Necessario per connettersi tramite questo provider."
     },
     "submit": "Aggiungi wallet",
     "derived": {

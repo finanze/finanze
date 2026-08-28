@@ -228,6 +228,18 @@
       "viewModes": {
         "wallets": "By wallet",
         "network": "By source"
+      },
+      "defi": {
+        "title": "DeFi positions",
+        "unknownProtocol": "Other",
+        "chainLabel": "Chain",
+        "roles": {
+          "SUPPLIED": "Supplied",
+          "BORROWED": "Borrowed",
+          "STAKED": "Staked",
+          "LP": "Liquidity pool",
+          "REWARD": "Reward"
+        }
       }
     },
     "derivatives": {
@@ -1875,7 +1887,8 @@
       "addressDuplicate": "Duplicate address. Remove or edit it before continuing.",
       "maxAddresses": "You can add up to 10 addresses per wallet.",
       "allFailed": "We could not add any of the addresses. Review the errors below.",
-      "generic": "Unable to add the wallet. Please try again."
+      "generic": "Unable to add the wallet. Please try again.",
+      "integrationFieldRequired": "This field is required."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "This address is already connected.",
@@ -1888,6 +1901,14 @@
       "partialSuccessSingle": "1 address added successfully.",
       "partialSuccessMultiple": "{count} addresses added successfully.",
       "allFailed": "No addresses were added."
+    },
+    "includeWalletTokens": {
+      "label": "Also track wallet tokens",
+      "description": "Include loose wallet token balances in addition to DeFi positions. Leave off if you track those wallets elsewhere."
+    },
+    "integrationSetup": {
+      "heading": "{integration} setup required",
+      "helper": "Required to connect via this provider."
     },
     "submit": "Add wallet",
     "derived": {
