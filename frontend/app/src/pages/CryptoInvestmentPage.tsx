@@ -25,6 +25,7 @@ import {
   calculateCryptoAssetValue,
   calculateCryptoValue,
   calculateInvestmentDistribution,
+  classifyCryptoPositionKind,
   convertCurrency,
   getCryptoRateKey,
   getWalletAssets,
@@ -34,6 +35,7 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  CryptoPositionType,
   DerivativeDetail,
   DerivativePositions,
   PositionDirection,
@@ -93,6 +95,38 @@ const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
 const normalizeDerivativeCurrency = (currency: string) =>
   STABLECOIN_CURRENCIES[currency] || currency
 
+const CHAIN_DISPLAY_NAMES: Record<string, string> = {
+  ethereum: "Ethereum",
+  base: "Base",
+  celo: "Celo",
+  polygon: "Polygon",
+  arbitrum: "Arbitrum",
+  optimism: "Optimism",
+  avalanche: "Avalanche",
+  bsc: "BNB Chain",
+  "binance-smart-chain": "BNB Chain",
+  fantom: "Fantom",
+  gnosis: "Gnosis",
+  zksync: "zkSync",
+  "zksync-era": "zkSync Era",
+  linea: "Linea",
+  scroll: "Scroll",
+  blast: "Blast",
+  solana: "Solana",
+}
+
+const formatChainName = (chain: string): string => {
+  const normalized = chain.trim().toLowerCase()
+  if (CHAIN_DISPLAY_NAMES[normalized]) {
+    return CHAIN_DISPLAY_NAMES[normalized]
+  }
+  return normalized
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 interface WalletAssetView {
   asset: CryptoCurrencyPosition
   symbol: string
@@ -104,6 +138,10 @@ interface WalletAssetView {
   amount: number
   currentPrice: number
   isToken: boolean
+  isDefi: boolean
+  protocol: string | null
+  chain: string | null
+  positionType: CryptoPositionType | null
   iconUrl: string | null
   hasAssetDetails: boolean
   groupingKey: string
@@ -117,6 +155,7 @@ interface WalletWithComputed {
   assets: WalletAssetView[]
   nativeAssets: WalletAssetView[]
   tokenAssets: WalletAssetView[]
+  defiAssets: WalletAssetView[]
   totalValue: number
   totalInitialInvestment: number
   accountId?: string | null
@@ -146,6 +185,10 @@ interface NetworkAssetSummary {
   roi: number | null
   totalAmount: number
   currentPrice: number
+  isDefi: boolean
+  protocol: string | null
+  chain: string | null
+  positionType: CryptoPositionType | null
   wallets: Array<{
     id: string
     name: string
@@ -636,17 +679,25 @@ function CryptoInvestmentContent({
                   effectiveAsset.name ||
                   symbol
                 const hasAssetDetails = Boolean(effectiveAsset.crypto_asset)
+                // DeFi/Zerion positions are value-passthrough: the backend
+                // intentionally skips CoinGecko/registry enrichment for them,
+                // so they carry a market_value but no crypto_asset. Gate the
+                // value fields on hasValue (not hasAssetDetails) so those
+                // positions still display and count toward totals; icon/name
+                // still degrade on hasAssetDetails alone.
+                const hasValue =
+                  hasAssetDetails || effectiveAsset.market_value != null
                 const rateKey = getCryptoRateKey(
                   effectiveAsset as CryptoCurrencyPosition,
                 )
-                const value = hasAssetDetails
+                const value = hasValue
                   ? calculateCryptoAssetValue(
                       effectiveAsset as CryptoCurrencyPosition,
                       defaultCurrency,
                       rates,
                     )
                   : 0
-                const initialInvestment = hasAssetDetails
+                const initialInvestment = hasValue
                   ? calculateCryptoAssetInitialInvestment(
                       effectiveAsset as CryptoCurrencyPosition,
                       defaultCurrency,
@@ -661,9 +712,9 @@ function CryptoInvestmentContent({
                   effectiveAsset.investment_currency ||
                   null
                 const hasMarketValue =
-                  hasAssetDetails && effectiveAsset.market_value != null
+                  hasValue && effectiveAsset.market_value != null
                 const marketValueConvertible =
-                  hasAssetDetails && hasMarketValue
+                  hasValue && hasMarketValue
                     ? canConvertMarketValue(
                         marketCurrency,
                         defaultCurrency,
@@ -671,20 +722,31 @@ function CryptoInvestmentContent({
                       )
                     : false
                 const valueAvailable =
-                  hasAssetDetails && (hasSymbolRate || marketValueConvertible)
+                  hasValue && (hasSymbolRate || marketValueConvertible)
                 const roi =
                   initialInvestment > 0
                     ? ((value - initialInvestment) / initialInvestment) * 100
                     : null
+                const isDefi =
+                  classifyCryptoPositionKind(
+                    effectiveAsset as CryptoCurrencyPosition,
+                  ) === "defi"
                 const isToken =
                   (effectiveAsset.type ?? CryptoCurrencyType.NATIVE) ===
                     CryptoCurrencyType.TOKEN ||
                   Boolean(effectiveAsset.contract_address)
-                const iconUrl = isToken
-                  ? (effectiveAsset.crypto_asset?.icon_urls?.[0] ?? null)
-                  : isCryptoWalletEntity && entityOrigin === "NATIVE"
-                    ? nativeEntityIconPath
-                    : (effectiveAsset.crypto_asset?.icon_urls?.[0] ?? null)
+                const iconUrl =
+                  isDefi || isToken
+                    ? (effectiveAsset.crypto_asset?.icon_urls?.[0] ??
+                      effectiveAsset.icon_url ??
+                      null)
+                    : isCryptoWalletEntity && entityOrigin === "NATIVE"
+                      ? (effectiveAsset.crypto_asset?.icon_urls?.[0] ??
+                        effectiveAsset.icon_url ??
+                        nativeEntityIconPath)
+                      : (effectiveAsset.crypto_asset?.icon_urls?.[0] ??
+                        effectiveAsset.icon_url ??
+                        null)
 
                 const normalizedSymbol =
                   symbol ||
@@ -702,11 +764,15 @@ function CryptoInvestmentContent({
                   return null
                 }
 
-                const groupingKey = isToken
-                  ? `token:${tokenKey}`
-                  : normalizedSymbol
-                    ? `native:${normalizedSymbol}`
-                    : `native:${walletIdentifier}:${effectiveAsset.id ?? asset.id}`
+                const groupingKey = isDefi
+                  ? `defi:${effectiveAsset.protocol ?? "unknown"}:${
+                      effectiveAsset.position_type ?? "OTHER"
+                    }:${tokenKey ?? normalizedSymbol ?? effectiveAsset.id ?? asset.id}`
+                  : isToken
+                    ? `token:${tokenKey}`
+                    : normalizedSymbol
+                      ? `native:${normalizedSymbol}`
+                      : `native:${walletIdentifier}:${effectiveAsset.id ?? asset.id}`
 
                 return {
                   asset: effectiveAsset as CryptoCurrencyPosition,
@@ -724,6 +790,10 @@ function CryptoInvestmentContent({
                     rates,
                   ),
                   isToken,
+                  isDefi,
+                  protocol: effectiveAsset.protocol ?? null,
+                  chain: effectiveAsset.chain ?? null,
+                  positionType: effectiveAsset.position_type ?? null,
                   iconUrl,
                   hasAssetDetails,
                   groupingKey,
@@ -740,8 +810,13 @@ function CryptoInvestmentContent({
               return b.value - a.value
             })
 
-            const nativeAssets = sortedAssetViews.filter(view => !view.isToken)
-            const tokenAssets = sortedAssetViews.filter(view => view.isToken)
+            const nativeAssets = sortedAssetViews.filter(
+              view => !view.isDefi && !view.isToken,
+            )
+            const tokenAssets = sortedAssetViews.filter(
+              view => !view.isDefi && view.isToken,
+            )
+            const defiAssets = sortedAssetViews.filter(view => view.isDefi)
 
             const totalValue = sortedAssetViews.reduce(
               (sum, view) => sum + view.value,
@@ -757,6 +832,7 @@ function CryptoInvestmentContent({
               assets: sortedAssetViews,
               nativeAssets,
               tokenAssets,
+              defiAssets,
               totalValue,
               totalInitialInvestment,
               accountId,
@@ -844,20 +920,32 @@ function CryptoInvestmentContent({
           const symbol = draft.symbol?.toUpperCase() || ""
           const displayName = draft.name || symbol
           const hasAssetDetails = Boolean(draft.crypto_asset)
+          const isDefi =
+            classifyCryptoPositionKind(
+              draft as unknown as CryptoCurrencyPosition,
+            ) === "defi"
           const isToken =
             (draft.type ?? CryptoCurrencyType.NATIVE) ===
               CryptoCurrencyType.TOKEN || Boolean(draft.contract_address)
           const rateKey = getCryptoRateKey(
             draft as unknown as CryptoCurrencyPosition,
           )
-          const groupingKey = isToken
-            ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
-            : `native:${symbol || draft.localId}`
+          const groupingKey = isDefi
+            ? `defi:${draft.protocol ?? "unknown"}:${draft.position_type ?? "OTHER"}:${
+                draft.contract_address?.toLowerCase() || symbol || draft.localId
+              }`
+            : isToken
+              ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
+              : `native:${symbol || draft.localId}`
 
           let value = 0
           let valueAvailable = false
 
-          if (draft.market_value != null && draft.market_value > 0) {
+          // DeFi/Zerion drafts are value-passthrough (market_value set, no
+          // crypto_asset) and a BORROWED position's market_value is
+          // negative — flow it through as-is rather than requiring > 0, so
+          // it isn't clamped to 0 / "Not available".
+          if (draft.market_value != null) {
             const draftCurrency = draft.currency || defaultCurrency
             if (draftCurrency === defaultCurrency) {
               value = draft.market_value
@@ -869,7 +957,7 @@ function CryptoInvestmentContent({
                 rates,
               )
             }
-            valueAvailable = value > 0
+            valueAvailable = true
           } else if (hasAssetDetails && symbol) {
             value = calculateCryptoAssetValue(
               draft as unknown as CryptoCurrencyPosition,
@@ -906,6 +994,10 @@ function CryptoInvestmentContent({
               rates,
             ),
             isToken,
+            isDefi,
+            protocol: draft.protocol ?? null,
+            chain: draft.chain ?? null,
+            positionType: draft.position_type ?? null,
             iconUrl: draft.crypto_asset?.icon_urls?.[0] ?? null,
             hasAssetDetails,
             groupingKey,
@@ -927,8 +1019,9 @@ function CryptoInvestmentContent({
         const walletWithDrafts: WalletWithComputed = {
           wallet: { name: null, assets: [], hd_wallet: null },
           assets: draftAssets,
-          nativeAssets: draftAssets.filter(a => !a.isToken),
-          tokenAssets: draftAssets.filter(a => a.isToken),
+          nativeAssets: draftAssets.filter(a => !a.isDefi && !a.isToken),
+          tokenAssets: draftAssets.filter(a => !a.isDefi && a.isToken),
+          defiAssets: draftAssets.filter(a => a.isDefi),
           totalValue,
           totalInitialInvestment,
         }
@@ -962,8 +1055,9 @@ function CryptoInvestmentContent({
             {
               wallet: { name: null, assets: [], hd_wallet: null },
               assets: draftAssets,
-              nativeAssets: draftAssets.filter(a => !a.isToken),
-              tokenAssets: draftAssets.filter(a => a.isToken),
+              nativeAssets: draftAssets.filter(a => !a.isDefi && !a.isToken),
+              tokenAssets: draftAssets.filter(a => !a.isDefi && a.isToken),
+              defiAssets: draftAssets.filter(a => a.isDefi),
               totalValue,
               totalInitialInvestment,
             },
@@ -1201,6 +1295,10 @@ function CryptoInvestmentContent({
           totalInitialInvestment: number
           totalAmount: number
           currentPrice: number
+          isDefi: boolean
+          protocol: string | null
+          chain: string | null
+          positionType: CryptoPositionType | null
           wallets: Map<
             string,
             {
@@ -1260,6 +1358,10 @@ function CryptoInvestmentContent({
               totalInitialInvestment: assetView.initialInvestment,
               totalAmount: assetView.amount,
               currentPrice: assetView.currentPrice,
+              isDefi: assetView.isDefi,
+              protocol: assetView.protocol,
+              chain: assetView.chain,
+              positionType: assetView.positionType,
               wallets,
             })
           }
@@ -1288,6 +1390,10 @@ function CryptoInvestmentContent({
             roi,
             totalAmount: entry.totalAmount,
             currentPrice: entry.currentPrice,
+            isDefi: entry.isDefi,
+            protocol: entry.protocol,
+            chain: entry.chain,
+            positionType: entry.positionType,
             wallets,
           }
         })
@@ -1708,6 +1814,7 @@ function CryptoInvestmentContent({
                   wallet,
                   nativeAssets,
                   tokenAssets,
+                  defiAssets,
                   totalValue: walletTotalValue,
                 } = walletGroup
                 const hasAssets = walletGroup.assets.length > 0
@@ -2001,6 +2108,17 @@ function CryptoInvestmentContent({
                                               )}
                                             </p>
                                           )}
+                                        {assetView.chain && (
+                                          <div className="flex items-center gap-1 flex-wrap mt-1">
+                                            <span
+                                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                              title={`${t.investments.cryptoView.defi.chainLabel}: ${formatChainName(assetView.chain)}`}
+                                            >
+                                              <Tag className="h-2.5 w-2.5" />
+                                              {formatChainName(assetView.chain)}
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="text-right">
@@ -2170,6 +2288,17 @@ function CryptoInvestmentContent({
                                               )}
                                             </p>
                                           )}
+                                        {assetView.chain && (
+                                          <div className="flex items-center gap-1 flex-wrap mt-1">
+                                            <span
+                                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                              title={`${t.investments.cryptoView.defi.chainLabel}: ${formatChainName(assetView.chain)}`}
+                                            >
+                                              <Tag className="h-2.5 w-2.5" />
+                                              {formatChainName(assetView.chain)}
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="text-right">
@@ -2191,6 +2320,201 @@ function CryptoInvestmentContent({
                                   </div>
                                 )
                               })}
+                            </div>
+                          </div>
+                        )}
+
+                        {defiAssets.length > 0 && (
+                          <div className="space-y-2">
+                            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                              <Layers className="h-3.5 w-3.5" />
+                              {t.investments.cryptoView.defi.title} (
+                              {defiAssets.length})
+                            </h5>
+                            <div className="space-y-3">
+                              {Array.from(
+                                defiAssets.reduce((groups, view) => {
+                                  const key =
+                                    view.protocol ||
+                                    t.investments.cryptoView.defi
+                                      .unknownProtocol
+                                  const list = groups.get(key)
+                                  if (list) {
+                                    list.push(view)
+                                  } else {
+                                    groups.set(key, [view])
+                                  }
+                                  return groups
+                                }, new Map<string, WalletAssetView[]>()),
+                              ).map(([protocolName, protocolAssets]) => (
+                                <div key={protocolName} className="space-y-2">
+                                  <p
+                                    className="text-xs font-medium text-muted-foreground truncate"
+                                    title={protocolName}
+                                  >
+                                    {protocolName}
+                                  </p>
+                                  <div className="space-y-2">
+                                    {protocolAssets.map(assetView => {
+                                      const assetSymbol =
+                                        assetView.symbol ||
+                                        assetView.displayName ||
+                                        ""
+                                      const amountText =
+                                        assetView.asset.amount != null
+                                          ? `${assetView.asset.amount.toLocaleString(locale)} ${assetSymbol}`
+                                          : assetSymbol
+                                      const color =
+                                        chartColorMap.get(
+                                          assetView.groupingKey,
+                                        ) ?? "transparent"
+                                      const hasAccent = color !== "transparent"
+                                      const isHighlighted =
+                                        highlightedAsset ===
+                                        assetView.groupingKey
+                                      const roleLabel = assetView.positionType
+                                        ? (
+                                            t.investments.cryptoView.defi
+                                              .roles as Record<string, string>
+                                          )[assetView.positionType] ||
+                                          assetView.positionType
+                                        : null
+                                      const chainLabel = assetView.chain
+                                        ? formatChainName(assetView.chain)
+                                        : null
+                                      const isBorrowed =
+                                        assetView.positionType ===
+                                        CryptoPositionType.BORROWED
+
+                                      return (
+                                        <div
+                                          key={assetView.asset.id}
+                                          ref={element =>
+                                            registerAssetRef(
+                                              assetView.groupingKey,
+                                              element,
+                                            )
+                                          }
+                                          className={`flex items-center justify-between gap-3 p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded ${
+                                            hasAccent ? "border-l-[6px]" : ""
+                                          } ${
+                                            isHighlighted
+                                              ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
+                                              : ""
+                                          }`}
+                                          style={
+                                            hasAccent
+                                              ? {
+                                                  borderLeftColor: color,
+                                                  borderLeftWidth: 6,
+                                                }
+                                              : undefined
+                                          }
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="relative w-6 h-6 flex-shrink-0">
+                                              {assetView.iconUrl && (
+                                                <img
+                                                  src={assetView.iconUrl}
+                                                  alt={assetView.displayName}
+                                                  className="h-full w-full object-contain pointer-events-none select-none"
+                                                  draggable={false}
+                                                  style={{
+                                                    WebkitUserSelect: "none",
+                                                  }}
+                                                  onError={event => {
+                                                    event.currentTarget.classList.add(
+                                                      "hidden",
+                                                    )
+                                                    const fallback =
+                                                      event.currentTarget
+                                                        .nextElementSibling
+                                                    if (
+                                                      fallback instanceof
+                                                      HTMLElement
+                                                    ) {
+                                                      fallback.classList.remove(
+                                                        "hidden",
+                                                      )
+                                                    }
+                                                  }}
+                                                />
+                                              )}
+                                              <div
+                                                className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
+                                                  assetView.iconUrl
+                                                    ? "hidden"
+                                                    : ""
+                                                }`}
+                                              >
+                                                <span className="text-gray-700 dark:text-gray-300 text-xs font-bold">
+                                                  {assetSymbol
+                                                    .slice(0, 2)
+                                                    .toUpperCase()}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p
+                                                className="text-sm font-medium truncate"
+                                                title={assetView.displayName}
+                                              >
+                                                {assetView.displayName}
+                                              </p>
+                                              <p
+                                                className="text-xs text-gray-600 dark:text-gray-400 truncate"
+                                                title={amountText}
+                                              >
+                                                <Sensitive>
+                                                  {amountText}
+                                                </Sensitive>
+                                              </p>
+                                              <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                {chainLabel && (
+                                                  <span
+                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                                    title={`${t.investments.cryptoView.defi.chainLabel}: ${chainLabel}`}
+                                                  >
+                                                    <Tag className="h-2.5 w-2.5" />
+                                                    {chainLabel}
+                                                  </span>
+                                                )}
+                                                {roleLabel && (
+                                                  <span
+                                                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                                                      isBorrowed
+                                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                                    }`}
+                                                  >
+                                                    {roleLabel}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <p
+                                              className={`text-sm font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                                            >
+                                              <Sensitive>
+                                                {assetView.valueAvailable
+                                                  ? formatCurrency(
+                                                      assetView.value,
+                                                      locale,
+                                                      settings.general
+                                                        .defaultCurrency,
+                                                    )
+                                                  : t.common.notAvailable}
+                                              </Sensitive>
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -2703,6 +3027,11 @@ function CryptoInvestmentContent({
                                   />
                                 </div>
                               </div>
+                              {assetSummary.isDefi && assetSummary.protocol && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {assetSummary.protocol}
+                                </p>
+                              )}
                               <p
                                 className="text-sm text-gray-600 dark:text-gray-400 truncate"
                                 title={amountText}
@@ -2719,6 +3048,49 @@ function CryptoInvestmentContent({
                                     )}
                                   </p>
                                 )}
+                              {assetSummary.isDefi &&
+                                (() => {
+                                  const roleLabel = assetSummary.positionType
+                                    ? (
+                                        t.investments.cryptoView.defi
+                                          .roles as Record<string, string>
+                                      )[assetSummary.positionType] ||
+                                      assetSummary.positionType
+                                    : null
+                                  const chainLabel = assetSummary.chain
+                                    ? formatChainName(assetSummary.chain)
+                                    : null
+                                  const isBorrowed =
+                                    assetSummary.positionType ===
+                                    CryptoPositionType.BORROWED
+
+                                  if (!roleLabel && !chainLabel) return null
+
+                                  return (
+                                    <div className="flex items-center gap-1 flex-wrap pt-1">
+                                      {chainLabel && (
+                                        <span
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                          title={`${t.investments.cryptoView.defi.chainLabel}: ${chainLabel}`}
+                                        >
+                                          <Tag className="h-2.5 w-2.5" />
+                                          {chainLabel}
+                                        </span>
+                                      )}
+                                      {roleLabel && (
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                                            isBorrowed
+                                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                              : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                          }`}
+                                        >
+                                          {roleLabel}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
                             </div>
                           </div>
                           <div className="text-right">
