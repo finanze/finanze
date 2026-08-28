@@ -5,7 +5,12 @@ from uuid import UUID, uuid4
 
 from application.ports.position_port import PositionPort
 from domain.commodity import CommodityType, WeightUnit
-from domain.crypto import CryptoAsset, CryptoCurrencyType, CryptoWallet
+from domain.crypto import (
+    CryptoAsset,
+    CryptoCurrencyType,
+    CryptoPositionType,
+    CryptoWallet,
+)
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -307,7 +312,7 @@ async def _save_crypto_currencies(
                     str(crypto_position.amount),
                     (
                         str(crypto_position.market_value)
-                        if crypto_position.market_value
+                        if crypto_position.market_value is not None
                         else None
                     ),
                     crypto_position.currency,
@@ -317,6 +322,14 @@ async def _save_crypto_currencies(
                         if crypto_position.crypto_asset
                         else None
                     ),
+                    crypto_position.chain,
+                    crypto_position.protocol,
+                    (
+                        crypto_position.position_type.value
+                        if crypto_position.position_type
+                        else "HOLDING"
+                    ),
+                    crypto_position.icon_url,
                 ),
             )
 
@@ -1181,10 +1194,16 @@ class PositionSQLRepository(PositionPort):
                     amount=Dezimal(row["amount"]),
                     type=CryptoCurrencyType(row["type"]),
                     market_value=(
-                        Dezimal(row["market_value"]) if row["market_value"] else None
+                        Dezimal(row["market_value"])
+                        if row["market_value"] is not None
+                        else None
                     ),
                     currency=row["currency"],
                     contract_address=row["contract_address"],
+                    chain=row["chain"],
+                    protocol=row["protocol"],
+                    position_type=CryptoPositionType(row["position_type"]),
+                    icon_url=row["icon_url"],
                     crypto_asset=crypto_asset,
                     initial_investment=(
                         Dezimal(row["initial_investment"])
