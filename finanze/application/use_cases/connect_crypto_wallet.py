@@ -93,7 +93,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             try:
                 result = await specific_fetcher.fetch(
                     CryptoFetchRequest(
-                        addresses=[address], integrations=enabled_integrations
+                        addresses=[address],
+                        integrations=enabled_integrations,
+                        include_wallet_tokens=request.include_wallet_tokens,
                     )
                 )
                 if (
@@ -124,6 +126,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             address_source=AddressSource.MANUAL,
             name=request.name,
             hd_wallet=None,
+            include_wallet_tokens=request.include_wallet_tokens,
         )
 
         async with self._transaction_handler_port.start():
