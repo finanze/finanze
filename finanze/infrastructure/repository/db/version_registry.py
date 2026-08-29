@@ -188,20 +188,8 @@ from infrastructure.repository.db.versions.v0.v10.v0100_3_instrument_price_histo
 from infrastructure.repository.db.versions.v0.v10.v0100_4_crypto_etp_to_crypto_positions import (
     V01004CryptoEtpToCryptoPositions,
 )
-from infrastructure.repository.db.versions.v0.v10.v0100_5_crypto_defi_fields import (
-    V01005CryptoDefiFields,
-)
-from infrastructure.repository.db.versions.v0.v10.v0100_6_zerion_integration import (
-    V01006ZerionIntegration,
-)
-from infrastructure.repository.db.versions.v0.v10.v0100_7_include_wallet_tokens import (
-    V01007IncludeWalletTokens,
-)
-from infrastructure.repository.db.versions.v0.v10.v0100_8_zerion_entity import (
-    V01008ZerionEntity,
-)
-from infrastructure.repository.db.versions.v0.v10.v0100_9_crypto_icon_url import (
-    V01009CryptoIconUrl,
+from infrastructure.repository.db.versions.v0.v10.v0100_5_crypto_defi_zerion import (
+    V01005CryptoDefiZerion,
 )
 
 versions = [
@@ -279,9 +267,5 @@ versions = [
     V01002ClearSegoRealTransactions(),
     V01003InstrumentPriceHistory(),
     V01004CryptoEtpToCryptoPositions(),
-    V01005CryptoDefiFields(),
-    V01006ZerionIntegration(),
-    V01007IncludeWalletTokens(),
-    V01008ZerionEntity(),
-    V01009CryptoIconUrl(),
+    V01005CryptoDefiZerion(),
 ]
