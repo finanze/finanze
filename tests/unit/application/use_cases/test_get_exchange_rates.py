@@ -50,6 +50,22 @@ def _make_token_position(symbol, contract_address):
     )
 
 
+def _make_fetcher_priced_position(symbol, contract_address=None):
+    # Mirrors a Zerion position: it carries its own market value and is not
+    # linked to a crypto asset from the price provider (crypto_asset is None).
+    return CryptoCurrencyPosition(
+        id=uuid4(),
+        symbol=symbol,
+        amount=Dezimal("1"),
+        type=(
+            CryptoCurrencyType.TOKEN if contract_address else CryptoCurrencyType.NATIVE
+        ),
+        contract_address=contract_address,
+        market_value=Dezimal("123"),
+        currency="EUR",
+    )
+
+
 async def _run_jobs_sequentially(jobs, timeout):
     outcomes = []
     for job_factory, meta in jobs:
@@ -166,6 +182,53 @@ class TestIgnoredCryptoSymbols:
         crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
         assert addresses_arg == [PUSD_CONTRACT_ADDRESS]
+
+
+class TestFetcherPricedPositions:
+    @pytest.mark.asyncio
+    async def test_fetcher_priced_positions_are_not_sent_to_crypto_provider(self):
+        entity = _make_entity()
+        wallet = CryptoCurrencyWallet(
+            id=uuid4(),
+            assets=[
+                _make_crypto_position("BTC"),
+                _make_fetcher_priced_position("GHO", "0xghocontract"),
+                _make_fetcher_priced_position("ETH"),
+            ],
+        )
+        gp = GlobalPosition(
+            id=uuid4(),
+            entity=entity,
+            products={ProductType.CRYPTO: CryptoCurrencies(entries=[wallet])},
+        )
+
+        position_port = AsyncMock()
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
+            return_value={"BTC": {"EUR": Dezimal("50000")}}
+        )
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
+
+        uc = _build_use_case(
+            position_port=position_port,
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        await uc.execute(initial_load=False)
+
+        crypto_provider.get_multiple_prices_by_symbol.assert_called_once()
+        symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
+        assert "BTC" in symbols_arg
+        # The fetcher-priced (Zerion-like) positions are skipped entirely.
+        assert "GHO" not in symbols_arg
+        assert "ETH" not in symbols_arg
+
+        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
+        assert "0xghocontract" not in addresses_arg
 
 
 class TestCryptoRateKeying:
