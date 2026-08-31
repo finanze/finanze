@@ -7,6 +7,7 @@ class Router:
     def __init__(self):
         self._routes = []
         self._logger = logging.getLogger(__name__)
+        self.error_reporter = None
 
     @property
     def logger(self):

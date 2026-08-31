@@ -19,7 +19,7 @@ def resolve_version() -> str:
     return "0.0.0"
 
 
-def _detect_os() -> OS | None:
+def detect_os() -> OS | None:
     system = platform.system().upper()
 
     if system == "DARWIN":
@@ -34,7 +34,7 @@ def _detect_os() -> OS | None:
 
 class ServerDetailsAdapter(ServerDetailsPort):
     def __init__(self, args: Namespace):
-        self._os = _detect_os()
+        self._os = detect_os()
         self._args = args
 
     async def get_backend_details(self) -> BackendDetails:

@@ -64,6 +64,7 @@ from domain.use_cases.get_market_forecast_pnl import GetMarketForecastPnl
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
+from domain.use_cases.get_telemetry_consent import GetTelemetryConsent
 from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_template_fields import GetTemplateFields
 from domain.use_cases.get_templates import GetTemplates
@@ -89,6 +90,7 @@ from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
 from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
+from domain.use_cases.update_telemetry_consent import UpdateTelemetryConsent
 from domain.use_cases.update_template import UpdateTemplate
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
@@ -176,6 +178,9 @@ from infrastructure.controller.routes.get_money_events import get_money_events
 from infrastructure.controller.routes.get_pending_flows import get_pending_flows
 from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
+from infrastructure.controller.routes.get_telemetry_consent import (
+    get_telemetry_consent,
+)
 from infrastructure.controller.routes.get_status import status
 from infrastructure.controller.routes.get_template_fields_route import (
     get_template_fields,
@@ -216,6 +221,9 @@ from infrastructure.controller.routes.update_periodic_flow import update_periodi
 from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.update_real_estate import update_real_estate
 from infrastructure.controller.routes.update_settings import update_settings
+from infrastructure.controller.routes.update_telemetry_consent import (
+    update_telemetry_consent,
+)
 from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.update_tracked_loans import update_tracked_loans
@@ -311,6 +319,8 @@ async def register_routes(
     get_backup_settings_uc: GetBackupSettings,
     save_backup_settings_uc: SaveBackupSettings,
     get_euribor_rates_uc: GetEuriborRates,
+    get_telemetry_consent_uc: GetTelemetryConsent,
+    update_telemetry_consent_uc: UpdateTelemetryConsent,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -667,6 +677,14 @@ async def register_routes(
     @app.route("/api/v1/rates/euribor", methods=["GET"])
     async def get_euribor_rates_route():
         return await get_euribor_rates(get_euribor_rates_uc)
+
+    @app.route("/api/v1/telemetry/consent", methods=["GET"])
+    async def get_telemetry_consent_route():
+        return await get_telemetry_consent(get_telemetry_consent_uc)
+
+    @app.route("/api/v1/telemetry/consent", methods=["POST"])
+    async def update_telemetry_consent_route():
+        return await update_telemetry_consent(update_telemetry_consent_uc)
 
     @app.route("/oauth/callback", methods=["GET"])
     async def oauth_callback_route():

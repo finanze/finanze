@@ -70,6 +70,12 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
   quitAndInstall: () => ipcRenderer.invoke("auto-update-install"),
 
+  setTelemetryConsent: (consent: {
+    errorReporting: boolean
+    sessionReplay: boolean
+    installId?: string
+  }) => ipcRenderer.invoke("telemetry-consent", consent) as Promise<void>,
+
   onCheckingForUpdate: createIpcListener<void>("auto-update:checking"),
 
   onUpdateAvailable: createIpcListener<UpdateInfo>("auto-update:available"),

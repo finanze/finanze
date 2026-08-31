@@ -523,6 +523,11 @@
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
     "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro."
   },
+  "errorBoundary": {
+    "title": "Qualcosa è andato storto",
+    "description": "L'applicazione ha riscontrato un errore inatteso. I tuoi dati sono al sicuro, ricaricare di solito risolve.",
+    "reload": "Ricarica"
+  },
   "entities": {
     "title": "Integrazioni",
     "storeNotice": "Questa versione non supporta connessioni con entità finanziarie. Puoi gestire i tuoi dati manualmente, importarli da file, visita {link} per altre opzioni.",
@@ -705,6 +710,16 @@
       "description": "Informazioni legali e policy",
       "privacyPolicy": "Informativa sulla Privacy",
       "termsOfService": "Termini di Servizio"
+    },
+    "privacy": {
+      "title": "Diagnostica",
+      "description": "Tutto qui è disattivato per impostazione predefinita e resta su questo dispositivo se non lo attivi.",
+      "errorReportingLabel": "Invia segnalazioni di errore",
+      "errorReportingDescription": "Condividi segnalazioni anonime di crash ed errori per poterli correggere. Importi, dati dei conti e dati personali vengono rimossi prima dell'invio.",
+      "sessionReplayLabel": "Includi il replay della sessione",
+      "sessionReplayDescription": "Registra un replay anonimizzato delle schermate che precedono un errore. Testi e cifre vengono mascherati. Richiede le segnalazioni di errore attive.",
+      "restartRequired": "Riavvia l'applicazione per interrompere completamente l'invio già avviato in questa sessione.",
+      "installId": "ID di installazione"
     },
     "cloud": {
       "tabTitle": "Cloud",

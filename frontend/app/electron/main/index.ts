@@ -48,6 +48,12 @@ import {
 } from "./about-window"
 import { createTray } from "./tray"
 import { setupOAuthDeepLinking } from "./oauth-deeplink"
+import {
+  captureException,
+  getBackendTelemetryEnv,
+  initTelemetry,
+  setTelemetryConsent,
+} from "./telemetry"
 
 const packageMetadata = packageJson as {
   author?: string | { name?: string }
@@ -93,6 +99,7 @@ const preload = join(__dirname, "../preload/index.mjs")
 const backendController = new BackendController({
   appConfig,
   devEntryPoint: join(__dirname, "..", "..", "..", "..", "finanze"),
+  extraEnv: getBackendTelemetryEnv,
   defaultArgs: {
     port: appConfig.ports.backend,
     logLevel: appConfig.isDev ? "DEBUG" : "INFO",
@@ -324,6 +331,8 @@ function serializeBackendError(error: unknown): BackendErrorInfo {
 }
 
 app.whenReady().then(async () => {
+  initTelemetry()
+
   setupAboutWindow({
     isDev: appConfig.isDev,
     viteDevServerUrl: VITE_DEV_SERVER_URL,
@@ -372,6 +381,20 @@ app.whenReady().then(async () => {
   ipcMain.handle("backend-stop", async () => await stopBackendProcess())
   ipcMain.handle("backend-restart", async () => await restartBackendProcess())
 
+  ipcMain.handle(
+    "telemetry-consent",
+    (
+      _,
+      value: {
+        errorReporting: boolean
+        sessionReplay: boolean
+        installId?: string
+      },
+    ) => {
+      setTelemetryConsent(value)
+    },
+  )
+
   ipcMain.handle("select-directory", async (_, initialPath?: string) => {
     const result = await dialog.showOpenDialog({
       title: "Select directory",
@@ -411,6 +434,9 @@ app.whenReady().then(async () => {
         "Failed to start backend:",
         startupBackendResult.error.message,
       )
+      captureException(new Error(startupBackendResult.error.message), {
+        phase: "backend_start",
+      })
     }
   } else {
     console.info(

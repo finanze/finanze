@@ -524,6 +524,11 @@
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
   },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "The application ran into an unexpected error. Your data is safe, reloading usually fixes it.",
+    "reload": "Reload"
+  },
   "entities": {
     "title": "Integrations",
     "storeNotice": "This version does not support connections with financial entities. You can manage your data manually, import from files, visit {link} for more options.",
@@ -706,6 +711,16 @@
       "description": "Legal information and policies",
       "privacyPolicy": "Privacy Policy",
       "termsOfService": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Diagnostics",
+      "description": "Everything here is off by default and stays on this device unless you turn it on.",
+      "errorReportingLabel": "Send error reports",
+      "errorReportingDescription": "Share anonymous crash and error reports so bugs can be fixed. Amounts, account details and personal data are removed before sending.",
+      "sessionReplayLabel": "Include session replay",
+      "sessionReplayDescription": "Record an anonymised replay of the screens leading to an error. Text and figures are masked. Requires error reports to be enabled.",
+      "restartRequired": "Restart the application to fully stop the reporting already running in this session.",
+      "installId": "Installation ID"
     },
     "cloud": {
       "tabTitle": "Cloud",

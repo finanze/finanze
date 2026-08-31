@@ -689,6 +689,11 @@ declare global {
       checkForUpdates: () => Promise<AutoUpdateCheckResult>
       downloadUpdate: () => Promise<AutoUpdateActionResult>
       quitAndInstall: () => Promise<AutoUpdateActionResult>
+      setTelemetryConsent: (consent: {
+        errorReporting: boolean
+        sessionReplay: boolean
+        installId?: string
+      }) => Promise<void>
       onCheckingForUpdate: (callback: () => void) => () => void
       onUpdateAvailable: (
         callback: (info: AutoUpdateInfo) => void,

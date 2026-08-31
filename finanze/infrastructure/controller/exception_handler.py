@@ -1,5 +1,8 @@
-from quart import jsonify
+from typing import Optional
 
+from quart import jsonify, request
+
+from application.ports.error_reporter_port import ErrorReporterPort
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
     AddressNotFound,
@@ -25,8 +28,22 @@ from domain.exception.exceptions import (
 )
 
 
-def handle_unexpected_error(e):
-    return {"code": "UNEXPECTED_ERROR", "message": str(e.original_exception)}, 500
+def build_unexpected_error_handler(error_reporter: Optional[ErrorReporterPort] = None):
+    def handle_unexpected_error(e):
+        original = getattr(e, "original_exception", e)
+
+        if error_reporter:
+            error_reporter.capture_exception(
+                original,
+                tags={
+                    "http_method": request.method,
+                    "route": str(request.url_rule) if request.url_rule else "unknown",
+                },
+            )
+
+        return {"code": "UNEXPECTED_ERROR", "message": str(original)}, 500
+
+    return handle_unexpected_error
 
 
 def handle_invalid_authentication(e):
@@ -126,7 +143,9 @@ def handle_external_provider_app_not_linked(e):
     return jsonify({"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}), 409
 
 
-def register_exception_handlers(app):
+def register_exception_handlers(
+    app, error_reporter: Optional[ErrorReporterPort] = None
+):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
@@ -152,5 +171,5 @@ def register_exception_handlers(app):
         ExternalProviderAppNotLinked, handle_external_provider_app_not_linked
     )
 
-    app.register_error_handler(500, handle_unexpected_error)
+    app.register_error_handler(500, build_unexpected_error_handler(error_reporter))
     app.register_error_handler(401, handle_invalid_authentication)

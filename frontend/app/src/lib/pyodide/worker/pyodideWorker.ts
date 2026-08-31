@@ -549,7 +549,18 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.yahooFinance.getSplits", args),
   }
 
-  ;(self as any).jsBridge = { sqlite, preferences, filesystem, yahooFinance }
+  const telemetry = {
+    capture: (...args: any[]) =>
+      requestMain("jsBridge.telemetry.capture", args),
+  }
+
+  ;(self as any).jsBridge = {
+    sqlite,
+    preferences,
+    filesystem,
+    yahooFinance,
+    telemetry,
+  }
   ;(self as any).FileTransfer = createMainProxy("FileTransfer")
   ;(self as any).BackupProcessor = createMainProxy("BackupProcessor")
   ;(self as any).NativeCookies = createMainProxy("NativeCookies")

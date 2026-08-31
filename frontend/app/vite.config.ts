@@ -75,6 +75,21 @@ export default defineConfig(({ command, mode }) => {
               main: {
                 entry: "electron/main/index.ts",
                 vite: {
+                  define: {
+                    __APP_VERSION__: JSON.stringify(
+                      process.env.npm_package_version,
+                    ),
+                    __BS_ELECTRON_MAIN_DSN__: JSON.stringify(
+                      env.VITE_BS_ELECTRON_MAIN_DSN ?? "",
+                    ),
+                    __BS_DESKTOP_BACKEND_DSN__: JSON.stringify(
+                      env.VITE_BS_DESKTOP_BACKEND_DSN ?? "",
+                    ),
+                    __BS_ENVIRONMENT__: JSON.stringify(
+                      env.VITE_BS_ENVIRONMENT ||
+                        (isBuild ? "production" : "development"),
+                    ),
+                  },
                   build: {
                     sourcemap,
                     minify: isBuild,
