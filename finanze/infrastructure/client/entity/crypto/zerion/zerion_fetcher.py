@@ -104,16 +104,19 @@ class ZerionFetcher(CryptoEntityFetcher):
             app_icon = application_metadata.get("icon") or {}
             icon_url = app_icon.get("url")
 
-        contract_address = None
-        for implementation in fungible_info.get("implementations") or []:
-            if implementation.get("chain_id") == chain:
-                address = implementation.get("address")
-                contract_address = address.lower() if address else None
-                break
-
+        implementation = next(
+            (
+                impl
+                for impl in fungible_info.get("implementations") or []
+                if impl.get("chain_id") == chain
+            ),
+            None,
+        )
+        address = implementation.get("address") if implementation else None
+        contract_address = address.lower() if address else None
         asset_type = (
             CryptoCurrencyType.NATIVE
-            if contract_address is None
+            if implementation is not None and not address
             else CryptoCurrencyType.TOKEN
         )
 

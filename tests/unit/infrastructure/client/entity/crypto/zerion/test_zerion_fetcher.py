@@ -382,6 +382,42 @@ class TestZerionFetcherNativeToken:
         assert eth.balance == Dezimal("0.5")
 
 
+class TestZerionFetcherUnmappedRow:
+    @pytest.mark.asyncio
+    async def test_row_without_matching_implementation_maps_to_token(self):
+        item = {
+            "id": "vault-1",
+            "attributes": {
+                "position_type": "deposit",
+                "value": 500.0,
+                "quantity": {"numeric": "500", "float": 500.0, "decimals": 18},
+                "fungible_info": {
+                    "symbol": "vTOKEN",
+                    "name": "Vault Share",
+                    "implementations": [{"address": "0xabc", "chain_id": "polygon"}],
+                },
+                "protocol": "SomeVault",
+                "name": "Some Vault",
+                "receipt": None,
+                "flags": {"displayable": True, "is_trash": False},
+            },
+            "relationships": {"chain": {"data": {"type": "chains", "id": "ethereum"}}},
+        }
+
+        client = ZerionClient()
+        client.fetch_positions = AsyncMock(return_value=[item])
+        fetcher = ZerionFetcher(client)
+
+        result = await fetcher.fetch(_request(include_wallet_tokens=True))
+
+        assets = result.results[FAKE_ADDRESS].assets
+        assert len(assets) == 1
+        asset = assets[0]
+        assert asset.symbol == "vTOKEN"
+        assert asset.contract_address is None
+        assert asset.type == CryptoCurrencyType.TOKEN
+
+
 class TestZerionFetcherMalformedItems:
     @pytest.mark.asyncio
     async def test_skips_unmappable_item_and_maps_the_rest(self, caplog):
