@@ -27,6 +27,7 @@ from domain.crypto import (
 )
 from domain.dezimal import Dezimal
 from domain.entity import Feature
+from domain.global_position import CryptoCurrencyPosition, CryptoCurrencyWallet
 from domain.fetch_result import FetchRequest, FetchResultCode
 from domain.public_key import (
     AddressDerivationRequest,
@@ -1339,6 +1340,48 @@ class TestMergeAddressAssets:
         merged = FetchCryptoDataImpl._merge_address_assets([r1, r2])
         assert len(merged) == 1
         assert merged[0].amount == Dezimal("150")
+
+
+class TestCollectAssetIdentifiers:
+    def test_fetcher_priced_assets_are_skipped(self):
+        wallet = CryptoCurrencyWallet(
+            id=uuid4(),
+            assets=[
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.NATIVE,
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="USDC",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.TOKEN,
+                    contract_address="0xUSDC",
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ZNATIVE",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.NATIVE,
+                    market_value=Dezimal("50"),
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ZTOKEN",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.TOKEN,
+                    contract_address="0xZTOKEN",
+                    market_value=Dezimal("50"),
+                ),
+            ],
+        )
+
+        addresses, symbols = FetchCryptoDataImpl._collect_asset_identifiers([wallet])
+
+        assert symbols == {"ETH"}
+        assert addresses == {"0xusdc"}
 
 
 class TestFetcherSuppliedValueAndDedup:

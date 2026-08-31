@@ -285,6 +285,8 @@ class FetchCryptoDataImpl(FetchCryptoData):
         native_symbols = set()
         for wallet in wallets:
             for asset in wallet.assets:
+                if asset.market_value is not None:
+                    continue
                 if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
                     contract_addresses.add(asset.contract_address.lower())
                 elif asset.type == CryptoCurrencyType.NATIVE:
