@@ -887,6 +887,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 ):
                     unreconciled_flows.pop(identity, None)
                     continue
+                replay_identity = replay_identity_by_key.get(identity_key)
+                if (
+                    replay_identity is not None
+                    and replay_identity not in replay_ended
+                    and replay_identity in replay_positions
+                ):
+                    # replay already applied these flows to the book, so a
+                    # snapshot elsewhere in the holder must not re-infer them
+                    unreconciled_flows.pop(identity, None)
+                    continue
                 prior_keyed: dict[_AssetIdentity, Dezimal] = dict(previous_asset_values)
                 current_keyed = dict(current_values)
                 for key, value in previous_asset_values.items():
@@ -1691,7 +1701,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             if (
                 orphan_sell_flow_ids is not None
                 and flow.transaction_type in _OUTFLOW_TYPES
-                and quantity
+                and quantity is not None
             ):
                 orphan_sell_flow_ids.add(id(flow))
             position.quantity = Dezimal(0)

@@ -2657,6 +2657,70 @@ class TestGetGainsTimelineReplay:
         assert after.gain == Dezimal(1000)
 
     @pytest.mark.asyncio
+    async def test_partial_first_snapshot_keeps_replayed_holdings(self):
+        buy_day = date(2024, 7, 24)
+        snapshot_day = date(2025, 9, 25)
+
+        def fund(asset, quantity, value, cost):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key=asset,
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost),
+            )
+
+        use_case, _ = _build(
+            # the broker's first snapshot only lists one of the two funds held
+            [
+                AssetSnapshot(
+                    holder="myinvestor",
+                    moment=datetime(
+                        snapshot_day.year, snapshot_day.month, snapshot_day.day, 12
+                    ),
+                    valuations=[fund("IE00OTHER", "10", "1100", "1000")],
+                )
+            ],
+            [
+                GainsFlow(
+                    holder="myinvestor",
+                    product_type=ProductType.FUND,
+                    asset_key="IE00OTHER",
+                    moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                    amount=Dezimal(1000),
+                    currency="EUR",
+                    quantity=Dezimal(10),
+                    transaction_type=TxType.BUY,
+                ),
+                GainsFlow(
+                    holder="myinvestor",
+                    product_type=ProductType.FUND,
+                    asset_key="FR0000989626",
+                    moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                    amount=Dezimal(10000),
+                    currency="EUR",
+                    quantity=Dezimal("0.2374"),
+                    transaction_type=TxType.BUY,
+                ),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        before = by_day[snapshot_day - timedelta(days=1)]
+        after = by_day[snapshot_day]
+        # the missing fund is still replayed, so nothing may be sold off
+        assert after.net_contributions == before.net_contributions
+        assert after.value >= Dezimal(11000)
+
+    @pytest.mark.asyncio
     async def test_dividends_before_any_holding_are_not_gains(self):
         dividend_day = date(2013, 12, 19)
         buy_day = date(2022, 6, 23)
