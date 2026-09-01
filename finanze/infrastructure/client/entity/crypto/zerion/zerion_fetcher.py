@@ -54,9 +54,11 @@ class ZerionFetcher(CryptoEntityFetcher):
                 continue
 
             assets: list[CryptoFetchedPosition] = []
+            mapped_raw: list[dict] = []
             for item in raw:
                 try:
                     assets.append(self._map_item(item))
+                    mapped_raw.append(item)
                 except (KeyError, TypeError, AttributeError, ValueError) as exc:
                     self._log.warning(
                         "Skipping unmappable Zerion position %s: %s",
@@ -65,7 +67,7 @@ class ZerionFetcher(CryptoEntityFetcher):
                     )
 
             if request.include_wallet_tokens:
-                assets = self._dedup_receipt_holdings(assets, raw)
+                assets = self._dedup_receipt_holdings(assets, mapped_raw)
 
             results[address] = CryptoFetchResult(address=address, assets=assets)
 
@@ -147,8 +149,8 @@ class ZerionFetcher(CryptoEntityFetcher):
         )
 
     @staticmethod
-    def _receipt_contract_addresses(raw_items: list[dict]) -> set[str]:
-        receipt_addresses: set[str] = set()
+    def _receipt_contract_keys(raw_items: list[dict]) -> set[tuple[str, str]]:
+        receipt_keys: set[tuple[str, str]] = set()
         for item in raw_items:
             attributes = item["attributes"]
             if attributes.get("position_type") == "wallet":
@@ -161,17 +163,18 @@ class ZerionFetcher(CryptoEntityFetcher):
             fungible_info = receipt.get("fungible_info") or {}
             for implementation in fungible_info.get("implementations") or []:
                 address = implementation.get("address")
-                if address:
-                    receipt_addresses.add(address.lower())
+                chain_id = implementation.get("chain_id")
+                if address and chain_id:
+                    receipt_keys.add((chain_id, address.lower()))
 
-        return receipt_addresses
+        return receipt_keys
 
     @classmethod
     def _dedup_receipt_holdings(
         cls, assets: list[CryptoFetchedPosition], raw_items: list[dict]
     ) -> list[CryptoFetchedPosition]:
-        receipt_addresses = cls._receipt_contract_addresses(raw_items)
-        if not receipt_addresses:
+        receipt_keys = cls._receipt_contract_keys(raw_items)
+        if not receipt_keys:
             return assets
 
         return [
@@ -179,6 +182,8 @@ class ZerionFetcher(CryptoEntityFetcher):
             for asset in assets
             if not (
                 asset.position_type == CryptoPositionType.HOLDING
-                and asset.contract_address in receipt_addresses
+                and asset.chain is not None
+                and asset.contract_address is not None
+                and (asset.chain, asset.contract_address) in receipt_keys
             )
         ]

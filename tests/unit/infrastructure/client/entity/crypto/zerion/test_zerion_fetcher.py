@@ -360,6 +360,87 @@ class TestZerionFetcherOnMode:
         assert set(assets.keys()) == {"aUSDC", "PT-GHO", "stETH", "COMP", "GHO", "DAI"}
 
 
+class TestZerionFetcherReceiptDedupEdgeCases:
+    @pytest.mark.asyncio
+    async def test_receipt_from_unmapped_item_does_not_suppress_holding(self):
+        shared = "0xrcpt0000000000000000000000000000000000"
+        # A complex leg that fails to map (no "quantity") but carries a receipt,
+        # plus a structurally broken item, plus a wallet holding at the receipt
+        # address. The unmapped legs must neither crash the dedup nor suppress
+        # the holding.
+        broken_with_receipt = {
+            "id": "broken-dep",
+            "attributes": {
+                "position_type": "deposit",
+                "value": 100.0,
+                "fungible_info": _fungible_info("aTOK", "Aave TOK", AUSDC_CONTRACT),
+                "protocol": "Aave V3",
+                "name": "Aave TOK",
+                "receipt": {
+                    "fungible_info": {
+                        "implementations": [{"address": shared, "chain_id": "ethereum"}]
+                    }
+                },
+                "flags": {"displayable": True, "is_trash": False},
+            },
+            "relationships": {"chain": {"data": {"type": "chains", "id": "ethereum"}}},
+        }
+        no_attributes = {"id": "no-attrs"}
+        holding = _position(
+            "wallet-tok", "wallet", "TOK", "Token", 50.0, "50", contract=shared
+        )
+
+        client = ZerionClient()
+        client.fetch_positions = AsyncMock(
+            return_value=[broken_with_receipt, no_attributes, deepcopy(holding)]
+        )
+        fetcher = ZerionFetcher(client)
+
+        result = await fetcher.fetch(_request(include_wallet_tokens=True))
+
+        assets = result.results[FAKE_ADDRESS].assets
+        assert {a.symbol for a in assets} == {"TOK"}
+
+    @pytest.mark.asyncio
+    async def test_receipt_does_not_suppress_same_address_on_another_chain(self):
+        shared = "0xshared00000000000000000000000000000000"
+        items = [
+            _position(
+                "dep-eth",
+                "deposit",
+                "aTOK",
+                "Aave TOK",
+                1000.0,
+                "1000",
+                contract=AUSDC_CONTRACT,
+                protocol="Aave V3",
+                receipt_contract=shared,
+                chain="ethereum",
+            ),
+            _position(
+                "wallet-poly",
+                "wallet",
+                "TOK",
+                "Token",
+                50.0,
+                "50",
+                contract=shared,
+                chain="polygon",
+            ),
+        ]
+
+        client = ZerionClient()
+        client.fetch_positions = AsyncMock(return_value=deepcopy(items))
+        fetcher = ZerionFetcher(client)
+
+        result = await fetcher.fetch(_request(include_wallet_tokens=True))
+
+        pairs = {(a.symbol, a.chain) for a in result.results[FAKE_ADDRESS].assets}
+        # The polygon holding shares the address of the ethereum receipt but is
+        # a different chain, so it must be kept.
+        assert ("TOK", "polygon") in pairs
+
+
 class TestZerionFetcherNativeToken:
     @pytest.mark.asyncio
     async def test_null_address_implementation_maps_to_native_without_raising(self):
