@@ -756,23 +756,27 @@ function CryptoInvestmentContent({
                 const contractAddress = effectiveAsset.contract_address
                   ? effectiveAsset.contract_address.toLowerCase()
                   : null
+                const normalizedChain =
+                  effectiveAsset.chain?.toLowerCase() ?? "nochain"
                 const tokenKey =
                   contractAddress ??
-                  effectiveAsset.crypto_asset?.id?.toLowerCase()
+                  effectiveAsset.crypto_asset?.id?.toLowerCase() ??
+                  normalizedSymbol?.toLowerCase() ??
+                  effectiveAsset.id
 
                 if (isToken && !tokenKey) {
                   return null
                 }
 
                 const groupingKey = isDefi
-                  ? `defi:${effectiveAsset.protocol ?? "unknown"}:${
+                  ? `defi:${normalizedChain}:${effectiveAsset.protocol ?? "unknown"}:${
                       effectiveAsset.position_type ?? "OTHER"
                     }:${tokenKey ?? normalizedSymbol ?? effectiveAsset.id ?? asset.id}`
                   : isToken
-                    ? `token:${tokenKey}`
+                    ? `token:${normalizedChain}:${tokenKey}`
                     : normalizedSymbol
-                      ? `native:${normalizedSymbol}`
-                      : `native:${walletIdentifier}:${effectiveAsset.id ?? asset.id}`
+                      ? `native:${normalizedChain}:${normalizedSymbol}`
+                      : `native:${normalizedChain}:${walletIdentifier}:${effectiveAsset.id ?? asset.id}`
 
                 return {
                   asset: effectiveAsset as CryptoCurrencyPosition,
@@ -3048,7 +3052,7 @@ function CryptoInvestmentContent({
                                     )}
                                   </p>
                                 )}
-                              {assetSummary.isDefi &&
+                              {(assetSummary.isDefi || assetSummary.chain) &&
                                 (() => {
                                   const roleLabel = assetSummary.positionType
                                     ? (
