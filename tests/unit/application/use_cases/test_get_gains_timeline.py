@@ -19,9 +19,11 @@ from domain.gains_timeline import (
     GainsCalculationMode,
     GainsFlow,
     GainsMethod,
+    GainsNotApplicableReason,
     GainsQuality,
     GainsSettlement,
     GainsTimelineQuery,
+    GainsWarning,
 )
 from domain.global_position import EquityType, ProductType
 from domain.instrument import InstrumentType
@@ -1614,11 +1616,7 @@ class TestGetGainsTimelineReplay:
         assert by_day[sell_day + timedelta(days=1)].value == Dezimal(0)
         assert by_day[sell_day + timedelta(days=1)].gain == Dezimal(20)
         assert result.quality == GainsQuality.ESTIMATED
-        assert result.warnings == [
-            "Some positions were reconstructed from transactions without "
-            "stored market values; valuations before the first stored "
-            "position use transaction cost."
-        ]
+        assert result.warnings == [GainsWarning.REPLAYED_POSITIONS]
 
     @pytest.mark.asyncio
     async def test_replay_xirr_converges_over_long_period(self):
@@ -1811,6 +1809,58 @@ class TestGetGainsTimelineReplay:
         assert by_day[later_day].value == Dezimal(120)
         assert by_day[later_day].gain == Dezimal(20)
         history_provider.get_history.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_provider_failure_is_not_cached_as_missing_prices(self):
+        from domain.exception.exceptions import InstrumentProviderUnavailable
+
+        buy_day = date(2024, 11, 1)
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = []
+        port.get_flows.return_value = [
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.FUND,
+                asset_key="IE00TEST",
+                moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                amount=Dezimal(100),
+                currency="EUR",
+                quantity=Dezimal(2),
+                transaction_type=TxType.BUY,
+            )
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = []
+        history_storage.get_covered_range.return_value = None
+        history_storage.get_resolved_symbol.return_value = None
+        history_storage.get_empty_gap_days.return_value = set()
+        history_provider = AsyncMock()
+        history_provider.get_history.side_effect = InstrumentProviderUnavailable(
+            "IE00TEST"
+        )
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+            )
+        )
+
+        history_storage.mark_no_result.assert_not_awaited()
+        history_storage.mark_empty_gap_days.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_fetches_and_persists_history_when_storage_empty(self):
@@ -2601,6 +2651,280 @@ class TestGetGainsTimelineReplay:
         assert by_day[swap_day].cost_basis == Dezimal("1474.00")
 
     @pytest.mark.asyncio
+    async def test_delisted_leg_is_not_priced_from_its_successor(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        old_isin = "ES0168675009"
+        new_isin = "ES0180907000"
+        buy_day = date(2025, 1, 6)
+        swap_day = date(2025, 2, 3)
+        sell_day = date(2025, 2, 10)
+
+        def stock_flow(day, asset, ttype, amount, quantity):
+            return GainsFlow(
+                holder="ing",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=asset,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=ttype,
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = []
+        port.get_flows.return_value = [
+            stock_flow(buy_day, old_isin, TxType.BUY, "1000", "100"),
+            stock_flow(swap_day, old_isin, TxType.SWAP_FROM, "0", "100"),
+            stock_flow(swap_day, new_isin, TxType.SWAP_TO, "0", "50"),
+            stock_flow(sell_day, new_isin, TxType.SELL, "900", "50"),
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = []
+        history_storage.get_covered_range.return_value = None
+        history_storage.get_resolved_symbol.return_value = None
+        history_provider = AsyncMock()
+
+        # the old ISIN is delisted, only the absorbing company still quotes
+        async def _history(request, *args, **kwargs):
+            if request.isin != new_isin:
+                return [], None, None
+            return (
+                [
+                    InstrumentPricePoint(
+                        date=buy_day, price=Dezimal(24), currency="EUR"
+                    ),
+                    InstrumentPricePoint(
+                        date=swap_day, price=Dezimal(20), currency="EUR"
+                    ),
+                ],
+                "UNI.MC",
+                "yfinance",
+            )
+
+        history_provider.get_history.side_effect = _history
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        by_day = {point.date: point for point in result.points}
+        # the swap ratio only holds on the swap day, so it cannot price earlier
+        # days off a company the holder did not own yet
+        assert by_day[buy_day].metrics.value == Dezimal(1000)
+        assert by_day[buy_day].metrics.cost_basis == Dezimal(1000)
+        assert by_day[buy_day].estimated
+
+    @pytest.mark.asyncio
+    async def test_unmatched_custody_transfer_is_valued_at_market(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        isin = "ES0124244E34"
+        buy_day = date(2025, 1, 6)
+        out_day = date(2025, 2, 3)
+
+        def stock_flow(day, ttype, amount, quantity):
+            return GainsFlow(
+                holder="ing",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=isin,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=ttype,
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = []
+        port.get_flows.return_value = [
+            stock_flow(buy_day, TxType.BUY, "1000", "100"),
+            # moved to another bank, never seen coming back
+            stock_flow(out_day, TxType.TRANSFER_OUT, "0", "100"),
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = []
+        history_storage.get_covered_range.return_value = None
+        history_storage.get_resolved_symbol.return_value = None
+        history_provider = AsyncMock()
+        history_provider.get_history.return_value = (
+            [
+                InstrumentPricePoint(date=buy_day, price=Dezimal(10), currency="EUR"),
+                InstrumentPricePoint(
+                    date=out_day - timedelta(days=1),
+                    price=Dezimal(12),
+                    currency="EUR",
+                ),
+                InstrumentPricePoint(date=out_day, price=Dezimal(12), currency="EUR"),
+            ],
+            "MAPE.XC",
+            "yfinance",
+        )
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        before = by_day[out_day - timedelta(days=1)]
+        after = by_day[out_day]
+        # leaving custody is a withdrawal, not a loss, so the gain must hold
+        assert before.value == Dezimal(1200)
+        assert before.gain == Dezimal(200)
+        assert after.value == Dezimal(0)
+        assert after.gain == Dezimal(200)
+        assert after.net_contributions == Dezimal(-200)
+
+    @pytest.mark.asyncio
+    async def test_unpriceable_custody_exit_closes_the_position(self):
+        isin = "ES0168675009"
+        buy_day = date(2025, 1, 6)
+        out_day = date(2025, 2, 3)
+
+        def stock_flow(day, ttype, amount, quantity):
+            return GainsFlow(
+                holder="ing",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=isin,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=ttype,
+            )
+
+        use_case, _ = _build(
+            [],
+            [
+                stock_flow(buy_day, TxType.BUY, "1518", "2000"),
+                stock_flow(out_day, TxType.TRANSFER_OUT, "0", "2000"),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        by_day = {point.date: point for point in result.points}
+        after = by_day[out_day]
+        # with no price the move books at cost, so nothing is left to estimate
+        assert after.metrics.value == Dezimal(0)
+        assert after.metrics.net_contributions == Dezimal(0)
+        assert after.metrics.gain == Dezimal(0)
+        assert not after.estimated
+        assert not result.points[-1].estimated
+
+    @pytest.mark.asyncio
+    async def test_unpriceable_custody_transfer_is_left_out_of_gains(self):
+        isin = "ES0168675009"
+        in_day = date(2025, 1, 6)
+        sell_day = date(2025, 2, 3)
+
+        use_case, _ = _build(
+            [],
+            [
+                GainsFlow(
+                    holder="ing",
+                    product_type=ProductType.STOCK_ETF,
+                    asset_key=isin,
+                    moment=datetime(in_day.year, in_day.month, in_day.day, 12),
+                    amount=Dezimal(0),
+                    currency="EUR",
+                    quantity=Dezimal(681),
+                    transaction_type=TxType.TRANSFER_IN,
+                ),
+                GainsFlow(
+                    holder="ing",
+                    product_type=ProductType.STOCK_ETF,
+                    asset_key=isin,
+                    moment=datetime(sell_day.year, sell_day.month, sell_day.day, 12),
+                    amount=Dezimal(223),
+                    currency="EUR",
+                    quantity=Dezimal(681),
+                    transaction_type=TxType.SELL,
+                ),
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        # shares of unknown cost arriving with no price cannot produce a gain
+        assert all(point.metrics.gain == Dezimal(0) for point in result.points)
+
+    @pytest.mark.asyncio
+    async def test_unpriceable_replay_day_is_flagged_as_estimated(self):
+        buy_day = date(2025, 1, 6)
+
+        use_case, _ = _build(
+            [],
+            [
+                GainsFlow(
+                    holder="ing",
+                    product_type=ProductType.STOCK_ETF,
+                    asset_key="ES0168675009",
+                    moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                    amount=Dezimal(1000),
+                    currency="EUR",
+                    quantity=Dezimal(100),
+                    transaction_type=TxType.BUY,
+                )
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+            )
+        )
+
+        # with no price series the position sits at cost, which is not a fact
+        assert all(point.estimated for point in result.points)
+
+    @pytest.mark.asyncio
     async def test_foreign_currency_handover_does_not_shift_contributions(self):
         buy_day = date(2025, 1, 6)
         snapshot_day = date(2025, 9, 15)
@@ -2834,7 +3158,7 @@ class TestGetGainsTimelineReplay:
 
         by_day = {point.date: point.metrics for point in result.points}
         assert by_day[orphan_sell_day].gain == by_day[date(2023, 2, 22)].gain
-        assert any("no matching buy" in warning for warning in result.warnings)
+        assert GainsWarning.ORPHAN_SELLS in result.warnings
 
     @pytest.mark.asyncio
     async def test_skips_history_persist_when_provider_returns_nothing(self):
@@ -3402,10 +3726,7 @@ class TestGetGainsTimelineSnapshotsMode:
 
         assert result.basis_status == GainsBasisStatus.UNKNOWN
         assert result.quality == GainsQuality.DEGRADED
-        assert result.not_applicable_reasons == [
-            "Gain versus cost basis unavailable: no cost basis recorded for "
-            "the selected positions."
-        ]
+        assert result.not_applicable_reasons == [GainsNotApplicableReason.NO_COST_BASIS]
         metrics = result.points[-1].metrics
         assert metrics.value == Dezimal(100)
         assert metrics.cost_basis == Dezimal(0)
@@ -3433,10 +3754,7 @@ class TestGetGainsTimelineSnapshotsMode:
 
         assert result.basis_status == GainsBasisStatus.PARTIAL_UNKNOWN
         assert result.quality == GainsQuality.DEGRADED
-        assert result.warnings == [
-            "Some positions have no recorded cost basis; gain covers only "
-            "positions with a known basis."
-        ]
+        assert result.warnings == [GainsWarning.PARTIAL_COST_BASIS]
         metrics = result.points[-1].metrics
         assert metrics.value == Dezimal(150)
         assert metrics.cost_basis == Dezimal(80)
@@ -3482,10 +3800,7 @@ class TestGetGainsTimelineHybridQuality:
         result = await use_case.execute(_query())
 
         assert result.quality == GainsQuality.ESTIMATED
-        assert result.warnings == [
-            "Some flows were inferred from quantity or cost-basis changes; "
-            "contributions and returns may be estimates."
-        ]
+        assert result.warnings == [GainsWarning.INFERRED_FLOWS]
 
     @pytest.mark.asyncio
     async def test_degraded_when_asset_disappears_without_flows(self):
@@ -3504,13 +3819,10 @@ class TestGetGainsTimelineHybridQuality:
         result = await use_case.execute(_query())
 
         assert result.quality == GainsQuality.DEGRADED
-        assert result.warnings == [
-            "Some flows could not be valued or reconciled; results may be incomplete."
-        ]
+        assert result.warnings == [GainsWarning.UNRECONCILED_FLOWS]
         assert result.xirr is None
         assert result.not_applicable_reasons == [
-            "IRR unavailable because an external flow amount or asset "
-            "movement could not be valued."
+            GainsNotApplicableReason.IRR_UNVALUED_FLOWS
         ]
 
 

@@ -22,6 +22,7 @@ from domain.commodity import (
     to_troy_ounces,
 )
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InstrumentProviderUnavailable
 from domain.exchange_rate import HistoricMetalRates
 from domain.gains_timeline import (
     AssetSnapshot,
@@ -35,11 +36,13 @@ from domain.gains_timeline import (
     GainsFlowProvenance,
     GainsMethod,
     GainsMetrics,
+    GainsNotApplicableReason,
     GainsQuality,
     GainsSettlement,
     GainsTimeline,
     GainsTimelinePoint,
     GainsTimelineQuery,
+    GainsWarning,
 )
 from domain.global_position import EquityType, ProductType
 from domain.instrument import InstrumentDataRequest, InstrumentType
@@ -91,6 +94,11 @@ _TRANSFER_IN_TYPES = {
     TxType.TRANSFER_IN,
     TxType.SWITCH_TO,
     TxType.SWAP_TO,
+}
+# a stock moving custodian, as opposed to a fund switching into another fund
+_CUSTODY_TRANSFER_TYPES = {
+    TxType.TRANSFER_IN,
+    TxType.TRANSFER_OUT,
 }
 _AssetIdentity = tuple[str, ProductType, str, str, str, str, str]
 _HistoricRates = dict[CommodityType, Optional[HistoricMetalRates]]
@@ -187,6 +195,9 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     yesterday,
                     query.from_date,
                 )
+                unvalued_in_ids, unvalued_out_ids = self._value_unmatched_transfers(
+                    flows, history_by_key
+                )
                 timeline = self._calculate(
                     query,
                     snapshots,
@@ -196,6 +207,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     historic,
                     yesterday,
                     history_by_key,
+                    unvalued_in_ids,
+                    unvalued_out_ids,
                 )
             self._cache[cache_key] = (
                 data_version,
@@ -276,11 +289,15 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         historic: _HistoricRates,
         yesterday: date,
         history_by_key: Optional[dict[str, dict[date, Dezimal]]] = None,
+        unvalued_transfer_in_ids: Optional[set[int]] = None,
+        unvalued_transfer_out_ids: Optional[set[int]] = None,
     ) -> GainsTimeline:
         upper = min(query.to_date or yesterday, yesterday)
         range_from = query.from_date
         bounded = range_from is not None
         history_by_key = history_by_key or {}
+        unvalued_transfer_in_ids = unvalued_transfer_in_ids or set()
+        unvalued_transfer_out_ids = unvalued_transfer_out_ids or set()
 
         snapshots = [
             snapshot for snapshot in snapshots if snapshot.moment.date() <= upper
@@ -369,7 +386,9 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         replay_positions: dict[_AssetIdentity, _ReplayPosition] = {}
         replay_ended: set[_AssetIdentity] = set()
         orphan_sell_flow_ids: set[int] = set()
-        orphan_income_flow_ids = self._orphan_income_flow_ids(flows, snapshots)
+        orphan_income_flow_ids = (
+            self._orphan_income_flow_ids(flows, snapshots) | unvalued_transfer_in_ids
+        )
         replay_identity_by_key: dict[
             tuple[str, ProductType, str, str, str], _AssetIdentity
         ] = {self._identity_key(identity): identity for identity in replay_windows}
@@ -407,6 +426,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 if (
                     replay_identity is not None
                     and replay_windows[replay_identity][0] <= flow.moment.date()
+                    and id(flow) not in unvalued_transfer_in_ids
                 ):
                     self._carry_replay_transfer_book(
                         replay_positions,
@@ -568,15 +588,23 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     <= replay_windows[replay_identity][1]
                 )
                 if replay_active:
-                    self._carry_replay_transfer_book(
-                        replay_positions,
-                        replay_identity_by_key,
-                        transfer_pairs,
-                        carried_transfer_books,
-                        flow,
-                        replay_identity,
-                        orphan_sell_flow_ids=orphan_sell_flow_ids,
-                    )
+                    if id(flow) not in unvalued_transfer_in_ids:
+                        removed = self._carry_replay_transfer_book(
+                            replay_positions,
+                            replay_identity_by_key,
+                            transfer_pairs,
+                            carried_transfer_books,
+                            flow,
+                            replay_identity,
+                            orphan_sell_flow_ids=orphan_sell_flow_ids,
+                        )
+                        if (
+                            id(flow) in unvalued_transfer_out_ids
+                            and removed is not None
+                            and removed > 0
+                        ):
+                            # no price to mark the move, so it leaves at book
+                            flow.amount = removed
                     replay_touched_today = True
                 if flow.product_type in _FIXED_INCOME_TYPES:
                     pending_fixed_income_flows[identity].append(flow)
@@ -702,6 +730,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             for identity in settled_replay:
                 replay_positions.pop(identity, None)
             current_keys = {self._identity_key(identity) for identity in current_assets}
+            day_estimated = False
             for identity, position in replay_positions.items():
                 if (
                     identity in replay_ended
@@ -711,6 +740,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 window = replay_windows.get(identity)
                 if position.book_value <= 0 and (window is None or day > window[2]):
                     continue
+                if position.book_value > 0 and not self._has_replay_price(
+                    identity[2], position, day, history_by_key
+                ):
+                    day_estimated = True
                 current_assets[identity] = self._replay_valuation(
                     identity, position, day, history_by_key, rates, query.base_currency
                 )
@@ -1020,6 +1053,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         index=total_index,
                     ),
                     breakdown=breakdown,
+                    estimated=day_estimated,
                 )
             )
             previous_total = total_value
@@ -1029,18 +1063,14 @@ class GetGainsTimelineImpl(GetGainsTimeline):
 
         quality, warnings = self._hybrid_quality(provenance)
         if orphan_sell_flow_ids:
-            warnings.append(
-                "Some sell transactions had no matching buy and were excluded "
-                "from gains; the position history is incomplete."
-            )
+            warnings.append(GainsWarning.ORPHAN_SELLS)
         xirr: Optional[Dezimal] = None
         annualized_xirr: Optional[Dezimal] = None
-        not_applicable_reasons: list[str] = []
+        not_applicable_reasons: list[GainsNotApplicableReason] = []
         if len(points) >= 2:
             if GainsFlowProvenance.UNKNOWN in provenance:
                 not_applicable_reasons.append(
-                    "IRR unavailable because an external flow amount or asset "
-                    "movement could not be valued."
+                    GainsNotApplicableReason.IRR_UNVALUED_FLOWS
                 )
             else:
                 xirr = self._xirr(points, daily_net_flows)
@@ -1139,27 +1169,17 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     @staticmethod
     def _hybrid_quality(
         provenance: set[GainsFlowProvenance],
-    ) -> tuple[GainsQuality, list[str]]:
+    ) -> tuple[GainsQuality, list[GainsWarning]]:
         if GainsFlowProvenance.UNKNOWN in provenance:
-            return GainsQuality.DEGRADED, [
-                "Some flows could not be valued or reconciled; results may be "
-                "incomplete."
-            ]
-        warnings: list[str] = []
+            return GainsQuality.DEGRADED, [GainsWarning.UNRECONCILED_FLOWS]
+        warnings: list[GainsWarning] = []
         if GainsFlowProvenance.REPLAYED_POSITIONS in provenance:
-            warnings.append(
-                "Some positions were reconstructed from transactions without "
-                "stored market values; valuations before the first stored "
-                "position use transaction cost."
-            )
+            warnings.append(GainsWarning.REPLAYED_POSITIONS)
         if provenance & {
             GainsFlowProvenance.QUANTITY_RESIDUAL,
             GainsFlowProvenance.NET_CONTRIBUTION_FALLBACK,
         }:
-            warnings.append(
-                "Some flows were inferred from quantity or cost-basis changes; "
-                "contributions and returns may be estimates."
-            )
+            warnings.append(GainsWarning.INFERRED_FLOWS)
         if warnings:
             return GainsQuality.ESTIMATED, warnings
         return GainsQuality.COMPLETE, []
@@ -1317,18 +1337,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         else:
             basis_status = GainsBasisStatus.COMPLETE
 
-        warnings: list[str] = []
-        not_applicable_reasons: list[str] = []
+        warnings: list[GainsWarning] = []
+        not_applicable_reasons: list[GainsNotApplicableReason] = []
         if basis_status == GainsBasisStatus.PARTIAL_UNKNOWN:
-            warnings.append(
-                "Some positions have no recorded cost basis; gain covers only "
-                "positions with a known basis."
-            )
+            warnings.append(GainsWarning.PARTIAL_COST_BASIS)
         elif basis_status == GainsBasisStatus.UNKNOWN:
-            not_applicable_reasons.append(
-                "Gain versus cost basis unavailable: no cost basis recorded for "
-                "the selected positions."
-            )
+            not_applicable_reasons.append(GainsNotApplicableReason.NO_COST_BASIS)
 
         return GainsTimeline(
             currency=query.base_currency,
@@ -1659,6 +1673,43 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 ratio *= split_ratio
         return flow.quantity * ratio
 
+    def _value_unmatched_transfers(
+        self,
+        flows: list[GainsFlow],
+        history_by_key: dict[str, dict[date, Dezimal]],
+    ) -> tuple[set[int], set[int]]:
+        """Prices custody transfers that have no counterpart leg.
+
+        Moving stock to another bank carries no amount. With no matching leg the
+        holding is gone for good as far as the data shows, so the leg is valued
+        at market and behaves like a sale, or a purchase on the way in.
+        Returns the incoming and outgoing legs that could not be priced.
+        """
+        pairs = self._replay_transfer_pairs(flows)
+        matched = set(pairs) | {id(outgoing) for outgoing in pairs.values()}
+        unvalued_in: set[int] = set()
+        unvalued_out: set[int] = set()
+        for flow in flows:
+            if flow.transaction_type not in _CUSTODY_TRANSFER_TYPES:
+                continue
+            if flow.product_type not in _REPLAY_PRODUCT_TYPES:
+                continue
+            if id(flow) in matched or flow.amount != 0:
+                continue
+            quantity = self._split_adjusted_quantity(flow)
+            price = None
+            if quantity is not None and quantity > 0:
+                prices = history_by_key.get(flow.asset_key)
+                price = self._price_at(prices, flow.moment.date()) if prices else None
+            if price is None:
+                if flow.transaction_type == TxType.TRANSFER_OUT:
+                    unvalued_out.add(id(flow))
+                else:
+                    unvalued_in.add(id(flow))
+                continue
+            flow.amount = quantity * price
+        return unvalued_in, unvalued_out
+
     def _update_replay_position(
         self,
         positions: dict[_AssetIdentity, _ReplayPosition],
@@ -1719,7 +1770,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         flow: GainsFlow,
         identity: Optional[_AssetIdentity],
         orphan_sell_flow_ids: Optional[set[int]] = None,
-    ) -> None:
+    ) -> Optional[Dezimal]:
         inflow_book: Optional[Dezimal] = None
         outgoing = transfer_pairs.get(id(flow))
         if outgoing is not None:
@@ -1754,6 +1805,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         )
         if removed is not None and removed > 0:
             carried_books[id(flow)] = removed
+        return removed
 
     async def _load_replay_history(
         self,
@@ -1850,6 +1902,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     gaps.append((covered_end + timedelta(days=1), window_end))
 
             merged = list(stored)
+            provider_failed = False
             for gap_start, gap_end in gaps:
                 if gap_start > gap_end:
                     continue
@@ -1882,17 +1935,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             ],
                         )
                     continue
-                (
-                    fetched,
-                    symbol,
-                    source,
-                ) = await self._instrument_history_provider.get_history(
-                    request,
-                    fetch_start,
-                    fetch_end + timedelta(days=1),
-                    preferred_symbol,
-                    preferred_source,
-                )
+                try:
+                    (
+                        fetched,
+                        symbol,
+                        source,
+                    ) = await self._instrument_history_provider.get_history(
+                        request,
+                        fetch_start,
+                        fetch_end + timedelta(days=1),
+                        preferred_symbol,
+                        preferred_source,
+                    )
+                except InstrumentProviderUnavailable:
+                    # a throttled provider says nothing about the instrument
+                    provider_failed = True
+                    continue
                 if not fetched:
                     if self._instrument_price_history is not None:
                         empty_days = [
@@ -1933,16 +1991,21 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     {point.date: point for point in merged}.values(),
                     key=lambda point: point.date,
                 )
-            elif not stored and self._instrument_price_history is not None:
+            elif (
+                not stored
+                and not provider_failed
+                and self._instrument_price_history is not None
+            ):
                 await self._instrument_price_history.mark_no_result(key)
         if history_points:
             self._splits_by_key.update(
                 await self._load_splits(requests, windows_by_key)
             )
-        return {
+        prices = {
             key: {point.date: point.price for point in points}
             for key, points in history_points.items()
         }
+        return prices
 
     @staticmethod
     def _net_quantity_is_zero(flows) -> bool:
@@ -2045,6 +2108,19 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         return InstrumentDataRequest(
             type=instrument_type, ticker=asset_key, name=name, currency=currency
         )
+
+    @classmethod
+    def _has_replay_price(
+        cls,
+        asset_key: str,
+        position: _ReplayPosition,
+        day: date,
+        history_by_key: Optional[dict[str, dict[date, Dezimal]]],
+    ) -> bool:
+        if not history_by_key or position.quantity is None or position.quantity <= 0:
+            return False
+        prices = history_by_key.get(asset_key)
+        return bool(prices) and cls._price_at(prices, day) is not None
 
     def _replay_valuation(
         self,
@@ -3165,6 +3241,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         )
                         for product_type, metrics in point.breakdown.items()
                     },
+                    estimated=point.estimated,
                 )
                 for point in points
             ],

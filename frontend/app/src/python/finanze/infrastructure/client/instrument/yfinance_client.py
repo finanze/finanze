@@ -6,6 +6,7 @@ import js
 from aiocache import cached
 
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InstrumentProviderUnavailable
 from domain.instrument import (
     InstrumentDataRequest,
     InstrumentInfo,
@@ -141,25 +142,21 @@ class YFinanceClient:
     async def _fetch_history(
         self, symbol: str, from_date, to_date
     ) -> tuple[list, Optional[str]]:
-        try:
-            raw = await js.jsBridge.yahooFinance.getHistory(
-                symbol, from_date.isoformat(), to_date.isoformat()
-            )
-            data = json.loads(raw)
-            currency = data.get("currency")
-            if not currency:
-                return [], None
-            points = [
-                InstrumentPricePoint(
-                    date=item["date"],
-                    price=Dezimal(str(item["price"])),
-                    currency=currency,
-                )
-                for item in data.get("points", [])
-            ]
-        except Exception:
-            self._log.exception("yahooFinance bridge getHistory failed")
+        raw = await js.jsBridge.yahooFinance.getHistory(
+            symbol, from_date.isoformat(), to_date.isoformat()
+        )
+        data = json.loads(raw)
+        currency = data.get("currency")
+        if not currency:
             return [], None
+        points = [
+            InstrumentPricePoint(
+                date=item["date"],
+                price=Dezimal(str(item["price"])),
+                currency=currency,
+            )
+            for item in data.get("points", [])
+        ]
         return points, currency
 
     async def get_history(
@@ -185,11 +182,19 @@ class YFinanceClient:
 
         seen: set[str] = set()
         fallback: Optional[tuple[list, str]] = None
+        failed = False
         for candidate in candidates:
             if not candidate or candidate in seen:
                 continue
             seen.add(candidate)
-            points, currency = await self._fetch_history(candidate, from_date, to_date)
+            try:
+                points, currency = await self._fetch_history(
+                    candidate, from_date, to_date
+                )
+            except Exception:
+                self._log.exception("yahooFinance bridge getHistory failed")
+                failed = True
+                continue
             if not points:
                 continue
             if request.currency and currency != request.currency:
@@ -201,6 +206,8 @@ class YFinanceClient:
         if fallback is not None:
             points, candidate = fallback
             return points, candidate, "yfinance"
+        if failed:
+            raise InstrumentProviderUnavailable(query)
         return [], None, None
 
     async def get_splits(

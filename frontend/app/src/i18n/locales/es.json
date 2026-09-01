@@ -1249,10 +1249,18 @@
     "to": "Hasta",
     "clear": "Limpiar",
     "ranges": {
-      "ALL": "Todo",
+      "4Y": "4A",
       "1Y": "1A",
       "YTD": "YTD",
       "1M": "1M"
+    },
+    "warningsTitle": "Notas de precisión",
+    "warnings": {
+      "UNRECONCILED_FLOWS": "Algunos movimientos no se pudieron valorar o casar, así que los resultados pueden estar incompletos.",
+      "REPLAYED_POSITIONS": "Algunas posiciones se reconstruyeron a partir de transacciones.",
+      "INFERRED_FLOWS": "Algunos movimientos se dedujeron de cambios en cantidad o coste, así que las aportaciones y los rendimientos son estimaciones.",
+      "ORPHAN_SELLS": "Algunas ventas no tienen compra asociada y se excluyeron de la ganancia, así que el historial de la posición está incompleto.",
+      "PARTIAL_COST_BASIS": "Algunas posiciones no tienen coste registrado, así que la ganancia solo cubre las que sí lo tienen."
     }
   },
   "export": {
@@ -1745,8 +1753,8 @@
       "SUBSCRIPTION": "Suscripción",
       "SWAP_FROM": "Canje Orig.",
       "SWAP_TO": "Canje Dest.",
-      "TRANSFER_IN": "Traspaso F. Dest.",
-      "TRANSFER_OUT": "Traspaso F. Orig.",
+      "TRANSFER_IN": "Traspaso Dest.",
+      "TRANSFER_OUT": "Traspaso Orig.",
       "SWITCH_FROM": "Switch F. Orig.",
       "SWITCH_TO": "Switch F. Dest.",
       "INVESTMENT": "Inversión",

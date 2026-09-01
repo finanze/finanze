@@ -61,6 +61,19 @@ class GainsBasisStatus(str, Enum):
     NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
+class GainsWarning(str, Enum):
+    UNRECONCILED_FLOWS = "UNRECONCILED_FLOWS"
+    REPLAYED_POSITIONS = "REPLAYED_POSITIONS"
+    INFERRED_FLOWS = "INFERRED_FLOWS"
+    ORPHAN_SELLS = "ORPHAN_SELLS"
+    PARTIAL_COST_BASIS = "PARTIAL_COST_BASIS"
+
+
+class GainsNotApplicableReason(str, Enum):
+    IRR_UNVALUED_FLOWS = "IRR_UNVALUED_FLOWS"
+    NO_COST_BASIS = "NO_COST_BASIS"
+
+
 class GainsFlowProvenance(str, Enum):
     ACTIVITY = "ACTIVITY"
     SETTLEMENT = "SETTLEMENT"
@@ -185,6 +198,7 @@ class GainsTimelinePoint:
     date: date
     metrics: GainsMetrics
     breakdown: dict[str, GainsMetrics] = field(default_factory=dict)
+    estimated: bool = False
 
 
 @dataclass
@@ -198,5 +212,5 @@ class GainsTimeline:
     xirr: Optional[Dezimal] = None
     annualized_xirr: Optional[Dezimal] = None
     opening_value: Optional[Dezimal] = None
-    warnings: list[str] = field(default_factory=list)
-    not_applicable_reasons: list[str] = field(default_factory=list)
+    warnings: list[GainsWarning] = field(default_factory=list)
+    not_applicable_reasons: list[GainsNotApplicableReason] = field(default_factory=list)

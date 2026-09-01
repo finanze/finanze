@@ -5,6 +5,7 @@ import yfinance as yf
 from aiocache import cached
 
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InstrumentProviderUnavailable
 from domain.instrument import (
     InstrumentDataRequest,
     InstrumentInfo,
@@ -217,15 +218,22 @@ class YFinanceClient:
 
         seen: set[str] = set()
         fallback: tuple[list, str] | None = None
+        failed = False
         for candidate in candidates:
             if not candidate or candidate in seen:
                 continue
             seen.add(candidate)
-            points = self._fetch_history(candidate, from_date, to_date)
+            try:
+                points = self._fetch_history(candidate, from_date, to_date)
+            except Exception:
+                self._log.exception("_fetch_history failed for %s", candidate)
+                failed = True
+                continue
             if not points:
                 continue
             currency = self._fetch_currency(candidate)
             if not currency:
+                failed = True
                 continue
             if request.currency and currency != request.currency:
                 continue
@@ -238,6 +246,8 @@ class YFinanceClient:
         if fallback is not None:
             points, candidate = fallback
             return points, candidate, "yfinance"
+        if failed:
+            raise InstrumentProviderUnavailable(query)
         return [], None, None
 
     async def get_splits(
@@ -286,12 +296,8 @@ class YFinanceClient:
 
         from domain.instrument_history import InstrumentPricePoint
 
-        try:
-            ticker = yf.Ticker(symbol)
-            history = ticker.history(start=from_date, end=to_date, auto_adjust=False)
-        except Exception:
-            self._log.exception("_fetch_history failed for %s", symbol)
-            return []
+        ticker = yf.Ticker(symbol)
+        history = ticker.history(start=from_date, end=to_date, auto_adjust=False)
         if history is None or history.empty:
             return []
 

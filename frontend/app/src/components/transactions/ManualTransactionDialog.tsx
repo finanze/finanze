@@ -94,6 +94,52 @@ const OUTGOING_TX_TYPES = new Set<TxType>([
   TxType.SWAP_FROM,
 ])
 
+const INVESTMENT_FLOW_TX_TYPES = [
+  TxType.INVESTMENT,
+  TxType.REPAYMENT,
+  TxType.INTEREST,
+  TxType.FEE,
+] as const
+
+const TX_TYPES_BY_PRODUCT: Record<
+  SupportedManualProductType,
+  readonly TxType[]
+> = {
+  [ProductType.ACCOUNT]: [TxType.INTEREST, TxType.FEE],
+  [ProductType.STOCK_ETF]: [
+    TxType.BUY,
+    TxType.SELL,
+    TxType.DIVIDEND,
+    TxType.FEE,
+    TxType.SWAP_FROM,
+    TxType.SWAP_TO,
+    TxType.TRANSFER_IN,
+    TxType.TRANSFER_OUT,
+  ],
+  [ProductType.FUND]: [
+    TxType.BUY,
+    TxType.SELL,
+    TxType.DIVIDEND,
+    TxType.FEE,
+    TxType.SWITCH_FROM,
+    TxType.SWITCH_TO,
+    TxType.TRANSFER_IN,
+    TxType.TRANSFER_OUT,
+  ],
+  [ProductType.FUND_PORTFOLIO]: [TxType.FEE],
+  [ProductType.FACTORING]: INVESTMENT_FLOW_TX_TYPES,
+  [ProductType.REAL_ESTATE_CF]: INVESTMENT_FLOW_TX_TYPES,
+  [ProductType.DEPOSIT]: INVESTMENT_FLOW_TX_TYPES,
+  [ProductType.CRYPTO]: [TxType.BUY, TxType.SELL, TxType.DIVIDEND, TxType.FEE],
+}
+
+const getTxTypesForProduct = (
+  productType: SupportedManualProductType,
+): readonly TxType[] => TX_TYPES_BY_PRODUCT[productType] ?? []
+
+const getDefaultTxType = (productType: SupportedManualProductType): TxType =>
+  getTxTypesForProduct(productType)[0] ?? TxType.FEE
+
 export interface ManualTransactionSubmitResult {
   payload: ManualTransactionPayload
   transactionId?: string
@@ -567,7 +613,7 @@ export function ManualTransactionDialog({
       entityId: "",
       name: "",
       date: format(new Date(), "yyyy-MM-dd"),
-      type: TxType.BUY,
+      type: getDefaultTxType(SUPPORTED_PRODUCT_TYPES[0]),
       productType: SUPPORTED_PRODUCT_TYPES[0],
       amount: "",
       currency: defaultCurrency.toUpperCase(),
@@ -912,7 +958,7 @@ export function ManualTransactionDialog({
       entityId: "",
       name: "",
       date: format(new Date(), "yyyy-MM-dd"),
-      type: TxType.BUY,
+      type: getDefaultTxType(SUPPORTED_PRODUCT_TYPES[0]),
       productType: SUPPORTED_PRODUCT_TYPES[0],
       amount: "",
       currency: defaultCurrency.toUpperCase(),
@@ -1054,6 +1100,14 @@ export function ManualTransactionDialog({
     return configs
   }, [formState.productType, isFeeType, t])
 
+  const availableTxTypes = useMemo(() => {
+    const types = [...getTxTypesForProduct(formState.productType)]
+    if (formState.type && !types.includes(formState.type)) {
+      types.unshift(formState.type)
+    }
+    return types
+  }, [formState.productType, formState.type])
+
   const clearError = useCallback((key: string) => {
     setErrors(prev => {
       if (!(key in prev)) return prev
@@ -1157,8 +1211,11 @@ export function ManualTransactionDialog({
       newErrors.currency = t.transactions.form.errors.required
     }
 
-    const typeExists = Object.values(TxType).includes(formState.type)
-    if (!typeExists) {
+    const allowedTypes = getTxTypesForProduct(formState.productType)
+    const typeAllowed =
+      allowedTypes.includes(formState.type) ||
+      (mode === "edit" && transaction?.type === formState.type)
+    if (!typeAllowed) {
       newErrors.type = t.transactions.form.errors.required
     }
 
@@ -1441,85 +1498,6 @@ export function ManualTransactionDialog({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="transaction-type">
-                        {t.transactions.form.transactionType}
-                      </Label>
-                      <div className="relative" ref={txTypeDropdownRef}>
-                        <div
-                          id="transaction-type"
-                          role="combobox"
-                          tabIndex={0}
-                          aria-haspopup="listbox"
-                          aria-expanded={txTypeDropdownOpen}
-                          className={cn(
-                            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
-                            "focus-within:ring-2 focus-within:ring-ring",
-                            errors.type && "border-red-500",
-                          )}
-                          onClick={() => setTxTypeDropdownOpen(prev => !prev)}
-                          onKeyDown={e => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault()
-                              setTxTypeDropdownOpen(prev => !prev)
-                            } else if (e.key === "Escape") {
-                              setTxTypeDropdownOpen(false)
-                            }
-                          }}
-                        >
-                          <span className="flex items-center gap-2">
-                            {getIconForTxType(formState.type, "h-4 w-4")}
-                            {(t.enums as any)?.transactionType?.[
-                              formState.type
-                            ] || formState.type}
-                          </span>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 shrink-0 transition-transform",
-                              txTypeDropdownOpen && "rotate-180",
-                            )}
-                          />
-                        </div>
-                        {txTypeDropdownOpen && (
-                          <div
-                            role="listbox"
-                            className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
-                          >
-                            {Object.values(TxType).map(type => (
-                              <div
-                                key={type}
-                                role="option"
-                                aria-selected={formState.type === type}
-                                className={cn(
-                                  "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
-                                  formState.type === type &&
-                                    "bg-accent text-accent-foreground",
-                                )}
-                                onClick={() => {
-                                  handleBaseChange("type", type)
-                                  setTxTypeDropdownOpen(false)
-                                }}
-                              >
-                                <span className="flex items-center gap-2">
-                                  {getIconForTxType(type, "h-4 w-4")}
-                                  {(t.enums as any)?.transactionType?.[type] ||
-                                    type}
-                                </span>
-                                {formState.type === type && (
-                                  <Check className="h-4 w-4" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {errors.type && (
-                        <p className="text-xs text-red-600 dark:text-red-400">
-                          {errors.type}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
                       <Label htmlFor="transaction-product">
                         {t.transactions.product}
                       </Label>
@@ -1582,16 +1560,26 @@ export function ManualTransactionDialog({
                                 )}
                                 onClick={() => {
                                   clearError("productType")
-                                  setFormState(prev => ({
-                                    ...prev,
-                                    productType: type,
-                                    extra: createExtraDefaults(type),
-                                  }))
+                                  clearError("type")
+                                  setFormState(prev => {
+                                    const nextTypes = getTxTypesForProduct(type)
+                                    return {
+                                      ...prev,
+                                      productType: type,
+                                      type: nextTypes.includes(prev.type)
+                                        ? prev.type
+                                        : getDefaultTxType(type),
+                                      extra: createExtraDefaults(type),
+                                    }
+                                  })
                                   setErrors(prev => {
                                     const next: Record<string, string> = {}
                                     Object.entries(prev).forEach(
                                       ([key, message]) => {
-                                        if (!key.startsWith("extra.")) {
+                                        if (
+                                          !key.startsWith("extra.") &&
+                                          key !== "type"
+                                        ) {
                                           next[key] = message
                                         }
                                       },
@@ -1617,6 +1605,85 @@ export function ManualTransactionDialog({
                       {errors.productType && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.productType}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-type">
+                        {t.transactions.form.transactionType}
+                      </Label>
+                      <div className="relative" ref={txTypeDropdownRef}>
+                        <div
+                          id="transaction-type"
+                          role="combobox"
+                          tabIndex={0}
+                          aria-haspopup="listbox"
+                          aria-expanded={txTypeDropdownOpen}
+                          className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm cursor-pointer",
+                            "focus-within:ring-2 focus-within:ring-ring",
+                            errors.type && "border-red-500",
+                          )}
+                          onClick={() => setTxTypeDropdownOpen(prev => !prev)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              setTxTypeDropdownOpen(prev => !prev)
+                            } else if (e.key === "Escape") {
+                              setTxTypeDropdownOpen(false)
+                            }
+                          }}
+                        >
+                          <span className="flex items-center gap-2">
+                            {getIconForTxType(formState.type, "h-4 w-4")}
+                            {(t.enums as any)?.transactionType?.[
+                              formState.type
+                            ] || formState.type}
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform",
+                              txTypeDropdownOpen && "rotate-180",
+                            )}
+                          />
+                        </div>
+                        {txTypeDropdownOpen && (
+                          <div
+                            role="listbox"
+                            className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                          >
+                            {availableTxTypes.map(type => (
+                              <div
+                                key={type}
+                                role="option"
+                                aria-selected={formState.type === type}
+                                className={cn(
+                                  "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                  formState.type === type &&
+                                    "bg-accent text-accent-foreground",
+                                )}
+                                onClick={() => {
+                                  handleBaseChange("type", type)
+                                  setTxTypeDropdownOpen(false)
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  {getIconForTxType(type, "h-4 w-4")}
+                                  {(t.enums as any)?.transactionType?.[type] ||
+                                    type}
+                                </span>
+                                {formState.type === type && (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {errors.type && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.type}
                         </p>
                       )}
                     </div>
