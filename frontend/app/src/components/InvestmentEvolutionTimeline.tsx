@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Info,
   LineChart as LineChartIcon,
+  TriangleAlert,
 } from "lucide-react"
 import {
   CartesianGrid,
@@ -41,13 +42,15 @@ import type {
   GainsTimeline,
   GainsTimelinePoint,
   GainsTimelineQuery,
+  GainsWarning,
 } from "@/types/gainsTimeline"
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)"
-type RangeKey = "ALL" | "1Y" | "YTD" | "1M"
+type RangeKey = "4Y" | "1Y" | "YTD" | "1M"
 
-const RANGE_KEYS: RangeKey[] = ["ALL", "1Y", "YTD", "1M"]
+const RANGE_KEYS: RangeKey[] = ["4Y", "1Y", "YTD", "1M"]
 const INITIAL_RANGE: RangeKey = "1Y"
+const WIDEST_RANGE: RangeKey = "4Y"
 
 interface InvestmentEvolutionTimelineProps {
   query: GainsTimelineQuery
@@ -63,13 +66,13 @@ function formatDateValue(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
-function getRangeFromDate(range: RangeKey): string | undefined {
-  if (range === "ALL") return undefined
-
+function getRangeFromDate(range: RangeKey): string {
   const date = new Date()
   date.setHours(0, 0, 0, 0)
 
-  if (range === "1Y") {
+  if (range === "4Y") {
+    date.setFullYear(date.getFullYear() - 4)
+  } else if (range === "1Y") {
     date.setFullYear(date.getFullYear() - 1)
   } else if (range === "YTD") {
     date.setMonth(0, 1)
@@ -172,6 +175,44 @@ function BetaNotice() {
             <p className="text-xs text-muted-foreground">
               {t.evolutionChart.betaNotice}
             </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function WarningsNotice({ warnings }: { warnings: GainsWarning[] }) {
+  const { t } = useI18n()
+
+  if (warnings.length === 0) return null
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={t.evolutionChart.warningsTitle}
+          data-testid="evolution-timeline-warnings"
+        >
+          <TriangleAlert className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80">
+        <div className="flex items-start gap-2">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="space-y-1">
+            <h4 className="text-sm font-medium">
+              {t.evolutionChart.warningsTitle}
+            </h4>
+            <ul className="space-y-1.5 text-xs text-muted-foreground">
+              {warnings.map(warning => (
+                <li key={warning} data-testid={`evolution-warning-${warning}`}>
+                  {t.evolutionChart.warnings[warning] ?? warning}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </PopoverContent>
@@ -357,11 +398,13 @@ function EvolutionChart({
   currency,
   showGains,
   isFullRange,
+  onWarningsChange,
 }: {
   queryKey: string
   currency: string
   showGains: boolean
   isFullRange: boolean
+  onWarningsChange: (warnings: GainsWarning[]) => void
 }) {
   const { t, locale } = useI18n()
   const { mode } = useDataDisplayMode()
@@ -371,6 +414,9 @@ function EvolutionChart({
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [retryVersion, setRetryVersion] = useState(0)
+  // kept in a ref so an inline callback cannot retrigger the fetch
+  const warningsCallback = useRef(onWarningsChange)
+  warningsCallback.current = onWarningsChange
 
   useEffect(() => {
     let cancelled = false
@@ -379,11 +425,13 @@ function EvolutionChart({
     setIsLoading(true)
     setHasError(false)
     setTimeline(null)
+    warningsCallback.current([])
 
     void getGainsTimeline(JSON.parse(queryKey) as GainsTimelineQuery)
       .then(nextTimeline => {
         if (cancelled || sequence !== requestSequence.current) return
         setTimeline(nextTimeline)
+        warningsCallback.current(nextTimeline.warnings ?? [])
       })
       .catch(() => {
         if (cancelled || sequence !== requestSequence.current) return
@@ -400,7 +448,22 @@ function EvolutionChart({
   }, [queryKey, retryVersion])
 
   const chartCurrency = timeline?.currency || currency
-  const chartData = timeline?.points || []
+  const points = timeline?.points || []
+  const hasEstimated = points.some(point => point.estimated)
+  const chartData = hasEstimated
+    ? points.map((point, position) => {
+        // the neighbour points join both series, so the line stays continuous
+        const nearEstimated =
+          point.estimated ||
+          points[position - 1]?.estimated ||
+          points[position + 1]?.estimated
+        return {
+          ...point,
+          valueActual: point.estimated ? null : point.value,
+          valueEstimated: nearEstimated ? point.value : null,
+        }
+      })
+    : points
   const formatAxisDate = (value: string) => {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
@@ -551,14 +614,31 @@ function EvolutionChart({
           <Line
             yAxisId="value"
             type="monotone"
-            dataKey="value"
+            dataKey={hasEstimated ? "valueActual" : "value"}
             name={t.evolutionChart.value}
             stroke="hsl(var(--chart-1))"
             strokeWidth={2}
             dot={false}
+            connectNulls={false}
             isAnimationActive
             animationDuration={400}
           />
+          {hasEstimated && (
+            <Line
+              yAxisId="value"
+              type="monotone"
+              dataKey="valueEstimated"
+              name={t.evolutionChart.value}
+              stroke="hsl(var(--chart-1))"
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              strokeOpacity={0.7}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+              legendType="none"
+            />
+          )}
           {showGains && (
             <Line
               yAxisId="gain"
@@ -599,6 +679,7 @@ export function InvestmentEvolutionTimeline({
   const [range, setRange] = useState<RangeKey>(INITIAL_RANGE)
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
+  const [warnings, setWarnings] = useState<GainsWarning[]>([])
   const hasCustomRange = Boolean(customFrom || customTo)
   const rangedQuery = getRangedQuery(query, range, customFrom, customTo)
   const queryKey = getQueryKey(rangedQuery)
@@ -626,6 +707,7 @@ export function InvestmentEvolutionTimeline({
             <LineChartIcon className="h-4 w-4 text-primary" />
             {t.evolutionChart.title}
             <BetaNotice />
+            <WarningsNotice warnings={warnings} />
           </h3>
           <Button
             type="button"
@@ -666,6 +748,7 @@ export function InvestmentEvolutionTimeline({
                   <LineChartIcon className="h-[18px] w-[18px] text-primary" />
                   {t.evolutionChart.title}
                   <BetaNotice />
+                  <WarningsNotice warnings={warnings} />
                 </h3>
               )}
               <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
@@ -697,7 +780,8 @@ export function InvestmentEvolutionTimeline({
               queryKey={queryKey}
               currency={currency}
               showGains={supportsGains}
-              isFullRange={!rangedQuery.from_date}
+              isFullRange={!hasCustomRange && range === WIDEST_RANGE}
+              onWarningsChange={setWarnings}
             />
           </motion.div>
         )}

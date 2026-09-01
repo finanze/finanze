@@ -5,6 +5,7 @@ from typing import Optional
 
 from application.ports.instrument_info_provider import InstrumentInfoProvider
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InstrumentProviderUnavailable
 from domain.instrument import (
     InstrumentDataRequest,
     InstrumentInfo,
@@ -237,6 +238,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         preferred_symbol=None,
         preferred_source=None,
     ):
+        failed = False
         for source, client in self._history_chain(request.type, preferred_source):
             symbol = preferred_symbol if source == preferred_source else None
             try:
@@ -247,9 +249,14 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                     return points, resolved, resolved_source
                 self._log.debug("%s returned no history, trying next provider", source)
             except Exception:
+                failed = True
                 self._log.exception(
                     "%s get_history failed, trying next provider", source
                 )
+        if failed:
+            raise InstrumentProviderUnavailable(
+                request.isin or request.ticker or request.name or ""
+            )
         return [], None, None
 
     async def get_splits(
