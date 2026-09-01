@@ -298,7 +298,12 @@ export const calculateCryptoAssetValue = (
   const amount = asset.amount || 0
   const rateKey = getCryptoRateKey(asset)
 
-  if (amount > 0 && rateKey) {
+  // Fetcher-priced positions (no crypto_asset, e.g. Zerion) carry an
+  // authoritative market_value; prefer it over any symbol/contract rate that a
+  // colliding position may have populated.
+  const preferMarketValue = !asset.crypto_asset && asset.market_value != null
+
+  if (!preferMarketValue && amount > 0 && rateKey) {
     const computedValue = calculateCryptoValue(
       amount,
       rateKey,

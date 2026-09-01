@@ -292,4 +292,24 @@ describe("getWalletAssets / calculateWalletAssetsValue with DeFi (Zerion) positi
     expect(getWalletAssets(wallet).map(a => a.id)).toEqual(["defi-borrowed-1"])
     expect(calculateWalletAssetsValue(wallet, "EUR", rates)).toBe(-250)
   })
+
+  it("uses market_value for a positive fetcher-priced position even when a colliding rate exists", () => {
+    // A positive Zerion holding whose symbol rate was populated by another
+    // wallet must still report its authoritative market_value, not amount*rate.
+    const suppliedAsset = makeAsset({
+      id: "defi-supplied-1",
+      name: "Supplied ETH",
+      symbol: "ETH",
+      crypto_asset: null,
+      amount: 3,
+      market_value: 9000,
+      currency: "EUR",
+    })
+    const wallet = { assets: [suppliedAsset] }
+    // A colliding ETH rate (1 ETH = 1000 EUR) would give amount*rate = 3000.
+    const rates: ExchangeRates = { EUR: { ETH: 1 / 1000 } }
+
+    expect(calculateCryptoAssetValue(suppliedAsset, "EUR", rates)).toBe(9000)
+    expect(calculateWalletAssetsValue(wallet, "EUR", rates)).toBe(9000)
+  })
 })
