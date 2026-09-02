@@ -22,6 +22,7 @@ from domain.crypto import (
 from domain.entity import Entity, EntityType
 from domain.exception.exceptions import (
     EntityNotFound,
+    ExternalIntegrationRequired,
     TooManyRequests,
 )
 from domain.external_integration import (
@@ -110,6 +111,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                 failed_addresses[address] = (
                     CryptoWalletConnectionFailureCode.TOO_MANY_REQUESTS
                 )
+            except ExternalIntegrationRequired:
+                # Not an address problem: surface it via the API's structured handler.
+                raise
             except Exception as e:
                 self._log.exception(e)
                 failed_addresses[address] = (

@@ -1341,6 +1341,47 @@ class TestMergeAddressAssets:
         assert len(merged) == 1
         assert merged[0].amount == Dezimal("150")
 
+    def test_native_and_contractless_token_with_same_symbol_do_not_merge(self):
+        # Unmapped Zerion rows are TOKEN with no contract; they must not be
+        # summed into the NATIVE row that shares their symbol and chain.
+        r1 = CryptoFetchResult(
+            address="a1",
+            assets=[
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("1.0"),
+                    type=CryptoCurrencyType.NATIVE,
+                    chain="ethereum",
+                )
+            ],
+        )
+        r2 = CryptoFetchResult(
+            address="a2",
+            assets=[
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("2.0"),
+                    type=CryptoCurrencyType.NATIVE,
+                    chain="ethereum",
+                ),
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("5.0"),
+                    type=CryptoCurrencyType.TOKEN,
+                    chain="ethereum",
+                ),
+            ],
+        )
+        merged = FetchCryptoDataImpl._merge_address_assets([r1, r2])
+
+        assert len(merged) == 2
+        by_type = {p.type: p for p in merged}
+        assert by_type[CryptoCurrencyType.NATIVE].amount == Dezimal("3.0")
+        assert by_type[CryptoCurrencyType.TOKEN].amount == Dezimal("5.0")
+
 
 class TestCollectAssetIdentifiers:
     def test_fetcher_priced_assets_are_skipped(self):
@@ -1418,15 +1459,33 @@ class TestFetcherSuppliedValueAndDedup:
                             symbol="aUSDC",
                             balance=Dezimal("100"),
                             type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xausdc",
                             chain="ethereum",
                             protocol="Aave V3",
                             position_type=CryptoPositionType.SUPPLIED,
                             market_value=Dezimal("100.10"),
                             currency="EUR",
-                        )
+                        ),
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="OTHER",
+                            balance=Dezimal("10"),
+                            type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xother",
+                            chain="ethereum",
+                        ),
                     ],
                 )
             return CryptoFetchResults(results=results)
+
+        # The provider prices the fetcher-priced contract too, at a value that
+        # would give 200 EUR if the pipeline re-priced it from the map.
+        crypto_asset_info.get_prices_by_addresses = AsyncMock(
+            return_value={
+                "0xausdc": {"EUR": Dezimal("2")},
+                "0xother": {"EUR": Dezimal("3")},
+            }
+        )
 
         fetcher = MockCryptoEntityFetcher(results_fn=fetcher_fn)
 
@@ -1447,14 +1506,25 @@ class TestFetcherSuppliedValueAndDedup:
         )
 
         assets = self._saved_wallet_assets(position_port, wallet.id)
-        asset = next(a for a in assets if a.symbol == "aUSDC")
+        by_symbol = {a.symbol: a for a in assets}
+        supplied = by_symbol["aUSDC"]
+        other = by_symbol["OTHER"]
 
-        assert asset.market_value == Dezimal("100.10")
-        assert asset.currency == "EUR"
-        assert asset.protocol == "Aave V3"
-        assert asset.chain == "ethereum"
-        assert asset.position_type == CryptoPositionType.SUPPLIED
-        crypto_asset_info.get_by_symbol.assert_not_called()
+        assert supplied.market_value == Dezimal("100.10")
+        assert supplied.currency == "EUR"
+        assert supplied.protocol == "Aave V3"
+        assert supplied.chain == "ethereum"
+        assert supplied.position_type == CryptoPositionType.SUPPLIED
+        assert supplied.crypto_asset is None
+
+        # The map-priced sibling proves the price map was live and applied.
+        assert other.market_value == Dezimal("30")
+
+        crypto_asset_info.get_prices_by_addresses.assert_awaited_once_with(
+            ["0xother"], fiat_isos=["EUR"]
+        )
+        crypto_asset_registry.get_by_symbol.assert_awaited_once_with("OTHER")
+        crypto_asset_info.get_by_symbol.assert_awaited_once_with("OTHER")
 
     @pytest.mark.asyncio
     async def test_supplied_and_borrowed_legs_do_not_merge(

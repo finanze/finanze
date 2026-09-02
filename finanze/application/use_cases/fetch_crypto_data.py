@@ -564,10 +564,10 @@ class FetchCryptoDataImpl(FetchCryptoData):
     @staticmethod
     def _asset_merge_key(asset: CryptoFetchedPosition) -> tuple:
         if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
-            base = asset.contract_address.lower()
+            base = (asset.type, asset.contract_address.lower())
         else:
-            base = asset.symbol
-        return base, asset.position_type, asset.chain, asset.protocol
+            base = (asset.type, asset.symbol)
+        return base + (asset.position_type, asset.chain, asset.protocol)
 
     @staticmethod
     def _sum_optional(a: Optional[Dezimal], b: Optional[Dezimal]) -> Optional[Dezimal]:
