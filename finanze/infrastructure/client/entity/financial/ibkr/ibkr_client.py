@@ -240,26 +240,45 @@ class IBKRClient:
             self._log.error("Could not find AM_SESSION_ID in AmAuthentication HTML")
             return False
 
-        am_session_id = match.group(1)
-        am_uuid = str(uuid.uuid4())
-        self._am_headers = {
-            "SessionId": am_session_id,
-            "AM_UUID": am_uuid,
+        am_headers = {
+            "SessionId": match.group(1),
+            "AM_UUID": str(uuid.uuid4()),
             "ACTIVE_CONTEXT": "AM_DEPENDENCY",
+            "Accept": "application/json, text/plain, */*",
         }
 
         resp = await self._request(
             "POST",
             "/AccountManagement/Statements/PageInfo",
             json={"action": "Statements"},
-            headers=self._am_headers,
+            headers=am_headers,
             timeout=AM_TIMEOUT,
         )
         if not resp.is_success:
             self._log.warning("AM PageInfo failed with status %d", resp.status_code)
             return False
 
+        # Statements are run against the account picked in the AM session, which
+        # is identified by a hash. Without it IBKR answers 200 with an empty body
+        account_hash = self._account_hash_from_page_info(resp)
+        if account_hash is None:
+            self._log.error("No account selection found in Statements PageInfo")
+            return False
+        am_headers["AccountHash"] = str(account_hash)
+
+        self._am_headers = am_headers
         return True
+
+    def _account_hash_from_page_info(self, resp: httpx.Response) -> Optional[int]:
+        try:
+            selections = resp.json().get("picker", {}).get("activeSelections", [])
+        except ValueError:
+            return None
+
+        for selection in selections:
+            if selection.get("accountId") == self._account_id:
+                return selection.get("id")
+        return selections[0].get("id") if selections else None
 
     async def download_activity_statement(self, from_date: date, to_date: date) -> str:
         am_ready = await self._init_am_session()
