@@ -2489,7 +2489,9 @@ export const getCryptoPositions = (
           const assets = getWalletAssets(wallet)
 
           assets.forEach(asset => {
-            if (!asset.crypto_asset) {
+            // Same admission rule as getWalletAssets: registry-enriched or
+            // fetcher-priced (e.g. Zerion, which only carries market_value).
+            if (!asset.crypto_asset && asset.market_value == null) {
               return
             }
             const symbol = asset.symbol?.toUpperCase()
@@ -2519,7 +2521,9 @@ export const getCryptoPositions = (
               asset.type === CryptoCurrencyType.TOKEN ||
               Boolean(asset.contract_address)
             const tokenKey =
-              tokenAddress ?? asset.crypto_asset.id?.toLowerCase()
+              tokenAddress ??
+              asset.crypto_asset?.id?.toLowerCase() ??
+              symbol?.toLowerCase()
             if (isToken && !tokenKey) {
               return
             }

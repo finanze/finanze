@@ -1108,6 +1108,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configure your Zerion API to fetch DeFi and wallet positions across many EVM networks.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get a Zerion API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Sign up at the "
+            },
+            {
+              "type": "link",
+              "label": "Zerion developer portal",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (a free tier is available), create an API key and paste it below."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",

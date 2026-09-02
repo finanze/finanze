@@ -1106,6 +1106,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configura la API de Zerion para obtener tus posiciones DeFi y de wallet en múltiples redes EVM.",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Obtener una clave API de Zerion",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Regístrate en el "
+            },
+            {
+              "type": "link",
+              "label": "portal de desarrolladores de Zerion",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (tiene un plan gratuito), crea una clave API y pégala aquí."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Desactivar integración",

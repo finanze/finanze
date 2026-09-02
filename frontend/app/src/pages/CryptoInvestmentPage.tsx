@@ -761,8 +761,7 @@ function CryptoInvestmentContent({
                 const tokenKey =
                   contractAddress ??
                   effectiveAsset.crypto_asset?.id?.toLowerCase() ??
-                  normalizedSymbol?.toLowerCase() ??
-                  effectiveAsset.id
+                  (normalizedSymbol?.toLowerCase() || effectiveAsset.id)
 
                 if (isToken && !tokenKey) {
                   return null
@@ -3054,13 +3053,15 @@ function CryptoInvestmentContent({
                                 )}
                               {(assetSummary.isDefi || assetSummary.chain) &&
                                 (() => {
-                                  const roleLabel = assetSummary.positionType
-                                    ? (
-                                        t.investments.cryptoView.defi
-                                          .roles as Record<string, string>
-                                      )[assetSummary.positionType] ||
-                                      assetSummary.positionType
-                                    : null
+                                  const roleLabel =
+                                    assetSummary.isDefi &&
+                                    assetSummary.positionType
+                                      ? (
+                                          t.investments.cryptoView.defi
+                                            .roles as Record<string, string>
+                                        )[assetSummary.positionType] ||
+                                        assetSummary.positionType
+                                      : null
                                   const chainLabel = assetSummary.chain
                                     ? formatChainName(assetSummary.chain)
                                     : null

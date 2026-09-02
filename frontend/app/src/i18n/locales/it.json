@@ -1107,6 +1107,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configura la tua API Zerion per recuperare le posizioni DeFi e dei wallet su numerose reti EVM.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API Zerion",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Registrati sul "
+            },
+            {
+              "type": "link",
+              "label": "portale sviluppatori di Zerion",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (è disponibile un piano gratuito), crea una chiave API e incollala qui sotto."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",

@@ -4,6 +4,7 @@ import {
   calculateCryptoAssetValue,
   calculateWalletAssetsValue,
   classifyCryptoPositionKind,
+  getCryptoPositions,
   getCurrencyDisplayValue,
   getCryptoRateKey,
   getWalletAssets,
@@ -12,9 +13,12 @@ import {
 import {
   CryptoCurrencyType,
   CryptoPositionType,
+  ProductType,
   type CryptoCurrencyPosition,
+  type EntitiesPosition,
+  type ProductPositions,
 } from "@/types/position"
-import { DataSource } from "@/types"
+import { DataSource, EntityOrigin } from "@/types"
 import type { ExchangeRates } from "@/types"
 import { formatCurrency } from "@/lib/formatters"
 
@@ -311,5 +315,141 @@ describe("getWalletAssets / calculateWalletAssetsValue with DeFi (Zerion) positi
 
     expect(calculateCryptoAssetValue(suppliedAsset, "EUR", rates)).toBe(9000)
     expect(calculateWalletAssetsValue(wallet, "EUR", rates)).toBe(9000)
+  })
+})
+
+describe("getCryptoPositions with fetcher-priced (Zerion) positions", () => {
+  const makePositions = (
+    assets: CryptoCurrencyPosition[],
+  ): EntitiesPosition => ({
+    positions: {
+      "entity-zerion": [
+        {
+          id: "global-position-1",
+          entity: {
+            id: "entity-zerion",
+            name: "Zerion",
+            origin: EntityOrigin.NATIVE,
+          },
+          date: "2026-01-01",
+          products: {
+            [ProductType.CRYPTO]: {
+              entries: [
+                {
+                  id: "wallet-1",
+                  name: "Test wallet",
+                  addresses: ["0x000000000000000000000000000000000000dead"],
+                  assets,
+                  hd_wallet: null,
+                },
+              ],
+            },
+          } as ProductPositions,
+          source: DataSource.REAL,
+        },
+      ],
+    },
+  })
+
+  const suppliedEth = makeAsset({
+    id: "defi-supplied-eth",
+    name: "Supplied ETH",
+    symbol: "ETH",
+    type: CryptoCurrencyType.NATIVE,
+    crypto_asset: null,
+    amount: 2,
+    market_value: 5000,
+    currency: "EUR",
+    chain: "arbitrum",
+    protocol: "aave-v3",
+    position_type: CryptoPositionType.SUPPLIED,
+  })
+
+  const borrowedGho = makeAsset({
+    id: "defi-borrowed-gho",
+    name: "Borrowed GHO",
+    symbol: "GHO",
+    type: CryptoCurrencyType.TOKEN,
+    contract_address: "0x0000000000000000000000000000000000000001",
+    crypto_asset: null,
+    amount: -100,
+    market_value: -250,
+    currency: "EUR",
+    chain: "arbitrum",
+    protocol: "aave-v3",
+    position_type: CryptoPositionType.BORROWED,
+  })
+
+  const walletUsdc = makeAsset({
+    id: "wallet-usdc",
+    name: "USD Coin",
+    symbol: "USDC",
+    type: CryptoCurrencyType.TOKEN,
+    contract_address: "0x0000000000000000000000000000000000000002",
+    crypto_asset: null,
+    amount: 120,
+    market_value: 120,
+    currency: "EUR",
+    chain: "arbitrum",
+    position_type: CryptoPositionType.HOLDING,
+  })
+
+  it("includes a fetcher-priced position (no crypto_asset) valued at its market_value", () => {
+    const result = getCryptoPositions(
+      makePositions([suppliedEth]),
+      "en-US",
+      "EUR",
+      {},
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      symbol: "ETH",
+      name: "Supplied ETH",
+      type: "CRYPTO",
+      amount: 2,
+      value: 5000,
+      price: 2500,
+      entities: ["Zerion"],
+    })
+  })
+
+  it("excludes a BORROWED position (negative market_value) from the holdings list", () => {
+    const result = getCryptoPositions(
+      makePositions([suppliedEth, borrowedGho, walletUsdc]),
+      "en-US",
+      "EUR",
+      {},
+    )
+
+    expect(result.map(p => p.symbol)).toEqual(["ETH", "USDC"])
+    expect(result.find(p => p.symbol === "USDC")).toMatchObject({
+      type: "CRYPTO_TOKEN",
+      value: 120,
+    })
+    expect(result.reduce((sum, p) => sum + p.value, 0)).toBe(5120)
+  })
+
+  it("merges a fetcher-priced native position with a registry-enriched one of the same symbol", () => {
+    const registryEth = makeAsset({
+      id: "wallet-eth",
+      name: "Ethereum",
+      symbol: "ETH",
+      type: CryptoCurrencyType.NATIVE,
+      crypto_asset: { id: "ethereum", name: "Ethereum", symbol: "ETH" },
+      amount: 1,
+    })
+    // 1 ETH = 1000 EUR
+    const rates: ExchangeRates = { EUR: { ETH: 1 / 1000 } }
+
+    const result = getCryptoPositions(
+      makePositions([registryEth, suppliedEth]),
+      "en-US",
+      "EUR",
+      rates,
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ symbol: "ETH", amount: 3, value: 6000 })
   })
 })
