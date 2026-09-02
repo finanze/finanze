@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+from urllib.parse import quote
 
 from application.ports.connectable_integration import ConnectableIntegration
 from domain.exception.exceptions import (
@@ -23,6 +24,8 @@ class ZerionClient(ConnectableIntegration):
     BASE_URL = "https://api.zerion.io/v1"
     MAX_RETRIES = 3
     BACKOFF_SECONDS = 0.5
+    RETRYABLE_STATUSES = (429, 503)
+    MAX_RETRY_AFTER_SECONDS = 30.0
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -50,13 +53,15 @@ class ZerionClient(ConnectableIntegration):
         positions_filter: str = "only_complex",
     ) -> list[dict]:
         url = (
-            f"{self.BASE_URL}/wallets/{address}/positions/"
+            f"{self.BASE_URL}/wallets/{quote(address, safe='')}/positions/"
             f"?filter[positions]={positions_filter}"
             "&filter[trash]=only_non_trash"
             "&currency=eur"
         )
         response = await self._get(url, api_key)
 
+        if response.status in (401, 403):
+            raise IntegrationSetupError(IntegrationSetupErrorCode.INVALID_CREDENTIALS)
         if response.status == 429:
             raise TooManyRequests()
         if response.status == 400:
@@ -80,10 +85,37 @@ class ZerionClient(ConnectableIntegration):
         attempt = 0
         while True:
             response = await self._session.get(url, headers=headers)
-            if response.status != 429 or attempt >= self.MAX_RETRIES:
+            if (
+                response.status not in self.RETRYABLE_STATUSES
+                or attempt >= self.MAX_RETRIES
+            ):
                 return response
             attempt += 1
-            await asyncio.sleep(self.BACKOFF_SECONDS)
+            await asyncio.sleep(self._retry_delay(response))
+
+    def _retry_delay(self, response: HttpResponse) -> float:
+        # Zerion answers 503 + Retry-After while a wallet is still being indexed.
+        if response.status == 503:
+            retry_after = self._retry_after_seconds(response)
+            if retry_after is not None:
+                return min(retry_after, self.MAX_RETRY_AFTER_SECONDS)
+        return self.BACKOFF_SECONDS
+
+    @staticmethod
+    def _retry_after_seconds(response: HttpResponse) -> float | None:
+        value = next(
+            (
+                v
+                for k, v in (response.headers or {}).items()
+                if k.lower() == "retry-after"
+            ),
+            None,
+        )
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            return None
+        return seconds if seconds > 0 else None
 
     @staticmethod
     def _headers(api_key: str) -> dict[str, str]:

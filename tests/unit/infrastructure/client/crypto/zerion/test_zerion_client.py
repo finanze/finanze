@@ -174,3 +174,53 @@ class TestFetchPositions:
             client = ZerionClient()
             with pytest.raises(AddressNotFound):
                 await client.fetch_positions(FAKE_API_KEY, FAKE_ADDRESS)
+
+
+class TestFetchPositionsResilience:
+    @pytest.mark.asyncio
+    async def test_retries_503_honouring_retry_after_then_returns(self):
+        r503 = _mock_response(503, ok=False)
+        r503.headers = {"Retry-After": "2"}
+        r200 = _mock_response(200, ok=True, json_body={"data": [{"id": "p1"}]})
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(side_effect=[r503, r200])
+
+        with (
+            _patched_session(mock_session),
+            patch(
+                "infrastructure.client.crypto.zerion.zerion_client.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
+        ):
+            client = ZerionClient()
+            data = await client.fetch_positions(FAKE_API_KEY, FAKE_ADDRESS)
+
+        assert data == [{"id": "p1"}]
+        assert mock_session.get.await_count == 2
+        assert sleep.await_args.args[0] == 2
+
+    @pytest.mark.asyncio
+    async def test_raises_invalid_credentials_on_401_during_fetch(self):
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(return_value=_mock_response(401, ok=False))
+
+        with _patched_session(mock_session):
+            client = ZerionClient()
+            with pytest.raises(IntegrationSetupError):
+                await client.fetch_positions(FAKE_API_KEY, FAKE_ADDRESS)
+
+    @pytest.mark.asyncio
+    async def test_address_is_percent_encoded_in_path(self):
+        mock_session = MagicMock()
+        mock_session.get = AsyncMock(
+            return_value=_mock_response(200, ok=True, json_body={"data": []})
+        )
+
+        with _patched_session(mock_session):
+            client = ZerionClient()
+            await client.fetch_positions(FAKE_API_KEY, "0xabc/../x?y#z")
+
+        call = mock_session.get.await_args
+        url = call.args[0] if call.args else call.kwargs.get("url")
+        assert "0xabc%2F..%2Fx%3Fy%23z" in url
+        assert "/../" not in url
