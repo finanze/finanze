@@ -19,6 +19,12 @@ from domain.native_entity import EntityCredentials
 BASE_URL = "https://www.interactivebrokers.ie"
 SESSION_LIFETIME = 50 * 60  # 50 minutes (IBKR sessions expire at ~54 min)
 
+DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+# Account Management pages are noticeably slower than the portal API
+AM_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+# Statements are generated on demand by IBKR and can take minutes to build
+STATEMENT_TIMEOUT = httpx.Timeout(180.0, connect=10.0)
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) "
     "Gecko/20100101 Firefox/148.0"
@@ -136,7 +142,15 @@ class IBKRClient:
         self._http = httpx.AsyncClient(
             cookies=cookies,
             headers=DEFAULT_HEADERS,
+            timeout=DEFAULT_TIMEOUT,
+            follow_redirects=True,
         )
+        self._am_headers = None
+
+    async def close(self) -> None:
+        if self._http:
+            await self._http.aclose()
+            self._http = None
         self._am_headers = None
 
     @staticmethod
@@ -214,6 +228,7 @@ class IBKRClient:
             "GET",
             "/AccountManagement/AmAuthentication",
             params={"action": "Statements"},
+            timeout=AM_TIMEOUT,
         )
         if not resp.is_success:
             self._log.warning("AM auth failed with status %d", resp.status_code)
@@ -238,6 +253,7 @@ class IBKRClient:
             "/AccountManagement/Statements/PageInfo",
             json={"action": "Statements"},
             headers=self._am_headers,
+            timeout=AM_TIMEOUT,
         )
         if not resp.is_success:
             self._log.warning("AM PageInfo failed with status %d", resp.status_code)
@@ -258,6 +274,7 @@ class IBKRClient:
             "GET",
             "/AccountManagement/Statements/Run",
             headers=self._am_headers,
+            timeout=STATEMENT_TIMEOUT,
             params={
                 "cashReportDetail": "TOTALS_WITH_SEGMENT_BREAKDOWN",
                 "format": "13",

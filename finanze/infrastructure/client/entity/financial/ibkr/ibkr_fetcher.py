@@ -45,6 +45,9 @@ class IBKRFetcher(FinancialEntityFetcher):
             login_params.credentials, login_params.options, login_params.session
         )
 
+    async def close(self) -> None:
+        await self._client.close()
+
     async def global_position(self) -> GlobalPosition:
         account_id = self._client.account_id
         if not account_id:
