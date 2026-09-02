@@ -144,7 +144,8 @@ class IBKRFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        to_date = date.today()
+        # Statements only cover closed days, the current one is not reportable yet
+        to_date = date.today() - timedelta(days=1)
         all_isin_map: dict[str, str] = {}
         all_investment_txs: list[StockTx] = []
         all_account_txs: list[AccountTx] = []

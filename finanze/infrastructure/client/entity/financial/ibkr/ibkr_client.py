@@ -49,6 +49,10 @@ _SERVER_MANAGED_COOKIES = {
 }
 
 
+class IBKRStatementError(Exception):
+    """Raised when an activity statement cannot be retrieved from IBKR."""
+
+
 def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
     cookies = {}
     for pair in cookie_str.split("; "):
@@ -58,6 +62,20 @@ def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
             if name and name not in cookies and name not in _SERVER_MANAGED_COOKIES:
                 cookies[name] = value.strip()
     return cookies
+
+
+def _is_json(resp: httpx.Response) -> bool:
+    return "json" in resp.headers.get("content-type", "")
+
+
+def _statement_error(resp: httpx.Response) -> Optional[str]:
+    # IBKR's own error for a period it cannot produce a statement for
+    if not _is_json(resp):
+        return None
+    try:
+        return resp.json().get("errors", {}).get("stmtError")
+    except ValueError:
+        return None
 
 
 class IBKRClient:
@@ -280,16 +298,11 @@ class IBKRClient:
                 return selection.get("id")
         return selections[0].get("id") if selections else None
 
-    async def download_activity_statement(self, from_date: date, to_date: date) -> str:
-        am_ready = await self._init_am_session()
-        if not am_ready:
-            self._log.error("Could not initialize AM session for statements")
-            return ""
+    async def _run_statement(self, from_str: str, to_str: str) -> httpx.Response:
+        if not await self._init_am_session():
+            raise IBKRStatementError("Could not initialize AM session for statements")
 
-        from_str = from_date.strftime("%Y%m%d")
-        to_str = to_date.strftime("%Y%m%d")
-
-        resp = await self._request(
+        return await self._request(
             "GET",
             "/AccountManagement/Statements/Run",
             headers=self._am_headers,
@@ -308,13 +321,42 @@ class IBKRClient:
                 "v2Modal": "true",
             },
         )
-        if not resp.is_success:
-            self._log.error(
-                "Failed to download activity statement: %d", resp.status_code
+
+    async def download_activity_statement(self, from_date: date, to_date: date) -> str:
+        from_str = from_date.strftime("%Y%m%d")
+        to_str = to_date.strftime("%Y%m%d")
+
+        resp = await self._run_statement(from_str, to_str)
+        if not _is_json(resp):
+            # Both the statement and IBKR's own errors come back as JSON, so
+            # anything else means the AM session went stale: rebuild and retry
+            self._log.warning(
+                "Unexpected statement response (%d, %s), retrying with a new AM session",
+                resp.status_code,
+                resp.headers.get("content-type", ""),
             )
+            self._am_headers = None
+            resp = await self._run_statement(from_str, to_str)
+
+        error = _statement_error(resp)
+        if error:
+            # No activity in that period, or a range the account cannot report on
+            self._log.info("No statement for %s-%s: %s", from_str, to_str, error)
             return ""
-        data = resp.json()
-        file_content = data.get("fileContent", "")
+
+        if not resp.is_success:
+            raise IBKRStatementError(
+                f"Statement request failed with status {resp.status_code}"
+            )
+
+        if not _is_json(resp):
+            self._log.error("Unexpected statement response body: %s", resp.text[:500])
+            raise IBKRStatementError("Statement request returned a non-JSON response")
+
+        file_content = resp.json().get("fileContent", "")
         if not file_content:
+            self._log.warning(
+                "Empty statement returned for range %s-%s", from_str, to_str
+            )
             return ""
         return base64.b64decode(file_content).decode("utf-8-sig")
