@@ -663,3 +663,100 @@ class TestZerionFetcherNameAndIcon:
         asset = result.results[FAKE_ADDRESS].assets[0]
         assert asset.name == "SCAM"
         assert asset.name is not None
+
+
+class TestZerionFetcherReceiptKeysByParentChain:
+    @pytest.mark.asyncio
+    async def test_receipt_only_suppresses_holding_on_the_position_chain(self):
+        shared = "0xmulti000000000000000000000000000000000"
+        deposit = _position(
+            "dep-eth",
+            "deposit",
+            "aTOK",
+            "Aave TOK",
+            1000.0,
+            "1000",
+            contract=AUSDC_CONTRACT,
+            protocol="Aave V3",
+            chain="ethereum",
+        )
+        deposit["attributes"]["receipt"] = {
+            "fungible_info": {
+                "implementations": [
+                    {"address": shared, "chain_id": "ethereum"},
+                    {"address": shared, "chain_id": "polygon"},
+                ]
+            }
+        }
+        eth_holding = _position(
+            "w-eth",
+            "wallet",
+            "TOK",
+            "Token",
+            50.0,
+            "50",
+            contract=shared,
+            chain="ethereum",
+        )
+        poly_holding = _position(
+            "w-poly",
+            "wallet",
+            "TOK",
+            "Token",
+            50.0,
+            "50",
+            contract=shared,
+            chain="polygon",
+        )
+
+        client = ZerionClient()
+        client.fetch_positions = AsyncMock(
+            return_value=deepcopy([deposit, eth_holding, poly_holding])
+        )
+        fetcher = ZerionFetcher(client)
+
+        result = await fetcher.fetch(_request(include_wallet_tokens=True))
+
+        pairs = {(a.symbol, a.chain) for a in result.results[FAKE_ADDRESS].assets}
+        assert ("TOK", "polygon") in pairs
+        assert ("TOK", "ethereum") not in pairs
+
+    @pytest.mark.asyncio
+    async def test_malformed_receipt_subobject_does_not_abort_fetch(self):
+        bad1 = _position(
+            "dep-1",
+            "deposit",
+            "aA",
+            "A",
+            10.0,
+            "10",
+            contract=AUSDC_CONTRACT,
+            protocol="P",
+        )
+        bad1["attributes"]["receipt"] = {"fungible_info": {"implementations": [None]}}
+        bad2 = _position(
+            "dep-2",
+            "deposit",
+            "aB",
+            "B",
+            10.0,
+            "10",
+            contract=PENDLE_CONTRACT,
+            protocol="P",
+        )
+        bad2["attributes"]["receipt"] = {"fungible_info": "USDC"}
+        holding = _position(
+            "w-1", "wallet", "DAI", "Dai", 5.0, "5", contract=DAI_CONTRACT
+        )
+
+        client = ZerionClient()
+        client.fetch_positions = AsyncMock(return_value=deepcopy([bad1, bad2, holding]))
+        fetcher = ZerionFetcher(client)
+
+        result = await fetcher.fetch(_request(include_wallet_tokens=True))
+
+        assert {a.symbol for a in result.results[FAKE_ADDRESS].assets} == {
+            "aA",
+            "aB",
+            "DAI",
+        }

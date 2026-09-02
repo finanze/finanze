@@ -160,12 +160,27 @@ class ZerionFetcher(CryptoEntityFetcher):
             if not isinstance(receipt, dict):
                 continue
 
-            fungible_info = receipt.get("fungible_info") or {}
-            for implementation in fungible_info.get("implementations") or []:
+            # Only the receipt implementation on the position's own chain
+            # duplicates a wallet holding; the same contract address on another
+            # chain is a separate asset. The receipt sub-object is parsed
+            # leniently so one malformed receipt can't abort the whole address.
+            chain = item["relationships"]["chain"]["data"]["id"]
+            fungible_info = receipt.get("fungible_info")
+            if not isinstance(fungible_info, dict):
+                continue
+            implementations = fungible_info.get("implementations")
+            if not isinstance(implementations, list):
+                continue
+            for implementation in implementations:
+                if not isinstance(implementation, dict):
+                    continue
                 address = implementation.get("address")
-                chain_id = implementation.get("chain_id")
-                if address and chain_id:
-                    receipt_keys.add((chain_id, address.lower()))
+                if (
+                    implementation.get("chain_id") == chain
+                    and isinstance(address, str)
+                    and address
+                ):
+                    receipt_keys.add((chain, address.lower()))
 
         return receipt_keys
 
