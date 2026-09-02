@@ -8,6 +8,18 @@ from domain.crypto import (
 from domain.dezimal import Dezimal
 from infrastructure.client.crypto.blockchain.blockchain_client import BlockchainClient
 
+# Zerion chain id, so positions from both providers share a grouping key.
+CHAIN = "bitcoin"
+
+
+def _set_chain(results: CryptoFetchResults) -> CryptoFetchResults:
+    for result in results.results.values():
+        if result is None:
+            continue
+        for asset in result.assets:
+            asset.chain = CHAIN
+    return results
+
 
 class BitcoinFetcher(CryptoEntityFetcher):
     SCALE = Dezimal("1e-8")
@@ -19,4 +31,4 @@ class BitcoinFetcher(CryptoEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
-        return await self._bc_client.fetch(request)
+        return _set_chain(await self._bc_client.fetch(request))
