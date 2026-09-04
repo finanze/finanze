@@ -20,12 +20,14 @@ from domain.crypto import (
     CryptoFetchResult,
     CryptoFetchResults,
     CryptoCurrencyType,
+    CryptoPositionType,
     CryptoWallet,
     HDAddress,
     HDWallet,
 )
 from domain.dezimal import Dezimal
 from domain.entity import Feature
+from domain.global_position import CryptoCurrencyPosition, CryptoCurrencyWallet
 from domain.fetch_result import FetchRequest, FetchResultCode
 from domain.public_key import (
     AddressDerivationRequest,
@@ -142,7 +144,9 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         )
 
 
-def _make_manual_wallet(entity_id=BITCOIN_ID, addresses=None):
+def _make_manual_wallet(
+    entity_id=BITCOIN_ID, addresses=None, include_wallet_tokens=False
+):
     return CryptoWallet(
         id=uuid4(),
         entity_id=entity_id,
@@ -150,6 +154,7 @@ def _make_manual_wallet(entity_id=BITCOIN_ID, addresses=None):
         name="Manual Wallet",
         address_source=AddressSource.MANUAL,
         hd_wallet=None,
+        include_wallet_tokens=include_wallet_tokens,
     )
 
 
@@ -1335,3 +1340,353 @@ class TestMergeAddressAssets:
         merged = FetchCryptoDataImpl._merge_address_assets([r1, r2])
         assert len(merged) == 1
         assert merged[0].amount == Dezimal("150")
+
+    def test_native_and_contractless_token_with_same_symbol_do_not_merge(self):
+        # Unmapped Zerion rows are TOKEN with no contract; they must not be
+        # summed into the NATIVE row that shares their symbol and chain.
+        r1 = CryptoFetchResult(
+            address="a1",
+            assets=[
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("1.0"),
+                    type=CryptoCurrencyType.NATIVE,
+                    chain="ethereum",
+                )
+            ],
+        )
+        r2 = CryptoFetchResult(
+            address="a2",
+            assets=[
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("2.0"),
+                    type=CryptoCurrencyType.NATIVE,
+                    chain="ethereum",
+                ),
+                CryptoFetchedPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    balance=Dezimal("5.0"),
+                    type=CryptoCurrencyType.TOKEN,
+                    chain="ethereum",
+                ),
+            ],
+        )
+        merged = FetchCryptoDataImpl._merge_address_assets([r1, r2])
+
+        assert len(merged) == 2
+        by_type = {p.type: p for p in merged}
+        assert by_type[CryptoCurrencyType.NATIVE].amount == Dezimal("3.0")
+        assert by_type[CryptoCurrencyType.TOKEN].amount == Dezimal("5.0")
+
+
+class TestCollectAssetIdentifiers:
+    def test_fetcher_priced_assets_are_skipped(self):
+        wallet = CryptoCurrencyWallet(
+            id=uuid4(),
+            assets=[
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ETH",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.NATIVE,
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="USDC",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.TOKEN,
+                    contract_address="0xUSDC",
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ZNATIVE",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.NATIVE,
+                    market_value=Dezimal("50"),
+                ),
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="ZTOKEN",
+                    amount=Dezimal("1"),
+                    type=CryptoCurrencyType.TOKEN,
+                    contract_address="0xZTOKEN",
+                    market_value=Dezimal("50"),
+                ),
+            ],
+        )
+
+        addresses, symbols = FetchCryptoDataImpl._collect_asset_identifiers([wallet])
+
+        assert symbols == {"ETH"}
+        assert addresses == {"0xusdc"}
+
+
+class TestFetcherSuppliedValueAndDedup:
+    @staticmethod
+    def _saved_wallet_assets(position_port, wallet_id):
+        saved_position = position_port.saved[0]
+        crypto_wallets = saved_position.products["CRYPTO"].entries
+        target_wallet = next(w for w in crypto_wallets if w.id == wallet_id)
+        return target_wallet.assets
+
+    @pytest.mark.asyncio
+    async def test_fetcher_supplied_value_bypasses_pricing(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet = _make_manual_wallet(addresses=["addr_1"])
+        wallet_port = MockCryptoWalletPort([wallet])
+
+        def fetcher_fn(request: CryptoFetchRequest):
+            results = {}
+            for addr in request.addresses:
+                results[addr] = CryptoFetchResult(
+                    address=addr,
+                    has_txs=True,
+                    assets=[
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="aUSDC",
+                            balance=Dezimal("100"),
+                            type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xausdc",
+                            chain="ethereum",
+                            protocol="Aave V3",
+                            position_type=CryptoPositionType.SUPPLIED,
+                            market_value=Dezimal("100.10"),
+                            currency="EUR",
+                        ),
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="OTHER",
+                            balance=Dezimal("10"),
+                            type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xother",
+                            chain="ethereum",
+                        ),
+                    ],
+                )
+            return CryptoFetchResults(results=results)
+
+        # The provider prices the fetcher-priced contract too, at a value that
+        # would give 200 EUR if the pipeline re-priced it from the map.
+        crypto_asset_info.get_prices_by_addresses = AsyncMock(
+            return_value={
+                "0xausdc": {"EUR": Dezimal("2")},
+                "0xother": {"EUR": Dezimal("3")},
+            }
+        )
+
+        fetcher = MockCryptoEntityFetcher(results_fn=fetcher_fn)
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        assets = self._saved_wallet_assets(position_port, wallet.id)
+        by_symbol = {a.symbol: a for a in assets}
+        supplied = by_symbol["aUSDC"]
+        other = by_symbol["OTHER"]
+
+        assert supplied.market_value == Dezimal("100.10")
+        assert supplied.currency == "EUR"
+        assert supplied.protocol == "Aave V3"
+        assert supplied.chain == "ethereum"
+        assert supplied.position_type == CryptoPositionType.SUPPLIED
+        assert supplied.crypto_asset is None
+
+        # The map-priced sibling proves the price map was live and applied.
+        assert other.market_value == Dezimal("30")
+
+        crypto_asset_info.get_prices_by_addresses.assert_awaited_once_with(
+            ["0xother"], fiat_isos=["EUR"]
+        )
+        crypto_asset_registry.get_by_symbol.assert_awaited_once_with("OTHER")
+        crypto_asset_info.get_by_symbol.assert_awaited_once_with("OTHER")
+
+    @pytest.mark.asyncio
+    async def test_supplied_and_borrowed_legs_do_not_merge(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet = _make_manual_wallet(addresses=["addr_1"])
+        wallet_port = MockCryptoWalletPort([wallet])
+
+        def fetcher_fn(request: CryptoFetchRequest):
+            results = {}
+            for addr in request.addresses:
+                results[addr] = CryptoFetchResult(
+                    address=addr,
+                    has_txs=True,
+                    assets=[
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="USDC",
+                            balance=Dezimal("100"),
+                            type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xusdc",
+                            chain="ethereum",
+                            protocol="Aave V3",
+                            position_type=CryptoPositionType.SUPPLIED,
+                            market_value=Dezimal("100"),
+                            currency="EUR",
+                        ),
+                        CryptoFetchedPosition(
+                            id=uuid4(),
+                            symbol="USDC",
+                            balance=Dezimal("-40"),
+                            type=CryptoCurrencyType.TOKEN,
+                            contract_address="0xusdc",
+                            chain="ethereum",
+                            protocol="Aave V3",
+                            position_type=CryptoPositionType.BORROWED,
+                            market_value=Dezimal("-40"),
+                            currency="EUR",
+                        ),
+                    ],
+                )
+            return CryptoFetchResults(results=results)
+
+        fetcher = MockCryptoEntityFetcher(results_fn=fetcher_fn)
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        assets = self._saved_wallet_assets(position_port, wallet.id)
+        usdc_assets = [a for a in assets if a.symbol == "USDC"]
+
+        assert len(usdc_assets) == 2
+        assert {a.position_type for a in usdc_assets} == {
+            CryptoPositionType.SUPPLIED,
+            CryptoPositionType.BORROWED,
+        }
+
+
+class TestIncludeWalletTokensGrouping:
+    @pytest.mark.asyncio
+    async def test_partitions_manual_addresses_by_wallet_flag(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet_true = _make_manual_wallet(
+            addresses=["addr_true"], include_wallet_tokens=True
+        )
+        wallet_false = _make_manual_wallet(
+            addresses=["addr_false"], include_wallet_tokens=False
+        )
+        wallet_port = MockCryptoWalletPort([wallet_true, wallet_false])
+        fetcher = MockCryptoEntityFetcher()
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        flag_by_address = {}
+        for call in fetcher.fetch_calls:
+            for addr in call.addresses:
+                flag_by_address[addr] = call.include_wallet_tokens
+
+        assert flag_by_address["addr_true"] is True
+        assert flag_by_address["addr_false"] is False
+
+        # One request per distinct flag value, not needlessly split further.
+        assert {call.include_wallet_tokens for call in fetcher.fetch_calls} == {
+            True,
+            False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_single_request_when_all_wallets_share_flag_value(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet_a = _make_manual_wallet(addresses=["addr_a"], include_wallet_tokens=True)
+        wallet_b = _make_manual_wallet(addresses=["addr_b"], include_wallet_tokens=True)
+        wallet_port = MockCryptoWalletPort([wallet_a, wallet_b])
+        fetcher = MockCryptoEntityFetcher()
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+        )
+
+        await use_case.execute(
+            FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+        )
+
+        assert len(fetcher.fetch_calls) == 1
+        first_call = fetcher.fetch_calls[0]
+        assert first_call.include_wallet_tokens is True
+        assert set(first_call.addresses) == {"addr_a", "addr_b"}

@@ -12,6 +12,18 @@ from infrastructure.client.crypto.blockcypher.blockcypher_client import (
 )
 from infrastructure.client.crypto.space.space_client import SpaceClient
 
+# Zerion chain id, so positions from both providers share a grouping key.
+CHAIN = "litecoin"
+
+
+def _set_chain(results: CryptoFetchResults) -> CryptoFetchResults:
+    for result in results.results.values():
+        if result is None:
+            continue
+        for asset in result.assets:
+            asset.chain = CHAIN
+    return results
+
 
 class LitecoinFetcher(CryptoEntityFetcher):
     TTL = 60
@@ -24,6 +36,9 @@ class LitecoinFetcher(CryptoEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
+        return _set_chain(await self._fetch_positions(request))
+
+    async def _fetch_positions(self, request: CryptoFetchRequest) -> CryptoFetchResults:
         results: CryptoFetchResults | None = None
 
         try:

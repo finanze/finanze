@@ -57,6 +57,7 @@ async def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
             address_source=source,
             xpub=xpub,
             script_type=script_type,
+            include_wallet_tokens=bool(body.get("includeWalletTokens", False)),
         )
     )
     return jsonify(response), 200

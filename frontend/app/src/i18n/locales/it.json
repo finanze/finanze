@@ -228,6 +228,18 @@
       "viewModes": {
         "wallets": "Per wallet",
         "network": "Per origine"
+      },
+      "defi": {
+        "title": "Posizioni DeFi",
+        "unknownProtocol": "Altro",
+        "chainLabel": "Rete",
+        "roles": {
+          "SUPPLIED": "Fornito",
+          "BORROWED": "Preso in prestito",
+          "STAKED": "In staking",
+          "LP": "Pool di liquidità",
+          "REWARD": "Ricompensa"
+        }
       }
     },
     "derivatives": {
@@ -1095,6 +1107,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configura la tua API Zerion per recuperare le posizioni DeFi e dei wallet su numerose reti EVM.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API Zerion",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Registrati sul "
+            },
+            {
+              "type": "link",
+              "label": "portale sviluppatori di Zerion",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (è disponibile un piano gratuito), crea una chiave API e incollala qui sotto."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",
@@ -1870,7 +1904,8 @@
       "addressDuplicate": "Indirizzo duplicato. Rimuovilo o modificalo prima di continuare.",
       "maxAddresses": "Puoi aggiungere fino a 10 indirizzi per wallet.",
       "allFailed": "Non siamo riusciti ad aggiungere nessuno degli indirizzi. Rivedi gli errori sottostanti.",
-      "generic": "Impossibile aggiungere il wallet. Riprova."
+      "generic": "Impossibile aggiungere il wallet. Riprova.",
+      "integrationFieldRequired": "Questo campo è obbligatorio."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Questo indirizzo è già connesso.",
@@ -1883,6 +1918,14 @@
       "partialSuccessSingle": "1 indirizzo aggiunto con successo.",
       "partialSuccessMultiple": "{count} indirizzi aggiunti con successo.",
       "allFailed": "Nessun indirizzo è stato aggiunto."
+    },
+    "includeWalletTokens": {
+      "label": "Traccia anche i token del wallet",
+      "description": "Includi i saldi dei token del wallet oltre alle posizioni DeFi. Disattiva se tracci questi wallet altrove."
+    },
+    "integrationSetup": {
+      "heading": "Configurazione di {integration} richiesta",
+      "helper": "Necessario per connettersi tramite questo provider."
     },
     "submit": "Aggiungi wallet",
     "derived": {

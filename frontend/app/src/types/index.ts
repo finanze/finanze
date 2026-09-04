@@ -599,6 +599,7 @@ export interface CreateCryptoWalletRequest {
   source: AddressSource
   xpub?: string | null
   script_type?: ScriptType | null
+  includeWalletTokens?: boolean
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -830,6 +831,10 @@ export interface GoogleIntegrationCredentials {
 }
 
 export interface EtherscanIntegrationData {
+  api_key: string
+}
+
+export interface ZerionIntegrationData {
   api_key: string
 }
 

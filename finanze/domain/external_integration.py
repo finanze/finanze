@@ -19,6 +19,7 @@ class ExternalIntegrationId(str, Enum):
     GOOGLE_SHEETS = "GOOGLE_SHEETS"
     ETHERSCAN = "ETHERSCAN"
     ETHPLORER = "ETHPLORER"
+    ZERION = "ZERION"
     GOCARDLESS = "GOCARDLESS"
     ENABLE_BANKING = "ENABLE_BANKING"
     COINGECKO = "COINGECKO"
@@ -67,6 +68,9 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
         "api_key": "API Key",
     },
     ExternalIntegrationId.ETHPLORER: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.ZERION: {
         "api_key": "API Key",
     },
     ExternalIntegrationId.GOCARDLESS: {

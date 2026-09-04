@@ -278,6 +278,15 @@ export enum CryptoCurrencyType {
   TOKEN = "TOKEN",
 }
 
+export enum CryptoPositionType {
+  HOLDING = "HOLDING",
+  SUPPLIED = "SUPPLIED",
+  BORROWED = "BORROWED",
+  STAKED = "STAKED",
+  LP = "LP",
+  REWARD = "REWARD",
+}
+
 export interface CryptoAsset {
   id: string
   name: string
@@ -295,6 +304,10 @@ export interface CryptoCurrencyPosition {
   type: CryptoCurrencyType
   crypto_asset?: CryptoAsset | null
   contract_address?: string | null
+  chain?: string
+  protocol?: string
+  position_type?: CryptoPositionType
+  icon_url?: string
   market_value?: number | null
   currency?: string | null
   initial_investment?: number | null
