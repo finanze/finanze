@@ -128,6 +128,7 @@ async def test_get_gains_timeline_maps_query_and_serializes_response():
                         "index": 120.0,
                     }
                 },
+                "estimated": False,
             }
         ],
     }

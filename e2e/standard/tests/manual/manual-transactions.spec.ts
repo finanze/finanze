@@ -100,7 +100,10 @@ async function selectCustomDropdown(
     const section = dialog.locator(`label[for="${labelFor}"]`).locator('..')
     await section.locator('.cursor-pointer').first().click()
     await page.waitForTimeout(200)
-    await section.getByText(optionText, { exact: true }).click()
+    await section
+        .getByRole('listbox')
+        .getByRole('option', { name: optionText, exact: true })
+        .click()
     await page.waitForTimeout(200)
 }
 

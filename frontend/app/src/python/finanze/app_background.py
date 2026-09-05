@@ -373,8 +373,10 @@ class MobileBackgroundApp:
                 if result.opening_value is not None
                 else None
             ),
-            "warnings": result.warnings,
-            "not_applicable_reasons": result.not_applicable_reasons,
+            "warnings": [warning.value for warning in result.warnings],
+            "not_applicable_reasons": [
+                reason.value for reason in result.not_applicable_reasons
+            ],
             "points": [
                 {
                     "date": point.date.isoformat(),
@@ -383,6 +385,7 @@ class MobileBackgroundApp:
                         product_type: serialize_metrics(metrics)
                         for product_type, metrics in point.breakdown.items()
                     },
+                    "estimated": point.estimated,
                 }
                 for point in result.points
             ],

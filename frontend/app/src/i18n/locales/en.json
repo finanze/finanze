@@ -1250,10 +1250,18 @@
     "to": "To",
     "clear": "Clear",
     "ranges": {
-      "ALL": "All",
+      "4Y": "4Y",
       "1Y": "1Y",
       "YTD": "YTD",
       "1M": "1M"
+    },
+    "warningsTitle": "Accuracy notes",
+    "warnings": {
+      "UNRECONCILED_FLOWS": "Some movements could not be valued or matched, so the results may be incomplete.",
+      "REPLAYED_POSITIONS": "Some positions were rebuilt from transactions.",
+      "INFERRED_FLOWS": "Some movements were deduced from changes in quantity or cost, so contributions and returns are estimates.",
+      "ORPHAN_SELLS": "Some sales have no matching purchase and were left out of the gain, so the position history is incomplete.",
+      "PARTIAL_COST_BASIS": "Some positions have no recorded cost, so the gain only covers those that do."
     }
   },
   "export": {
@@ -1746,8 +1754,8 @@
       "SUBSCRIPTION": "Subscription",
       "SWAP_FROM": "S. Swap From",
       "SWAP_TO": "S. Swap To",
-      "TRANSFER_IN": "F. Transfer In",
-      "TRANSFER_OUT": "F. Transfer Out",
+      "TRANSFER_IN": "Transfer In",
+      "TRANSFER_OUT": "Transfer Out",
       "SWITCH_FROM": "F. Switch From",
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",

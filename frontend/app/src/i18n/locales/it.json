@@ -1249,10 +1249,18 @@
     "to": "A",
     "clear": "Cancella",
     "ranges": {
-      "ALL": "Tutto",
+      "4Y": "4A",
       "1Y": "1A",
       "YTD": "YTD",
       "1M": "1M"
+    },
+    "warningsTitle": "Note sull'accuratezza",
+    "warnings": {
+      "UNRECONCILED_FLOWS": "Alcuni movimenti non sono stati valorizzati o abbinati, quindi i risultati possono essere incompleti.",
+      "REPLAYED_POSITIONS": "Alcune posizioni sono state ricostruite dalle transazioni.",
+      "INFERRED_FLOWS": "Alcuni movimenti sono stati dedotti da variazioni di quantità o costo, quindi versamenti e rendimenti sono stime.",
+      "ORPHAN_SELLS": "Alcune vendite non hanno un acquisto corrispondente e sono state escluse dal guadagno, quindi lo storico della posizione è incompleto.",
+      "PARTIAL_COST_BASIS": "Alcune posizioni non hanno un costo registrato, quindi il guadagno copre solo quelle che ce l'hanno."
     }
   },
   "export": {
@@ -1741,8 +1749,8 @@
       "SUBSCRIPTION": "Sottoscrizione",
       "SWAP_FROM": "Swap Origine",
       "SWAP_TO": "Swap Destinazione",
-      "TRANSFER_IN": "Trasf. F. Entrata",
-      "TRANSFER_OUT": "Trasf. F. Uscita",
+      "TRANSFER_IN": "Trasf. Entrata",
+      "TRANSFER_OUT": "Trasf. Uscita",
       "SWITCH_FROM": "Switch F. Origine",
       "SWITCH_TO": "Switch F. Destinazione",
       "INVESTMENT": "Investimento",
