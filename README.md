@@ -83,7 +83,7 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 | Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
 | Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending        |
-| Freedom24           | ✅              | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
+| Freedom24           | ✅              | -     | -     | Stocks         | -        | -          | -                   | ❌     | ❌    |                     |
 | Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
 | ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
 | Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
