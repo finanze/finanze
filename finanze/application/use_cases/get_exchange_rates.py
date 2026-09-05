@@ -396,29 +396,31 @@ class GetExchangeRatesImpl(GetExchangeRates):
     async def _get_position_crypto_identifiers(
         self,
     ) -> tuple[set[str], set[str]]:
-        crypto_entity_positions = await self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(products=[ProductType.CRYPTO])
+        entity_positions = await self._position_port.get_last_grouped_by_entity(
+            PositionQueryRequest(products=[ProductType.CRYPTO, ProductType.ACCOUNT])
         )
         native_symbols: set[str] = set()
-
-        token_addresses: set[str] = {PUSD_CONTRACT_ADDRESS}
-        for position in crypto_entity_positions.values():
-            if ProductType.CRYPTO not in position.products:
-                continue
-            for wallet in position.products[ProductType.CRYPTO].entries:
-                for asset in wallet.assets:
-                    if (
-                        asset.symbol
-                        and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
-                    ):
-                        continue
-                    if (
-                        asset.type == CryptoCurrencyType.TOKEN
-                        and asset.contract_address
-                    ):
-                        token_addresses.add(asset.contract_address.lower())
-                    elif asset.symbol:
-                        native_symbols.add(asset.symbol.upper())
+        token_addresses: set[str] = set()
+        for position in entity_positions.values():
+            if ProductType.CRYPTO in position.products:
+                for wallet in position.products[ProductType.CRYPTO].entries:
+                    for asset in wallet.assets:
+                        if (
+                            asset.symbol
+                            and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
+                        ):
+                            continue
+                        if (
+                            asset.type == CryptoCurrencyType.TOKEN
+                            and asset.contract_address
+                        ):
+                            token_addresses.add(asset.contract_address.lower())
+                        elif asset.symbol:
+                            native_symbols.add(asset.symbol.upper())
+            if ProductType.ACCOUNT in position.products:
+                for account in position.products[ProductType.ACCOUNT].entries:
+                    if account.currency and account.currency.upper() == PUSD_SYMBOL:
+                        token_addresses.add(PUSD_CONTRACT_ADDRESS)
         return native_symbols, token_addresses
 
     async def _get_crypto_price_map(
