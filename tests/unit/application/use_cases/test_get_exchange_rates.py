@@ -11,6 +11,9 @@ from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.global_position import (
+    Account,
+    Accounts,
+    AccountType,
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
@@ -48,6 +51,27 @@ def _make_token_position(symbol, contract_address):
         type=CryptoCurrencyType.TOKEN,
         contract_address=contract_address,
     )
+
+
+def _make_pusd_account():
+    return Account(
+        id=uuid4(),
+        total=Dezimal("100"),
+        currency="pUSD",
+        type=AccountType.VIRTUAL_WALLET,
+    )
+
+
+def _position_port_with(products):
+    entity = _make_entity()
+    gp = GlobalPosition(
+        id=uuid4(),
+        entity=entity,
+        products=products,
+    )
+    position_port = AsyncMock()
+    position_port.get_last_grouped_by_entity = AsyncMock(return_value={entity: gp})
+    return position_port
 
 
 async def _run_jobs_sequentially(jobs, timeout):
@@ -164,8 +188,7 @@ class TestIgnoredCryptoSymbols:
         await uc.execute(initial_load=False)
 
         crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
-        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert addresses_arg == [PUSD_CONTRACT_ADDRESS]
+        crypto_provider.get_prices_by_addresses.assert_not_called()
 
 
 class TestCryptoRateKeying:
@@ -237,7 +260,7 @@ class TestCryptoRateKeying:
 
         crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert set(addresses_arg) == {"0xabc123", PUSD_CONTRACT_ADDRESS}
+        assert addresses_arg == ["0xabc123"]
         assert matrix["EUR"]["0xabc123"] == Dezimal(1) / Dezimal("50000")
         assert "BTCB" not in matrix["EUR"]
 
@@ -279,7 +302,7 @@ class TestCryptoRateKeying:
         matrix = await uc.execute(initial_load=False)
 
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert set(addresses_arg) == {"0xaaa", "0xbbb", PUSD_CONTRACT_ADDRESS}
+        assert set(addresses_arg) == {"0xaaa", "0xbbb"}
         assert matrix["EUR"]["0xaaa"] == Dezimal(1) / Dezimal("50000")
         assert matrix["EUR"]["0xbbb"] == Dezimal(1) / Dezimal("0.06")
 
@@ -322,7 +345,7 @@ class TestCryptoRateKeying:
         symbols_arg = crypto_provider.get_multiple_prices_by_symbol.call_args[0][0]
         addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
         assert symbols_arg == ["BTC"]
-        assert set(addresses_arg) == {"0xaaa", PUSD_CONTRACT_ADDRESS}
+        assert addresses_arg == ["0xaaa"]
         assert matrix["EUR"]["BTC"] == Dezimal(1) / Dezimal("50000")
         assert matrix["EUR"]["0xaaa"] == Dezimal(1) / Dezimal("0.06")
 
@@ -333,8 +356,55 @@ class TestPusdRate:
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
         return position_port
 
+    def _pusd_account_position_port(self):
+        return _position_port_with(
+            {ProductType.ACCOUNT: Accounts(entries=[_make_pusd_account()])}
+        )
+
     @pytest.mark.asyncio
-    async def test_pusd_is_priced_without_any_crypto_position(self):
+    async def test_pusd_is_not_fetched_without_account(self):
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+
+        uc = _build_use_case(
+            position_port=self._empty_position_port(),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        await uc.execute(initial_load=False)
+
+        crypto_provider.get_multiple_prices_by_symbol.assert_not_called()
+        crypto_provider.get_prices_by_addresses.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pusd_aliases_usdc_from_base_matrix_without_account(self):
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(
+            return_value={
+                "EUR": {"USD": Dezimal("1.15"), "USDC": Dezimal("1.158")},
+                "USD": {"EUR": Dezimal("0.86"), "USDC": Dezimal("1.001")},
+            }
+        )
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            position_port=self._empty_position_port(),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=False)
+
+        crypto_provider.get_prices_by_addresses.assert_not_called()
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal("1.158")
+        assert matrix["USD"][PUSD_SYMBOL] == Dezimal("1.001")
+
+    @pytest.mark.asyncio
+    async def test_pusd_account_fetches_contract_price(self):
         crypto_provider = AsyncMock()
         crypto_provider.set_base_fiat_rates = MagicMock()
         crypto_provider.get_prices_by_addresses = AsyncMock(
@@ -347,7 +417,7 @@ class TestPusdRate:
         )
 
         uc = _build_use_case(
-            position_port=self._empty_position_port(),
+            position_port=self._pusd_account_position_port(),
             crypto_asset_info_provider=crypto_provider,
             job_scheduler=_run_jobs_sequentially,
         )
@@ -359,6 +429,43 @@ class TestPusdRate:
         assert addresses_arg == [PUSD_CONTRACT_ADDRESS]
         assert matrix["EUR"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.86")
         assert matrix["USD"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.999")
+
+    @pytest.mark.asyncio
+    async def test_pusd_account_batches_with_other_token_addresses(self):
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_prices_by_addresses = AsyncMock(
+            return_value={
+                "0xabc123": {"EUR": Dezimal("50000")},
+                PUSD_CONTRACT_ADDRESS: {"EUR": Dezimal("0.86")},
+            }
+        )
+
+        uc = _build_use_case(
+            position_port=_position_port_with(
+                {
+                    ProductType.CRYPTO: CryptoCurrencies(
+                        entries=[
+                            CryptoCurrencyWallet(
+                                id=uuid4(),
+                                assets=[_make_token_position("BTCB", "0xAbC123")],
+                            )
+                        ]
+                    ),
+                    ProductType.ACCOUNT: Accounts(entries=[_make_pusd_account()]),
+                }
+            ),
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=False)
+
+        crypto_provider.get_prices_by_addresses.assert_called_once()
+        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
+        assert set(addresses_arg) == {"0xabc123", PUSD_CONTRACT_ADDRESS}
+        assert matrix["EUR"]["0xabc123"] == Dezimal(1) / Dezimal("50000")
+        assert matrix["EUR"][PUSD_SYMBOL] == Dezimal(1) / Dezimal("0.86")
 
     @pytest.mark.asyncio
     async def test_pusd_falls_back_to_usdc_when_price_is_missing(self):
@@ -376,13 +483,14 @@ class TestPusdRate:
 
         uc = _build_use_case(
             exchange_rates_provider=exchange_rates_provider,
-            position_port=self._empty_position_port(),
+            position_port=self._pusd_account_position_port(),
             crypto_asset_info_provider=crypto_provider,
             job_scheduler=_run_jobs_sequentially,
         )
 
         matrix = await uc.execute(initial_load=False)
 
+        crypto_provider.get_prices_by_addresses.assert_called_once()
         assert matrix["EUR"][PUSD_SYMBOL] == Dezimal("1.158")
         assert matrix["USD"][PUSD_SYMBOL] == Dezimal("1.001")
 
@@ -390,7 +498,7 @@ class TestPusdRate:
     async def test_quoted_pusd_price_is_not_overwritten_by_fallback(self):
         exchange_rates_provider = AsyncMock()
         exchange_rates_provider.get_matrix = AsyncMock(
-            return_value={"EUR": {"USD": Dezimal("1.15")}}
+            return_value={"EUR": {"USD": Dezimal("1.15"), "USDC": Dezimal("1.158")}}
         )
 
         crypto_provider = AsyncMock()
@@ -401,7 +509,7 @@ class TestPusdRate:
 
         uc = _build_use_case(
             exchange_rates_provider=exchange_rates_provider,
-            position_port=self._empty_position_port(),
+            position_port=self._pusd_account_position_port(),
             crypto_asset_info_provider=crypto_provider,
             job_scheduler=_run_jobs_sequentially,
         )
