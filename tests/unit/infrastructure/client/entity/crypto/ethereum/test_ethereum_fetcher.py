@@ -73,12 +73,12 @@ def _assert_ethereum_positions(result):
 
     assert native.symbol == "ETH"
     assert native.balance == Dezimal("1.5")
-    assert native.chain == "ethereum"
+    assert native.chain == "1"
 
     assert token.symbol == "USDT"
     assert token.contract_address == TOKEN_CONTRACT.lower()
     assert token.balance == Dezimal("2.5")
-    assert token.chain == "ethereum"
+    assert token.chain == "1"
 
 
 class TestEthereumFetcherChain:

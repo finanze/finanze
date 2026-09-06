@@ -15,7 +15,6 @@ from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from infrastructure.client.http.backoff import http_get_with_backoff
 
-# Zerion chain id, so positions from both providers share a grouping key.
 CHAIN = "tron"
 
 

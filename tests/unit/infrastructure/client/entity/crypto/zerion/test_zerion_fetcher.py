@@ -303,7 +303,7 @@ class TestZerionFetcherOffMode:
 
         deposit = assets["aUSDC"]
         assert deposit.position_type == CryptoPositionType.SUPPLIED
-        assert deposit.chain == "ethereum"
+        assert deposit.chain == "1"
         assert deposit.protocol == "Aave V3"
         assert deposit.contract_address == AUSDC_CONTRACT
         assert deposit.type == CryptoCurrencyType.TOKEN
@@ -438,7 +438,7 @@ class TestZerionFetcherReceiptDedupEdgeCases:
         pairs = {(a.symbol, a.chain) for a in result.results[FAKE_ADDRESS].assets}
         # The polygon holding shares the address of the ethereum receipt but is
         # a different chain, so it must be kept.
-        assert ("TOK", "polygon") in pairs
+        assert ("TOK", "137") in pairs
 
 
 class TestZerionFetcherNativeToken:
@@ -718,8 +718,8 @@ class TestZerionFetcherReceiptKeysByParentChain:
         result = await fetcher.fetch(_request(include_wallet_tokens=True))
 
         pairs = {(a.symbol, a.chain) for a in result.results[FAKE_ADDRESS].assets}
-        assert ("TOK", "polygon") in pairs
-        assert ("TOK", "ethereum") not in pairs
+        assert ("TOK", "137") in pairs
+        assert ("TOK", "1") not in pairs
 
     @pytest.mark.asyncio
     async def test_malformed_receipt_subobject_does_not_abort_fetch(self):

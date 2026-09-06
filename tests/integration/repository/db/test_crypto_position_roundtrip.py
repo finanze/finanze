@@ -68,7 +68,12 @@ async def repo():
 
 
 @pytest.mark.asyncio
-async def test_defi_position_round_trips_labels_and_negative_value(repo):
+@pytest.mark.parametrize(
+    "legacy_chain",
+    [None, "ethereum", " ETHEREUM "],
+    ids=["write", "legacy", "legacy-case"],
+)
+async def test_defi_position_round_trips_labels_and_negative_value(repo, legacy_chain):
     entity = Entity(
         id=uuid4(),
         name="Aave",
@@ -109,12 +114,22 @@ async def test_defi_position_round_trips_labels_and_negative_value(repo):
 
     await repo.save(position)
 
+    if legacy_chain is not None:
+        async with repo._db_client.tx() as cursor:
+            await cursor.execute(
+                "UPDATE crypto_currency_positions SET chain = ?", (legacy_chain,)
+            )
+    else:
+        async with repo._db_client.read() as cursor:
+            await cursor.execute("SELECT chain FROM crypto_currency_positions")
+            assert (await cursor.fetchone())["chain"] == "1"
+
     loaded = await repo._get_all_cryptocurrency([position])
     assets = loaded[gp_id].entries[0].assets
 
     assert len(assets) == 1
     loaded_pos = assets[0]
-    assert loaded_pos.chain == "ethereum"
+    assert loaded_pos.chain == "1"
     assert loaded_pos.protocol == "Aave V3"
     assert loaded_pos.position_type == CryptoPositionType.BORROWED
     assert loaded_pos.market_value == Dezimal("-50")

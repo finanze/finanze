@@ -19,6 +19,7 @@ import {
   formatPercentage,
 } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
+import { formatChainName, normalizeCryptoChain } from "@/utils/cryptoChains"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
@@ -94,38 +95,6 @@ import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
 const normalizeDerivativeCurrency = (currency: string) =>
   STABLECOIN_CURRENCIES[currency] || currency
-
-const CHAIN_DISPLAY_NAMES: Record<string, string> = {
-  ethereum: "Ethereum",
-  base: "Base",
-  celo: "Celo",
-  polygon: "Polygon",
-  arbitrum: "Arbitrum",
-  optimism: "Optimism",
-  avalanche: "Avalanche",
-  bsc: "BNB Chain",
-  "binance-smart-chain": "BNB Chain",
-  fantom: "Fantom",
-  gnosis: "Gnosis",
-  zksync: "zkSync",
-  "zksync-era": "zkSync Era",
-  linea: "Linea",
-  scroll: "Scroll",
-  blast: "Blast",
-  solana: "Solana",
-}
-
-const formatChainName = (chain: string): string => {
-  const normalized = chain.trim().toLowerCase()
-  if (CHAIN_DISPLAY_NAMES[normalized]) {
-    return CHAIN_DISPLAY_NAMES[normalized]
-  }
-  return normalized
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ")
-}
 
 interface WalletAssetView {
   asset: CryptoCurrencyPosition
@@ -757,7 +726,7 @@ function CryptoInvestmentContent({
                   ? effectiveAsset.contract_address.toLowerCase()
                   : null
                 const normalizedChain =
-                  effectiveAsset.chain?.toLowerCase() ?? "nochain"
+                  normalizeCryptoChain(effectiveAsset.chain) ?? "nochain"
                 const tokenKey =
                   contractAddress ??
                   effectiveAsset.crypto_asset?.id?.toLowerCase() ??
@@ -933,13 +902,14 @@ function CryptoInvestmentContent({
           const rateKey = getCryptoRateKey(
             draft as unknown as CryptoCurrencyPosition,
           )
+          const normalizedChain = normalizeCryptoChain(draft.chain) ?? "nochain"
           const groupingKey = isDefi
-            ? `defi:${draft.protocol ?? "unknown"}:${draft.position_type ?? "OTHER"}:${
+            ? `defi:${normalizedChain}:${draft.protocol ?? "unknown"}:${draft.position_type ?? "OTHER"}:${
                 draft.contract_address?.toLowerCase() || symbol || draft.localId
               }`
             : isToken
-              ? `token:${draft.contract_address?.toLowerCase() || draft.localId}`
-              : `native:${symbol || draft.localId}`
+              ? `token:${normalizedChain}:${draft.contract_address?.toLowerCase() || draft.localId}`
+              : `native:${normalizedChain}:${symbol || draft.localId}`
 
           let value = 0
           let valueAvailable = false

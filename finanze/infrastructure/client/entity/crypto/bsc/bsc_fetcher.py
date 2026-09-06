@@ -9,8 +9,7 @@ from infrastructure.client.crypto.etherscan.etherscan_fetcher import EtherscanFe
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.ethplorer.ethplorer_fetcher import EthplorerFetcher
 
-# Zerion chain id, so positions from both providers share a grouping key.
-CHAIN = "binance-smart-chain"
+CHAIN = "56"
 
 
 def _set_chain(results: CryptoFetchResults) -> CryptoFetchResults:

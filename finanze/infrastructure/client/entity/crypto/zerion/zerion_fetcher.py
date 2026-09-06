@@ -10,6 +10,7 @@ from domain.crypto import (
     CryptoFetchResults,
     CryptoPositionType,
 )
+from domain.crypto_chain import normalize_crypto_chain
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, ExternalIntegrationRequired
 from domain.external_integration import ExternalIntegrationId
@@ -140,7 +141,7 @@ class ZerionFetcher(CryptoEntityFetcher):
             type=asset_type,
             name=name,
             contract_address=contract_address,
-            chain=chain,
+            chain=normalize_crypto_chain(chain),
             protocol=protocol,
             position_type=position_type,
             market_value=market_value,
@@ -149,8 +150,8 @@ class ZerionFetcher(CryptoEntityFetcher):
         )
 
     @staticmethod
-    def _receipt_contract_keys(raw_items: list[dict]) -> set[tuple[str, str]]:
-        receipt_keys: set[tuple[str, str]] = set()
+    def _receipt_contract_keys(raw_items: list[dict]) -> set[tuple[str | None, str]]:
+        receipt_keys: set[tuple[str | None, str]] = set()
         for item in raw_items:
             attributes = item["attributes"]
             if attributes.get("position_type") == "wallet":
@@ -180,7 +181,7 @@ class ZerionFetcher(CryptoEntityFetcher):
                     and isinstance(address, str)
                     and address
                 ):
-                    receipt_keys.add((chain, address.lower()))
+                    receipt_keys.add((normalize_crypto_chain(chain), address.lower()))
 
         return receipt_keys
 

@@ -8,7 +8,6 @@ from domain.crypto import (
 from domain.dezimal import Dezimal
 from infrastructure.client.crypto.blockchain.blockchain_client import BlockchainClient
 
-# Zerion chain id, so positions from both providers share a grouping key.
 CHAIN = "bitcoin"
 
 

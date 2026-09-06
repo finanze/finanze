@@ -12,7 +12,6 @@ from infrastructure.client.crypto.blockcypher.blockcypher_client import (
 )
 from infrastructure.client.crypto.space.space_client import SpaceClient
 
-# Zerion chain id, so positions from both providers share a grouping key.
 CHAIN = "litecoin"
 
 

@@ -71,12 +71,12 @@ def _assert_bsc_positions(result):
 
     assert native.symbol == "BNB"
     assert native.balance == Dezimal("2")
-    assert native.chain == "binance-smart-chain"
+    assert native.chain == "56"
 
     assert token.symbol == "BUSD"
     assert token.contract_address == TOKEN_CONTRACT.lower()
     assert token.balance == Dezimal("3")
-    assert token.chain == "binance-smart-chain"
+    assert token.chain == "56"
 
 
 class TestBSCFetcherChain:

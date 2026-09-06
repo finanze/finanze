@@ -11,6 +11,7 @@ from domain.crypto import (
     CryptoPositionType,
     CryptoWallet,
 )
+from domain.crypto_chain import normalize_crypto_chain
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -322,7 +323,7 @@ async def _save_crypto_currencies(
                         if crypto_position.crypto_asset
                         else None
                     ),
-                    crypto_position.chain,
+                    normalize_crypto_chain(crypto_position.chain),
                     crypto_position.protocol,
                     (
                         crypto_position.position_type.value
@@ -1200,7 +1201,7 @@ class PositionSQLRepository(PositionPort):
                     ),
                     currency=row["currency"],
                     contract_address=row["contract_address"],
-                    chain=row["chain"],
+                    chain=normalize_crypto_chain(row["chain"]),
                     protocol=row["protocol"],
                     position_type=CryptoPositionType(row["position_type"]),
                     icon_url=row["icon_url"],
