@@ -11,6 +11,9 @@ class NoopErrorReporter(ErrorReporterPort):
     def set_context(self, context: TelemetryContext):
         pass
 
+    def set_user(self, user_hash: Optional[str]):
+        pass
+
     def capture_exception(
         self,
         exc: BaseException,

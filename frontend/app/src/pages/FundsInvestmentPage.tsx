@@ -1420,6 +1420,7 @@ function FundsInvestmentPageContent({
 }
 
 export default function FundsInvestmentPage() {
+  throw new Error("TELEMETRY_TEST: FundsInvestmentPage open")
   return (
     <ManualPositionsManager asset="funds">
       <FundsContextBridge />

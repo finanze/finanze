@@ -29,7 +29,6 @@ describe("telemetry consent store", () => {
     const consent = await loadConsent()
 
     expect(consent.errorReporting).toBe(false)
-    expect(consent.sessionReplay).toBe(false)
     expect(consent.installId).toBeTruthy()
     expect(localStorage.getItem(TELEMETRY_CONSENT_KEY)).toContain(
       consent.installId,
@@ -42,22 +41,10 @@ describe("telemetry consent store", () => {
     const initial = await loadConsent()
     const saved = await saveConsent({
       errorReporting: true,
-      sessionReplay: true,
     })
 
     expect(saved.installId).toBe(initial.installId)
-    expect(saved.sessionReplay).toBe(true)
-  })
-
-  it("forces session replay off when error reporting is off", async () => {
-    const { saveConsent } = await importConsent()
-
-    const saved = await saveConsent({
-      errorReporting: false,
-      sessionReplay: true,
-    })
-
-    expect(saved.sessionReplay).toBe(false)
+    expect(saved.errorReporting).toBe(true)
   })
 
   it("recovers from a corrupt stored value", async () => {

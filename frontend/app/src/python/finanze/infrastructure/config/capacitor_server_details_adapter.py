@@ -15,12 +15,16 @@ def _resolve_version() -> str:
 
 
 class CapacitorServerDetailsAdapter(ServerDetailsPort):
-    def __init__(self, operative_system: OS):
+    def __init__(self, operative_system: OS, os_version: str | None = None):
         self._os = operative_system
+        self._os_version = os_version
 
     async def get_backend_details(self) -> BackendDetails:
         return BackendDetails(
-            version=_resolve_version(), options=BackendOptions(), platform_type=self._os
+            version=_resolve_version(),
+            options=BackendOptions(),
+            platform_type=self._os,
+            platform_version=self._os_version,
         )
 
     def get_os(self) -> OS:

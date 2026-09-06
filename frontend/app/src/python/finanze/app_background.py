@@ -2,7 +2,7 @@ import logging
 
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from domain.exchange_rate import ExchangeRates
-from domain.platform import OS
+from domain.platform import OS, parse_os
 from domain.user import User
 
 
@@ -50,9 +50,7 @@ class MobileBackgroundApp:
 
         configure_logging()
 
-        self.operative_system = (
-            OS(operative_system.upper()) if operative_system else None
-        )
+        self.operative_system = parse_os(operative_system)
 
         from domain import position_aggregation
 

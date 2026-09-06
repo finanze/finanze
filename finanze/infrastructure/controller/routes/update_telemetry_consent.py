@@ -11,7 +11,6 @@ async def update_telemetry_consent(update_telemetry_consent_uc: UpdateTelemetryC
 
     consent = TelemetryConsent(
         error_reporting=body.get("errorReporting") is True,
-        session_replay=body.get("sessionReplay") is True,
     )
 
     saved = await update_telemetry_consent_uc.execute(consent)
@@ -19,7 +18,6 @@ async def update_telemetry_consent(update_telemetry_consent_uc: UpdateTelemetryC
     return jsonify(
         {
             "errorReporting": saved.error_reporting,
-            "sessionReplay": saved.session_replay,
             "installId": str(saved.install_id) if saved.install_id else None,
         }
     ), 200

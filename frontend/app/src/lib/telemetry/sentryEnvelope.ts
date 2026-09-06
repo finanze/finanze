@@ -1,17 +1,36 @@
 export interface SentryStackFrame {
   filename?: string
+  abs_path?: string
   function?: string
   lineno?: number
+  colno?: number
+  in_app?: boolean
   context_line?: string
+  vars?: Record<string, string>
 }
 
-export interface SentryExceptionPayload {
+export interface SentryExceptionValue {
   type: string
   value: string
-  level?: "error" | "warning" | "info"
   frames?: SentryStackFrame[]
+}
+
+export interface SentryExceptionPayload extends SentryExceptionValue {
+  level?: "error" | "warning" | "info"
   tags?: Record<string, string>
   extra?: Record<string, unknown>
+  causes?: SentryExceptionValue[]
+}
+
+export interface SentryDebugImage {
+  type: "sourcemap"
+  code_file: string
+  debug_id: string
+}
+
+export interface SentryOsContext {
+  name: string
+  version?: string
 }
 
 export interface SentryEventOptions {
@@ -19,7 +38,9 @@ export interface SentryEventOptions {
   environment?: string
   release?: string
   installId?: string
-  serverName?: string
+  userId?: string
+  osContext?: SentryOsContext
+  debugImages?: SentryDebugImage[]
 }
 
 interface ParsedDsn {
@@ -54,27 +75,37 @@ export function buildEvent(
   payload: SentryExceptionPayload,
   options: SentryEventOptions,
 ): Record<string, unknown> {
+  const values = [...(payload.causes ?? []), payload].map(value => ({
+    type: value.type,
+    value: value.value,
+    stacktrace: value.frames?.length ? { frames: value.frames } : undefined,
+  }))
+
   const event: Record<string, unknown> = {
     event_id: randomEventId(),
     timestamp: Date.now() / 1000,
     platform: options.platform,
     level: payload.level ?? "error",
-    exception: {
-      values: [
-        {
-          type: payload.type,
-          value: payload.value,
-          stacktrace: payload.frames?.length
-            ? { frames: payload.frames }
-            : undefined,
-        },
-      ],
-    },
+    exception: { values },
   }
 
   if (options.environment) event.environment = options.environment
   if (options.release) event.release = options.release
-  if (options.installId) event.user = { id: options.installId }
+  // The install id is the only identifier always available, so it stays the
+  // primary one; the hashed user id is only known once logged in.
+  const identity = options.installId ?? options.userId
+  if (identity) {
+    event.user = {
+      id: identity,
+      ...(options.userId ? { user_id: options.userId } : {}),
+    }
+  }
+  if (options.debugImages?.length) {
+    event.debug_meta = { images: options.debugImages }
+  }
+  if (options.osContext) {
+    event.contexts = { os: options.osContext }
+  }
   if (payload.tags) event.tags = payload.tags
   if (payload.extra) event.extra = payload.extra
 
@@ -108,8 +139,12 @@ export async function sendEvent(
       headers: { "Content-Type": "application/x-sentry-envelope" },
       body,
     })
+    if (!response.ok) {
+      console.warn("[Telemetry] Report rejected by ingest", response.status)
+    }
     return response.ok
-  } catch {
+  } catch (error) {
+    console.warn("[Telemetry] Report could not be delivered", error)
     return false
   }
 }

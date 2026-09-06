@@ -32,36 +32,17 @@ class TestUpdateTelemetryConsent:
         reporter = MagicMock()
         use_case = UpdateTelemetryConsentImpl(port, reporter)
 
-        saved = await use_case.execute(
-            TelemetryConsent(error_reporting=True, session_replay=True)
-        )
+        saved = await use_case.execute(TelemetryConsent(error_reporting=True))
 
         assert saved.error_reporting is True
-        assert saved.session_replay is True
         assert saved.install_id == install_id
         assert saved.updated_at is not None
         port.save.assert_awaited_once()
         reporter.set_enabled.assert_called_once_with(True)
 
     @pytest.mark.asyncio
-    async def test_session_replay_requires_error_reporting(self):
-        port = _consent_port(TelemetryConsent(install_id=uuid4()))
-        use_case = UpdateTelemetryConsentImpl(port, MagicMock())
-
-        saved = await use_case.execute(
-            TelemetryConsent(error_reporting=False, session_replay=True)
-        )
-
-        assert saved.error_reporting is False
-        assert saved.session_replay is False
-
-    @pytest.mark.asyncio
     async def test_disabling_stops_the_reporter(self):
-        port = _consent_port(
-            TelemetryConsent(
-                error_reporting=True, session_replay=True, install_id=uuid4()
-            )
-        )
+        port = _consent_port(TelemetryConsent(error_reporting=True, install_id=uuid4()))
         reporter = MagicMock()
         use_case = UpdateTelemetryConsentImpl(port, reporter)
 

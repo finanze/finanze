@@ -3,6 +3,7 @@ from typing import Optional
 
 from application.ports.error_reporter_port import ErrorReporterPort
 from domain.exception.reporting import is_reportable
+from domain.platform import OS_NAMES
 from domain.telemetry import TelemetryContext, TelemetryLevel
 from infrastructure.telemetry.scrubbing import scrub, scrub_text
 
@@ -44,6 +45,12 @@ class SentryErrorReporter(ErrorReporterPort):
 
     def set_context(self, context: TelemetryContext):
         self._context = context
+        if self._started:
+            self._apply_context()
+
+    def set_user(self, user_hash: Optional[str]):
+        if self._context:
+            self._context.user_hash = user_hash
         if self._started:
             self._apply_context()
 
@@ -137,10 +144,29 @@ class SentryErrorReporter(ErrorReporterPort):
             scope.set_tag("component", "backend")
             if context.operative_system:
                 scope.set_tag("platform_os", context.operative_system.value)
+                scope.set_context(
+                    "os",
+                    {
+                        "name": OS_NAMES[context.operative_system],
+                        "version": context.os_version,
+                    },
+                )
+            if context.os_version:
+                scope.set_tag("os_version", context.os_version)
+            if context.distribution:
+                scope.set_tag("distribution", context.distribution.value)
+
+            user = {}
             if context.install_id:
-                scope.set_user({"id": str(context.install_id)})
+                user["id"] = str(context.install_id)
             if context.user_hash:
-                scope.set_tag("user_hash", context.user_hash)
+                user["user_id"] = context.user_hash
+            scope.set_user(user or None)
+
+            if context.user_hash:
+                scope.set_tag("user_id", context.user_hash)
+            else:
+                scope.remove_tag("user_id")
         except Exception:
             self._log.debug("Failed to apply telemetry context", exc_info=True)
 

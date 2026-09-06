@@ -524,8 +524,10 @@
   },
   "errorBoundary": {
     "title": "Algo ha salido mal",
-    "description": "La aplicación ha encontrado un error inesperado. Tus datos están a salvo, recargar suele solucionarlo.",
-    "reload": "Recargar"
+    "description": "La aplicación ha encontrado un error inesperado. Tus datos están a salvo. Reinicia si persiste.",
+    "pageDescription": "Esta página ha encontrado un error inesperado. Tus datos están a salvo. Reinicia si persiste.",
+    "goToDashboard": "Ir al panel",
+    "restart": "Reiniciar"
   },
   "entities": {
     "title": "Integraciones",
@@ -716,9 +718,6 @@
       "description": "Todo esto está desactivado por defecto y permanece en este dispositivo salvo que lo actives.",
       "errorReportingLabel": "Enviar informes de errores",
       "errorReportingDescription": "Comparte informes anónimos de fallos y errores para poder corregirlos. Los importes, datos de cuentas y datos personales se eliminan antes de enviarlos.",
-      "sessionReplayLabel": "Incluir repetición de sesión",
-      "sessionReplayDescription": "Graba una repetición anonimizada de las pantallas previas a un error. Los textos y cifras se enmascaran. Requiere activar los informes de errores.",
-      "restartRequired": "Reinicia la aplicación para detener por completo el envío ya iniciado en esta sesión.",
       "installId": "ID de instalación"
     },
     "cloud": {

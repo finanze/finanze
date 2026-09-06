@@ -1,29 +1,19 @@
-import { BS_ENVIRONMENT, BS_FRONTEND_TOKEN } from "@/env"
 import { getApiClient } from "@/services/apiClient"
 
-import { isTagLoaded, loadTag } from "./betterstackTag"
 import { loadConsent, saveConsent, type TelemetryConsent } from "./consent"
+import {
+  initRendererTelemetry,
+  reportError,
+  setTelemetryContext,
+} from "./renderer"
 
 export type { TelemetryConsent } from "./consent"
 export { getCachedConsent, loadConsent } from "./consent"
-export { reportError } from "./betterstackTag"
-
-function applyConsent(consent: TelemetryConsent): void {
-  if (!consent.errorReporting || isTagLoaded()) return
-
-  loadTag({
-    token: BS_FRONTEND_TOKEN,
-    environment: BS_ENVIRONMENT,
-    release: __APP_VERSION__,
-    sessionReplay: consent.sessionReplay,
-    installId: consent.installId,
-  })
-}
+export { reportError, setTelemetryContext }
 
 async function propagateConsent(consent: TelemetryConsent): Promise<void> {
   const payload = {
     errorReporting: consent.errorReporting,
-    sessionReplay: consent.sessionReplay,
   }
 
   try {
@@ -45,22 +35,16 @@ async function propagateConsent(consent: TelemetryConsent): Promise<void> {
 
 export async function initTelemetry(): Promise<TelemetryConsent> {
   const consent = await loadConsent()
-  applyConsent(consent)
+  await initRendererTelemetry()
   return consent
 }
 
 export async function updateTelemetryConsent(consent: {
   errorReporting: boolean
-  sessionReplay: boolean
 }): Promise<TelemetryConsent> {
   const saved = await saveConsent(consent)
 
   await propagateConsent(saved)
-  applyConsent(saved)
 
   return saved
-}
-
-export function requiresRestartToDisable(consent: TelemetryConsent): boolean {
-  return !consent.errorReporting && isTagLoaded()
 }

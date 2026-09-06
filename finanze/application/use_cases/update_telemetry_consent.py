@@ -18,10 +18,8 @@ class UpdateTelemetryConsentImpl(UpdateTelemetryConsent):
     async def execute(self, consent: TelemetryConsent) -> TelemetryConsent:
         current = await self._consent_port.get()
 
-        error_reporting = consent.error_reporting
         updated = TelemetryConsent(
-            error_reporting=error_reporting,
-            session_replay=consent.session_replay and error_reporting,
+            error_reporting=consent.error_reporting,
             install_id=current.install_id,
             updated_at=datetime.now().astimezone(),
         )

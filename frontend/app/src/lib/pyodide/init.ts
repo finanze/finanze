@@ -91,10 +91,12 @@ async function ensureCoreInitialized() {
 
     const t2 = performance.now()
     const platformType = (window as any)?.platform?.type
+    const osVersion = (window as any)?.platform?.osVersion
     await callPythonFunction(
       "init",
       "initialize",
       typeof platformType === "string" ? platformType : null,
+      typeof osVersion === "string" ? osVersion : null,
     )
     logInfo(
       `Python init.initialize done in ${(performance.now() - t2).toFixed(0)}ms`,

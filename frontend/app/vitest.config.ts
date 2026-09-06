@@ -5,6 +5,7 @@ export default defineConfig({
   define: {
     __MOBILE__: JSON.stringify(false),
     __CONNECTIONS__: JSON.stringify(false),
+    __APP_VERSION__: JSON.stringify("test"),
   },
   resolve: {
     alias: {

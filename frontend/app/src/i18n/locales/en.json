@@ -526,8 +526,10 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "description": "The application ran into an unexpected error. Your data is safe, reloading usually fixes it.",
-    "reload": "Reload"
+    "description": "The application ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "pageDescription": "This page ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "goToDashboard": "Go to dashboard",
+    "restart": "Restart"
   },
   "entities": {
     "title": "Integrations",
@@ -717,9 +719,6 @@
       "description": "Everything here is off by default and stays on this device unless you turn it on.",
       "errorReportingLabel": "Send error reports",
       "errorReportingDescription": "Share anonymous crash and error reports so bugs can be fixed. Amounts, account details and personal data are removed before sending.",
-      "sessionReplayLabel": "Include session replay",
-      "sessionReplayDescription": "Record an anonymised replay of the screens leading to an error. Text and figures are masked. Requires error reports to be enabled.",
-      "restartRequired": "Restart the application to fully stop the reporting already running in this session.",
       "installId": "Installation ID"
     },
     "cloud": {

@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from domain.platform import OS
+from domain.platform import OS, Distribution
 
 
 class TelemetryLevel(str, Enum):
@@ -16,7 +16,6 @@ class TelemetryLevel(str, Enum):
 @dataclass
 class TelemetryConsent:
     error_reporting: bool = False
-    session_replay: bool = False
     install_id: Optional[UUID] = None
     updated_at: Optional[datetime] = None
 
@@ -26,5 +25,7 @@ class TelemetryContext:
     environment: str
     release: Optional[str] = None
     operative_system: Optional[OS] = None
+    os_version: Optional[str] = None
+    distribution: Optional[Distribution] = None
     install_id: Optional[UUID] = None
     user_hash: Optional[str] = None

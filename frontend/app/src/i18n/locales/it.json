@@ -525,8 +525,10 @@
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
-    "description": "L'applicazione ha riscontrato un errore inatteso. I tuoi dati sono al sicuro, ricaricare di solito risolve.",
-    "reload": "Ricarica"
+    "description": "L'applicazione ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "pageDescription": "Questa pagina ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "goToDashboard": "Vai alla dashboard",
+    "restart": "Riavvia"
   },
   "entities": {
     "title": "Integrazioni",
@@ -716,9 +718,6 @@
       "description": "Tutto qui è disattivato per impostazione predefinita e resta su questo dispositivo se non lo attivi.",
       "errorReportingLabel": "Invia segnalazioni di errore",
       "errorReportingDescription": "Condividi segnalazioni anonime di crash ed errori per poterli correggere. Importi, dati dei conti e dati personali vengono rimossi prima dell'invio.",
-      "sessionReplayLabel": "Includi il replay della sessione",
-      "sessionReplayDescription": "Registra un replay anonimizzato delle schermate che precedono un errore. Testi e cifre vengono mascherati. Richiede le segnalazioni di errore attive.",
-      "restartRequired": "Riavvia l'applicazione per interrompere completamente l'invio già avviato in questa sessione.",
       "installId": "ID di installazione"
     },
     "cloud": {

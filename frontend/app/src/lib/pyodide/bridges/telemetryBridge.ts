@@ -5,6 +5,7 @@ import {
   buildEvent,
   sendEvent,
   type SentryExceptionPayload,
+  type SentryOsContext,
 } from "@/lib/telemetry/sentryEnvelope"
 
 async function capture(payload: string): Promise<void> {
@@ -16,6 +17,8 @@ async function capture(payload: string): Promise<void> {
 
     const parsed = JSON.parse(payload) as SentryExceptionPayload & {
       release?: string
+      user_id?: string
+      os?: SentryOsContext | null
     }
 
     const event = buildEvent(parsed, {
@@ -23,6 +26,8 @@ async function capture(payload: string): Promise<void> {
       environment: BS_ENVIRONMENT,
       release: parsed.release,
       installId: consent.installId,
+      userId: parsed.user_id,
+      osContext: parsed.os ?? undefined,
     })
 
     await sendEvent(BS_MOBILE_BACKEND_DSN, event)
@@ -33,4 +38,5 @@ async function capture(payload: string): Promise<void> {
 
 export const telemetryBridge = {
   capture,
+  environment: BS_ENVIRONMENT,
 }

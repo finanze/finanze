@@ -72,7 +72,6 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
   setTelemetryConsent: (consent: {
     errorReporting: boolean
-    sessionReplay: boolean
     installId?: string
   }) => ipcRenderer.invoke("telemetry-consent", consent) as Promise<void>,
 

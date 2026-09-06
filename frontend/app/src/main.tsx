@@ -14,8 +14,8 @@ import { DataDisplayModeProvider } from "@/context/DataDisplayModeContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
 import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
 import { initE2eMockChallengeWindow } from "@/lib/dev/initE2eMockChallengeWindow"
-import * as mobile from "@/lib/mobile"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import * as mobile from "@/lib/mobile"
 import { initTelemetry } from "@/lib/telemetry"
 
 async function bootstrap(): Promise<void> {
@@ -33,7 +33,7 @@ async function bootstrap(): Promise<void> {
       <ThemeProvider>
         <DataDisplayModeProvider>
           <I18nProvider>
-            <ErrorBoundary>
+            <ErrorBoundary scope="app">
               <ModalRegistryProvider>
                 <AuthProvider>
                   <AppProvider>

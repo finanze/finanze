@@ -204,7 +204,9 @@ from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.config.server_details_adapter import (
     ServerDetailsAdapter,
+    detect_distribution,
     detect_os,
+    detect_os_version,
     resolve_version,
 )
 from infrastructure.controller.config import quart
@@ -326,6 +328,8 @@ class FinanzeServer:
                 environment=os.getenv("FINANZE_ENVIRONMENT", "production"),
                 release=resolve_version(),
                 operative_system=detect_os(),
+                os_version=detect_os_version(),
+                distribution=detect_distribution(),
                 install_id=consent.install_id,
             )
         )
@@ -492,6 +496,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         register_user = RegisterUserImpl(
             db_manager,
@@ -499,6 +504,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
         server_options_port = ServerDetailsAdapter(args)
@@ -522,6 +528,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(

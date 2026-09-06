@@ -20,30 +20,18 @@ import {
 export function PrivacyCard() {
   const { t } = useI18n()
   const [consent, setConsent] = useState<TelemetryConsent | null>(null)
-  const [restartRequired, setRestartRequired] = useState(false)
 
   useEffect(() => {
     loadConsent().then(setConsent).catch(console.error)
   }, [])
 
-  const apply = useCallback(
-    async (errorReporting: boolean, sessionReplay: boolean) => {
-      const previous = consent
-      try {
-        const saved = await updateTelemetryConsent({
-          errorReporting,
-          sessionReplay,
-        })
-        setConsent(saved)
-        if (previous?.errorReporting && !saved.errorReporting) {
-          setRestartRequired(true)
-        }
-      } catch (error) {
-        console.error("Failed to update telemetry consent:", error)
-      }
-    },
-    [consent],
-  )
+  const apply = useCallback(async (errorReporting: boolean) => {
+    try {
+      setConsent(await updateTelemetryConsent({ errorReporting }))
+    } catch (error) {
+      console.error("Failed to update telemetry consent:", error)
+    }
+  }, [])
 
   if (!consent) return null
 
@@ -74,36 +62,9 @@ export function PrivacyCard() {
             <Switch
               data-testid="telemetry-error-reporting"
               checked={consent.errorReporting}
-              onCheckedChange={checked =>
-                apply(checked, checked && consent.sessionReplay)
-              }
+              onCheckedChange={checked => apply(checked)}
             />
           </div>
-
-          <div className="flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
-                {t.settings.privacy.sessionReplayLabel}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {t.settings.privacy.sessionReplayDescription}
-              </p>
-            </div>
-            <Switch
-              data-testid="telemetry-session-replay"
-              checked={consent.sessionReplay}
-              disabled={!consent.errorReporting}
-              onCheckedChange={checked =>
-                apply(consent.errorReporting, checked)
-              }
-            />
-          </div>
-
-          {restartRequired && (
-            <p className="text-xs text-muted-foreground">
-              {t.settings.privacy.restartRequired}
-            </p>
-          )}
 
           <p className="font-mono text-[0.6rem] text-muted-foreground">
             {t.settings.privacy.installId}: {consent.installId}

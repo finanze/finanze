@@ -387,7 +387,6 @@ app.whenReady().then(async () => {
       _,
       value: {
         errorReporting: boolean
-        sessionReplay: boolean
         installId?: string
       },
     ) => {

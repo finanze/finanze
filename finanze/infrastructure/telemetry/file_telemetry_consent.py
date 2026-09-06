@@ -25,7 +25,6 @@ class FileTelemetryConsent(TelemetryConsentPort):
 
         consent = TelemetryConsent(
             error_reporting=bool(raw.get("error_reporting", False)),
-            session_replay=bool(raw.get("session_replay", False)),
             install_id=UUID(install_id) if install_id else None,
             updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
         )
@@ -42,7 +41,6 @@ class FileTelemetryConsent(TelemetryConsentPort):
 
         payload = {
             "error_reporting": consent.error_reporting,
-            "session_replay": consent.session_replay,
             "install_id": str(consent.install_id),
             "updated_at": consent.updated_at.isoformat()
             if consent.updated_at

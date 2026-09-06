@@ -38,7 +38,6 @@ class CapacitorTelemetryConsent(TelemetryConsentPort):
 
         return TelemetryConsent(
             error_reporting=data.get("errorReporting") is True,
-            session_replay=data.get("sessionReplay") is True,
             install_id=parsed_id,
             updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
         )
@@ -49,7 +48,6 @@ class CapacitorTelemetryConsent(TelemetryConsentPort):
 
         payload = {
             "errorReporting": consent.error_reporting,
-            "sessionReplay": consent.session_replay,
             "installId": str(consent.install_id),
             "updatedAt": consent.updated_at.isoformat() if consent.updated_at else None,
         }

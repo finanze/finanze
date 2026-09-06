@@ -15,6 +15,9 @@ class FakeErrorReporter(ErrorReporterPort):
     def set_context(self, context):
         pass
 
+    def set_user(self, user_hash):
+        pass
+
     def capture_exception(self, exc, *, tags=None, extra=None, level=None):
         self.captured.append((exc, tags))
 

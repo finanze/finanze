@@ -14,6 +14,10 @@ class ErrorReporterPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def set_user(self, user_hash: Optional[str]):
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def capture_exception(
         self,
         exc: BaseException,

@@ -1,10 +1,11 @@
+import os
 import platform
 from argparse import Namespace
 from pathlib import Path
 from typing import Optional
 
 from application.ports.server_details_port import ServerDetailsPort
-from domain.platform import OS
+from domain.platform import OS, Distribution
 from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 
@@ -32,15 +33,55 @@ def detect_os() -> OS | None:
     return None
 
 
+def detect_os_version() -> Optional[str]:
+    system = platform.system().upper()
+
+    if system == "DARWIN":
+        version = platform.mac_ver()[0]
+    elif system == "WINDOWS":
+        release, version, *_ = platform.win32_ver()
+        version = f"{release} {version}".strip() if release else version
+    else:
+        version = platform.release()
+
+    return version or None
+
+
+def detect_distribution() -> Distribution:
+    declared = os.getenv("FINANZE_DISTRIBUTION")
+    if declared:
+        try:
+            return Distribution(declared.lower())
+        except ValueError:
+            pass
+
+    if Path("/.dockerenv").exists():
+        return Distribution.DOCKER
+
+    # Images built outside our Dockerfile leave no marker other than the init cgroup.
+    try:
+        cgroup = Path("/proc/1/cgroup").read_text()
+        if "docker" in cgroup or "containerd" in cgroup or "kubepods" in cgroup:
+            return Distribution.DOCKER
+    except OSError:
+        pass
+
+    return Distribution.DESKTOP
+
+
 class ServerDetailsAdapter(ServerDetailsPort):
     def __init__(self, args: Namespace):
         self._os = detect_os()
+        self._os_version = detect_os_version()
         self._args = args
 
     async def get_backend_details(self) -> BackendDetails:
         options = self._build_options()
         return BackendDetails(
-            version=resolve_version(), options=options, platform_type=self._os
+            version=resolve_version(),
+            options=options,
+            platform_type=self._os,
+            platform_version=self._os_version,
         )
 
     def _build_options(self) -> BackendOptions:

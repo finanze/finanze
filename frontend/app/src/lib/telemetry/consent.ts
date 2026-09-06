@@ -6,7 +6,6 @@ export const TELEMETRY_CONSENT_KEY = "telemetry_consent"
 
 export interface TelemetryConsent {
   errorReporting: boolean
-  sessionReplay: boolean
   installId: string
 }
 
@@ -15,7 +14,6 @@ let cached: TelemetryConsent | null = null
 function defaultConsent(): TelemetryConsent {
   return {
     errorReporting: false,
-    sessionReplay: false,
     installId: crypto.randomUUID(),
   }
 }
@@ -29,7 +27,6 @@ function parse(raw: string | null): TelemetryConsent | null {
 
     return {
       errorReporting: parsed.errorReporting === true,
-      sessionReplay: parsed.sessionReplay === true,
       installId:
         typeof parsed.installId === "string" && parsed.installId
           ? parsed.installId
@@ -79,7 +76,6 @@ export async function saveConsent(
   const current = await loadConsent()
   const updated: TelemetryConsent = {
     errorReporting: consent.errorReporting,
-    sessionReplay: consent.sessionReplay && consent.errorReporting,
     installId: current.installId,
   }
 

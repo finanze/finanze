@@ -101,6 +101,7 @@ import {
 } from "../types/transactions"
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
+import { setTelemetryContext } from "@/lib/telemetry"
 import { AppSettings } from "@/context/AppContext"
 import {
   triggerDeferredInit,
@@ -272,6 +273,13 @@ export async function checkStatus(
   }
 
   const result = await (await getApiClient()).get<StatusResponse>("/status")
+
+  setTelemetryContext({
+    userId: result.user?.id,
+    backendVersion: result.server?.version,
+    backendOs: result.server?.platform_type,
+    backendOsVersion: result.server?.platform_version,
+  })
 
   triggerDeferredInit()
 

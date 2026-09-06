@@ -62,3 +62,18 @@ class TestUserLogoutExecute:
         sheets_initiator.disconnect.assert_called_once()
         cloud_register.disconnect.assert_called_once()
         source_initiator.lock.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_execute_clears_telemetry_user(self):
+        error_reporter = MagicMock()
+        use_case = UserLogoutImpl(
+            source_initiator=AsyncMock(),
+            config_port=AsyncMock(),
+            sheets_initiator=MagicMock(),
+            cloud_register=AsyncMock(),
+            error_reporter=error_reporter,
+        )
+
+        await use_case.execute()
+
+        error_reporter.set_user.assert_called_once_with(None)

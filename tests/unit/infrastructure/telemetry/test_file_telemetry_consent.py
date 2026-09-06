@@ -18,7 +18,6 @@ class TestFileTelemetryConsent:
         consent = await adapter.get()
 
         assert consent.error_reporting is False
-        assert consent.session_replay is False
         assert consent.install_id is not None
         assert (tmp_path / FILE_NAME).exists()
 
@@ -37,14 +36,11 @@ class TestFileTelemetryConsent:
         updated_at = datetime.now().astimezone()
 
         await adapter.save(
-            TelemetryConsent(
-                error_reporting=True, session_replay=True, updated_at=updated_at
-            )
+            TelemetryConsent(error_reporting=True, updated_at=updated_at)
         )
         stored = await adapter.get()
 
         assert stored.error_reporting is True
-        assert stored.session_replay is True
         assert stored.updated_at == updated_at
 
     @pytest.mark.asyncio

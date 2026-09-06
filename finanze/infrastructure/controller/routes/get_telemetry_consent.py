@@ -7,7 +7,6 @@ async def get_telemetry_consent(get_telemetry_consent_uc: GetTelemetryConsent):
     return jsonify(
         {
             "errorReporting": consent.error_reporting,
-            "sessionReplay": consent.session_replay,
             "installId": str(consent.install_id) if consent.install_id else None,
         }
     ), 200

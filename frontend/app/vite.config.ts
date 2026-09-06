@@ -1,7 +1,8 @@
-import { rmSync, statSync, createReadStream } from "node:fs"
+import { rmSync, statSync, createReadStream, readFileSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
+import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { resolve, sep } from "node:path"
 import { createRequire } from "node:module"
 import pkg from "./package.json"
@@ -56,11 +57,20 @@ export default defineConfig(({ command, mode }) => {
     ? (require("vite-plugin-electron/simple") as { default: any }).default
     : null
 
+  // npm_package_version is unset under `pnpm exec`, which package.py uses.
+  const appVersion: string = JSON.parse(
+    readFileSync(resolve(__dirname, "package.json"), "utf-8"),
+  ).version
+
+  // Stack traces reaching Better Stack are minified unless the maps are uploaded.
+  const sourceMapAuthToken = env.BETTER_STACK_API_TOKEN
+  const uploadSourceMaps = isBuild && !!sourceMapAuthToken
+
   return {
     define: {
       __MOBILE__: JSON.stringify(isMobile),
       __CONNECTIONS__: JSON.stringify(includeConnections),
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      __APP_VERSION__: JSON.stringify(appVersion),
     },
     resolve: {
       alias: {
@@ -76,9 +86,7 @@ export default defineConfig(({ command, mode }) => {
                 entry: "electron/main/index.ts",
                 vite: {
                   define: {
-                    __APP_VERSION__: JSON.stringify(
-                      process.env.npm_package_version,
-                    ),
+                    __APP_VERSION__: JSON.stringify(appVersion),
                     __BS_ELECTRON_MAIN_DSN__: JSON.stringify(
                       env.VITE_BS_ELECTRON_MAIN_DSN ?? "",
                     ),
@@ -91,13 +99,29 @@ export default defineConfig(({ command, mode }) => {
                     ),
                   },
                   build: {
-                    sourcemap,
+                    sourcemap: uploadSourceMaps ? "hidden" : sourcemap,
                     minify: isBuild,
                     outDir: "dist-electron/main",
                     rollupOptions: {
                       external: electronExternals,
                     },
                   },
+                  plugins: uploadSourceMaps
+                    ? [
+                        sentryVitePlugin({
+                          org: env.BETTER_STACK_SOURCEMAP_ORG,
+                          project: env.BETTER_STACK_SOURCEMAP_PROJECT,
+                          url: env.BETTER_STACK_SOURCEMAP_URL,
+                          authToken: sourceMapAuthToken,
+                          release: { name: appVersion },
+                          sourcemaps: {
+                            filesToDeleteAfterUpload: [
+                              "dist-electron/main/**/*.map",
+                            ],
+                          },
+                        }),
+                      ]
+                    : [],
                 },
               },
               preload: {
@@ -291,6 +315,20 @@ export default defineConfig(({ command, mode }) => {
           )
         },
       },
+      ...(uploadSourceMaps
+        ? [
+            sentryVitePlugin({
+              org: env.BETTER_STACK_SOURCEMAP_ORG,
+              project: env.BETTER_STACK_SOURCEMAP_PROJECT,
+              url: env.BETTER_STACK_SOURCEMAP_URL,
+              authToken: sourceMapAuthToken,
+              release: { name: appVersion },
+              sourcemaps: {
+                filesToDeleteAfterUpload: ["dist/**/*.map"],
+              },
+            }),
+          ]
+        : []),
     ],
     // Pyodide worker uses code-splitting; Rollup can't emit multi-chunk IIFE/UMD.
     // Force ES module output for worker bundles.
@@ -298,6 +336,7 @@ export default defineConfig(({ command, mode }) => {
       format: "es",
     },
     build: {
+      sourcemap: uploadSourceMaps ? "hidden" : sourcemap,
       rollupOptions: {
         input: {
           main: resolve(__dirname, "index.html"),

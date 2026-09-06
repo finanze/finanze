@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { SwipeBackGesture } from "./SwipeBackGesture"
 import { useModalRegistry } from "@/context/ModalRegistryContext"
 import { canNavigateBack } from "@/lib/mobile/backNavigation"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -111,6 +112,10 @@ function LayoutContent({ children }: LayoutProps) {
     resetScroll()
   }
 
+  if (location.pathname === "/export") {
+    throw new Error("TELEMETRY_TEST: layout")
+  }
+
   return (
     <>
       <BackButtonHandler />
@@ -140,7 +145,9 @@ function LayoutContent({ children }: LayoutProps) {
                   : "pb-[max(1.5rem,var(--safe-area-inset-bottom,0px))]",
               )}
             >
-              {children}
+              <ErrorBoundary resetKey={location.pathname}>
+                {children}
+              </ErrorBoundary>
             </motion.div>
           </SwipeBackGesture>
         </main>

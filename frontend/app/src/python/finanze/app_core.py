@@ -12,12 +12,15 @@ from infrastructure.config.capacitor_server_details_adapter import (
     CapacitorServerDetailsAdapter,
 )
 from infrastructure.client.features.feature_flag_client import FeatureFlagClient
-from infrastructure.telemetry.bridge_error_reporter import BridgeErrorReporter
+from infrastructure.telemetry.bridge_error_reporter import (
+    BridgeErrorReporter,
+    get_environment,
+)
 from infrastructure.telemetry.capacitor_telemetry_consent import (
     CapacitorTelemetryConsent,
 )
 
-from domain.platform import OS
+from domain.platform import OS, Distribution, parse_os
 from domain.telemetry import TelemetryContext
 
 from application.use_cases.get_status import GetStatusImpl
@@ -34,6 +37,7 @@ class MobileAppCore:
         self.log = logging.getLogger(__name__)
         self._router = Router()
         self.operative_system: OS | None = None
+        self.os_version: str | None = None
         self._deferred: "DeferredComponents | None" = None
         self._deferred_ready = asyncio.Event()
         self._deferred_loading = False
@@ -77,10 +81,11 @@ class MobileAppCore:
         await self._lazy_ready.wait()
         return self._lazy
 
-    async def initialize(self, operative_system: str | None = None):
-        self.operative_system = (
-            OS(operative_system.upper()) if operative_system else None
-        )
+    async def initialize(
+        self, operative_system: str | None = None, os_version: str | None = None
+    ):
+        self.operative_system = parse_os(operative_system)
+        self.os_version = os_version
 
         self.db_client = CapacitorDBClient()
         self.db_manager = CapacitorDBManager(self.db_client)
@@ -88,7 +93,9 @@ class MobileAppCore:
 
         users = await self.data_manager.get_users()
 
-        server_details = CapacitorServerDetailsAdapter(self.operative_system)
+        server_details = CapacitorServerDetailsAdapter(
+            self.operative_system, self.os_version
+        )
         self.ff_client = FeatureFlagClient(
             users=users, operative_system=server_details.get_os()
         )
@@ -128,9 +135,11 @@ class MobileAppCore:
         details = await server_details.get_backend_details()
         self.error_reporter.set_context(
             TelemetryContext(
-                environment="production",
+                environment=get_environment(),
                 release=details.version,
                 operative_system=self.operative_system,
+                os_version=self.os_version,
+                distribution=Distribution.MOBILE,
                 install_id=consent.install_id,
             )
         )
