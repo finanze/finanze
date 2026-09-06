@@ -66,6 +66,14 @@ export default defineConfig(({ command, mode }) => {
   const sourceMapAuthToken = env.BETTER_STACK_API_TOKEN
   const uploadSourceMaps = isBuild && !!sourceMapAuthToken
 
+  if (isBuild) {
+    console.log(
+      uploadSourceMaps
+        ? `[sourcemaps] uploading to Better Stack (release ${appVersion})`
+        : "[sourcemaps] upload skipped, BETTER_STACK_API_TOKEN is not set",
+    )
+  }
+
   return {
     define: {
       __MOBILE__: JSON.stringify(isMobile),
