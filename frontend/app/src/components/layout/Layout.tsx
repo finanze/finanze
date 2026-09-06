@@ -112,10 +112,6 @@ function LayoutContent({ children }: LayoutProps) {
     resetScroll()
   }
 
-  if (location.pathname === "/export") {
-    throw new Error("TELEMETRY_TEST: layout")
-  }
-
   return (
     <>
       <BackButtonHandler />
