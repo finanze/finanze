@@ -46,10 +46,18 @@ vi.mock("@/i18n", () => ({
         to: "To",
         clear: "Clear",
         ranges: {
-          ALL: "All",
+          "4Y": "4Y",
           "1Y": "1Y",
           YTD: "YTD",
           "1M": "1M",
+        },
+        warningsTitle: "Accuracy notes",
+        warnings: {
+          UNRECONCILED_FLOWS: "Some movements could not be valued.",
+          REPLAYED_POSITIONS: "Some positions were rebuilt from transactions.",
+          INFERRED_FLOWS: "Some movements were deduced.",
+          ORPHAN_SELLS: "Some sales have no matching purchase.",
+          PARTIAL_COST_BASIS: "Some positions have no recorded cost.",
         },
       },
     },
@@ -392,7 +400,37 @@ describe("InvestmentEvolutionTimeline", () => {
     expect(await screen.findByText(/still in beta/)).toBeVisible()
   })
 
-  it("warns about the slow first load only while ALL is loading", async () => {
+  it("translates warning codes in the accuracy popover", async () => {
+    setDesktop(true)
+    api.getGainsTimeline.mockResolvedValue({
+      ...timeline(),
+      warnings: ["REPLAYED_POSITIONS", "ORPHAN_SELLS"],
+    })
+
+    render(<InvestmentEvolutionTimeline query={query} currency="EUR" />)
+
+    const trigger = await screen.findByTestId("evolution-timeline-warnings")
+    fireEvent.click(trigger)
+
+    expect(
+      await screen.findByText("Some positions were rebuilt from transactions."),
+    ).toBeVisible()
+    expect(
+      screen.getByText("Some sales have no matching purchase."),
+    ).toBeVisible()
+  })
+
+  it("hides the accuracy popover when there are no warnings", async () => {
+    setDesktop(true)
+    api.getGainsTimeline.mockResolvedValue(timeline())
+
+    render(<InvestmentEvolutionTimeline query={query} currency="EUR" />)
+
+    await waitFor(() => expect(api.getGainsTimeline).toHaveBeenCalledTimes(1))
+    expect(screen.queryByTestId("evolution-timeline-warnings")).toBeNull()
+  })
+
+  it("warns about the slow first load only while 4Y is loading", async () => {
     setDesktop(true)
     let resolveTimeline: (value: GainsTimeline) => void = () => {}
     api.getGainsTimeline.mockReturnValue(
@@ -409,7 +447,7 @@ describe("InvestmentEvolutionTimeline", () => {
     ).toBeVisible()
     expect(screen.queryByTestId("evolution-timeline-slow-hint")).toBeNull()
 
-    fireEvent.click(screen.getByTestId("evolution-timeline-period-ALL"))
+    fireEvent.click(screen.getByTestId("evolution-timeline-period-4Y"))
 
     expect(
       await screen.findByTestId("evolution-timeline-slow-hint"),

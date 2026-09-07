@@ -84,6 +84,7 @@ async def test_parses_asset_filter_and_serializes_gains_timeline():
                 "period_return": 0.2,
                 "index": 120.0,
                 "breakdown": {},
+                "estimated": False,
             }
         ],
     }

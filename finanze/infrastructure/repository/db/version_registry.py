@@ -191,6 +191,9 @@ from infrastructure.repository.db.versions.v0.v10.v0100_4_crypto_etp_to_crypto_p
 from infrastructure.repository.db.versions.v0.v10.v0100_5_crypto_defi_zerion import (
     V01005CryptoDefiZerion,
 )
+from infrastructure.repository.db.versions.v0.v10.v0100_6_clear_instrument_negative_cache import (
+    V01006ClearInstrumentNegativeCache,
+)
 
 versions = [
     V0Genesis(),
@@ -268,4 +271,5 @@ versions = [
     V01003InstrumentPriceHistory(),
     V01004CryptoEtpToCryptoPositions(),
     V01005CryptoDefiZerion(),
+    V01006ClearInstrumentNegativeCache(),
 ]

@@ -135,8 +135,10 @@ async def gains_timeline(get_gains_timeline_uc: GetGainsTimeline):
             "xirr": result.xirr,
             "annualized_xirr": result.annualized_xirr,
             "opening_value": result.opening_value,
-            "warnings": result.warnings,
-            "not_applicable_reasons": result.not_applicable_reasons,
+            "warnings": [warning.value for warning in result.warnings],
+            "not_applicable_reasons": [
+                reason.value for reason in result.not_applicable_reasons
+            ],
             "points": [
                 {
                     "date": point.date.isoformat(),
@@ -145,6 +147,7 @@ async def gains_timeline(get_gains_timeline_uc: GetGainsTimeline):
                         product_type: _serialize_metrics(metrics)
                         for product_type, metrics in point.breakdown.items()
                     },
+                    "estimated": point.estimated,
                 }
                 for point in result.points
             ],

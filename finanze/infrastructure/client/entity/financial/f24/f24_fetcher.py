@@ -1,5 +1,6 @@
 import calendar
 import json
+import logging
 import re
 from datetime import date, datetime
 from hashlib import sha1
@@ -19,8 +20,11 @@ from domain.global_position import (
     AccountType,
     Deposit,
     Deposits,
+    EquityType,
     GlobalPosition,
     ProductType,
+    StockDetail,
+    StockInvestments,
 )
 from domain.native_entities import F24
 from domain.transactions import (
@@ -35,6 +39,8 @@ from infrastructure.client.entity.financial.f24.f24_client import F24APIClient
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 DATE_FORMAT = "%Y-%m-%d"
+
+_log = logging.getLogger(__name__)
 
 
 def _map_deposits(off_balance_entries: list) -> list[Deposit]:
@@ -79,6 +85,92 @@ def _get_balance(
     return round(
         Dezimal(money_entries[highest_currency]["avail_money"]), 2
     ), highest_currency
+
+
+def _map_brokerage_cash(position: dict) -> list[Account]:
+    money_entries = (position or {}).get("money_detailed") or {}
+    accounts = []
+    for currency, details in money_entries.items():
+        amount = round(Dezimal(details.get("Smoney") or 0), 2)
+        if amount == Dezimal(0):
+            continue
+        accounts.append(
+            Account(
+                id=uuid4(),
+                type=AccountType.BROKERAGE,
+                total=amount,
+                currency=currency,
+                retained=None,
+                interest=Dezimal(0),
+            )
+        )
+    return accounts
+
+
+def _position_market_value(pos: dict, shares: Dezimal) -> Dezimal:
+    market_value = Dezimal(pos.get("market_value") or 0)
+    mkt_price = Dezimal(pos.get("mkt_price") or 0)
+    if shares > Dezimal(1) and mkt_price > Dezimal(0):
+        per_share_gap = abs(market_value - mkt_price)
+        notional_gap = abs(market_value - shares * mkt_price)
+        if per_share_gap < notional_gap:
+            return market_value * shares
+    return market_value
+
+
+def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
+    stocks = []
+    for pos in raw_positions or []:
+        ticker = pos.get("i") or pos.get("base_contract_code") or ""
+        name = pos.get("name") or pos.get("name2") or ticker or pos.get("instr_id")
+
+        if pos.get("t") not in (None, 1):
+            _log.warning(
+                "Skipping F24 position %s: unsupported type t=%s",
+                name,
+                pos.get("t"),
+            )
+            continue
+
+        shares = Dezimal(pos.get("q") or 0)
+        if shares <= Dezimal(0):
+            _log.warning(
+                "Skipping F24 position %s: non-positive shares q=%s",
+                name,
+                pos.get("q"),
+            )
+            continue
+
+        currency = pos.get("curr") or pos.get("base_currency")
+        if not ticker or not currency:
+            _log.warning(
+                "Skipping F24 position %s: missing ticker or currency ticker=%s currency=%s",
+                name,
+                ticker,
+                currency,
+            )
+            continue
+
+        market_value = round(_position_market_value(pos, shares), 2)
+        market = ticker.rsplit(".", 1)[-1] if "." in ticker else ""
+
+        stocks.append(
+            StockDetail(
+                id=uuid4(),
+                name=pos.get("name") or pos.get("name2") or ticker,
+                ticker=ticker,
+                isin=pos.get("issue_nb") or ticker,
+                shares=shares,
+                market_value=market_value,
+                currency=currency,
+                type=EquityType.STOCK,
+                initial_investment=market_value,
+                average_buy_price=round(market_value / shares, 4),
+                market=market,
+                source=DataSource.REAL,
+            )
+        )
+    return stocks
 
 
 def _parse_interests_from_desc(text: str) -> dict[str, Dezimal]:
@@ -197,12 +289,6 @@ class F24Fetcher(FinancialEntityFetcher):
         if savings_position:
             savings_balance, savings_currency = _get_balance(savings_position, "EUR")
 
-        brokerage_balance, brokerage_currency = None, None
-        if brokerage_position:
-            brokerage_balance, brokerage_currency = _get_balance(
-                brokerage_position, savings_currency
-            )
-
         accounts = []
         if savings_currency and savings_position:
             users = await self._client.get_connected_users_assets()
@@ -234,19 +320,15 @@ class F24Fetcher(FinancialEntityFetcher):
                     )
                 )
 
-        if brokerage_currency and brokerage_position:
-            accounts.append(
-                Account(
-                    id=uuid4(),
-                    type=AccountType.BROKERAGE,
-                    total=brokerage_balance,
-                    currency=brokerage_currency,
-                    retained=None,
-                    interest=Dezimal(0),
-                )
-            )
+        if brokerage_position:
+            accounts.extend(_map_brokerage_cash(brokerage_position))
 
         products = {ProductType.ACCOUNT: Accounts(accounts)}
+
+        if brokerage_position:
+            stocks = _map_stocks(brokerage_position.get("pos"))
+            if stocks:
+                products[ProductType.STOCK_ETF] = StockInvestments(stocks)
 
         if brokerage_position and brokerage_position["offbalance"]:
             off_balance_entries = await self._client.get_off_balance()

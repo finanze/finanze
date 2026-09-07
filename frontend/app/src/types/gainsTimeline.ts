@@ -23,6 +23,15 @@ export type GainsQuality = "COMPLETE" | "ESTIMATED" | "DEGRADED" | "UNAVAILABLE"
 export type GainsBasisStatus =
   "COMPLETE" | "PARTIAL_UNKNOWN" | "UNKNOWN" | "NOT_APPLICABLE"
 
+export type GainsWarning =
+  | "UNRECONCILED_FLOWS"
+  | "REPLAYED_POSITIONS"
+  | "INFERRED_FLOWS"
+  | "ORPHAN_SELLS"
+  | "PARTIAL_COST_BASIS"
+
+export type GainsNotApplicableReason = "IRR_UNVALUED_FLOWS" | "NO_COST_BASIS"
+
 export interface GainsAssetFilter {
   product_type: GainsProductType
   asset_keys?: string[]
@@ -43,6 +52,7 @@ export interface GainsMetrics {
 export interface GainsTimelinePoint extends GainsMetrics {
   date: string
   breakdown: Record<string, GainsMetrics>
+  estimated?: boolean
 }
 
 export interface GainsTimeline {
@@ -54,8 +64,8 @@ export interface GainsTimeline {
   xirr: number | null
   annualized_xirr: number | null
   opening_value: number | null
-  warnings: string[]
-  not_applicable_reasons: string[]
+  warnings: GainsWarning[]
+  not_applicable_reasons: GainsNotApplicableReason[]
   points: GainsTimelinePoint[]
 }
 
