@@ -250,8 +250,7 @@ class TestFetcherPricedPositions:
         assert "GHO" not in symbols_arg
         assert "ETH" not in symbols_arg
 
-        addresses_arg = crypto_provider.get_prices_by_addresses.call_args[0][0]
-        assert "0xghocontract" not in addresses_arg
+        crypto_provider.get_prices_by_addresses.assert_not_called()
 
 
 class TestCryptoRateKeying:
