@@ -407,6 +407,12 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 continue
             for wallet in position.products[ProductType.CRYPTO].entries:
                 for asset in wallet.assets:
+                    if asset.market_value is not None and asset.crypto_asset is None:
+                        # Fetcher-priced positions (e.g. Zerion) carry their own
+                        # market value and are not linked to a crypto asset from
+                        # the price provider, so skip them here to avoid wasted
+                        # CoinGecko requests (and 429s) for coins it cannot price.
+                        continue
                     if (
                         asset.symbol
                         and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS

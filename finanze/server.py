@@ -124,6 +124,7 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
 )
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
+from infrastructure.client.crypto.zerion.zerion_client import ZerionClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
 from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
@@ -133,6 +134,7 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
     LitecoinFetcher,
 )
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
+from infrastructure.client.entity.crypto.zerion.zerion_fetcher import ZerionFetcher
 from infrastructure.client.entity.exchange.binance.binance_fetcher import (
     BinanceFetcher,
 )
@@ -310,6 +312,7 @@ class FinanzeServer:
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
         ethplorer_client = EthplorerClient()
+        zerion_client = ZerionClient()
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
         polymarket_fetcher = PolymarketFetcher()
@@ -322,6 +325,7 @@ class FinanzeServer:
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
             domain.native_entities.BSC: BSCFetcher(etherscan_client, ethplorer_client),
+            domain.native_entities.ZERION: ZerionFetcher(zerion_client),
         }
 
         if os.getenv("E2E_TEST_MODE", "").strip() == "1":
@@ -365,6 +369,7 @@ class FinanzeServer:
             ExternalIntegrationId.GOCARDLESS: gocardless_client,
             ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
+            ExternalIntegrationId.ZERION: zerion_client,
         }
 
         sheets_adapter = SheetsAdapter(sheets_initiator)

@@ -9,6 +9,17 @@ from infrastructure.client.crypto.etherscan.etherscan_fetcher import EtherscanFe
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.ethplorer.ethplorer_fetcher import EthplorerFetcher
 
+CHAIN = "56"
+
+
+def _set_chain(results: CryptoFetchResults) -> CryptoFetchResults:
+    for result in results.results.values():
+        if result is None:
+            continue
+        for asset in result.assets:
+            asset.chain = CHAIN
+    return results
+
 
 class BSCFetcher(CryptoEntityFetcher):
     ETHERSCAN_CHAIN_ID = 56
@@ -35,6 +46,9 @@ class BSCFetcher(CryptoEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     async def fetch(self, request: CryptoFetchRequest) -> CryptoFetchResults:
+        return _set_chain(await self._fetch_positions(request))
+
+    async def _fetch_positions(self, request: CryptoFetchRequest) -> CryptoFetchResults:
         if ExternalIntegrationId.ETHPLORER in request.integrations:
             return await self._binplorer_fetcher.fetch(request)
         elif ExternalIntegrationId.ETHERSCAN in request.integrations:

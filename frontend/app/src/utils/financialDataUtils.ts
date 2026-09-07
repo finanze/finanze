@@ -8,6 +8,7 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  CryptoPositionType,
   DerivativeDetail,
   DerivativePositions,
   MarketForecastDetail,
@@ -196,6 +197,37 @@ export const getCryptoRateKey = (
   return asset.symbol ? asset.symbol.toUpperCase() : null
 }
 
+/**
+ * Discriminator for how a crypto position should be grouped in the UI:
+ * - "defi": the position carries a non-HOLDING role (SUPPLIED/BORROWED/STAKED/LP/REWARD)
+ *   or a protocol, i.e. it isn't a plain wallet balance.
+ * - "token" / "native": falls back to the pre-existing wallet-balance classification
+ *   (contract address / TOKEN type vs. a chain's native coin).
+ */
+export type CryptoPositionKind = "native" | "token" | "defi"
+
+export const classifyCryptoPositionKind = (
+  asset: Pick<
+    CryptoCurrencyPosition,
+    "type" | "contract_address" | "position_type" | "protocol"
+  >,
+): CryptoPositionKind => {
+  const isDefiPosition =
+    (asset.position_type != null &&
+      asset.position_type !== CryptoPositionType.HOLDING) ||
+    Boolean(asset.protocol)
+
+  if (isDefiPosition) {
+    return "defi"
+  }
+
+  const isToken =
+    (asset.type ?? CryptoCurrencyType.NATIVE) === CryptoCurrencyType.TOKEN ||
+    Boolean(asset.contract_address)
+
+  return isToken ? "token" : "native"
+}
+
 export const calculateCryptoValue = (
   amount: number,
   symbol: string,
@@ -239,7 +271,9 @@ export const getWalletAssets = (
       return false
     }
 
-    return hideUnknownTokens ? Boolean(asset.crypto_asset) : true
+    return hideUnknownTokens
+      ? Boolean(asset.crypto_asset) || asset.market_value != null
+      : true
   })
 }
 
@@ -264,7 +298,12 @@ export const calculateCryptoAssetValue = (
   const amount = asset.amount || 0
   const rateKey = getCryptoRateKey(asset)
 
-  if (amount > 0 && rateKey) {
+  // Fetcher-priced positions (no crypto_asset, e.g. Zerion) carry an
+  // authoritative market_value; prefer it over any symbol/contract rate that a
+  // colliding position may have populated.
+  const preferMarketValue = !asset.crypto_asset && asset.market_value != null
+
+  if (!preferMarketValue && amount > 0 && rateKey) {
     const computedValue = calculateCryptoValue(
       amount,
       rateKey,
@@ -2450,7 +2489,9 @@ export const getCryptoPositions = (
           const assets = getWalletAssets(wallet)
 
           assets.forEach(asset => {
-            if (!asset.crypto_asset) {
+            // Same admission rule as getWalletAssets: registry-enriched or
+            // fetcher-priced (e.g. Zerion, which only carries market_value).
+            if (!asset.crypto_asset && asset.market_value == null) {
               return
             }
             const symbol = asset.symbol?.toUpperCase()
@@ -2480,7 +2521,9 @@ export const getCryptoPositions = (
               asset.type === CryptoCurrencyType.TOKEN ||
               Boolean(asset.contract_address)
             const tokenKey =
-              tokenAddress ?? asset.crypto_asset.id?.toLowerCase()
+              tokenAddress ??
+              asset.crypto_asset?.id?.toLowerCase() ??
+              symbol?.toLowerCase()
             if (isToken && !tokenKey) {
               return
             }
