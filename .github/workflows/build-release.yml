@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, macos-15-intel, windows-latest, ubuntu-latest ]
+        os: [ macos-15, macos-15-intel, windows-latest, ubuntu-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -115,7 +115,7 @@ jobs:
           # Determine OS and arch parameters
           OS_PARAM=""
           
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          if [[ "${{ matrix.os }}" == "macos-15" ]]; then
             OS_PARAM="--os mac --arch arm64"
           elif [[ "${{ matrix.os }}" == "macos-15-intel" ]]; then
             OS_PARAM="--os mac --arch x64"

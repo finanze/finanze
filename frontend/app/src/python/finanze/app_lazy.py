@@ -23,6 +23,9 @@ class LazyComponents:
             from infrastructure.client.crypto.ethplorer.ethplorer_client import (
                 EthplorerClient,
             )
+            from infrastructure.client.crypto.zerion.zerion_client import (
+                ZerionClient,
+            )
             from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import (
                 BitcoinFetcher,
             )
@@ -35,6 +38,9 @@ class LazyComponents:
             )
             from infrastructure.client.entity.crypto.tron.tron_fetcher import (
                 TronFetcher,
+            )
+            from infrastructure.client.entity.crypto.zerion.zerion_fetcher import (
+                ZerionFetcher,
             )
             from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
                 CajamarFetcher,
@@ -249,6 +255,7 @@ class LazyComponents:
         if INCLUDE_CONNECTIONS:
             etherscan_client = EtherscanClient()
             ethplorer_client = EthplorerClient()
+            zerion_client = ZerionClient()
 
             enablebanking_client = EnableBankingClient()
             polymarket_fetcher = PolymarketFetcher()
@@ -268,6 +275,7 @@ class LazyComponents:
                 domain.native_entities.BSC: BSCFetcher(
                     etherscan_client, ethplorer_client
                 ),
+                domain.native_entities.ZERION: ZerionFetcher(zerion_client),
             }
             financial_entity_fetchers = {
                 domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
@@ -297,6 +305,7 @@ class LazyComponents:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = (
                 enablebanking_client
             )
+            external_integrations[ExternalIntegrationId.ZERION] = zerion_client
 
         csv_tsv_adapter = CSVFileTableAdapter()
         table_rw_adapter = TableRWDispatcher(

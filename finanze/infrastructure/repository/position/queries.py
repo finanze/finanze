@@ -72,8 +72,9 @@ class PositionWriteQueries(str, Enum):
 
     INSERT_CRYPTO_CURRENCY_POSITION = """
         INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
-                                               market_value, currency, contract_address, crypto_asset_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               market_value, currency, contract_address, crypto_asset_id,
+                                               chain, protocol, position_type, icon_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_CRYPTO_CURRENCY_INITIAL_INVESTMENT = """
@@ -298,6 +299,10 @@ class PositionQueries(str, Enum):
                p.market_value AS market_value,
                p.currency  AS currency,
                p.contract_address AS contract_address,
+               p.chain     AS chain,
+               p.protocol  AS protocol,
+               p.position_type AS position_type,
+               p.icon_url  AS icon_url,
                a.id        AS asset_id,
                a.name      AS asset_name,
                a.symbol    AS asset_symbol,
