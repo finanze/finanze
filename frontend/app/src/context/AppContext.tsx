@@ -28,6 +28,7 @@ import {
   updateTrackedLoans,
 } from "@/services/api"
 import { waitForLazyInit } from "@/lib/mobile"
+import { reportError } from "@/lib/telemetry"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
@@ -541,6 +542,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error("Error updating manual positions quotes:", error)
+        reportError(error, { phase: "update_tracked_quotes" })
       }
     }
   }, [
@@ -567,6 +569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error("Error updating tracked loans:", error)
+        reportError(error, { phase: "update_tracked_loans" })
       }
     }
   }, [LAST_UPDATE_LOANS_KEY, LOANS_UPDATE_INTERVAL_MS])

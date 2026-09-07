@@ -3,8 +3,10 @@ from finanze.app_background import MobileBackgroundApp
 app = MobileBackgroundApp()
 
 
-async def initialize(operative_system: str | None = None):
-    await app.initialize(operative_system=operative_system)
+async def initialize(
+    operative_system: str | None = None, os_version: str | None = None
+):
+    await app.initialize(operative_system=operative_system, os_version=os_version)
 
 
 async def connect(username: str | None = None):

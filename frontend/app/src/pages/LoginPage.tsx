@@ -418,16 +418,10 @@ export default function LoginPage() {
   const inputClass = authInputClass(isLight)
   const passwordValueClass = authPasswordValueClass
 
-  const renderConsentToggle = (mutedClass: string, activeClass: string) => {
+  const renderConsentToggle = (textClass: string) => {
     if (!isSignupMode || isChangingPassword) return null
 
-    return (
-      <ErrorReportingToggle
-        mutedClass={mutedClass}
-        activeClass={activeClass}
-        className="shrink-0"
-      />
-    )
+    return <ErrorReportingToggle textClass={textClass} className="shrink-0" />
   }
 
   const renderConsentQuickAction = () => {
@@ -794,7 +788,6 @@ export default function LoginPage() {
                       )}
                     </button>
                     {renderConsentToggle(
-                      isLight ? "text-black/35" : "text-white/35",
                       isLight ? "text-black/70" : "text-white/70",
                     )}
                   </div>
@@ -1175,10 +1168,7 @@ export default function LoginPage() {
                     t.common.unlock
                   )}
                 </Button>
-                {renderConsentToggle(
-                  "text-muted-foreground",
-                  "text-foreground",
-                )}
+                {renderConsentToggle("text-foreground")}
               </div>
             )}
 

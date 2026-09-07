@@ -31,10 +31,12 @@ class MobileBackgroundApp:
     def __init__(self):
         self.log = logging.getLogger(__name__)
         self.operative_system: OS | None = None
+        self.os_version: str | None = None
 
         self.db_client = None
         self.data_manager = None
         self.ex_storage = None
+        self.error_reporter = None
 
         self.up_tracked = None
         self.up_tracked_loans = None
@@ -45,12 +47,17 @@ class MobileBackgroundApp:
         self._user: User | None = None
         self._db_name: str | None = None
 
-    async def initialize(self, operative_system: str | None = None):
+    async def initialize(
+        self, operative_system: str | None = None, os_version: str | None = None
+    ):
         from finanze.logs import configure_logging
 
         configure_logging()
 
         self.operative_system = parse_os(operative_system)
+        self.os_version = os_version
+
+        await self._setup_telemetry()
 
         from domain import position_aggregation
 
@@ -157,6 +164,7 @@ class MobileBackgroundApp:
             snapshot_writer,
             throttle_repo,
             tx_handler,
+            self.error_reporter,
         )
         self.up_tracked_loans = UpdateTrackedLoansImpl(
             position_repo,
@@ -165,6 +173,7 @@ class MobileBackgroundApp:
             snapshot_writer,
             throttle_repo,
             tx_handler,
+            self.error_reporter,
         )
         self.get_networth_timeline_uc = GetNetworthTimelineImpl(
             networth_repo,
@@ -183,6 +192,42 @@ class MobileBackgroundApp:
         )
 
         await self.ex_storage.initialize()
+
+    async def _setup_telemetry(self):
+        from domain.platform import Distribution
+        from domain.telemetry import TelemetryContext
+        from infrastructure.telemetry.bridge_error_reporter import (
+            BridgeErrorReporter,
+            get_environment,
+        )
+        from infrastructure.telemetry.capacitor_telemetry_consent import (
+            CapacitorTelemetryConsent,
+        )
+
+        self.error_reporter = BridgeErrorReporter()
+
+        try:
+            consent = await CapacitorTelemetryConsent().get()
+        except Exception:
+            self.log.warning("Could not read telemetry consent", exc_info=True)
+            return
+
+        try:
+            from version import __version__ as release
+        except Exception:
+            release = "0.0.0"
+
+        self.error_reporter.set_context(
+            TelemetryContext(
+                environment=get_environment(),
+                release=str(release),
+                operative_system=self.operative_system,
+                os_version=self.os_version,
+                distribution=Distribution.MOBILE,
+                install_id=consent.install_id,
+            )
+        )
+        self.error_reporter.set_enabled(consent.error_reporting)
 
     async def connect(self, username: str | None = None):
         """Attach to the already-open shared SQLite connection. The main worker

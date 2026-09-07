@@ -9,6 +9,7 @@ import {
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { isNativeMobile } from "@/lib/platform"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { updateTelemetryConsent } from "@/lib/telemetry"
 import {
   errorReportingPoints,
@@ -16,29 +17,32 @@ import {
 } from "@/components/telemetry/TelemetryConsentDialog"
 
 interface ErrorReportingToggleProps {
-  mutedClass?: string
-  activeClass?: string
+  textClass?: string
   className?: string
 }
 
 export function ErrorReportingToggle({
-  mutedClass = "text-muted-foreground",
-  activeClass = "text-foreground",
+  textClass = "text-foreground",
   className,
 }: ErrorReportingToggleProps) {
   const { t } = useI18n()
   const { enabled, refresh } = useErrorReportingConsent()
   const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const isOn = enabled === true
   const Icon = isOn ? ShieldCheck : ShieldOff
 
   const toggle = async () => {
+    if (isSaving) return
+
     try {
+      setIsSaving(true)
       await updateTelemetryConsent({ errorReporting: !isOn })
     } catch (error) {
       console.error("Failed to update telemetry consent:", error)
     } finally {
+      setIsSaving(false)
       refresh()
     }
   }
@@ -63,10 +67,24 @@ export function ErrorReportingToggle({
             }}
             className={cn(
               "flex items-center gap-1.5 text-xs leading-tight transition-colors duration-200",
-              isOn ? activeClass : mutedClass,
+              textClass,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            {isSaving ? (
+              <LoadingSpinner
+                size="sm"
+                className="h-3.5 w-3.5 shrink-0 text-current"
+              />
+            ) : (
+              <Icon
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 transition-colors duration-200",
+                  isOn
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-500 dark:text-amber-400",
+                )}
+              />
+            )}
             <span className="w-min text-left">
               {t.telemetryConsent.shortLabel}
             </span>

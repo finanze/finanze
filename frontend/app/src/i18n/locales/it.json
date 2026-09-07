@@ -551,7 +551,7 @@
     "reportAction": "Attiva l'invio degli errori",
     "enabled": "Invio degli errori attivato",
     "shortLabel": "Segnala errori",
-    "pointAnonymous": "Completamente anonime, non collegate a te o al tuo account",
+    "pointAnonymous": "Pseudonimo, identificato solo da un ID di installazione e mai collegato ai tuoi dati personali o al tuo account",
     "pointNoSensitiveData": "Non vengono inviati importi, saldi, nomi o credenziali",
     "pointChangeLater": "Puoi attivarlo o disattivarlo più tardi nelle Impostazioni"
   },
@@ -742,7 +742,7 @@
       "title": "Diagnostica",
       "description": "Tutto qui è disattivato per impostazione predefinita e resta su questo dispositivo se non lo attivi.",
       "errorReportingLabel": "Invia segnalazioni di errore",
-      "errorReportingDescription": "Condividi segnalazioni anonime di crash ed errori per poterli correggere. Importi, dati dei conti e dati personali vengono rimossi prima dell'invio.",
+      "errorReportingDescription": "Condividi segnalazioni pseudonime di crash ed errori identificate solo da un ID di installazione per poterli correggere. Importi, dati dei conti e dati personali non vengono mai inviati.",
       "installId": "ID di installazione"
     },
     "cloud": {

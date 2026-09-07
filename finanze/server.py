@@ -568,6 +568,7 @@ class FinanzeServer:
             loan_calculator,
             real_estate_repository,
             feature_flag_port,
+            self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -579,6 +580,7 @@ class FinanzeServer:
             external_integration_repository,
             transaction_handler,
             public_key_derivation,
+            self._error_reporter,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
             entity_repository,
@@ -905,6 +907,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
             position_port=position_repository,
@@ -913,6 +916,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         settle_pending_flow = SettlePendingFlowImpl(
             pending_flow_port=pending_flow_repository,

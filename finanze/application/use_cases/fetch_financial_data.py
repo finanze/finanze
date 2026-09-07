@@ -13,6 +13,7 @@ from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_account_port import EntityAccountPort
+from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.feature_flag_port import FeatureFlagPort
 from application.ports.historic_port import HistoricPort
@@ -161,6 +162,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         loan_calculator: LoanCalculatorPort,
         real_estate_port: RealEstatePort,
         feature_flag_port: FeatureFlagPort,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -179,10 +181,29 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._loan_calculator = loan_calculator
         self._real_estate_port = real_estate_port
         self._feature_flag_port = feature_flag_port
+        self._error_reporter = error_reporter
 
         self._locks: dict[UUID, Lock] = {}
 
         self._log = logging.getLogger(__name__)
+
+    def _report(
+        self,
+        exc: BaseException,
+        entity: Entity,
+        tags: Optional[dict[str, str]] = None,
+    ):
+        if not self._error_reporter:
+            return
+
+        self._error_reporter.capture_exception(
+            exc,
+            tags={
+                "use_case": "fetch_financial_data",
+                "entity": entity.name,
+                **(tags or {}),
+            },
+        )
 
     def _get_lock(self, entity_account_id: UUID) -> Lock:
         if entity_account_id not in self._locks:
@@ -332,6 +353,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
     ) -> FetchResult:
         completed: List[Feature] = []
         failed: List[Feature] = []
+        failures: List[tuple[Feature, Exception]] = []
         last_error: Optional[Exception] = None
 
         position = None
@@ -350,6 +372,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 except Exception as e:
                     self._log.exception(e)
                     failed.append(Feature.POSITION)
+                    failures.append((Feature.POSITION, e))
                     last_error = e
 
             if Feature.AUTO_CONTRIBUTIONS in features:
@@ -361,6 +384,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 except Exception as e:
                     self._log.exception(e)
                     failed.append(Feature.AUTO_CONTRIBUTIONS)
+                    failures.append((Feature.AUTO_CONTRIBUTIONS, e))
                     last_error = e
 
             if Feature.TRANSACTIONS in features:
@@ -373,6 +397,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 except Exception as e:
                     self._log.exception(e)
                     failed.append(Feature.TRANSACTIONS)
+                    failures.append((Feature.TRANSACTIONS, e))
                     last_error = e
 
             if Feature.HISTORIC in features and transactions_ok and transactions:
@@ -384,9 +409,11 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 except Exception as e:
                     self._log.exception(e)
                     failed.append(Feature.HISTORIC)
+                    failures.append((Feature.HISTORIC, e))
                     last_error = e
 
             if failed and not completed:
+                # Surfaced as an unexpected error response, which is reported there.
                 if last_error is None:
                     raise RuntimeError("All requested features failed")
                 raise last_error
@@ -401,6 +428,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 "completedFeatures": [feature.value for feature in completed],
             }
             if failed:
+                for feature, error in failures:
+                    self._report(error, entity, tags={"feature": feature.value})
                 details["failedFeatures"] = [feature.value for feature in failed]
                 return FetchResult(
                     FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
@@ -699,12 +728,13 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
                 result = await self._loan_calculator.calculate(params)
                 loan.installment_interests = result.current_installment_interests
-            except Exception:
+            except Exception as e:
                 self._log.error(
                     "Could not compute installment_interests for loan %s %s",
                     loan.name,
                     loan.id,
                 )
+                self._report(e, position.entity, tags={"phase": "enrich_loans"})
 
     async def _sync_linked_loan_flows(self, position: GlobalPosition):
         loans_container = position.products.get(ProductType.LOAN)

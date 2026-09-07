@@ -78,7 +78,7 @@ export default function SplashScreen() {
     ? "from-gray-400 via-gray-700 to-gray-300"
     : "from-gray-800 via-white to-gray-700"
   const isMobile = isNativeMobile()
-  const iconSize = 38
+  const iconSize = 75
 
   const getStatusMessage = () => {
     if (!serverInfo) {

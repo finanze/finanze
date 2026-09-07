@@ -552,7 +552,7 @@
     "reportAction": "Enable error reporting",
     "enabled": "Error reporting enabled",
     "shortLabel": "Report errors",
-    "pointAnonymous": "Completely anonymous, not linked to you or your account",
+    "pointAnonymous": "Pseudonymous, identified only by an installation ID and never linked to you or your account",
     "pointNoSensitiveData": "No amounts, balances, names or credentials are sent",
     "pointChangeLater": "You can turn it on or off later in Settings"
   },
@@ -743,7 +743,7 @@
       "title": "Diagnostics",
       "description": "Everything here is off by default and stays on this device unless you turn it on.",
       "errorReportingLabel": "Send error reports",
-      "errorReportingDescription": "Share anonymous crash and error reports so bugs can be fixed. Amounts, account details and personal data are removed before sending.",
+      "errorReportingDescription": "Share pseudonymous crash and error reports identified only by an installation ID so bugs can be fixed. Amounts, account details and personal data are never sent.",
       "installId": "Installation ID"
     },
     "cloud": {

@@ -39,7 +39,7 @@ from domain.transactions import AccountTx, Transactions, TxType
 # ---------------------------------------------------------------------------
 
 
-def _build_use_case():
+def _build_use_case(error_reporter=None):
     position_port = AsyncMock(spec=PositionPort)
     loan_calculator = AsyncMock(spec=LoanCalculatorPort)
 
@@ -69,6 +69,7 @@ def _build_use_case():
         loan_calculator=loan_calculator,
         real_estate_port=real_estate_port,
         feature_flag_port=MagicMock(get_all=MagicMock(return_value={})),
+        error_reporter=error_reporter,
     )
     return uc, position_port, loan_calculator, real_estate_port
 
@@ -547,6 +548,76 @@ def _make_account_tx(entity):
         fees=Dezimal("0"),
         retentions=Dezimal("0"),
     )
+
+
+class TestPartialFailureReporting:
+    @pytest.mark.asyncio
+    async def test_swallowed_feature_failure_is_reported(self):
+        reporter = MagicMock()
+        uc, position_port, _, _ = _build_use_case(error_reporter=reporter)
+        entity = TRADE_REPUBLIC
+        error = RuntimeError("txs boom")
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=_make_position())
+        fetcher.transactions = AsyncMock(side_effect=error)
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+
+        result = await uc.get_data(
+            entity,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            uuid4(),
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        reporter.capture_exception.assert_called_once()
+        reported_error, kwargs = (
+            reporter.capture_exception.call_args.args[0],
+            reporter.capture_exception.call_args.kwargs,
+        )
+        assert reported_error is error
+        assert kwargs["tags"]["use_case"] == "fetch_financial_data"
+        assert kwargs["tags"]["entity"] == entity.name
+        assert kwargs["tags"]["feature"] == Feature.TRANSACTIONS.value
+
+    @pytest.mark.asyncio
+    async def test_all_features_failing_is_not_reported_twice(self):
+        reporter = MagicMock()
+        uc, _, _, _ = _build_use_case(error_reporter=reporter)
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(side_effect=RuntimeError("pos boom"))
+
+        with pytest.raises(RuntimeError):
+            await uc.get_data(
+                TRADE_REPUBLIC,
+                [Feature.POSITION],
+                fetcher,
+                FetchOptions(),
+                uuid4(),
+            )
+
+        reporter.capture_exception.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_reporter_does_not_break_partial_result(self):
+        uc, position_port, _, _ = _build_use_case()
+        fetcher = AsyncMock()
+        fetcher.global_position = AsyncMock(return_value=_make_position())
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("txs boom"))
+        uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+
+        result = await uc.get_data(
+            TRADE_REPUBLIC,
+            [Feature.POSITION, Feature.TRANSACTIONS],
+            fetcher,
+            FetchOptions(),
+            uuid4(),
+        )
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
 
 
 class TestIsolatedFeaturePersist:
