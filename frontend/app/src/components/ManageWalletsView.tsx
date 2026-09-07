@@ -151,10 +151,13 @@ export function ManageWalletsView({
       const displayName =
         asset.crypto_asset?.name || asset.name || normalizedSymbol || asset.id
       const hasAssetDetails = Boolean(asset.crypto_asset)
-      const value = hasAssetDetails
+      // Fetcher-priced positions (e.g. Zerion) carry a market_value but no
+      // crypto_asset, so gate the value on that too, not just on the asset.
+      const hasValue = hasAssetDetails || asset.market_value != null
+      const value = hasValue
         ? calculateCryptoAssetValue(asset, targetCurrency, rates)
         : 0
-      const initialInvestment = hasAssetDetails
+      const initialInvestment = hasValue
         ? calculateCryptoAssetInitialInvestment(asset, targetCurrency, rates)
         : 0
       const roi =
@@ -165,8 +168,10 @@ export function ManageWalletsView({
         (asset.type ?? CryptoCurrencyType.NATIVE) ===
           CryptoCurrencyType.TOKEN || Boolean(asset.contract_address)
       const iconUrl = isToken
-        ? (asset.crypto_asset?.icon_urls?.[0] ?? null)
-        : entityIconPath
+        ? (asset.crypto_asset?.icon_urls?.[0] ?? asset.icon_url ?? null)
+        : (asset.crypto_asset?.icon_urls?.[0] ??
+          asset.icon_url ??
+          entityIconPath)
 
       return {
         asset,

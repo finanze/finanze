@@ -22,6 +22,7 @@ from domain.crypto import (
 from domain.entity import Entity, EntityType
 from domain.exception.exceptions import (
     EntityNotFound,
+    ExternalIntegrationRequired,
     TooManyRequests,
 )
 from domain.external_integration import (
@@ -93,7 +94,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             try:
                 result = await specific_fetcher.fetch(
                     CryptoFetchRequest(
-                        addresses=[address], integrations=enabled_integrations
+                        addresses=[address],
+                        integrations=enabled_integrations,
+                        include_wallet_tokens=request.include_wallet_tokens,
                     )
                 )
                 if (
@@ -108,6 +111,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                 failed_addresses[address] = (
                     CryptoWalletConnectionFailureCode.TOO_MANY_REQUESTS
                 )
+            except ExternalIntegrationRequired:
+                # Not an address problem: surface it via the API's structured handler.
+                raise
             except Exception as e:
                 self._log.exception(e)
                 failed_addresses[address] = (
@@ -124,6 +130,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             address_source=AddressSource.MANUAL,
             name=request.name,
             hd_wallet=None,
+            include_wallet_tokens=request.include_wallet_tokens,
         )
 
         async with self._transaction_handler_port.start():

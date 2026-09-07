@@ -331,6 +331,67 @@ class TestConnectManualAndRead:
         crypto_wallet_port.insert.assert_not_awaited()
 
 
+class TestConnectManualIncludeWalletTokens:
+    @pytest.mark.asyncio
+    async def test_connect_manual_with_include_wallet_tokens_true(
+        self,
+        client,
+        crypto_entity_fetchers,
+        crypto_wallet_port,
+        external_integration_port,
+    ):
+        external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
+        crypto_wallet_port.exists_by_entity_and_address = AsyncMock(return_value=False)
+        _setup_crypto_fetcher(
+            crypto_entity_fetchers,
+            ETHEREUM,
+            _make_fetch_results(["0xabc123"]),
+        )
+        response = await client.post(
+            CONNECT_URL,
+            json={
+                "entityId": ETHEREUM_ID,
+                "addresses": ["0xabc123"],
+                "name": "My ETH Wallet",
+                "source": "MANUAL",
+                "includeWalletTokens": True,
+            },
+        )
+        assert response.status_code == 200
+        crypto_wallet_port.insert.assert_awaited_once()
+        inserted_wallet = crypto_wallet_port.insert.await_args[0][0]
+        assert inserted_wallet.include_wallet_tokens is True
+
+    @pytest.mark.asyncio
+    async def test_connect_manual_without_include_wallet_tokens_defaults_false(
+        self,
+        client,
+        crypto_entity_fetchers,
+        crypto_wallet_port,
+        external_integration_port,
+    ):
+        external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
+        crypto_wallet_port.exists_by_entity_and_address = AsyncMock(return_value=False)
+        _setup_crypto_fetcher(
+            crypto_entity_fetchers,
+            ETHEREUM,
+            _make_fetch_results(["0xabc123"]),
+        )
+        response = await client.post(
+            CONNECT_URL,
+            json={
+                "entityId": ETHEREUM_ID,
+                "addresses": ["0xabc123"],
+                "name": "My ETH Wallet",
+                "source": "MANUAL",
+            },
+        )
+        assert response.status_code == 200
+        crypto_wallet_port.insert.assert_awaited_once()
+        inserted_wallet = crypto_wallet_port.insert.await_args[0][0]
+        assert inserted_wallet.include_wallet_tokens is False
+
+
 class TestConnectDerivedAndRead:
     @pytest.mark.asyncio
     async def test_connect_derived_then_visible_in_entities(

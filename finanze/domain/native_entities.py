@@ -343,6 +343,9 @@ BSC = _create_crypto_entity(
     5,
     "Binance Smart Chain",
 )
+ZERION = _create_crypto_entity(
+    6, "Zerion", required_external_integrations=[ExternalIntegrationId.ZERION]
+)
 
 BINANCE = NativeCryptoExchangeEntity(
     id=UUID("ce000000-0000-0000-0000-000000000001"),
@@ -407,6 +410,7 @@ NATIVE_ENTITIES = [
     LITECOIN,
     TRON,
     BSC,
+    ZERION,
     BINANCE,
     POLYMARKET,
     COMMODITIES,

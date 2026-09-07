@@ -164,19 +164,33 @@ export function EntityCard({
   const getBadgeInfo = () => {
     // Always check if integrations are missing first (regardless of connection status)
     if (missingIntegrations) {
+      // A provider that requires its own API-key integration (e.g. Zerion → the
+      // Zerion integration) is self-evident and doesn't warrant a "requires"
+      // badge; only surface a dependency on a *different* provider. But when a
+      // CONNECTED crypto wallet's own integration is later disabled
+      // (isDangerState), keep the self-referential name in so the badge (and
+      // its "go to settings" popover) still shows — otherwise the card
+      // becomes a dead end with no recovery affordance.
+      const isCryptoWalletEntity = entity.type === EntityType.CRYPTO_WALLET
       const missingNames = getMissingIntegrationNames()
-      const requiresText =
-        missingNames.length === 1
-          ? `${t.entities.requires} ${missingNames[0]}`
-          : `${t.entities.requires} ${missingNames.length} ${t.entities.integrations}`
+      const externalMissing =
+        isCryptoWalletEntity && !isDangerState()
+          ? missingNames.filter(name => name !== entity.name)
+          : missingNames
+      if (externalMissing.length > 0) {
+        const requiresText =
+          externalMissing.length === 1
+            ? `${t.entities.requires} ${externalMissing[0]}`
+            : `${t.entities.requires} ${externalMissing.length} ${t.entities.integrations}`
 
-      return {
-        style: isDangerState()
-          ? "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30 cursor-pointer transition-colors"
-          : "hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors",
-        text: requiresText,
-        isMissingIntegrations: true,
-        missingNames,
+        return {
+          style: isDangerState()
+            ? "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30 cursor-pointer transition-colors"
+            : "hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors",
+          text: requiresText,
+          isMissingIntegrations: true,
+          missingNames: externalMissing,
+        }
       }
     }
 
@@ -199,8 +213,10 @@ export function EntityCard({
 
   // Determine button text based on entity type and status
   const getButtonText = () => {
-    // If integrations are missing, show different text
-    if (missingIntegrations) {
+    // If integrations are missing, show different text — except for crypto
+    // wallets, which handle setup inline in the add-wallet dialog and should
+    // still read as connectable.
+    if (missingIntegrations && !isCryptoWallet) {
       return t.entities.cannotConnect
     }
 
@@ -269,11 +285,15 @@ export function EntityCard({
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
   const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED
+  // Crypto wallets handle a missing required integration inline in the
+  // add-wallet dialog (it collects the API key and sets it up before
+  // connecting), so they stay clickable even when missingIntegrations is
+  // true. Every other entity type keeps the original gate.
   const canConnect =
     isDisconnected &&
-    !missingIntegrations &&
     entity.origin !== EntityOrigin.EXTERNALLY_PROVIDED &&
-    entity.fetchable
+    entity.fetchable &&
+    (isCryptoWallet || !missingIntegrations)
   const isExternallyProvided =
     entity.origin === EntityOrigin.EXTERNALLY_PROVIDED
   const isLinkingExternal = linkingExternalEntityId === entity.id

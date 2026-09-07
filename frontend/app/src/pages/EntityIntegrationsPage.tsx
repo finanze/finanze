@@ -303,6 +303,7 @@ export default function EntityIntegrationsPage() {
         source: data.source,
         xpub: data.xpub,
         script_type: data.scriptType,
+        includeWalletTokens: data.includeWalletTokens,
       })
 
       if (data.source === AddressSource.DERIVED) {

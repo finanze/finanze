@@ -207,6 +207,7 @@ class DeferredComponents:
                     domain.native_entities.LITECOIN,
                     domain.native_entities.TRON,
                     domain.native_entities.BSC,
+                    domain.native_entities.ZERION,
                 ]
             }
             external_entity_fetcher_stubs = {
@@ -222,6 +223,7 @@ class DeferredComponents:
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True
+            external_integrations[ExternalIntegrationId.ZERION] = True
 
         self.position_repo = PositionRepository(client=db_client)
         self.manual_repo = ManualPositionDataSQLRepository(client=db_client)

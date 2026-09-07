@@ -10,7 +10,13 @@ from pydantic.dataclasses import dataclass
 
 from domain.base import BaseData
 from domain.commodity import CommodityRegister
-from domain.crypto import CryptoAsset, CryptoCurrencyType, AddressSource, HDWallet
+from domain.crypto import (
+    CryptoAsset,
+    CryptoCurrencyType,
+    CryptoPositionType,
+    AddressSource,
+    HDWallet,
+)
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency
 from domain.entity import Entity
@@ -390,6 +396,10 @@ class CryptoCurrencyPosition(BaseData):
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
     investment_currency: Optional[str] = None
+    chain: Optional[str] = None
+    protocol: Optional[str] = None
+    position_type: CryptoPositionType = CryptoPositionType.HOLDING
+    icon_url: Optional[str] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):

@@ -20,6 +20,15 @@ class CryptoCurrencyType(str, Enum):
     TOKEN = "TOKEN"
 
 
+class CryptoPositionType(str, Enum):
+    HOLDING = "HOLDING"
+    SUPPLIED = "SUPPLIED"
+    BORROWED = "BORROWED"
+    STAKED = "STAKED"
+    LP = "LP"
+    REWARD = "REWARD"
+
+
 def crypto_rate_key(
     asset_type: CryptoCurrencyType,
     symbol: Optional[str],
@@ -72,6 +81,7 @@ class CryptoWallet:
     name: str
     address_source: AddressSource
     hd_wallet: Optional[HDWallet]
+    include_wallet_tokens: bool = False
 
 
 @dataclass
@@ -79,6 +89,7 @@ class CryptoFetchRequest:
     integrations: EnabledExternalIntegrations
     addresses: list[str] = field(default_factory=list)
     txs: bool = False
+    include_wallet_tokens: bool = False
 
 
 @dataclass
@@ -89,6 +100,12 @@ class CryptoFetchedPosition:
     type: CryptoCurrencyType
     name: Optional[str] = None
     contract_address: Optional[str] = None
+    chain: Optional[str] = None
+    protocol: Optional[str] = None
+    position_type: CryptoPositionType = CryptoPositionType.HOLDING
+    market_value: Optional[Dezimal] = None
+    currency: Optional[str] = None
+    icon_url: Optional[str] = None
 
 
 @dataclass
@@ -105,8 +122,10 @@ class CryptoFetchResults:
     @staticmethod
     def _asset_key(asset: CryptoFetchedPosition) -> tuple:
         if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
-            return asset.type, asset.contract_address
-        return asset.type, asset.symbol
+            base = (asset.type, asset.contract_address)
+        else:
+            base = (asset.type, asset.symbol)
+        return base + (asset.position_type, asset.chain, asset.protocol)
 
     @staticmethod
     def _merge_results(
@@ -119,6 +138,13 @@ class CryptoFetchResults:
             key = CryptoFetchResults._asset_key(asset)
             if key in existing_assets:
                 existing_assets[key].balance += asset.balance
+                if asset.market_value is not None:
+                    existing_market_value = existing_assets[key].market_value
+                    existing_assets[key].market_value = (
+                        asset.market_value
+                        if existing_market_value is None
+                        else existing_market_value + asset.market_value
+                    )
             else:
                 existing_assets[key] = asset
         existing.assets = list(existing_assets.values())
@@ -143,6 +169,7 @@ class ConnectCryptoWallet:
     address_source: AddressSource
     xpub: Optional[str] = None
     script_type: ScriptType | None = None
+    include_wallet_tokens: bool = False
 
 
 class CryptoWalletConnectionFailureCode(str, Enum):

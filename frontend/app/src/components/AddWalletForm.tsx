@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
+import { Switch } from "@/components/ui/Switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Loader2, Plus, X, Eye, Wallet, Key } from "lucide-react"
 import {
@@ -9,12 +10,15 @@ import {
   CryptoWalletConnectionResult,
   DerivedAddressesResult,
   Entity,
+  ExternalIntegration,
+  ExternalIntegrationStatus,
   ScriptType,
 } from "@/types"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs"
-import { deriveCryptoAddresses } from "@/services/api"
+import { deriveCryptoAddresses, setupIntegration } from "@/services/api"
 
 export interface AddWalletSubmitData {
   name: string
@@ -22,6 +26,7 @@ export interface AddWalletSubmitData {
   addresses: string[]
   xpub?: string
   scriptType?: ScriptType
+  includeWalletTokens: boolean
 }
 
 interface AddWalletFormProps {
@@ -49,6 +54,11 @@ export function AddWalletForm({
   isLoading = false,
 }: AddWalletFormProps) {
   const { t } = useI18n()
+  const {
+    externalIntegrations,
+    externalIntegrationsLoading,
+    fetchExternalIntegrations,
+  } = useAppContext()
   const supportsHdWallet = entity.allows_hd_wallet === true
 
   const [name, setName] = useState("")
@@ -56,6 +66,7 @@ export function AddWalletForm({
   const [addressSource, setAddressSource] = useState<AddressSource>(
     AddressSource.MANUAL,
   )
+  const [includeWalletTokens, setIncludeWalletTokens] = useState(false)
 
   const [addresses, setAddresses] = useState<string[]>([""])
   const [addressErrors, setAddressErrors] = useState<string[]>([""])
@@ -70,12 +81,42 @@ export function AddWalletForm({
   const [isDerivingAddresses, setIsDerivingAddresses] = useState(false)
   const [deriveError, setDeriveError] = useState("")
 
+  // Required integrations (e.g. Zerion's API key) that aren't configured yet.
+  // Collected + set up inline, before the wallet itself is created.
+  const [integrationPayloads, setIntegrationPayloads] = useState<
+    Record<string, Record<string, string>>
+  >({})
+  const [integrationFieldErrors, setIntegrationFieldErrors] = useState<
+    Record<string, Record<string, boolean>>
+  >({})
+  const [integrationSetupError, setIntegrationSetupError] = useState("")
+  const [isSettingUpIntegrations, setIsSettingUpIntegrations] = useState(false)
+
   const addressErrorMap = t.walletForm.addressErrors as Record<string, string>
   const genericErrorMap = t.walletForm.errors as Record<string, string>
   const derivedT = t.walletForm.derived
   const addressesLabel = t.walletForm.fields.addresses
 
   const isDerived = addressSource === AddressSource.DERIVED
+  const showIncludeWalletTokens =
+    entity.required_external_integrations?.includes("ZERION") ?? false
+
+  const hasRequiredIntegrations =
+    (entity.required_external_integrations?.length ?? 0) > 0
+
+  const pendingIntegrations = (entity.required_external_integrations ?? [])
+    .map(id => externalIntegrations.find(integration => integration.id === id))
+    .filter(
+      (integration): integration is ExternalIntegration =>
+        !!integration && integration.status !== ExternalIntegrationStatus.ON,
+    )
+
+  // externalIntegrations may still be loading (e.g. right after this page
+  // mounts). Until it resolves, a not-yet-found required integration can't
+  // be told apart from an already-configured one, so block submit rather
+  // than risk silently skipping its setup.
+  const integrationsStatusUnknown =
+    hasRequiredIntegrations && externalIntegrationsLoading
 
   const translateFailureCode = (code?: string): string => {
     if (!code) {
@@ -84,6 +125,128 @@ export function AddWalletForm({
     return (
       addressErrorMap[code] || genericErrorMap[code] || genericErrorMap.generic
     )
+  }
+
+  const translateIntegrationError = (
+    error: unknown,
+    integrationName: string,
+  ): string => {
+    const code = (error as ApiErrorException)?.code
+    const errorMap = t.errors as Record<string, string>
+    const template = (code && errorMap[code]) || t.common.unexpectedError
+    return template
+      .replace("{integration}", integrationName)
+      .replace("{entity}", integrationName)
+  }
+
+  const handleIntegrationFieldChange = (
+    integrationId: string,
+    field: string,
+    value: string,
+  ) => {
+    setIntegrationPayloads(prev => ({
+      ...prev,
+      [integrationId]: {
+        ...(prev[integrationId] ?? {}),
+        [field]: value,
+      },
+    }))
+
+    setIntegrationFieldErrors(prev => {
+      const current = prev[integrationId]
+      if (!current?.[field]) {
+        return prev
+      }
+
+      const updated = { ...current, [field]: false }
+      const next = { ...prev, [integrationId]: updated }
+
+      if (Object.values(updated).every(hasError => !hasError)) {
+        delete next[integrationId]
+      }
+
+      return next
+    })
+
+    if (integrationSetupError) setIntegrationSetupError("")
+  }
+
+  const validatePendingIntegrations = () => {
+    let isValid = true
+    const nextErrors: Record<string, Record<string, boolean>> = {}
+
+    pendingIntegrations.forEach(integration => {
+      const schema = integration.payload_schema ?? {}
+      const payload = integrationPayloads[integration.id] ?? {}
+      const fieldErrors: Record<string, boolean> = {}
+
+      Object.keys(schema).forEach(field => {
+        if (!payload[field] || payload[field].trim() === "") {
+          fieldErrors[field] = true
+          isValid = false
+        }
+      })
+
+      if (Object.keys(fieldErrors).length > 0) {
+        nextErrors[integration.id] = fieldErrors
+      }
+    })
+
+    setIntegrationFieldErrors(nextErrors)
+    return isValid
+  }
+
+  // Sets up every pending (required-but-not-ON) integration before the
+  // wallet itself is created. Returns false (and aborts the submit) if
+  // validation fails or any setup call throws.
+  const setupPendingIntegrations = async (): Promise<boolean> => {
+    if (pendingIntegrations.length === 0) return true
+
+    if (!validatePendingIntegrations()) {
+      return false
+    }
+
+    setIsSettingUpIntegrations(true)
+    setIntegrationSetupError("")
+
+    let currentIntegration: ExternalIntegration | undefined
+    try {
+      for (const integration of pendingIntegrations) {
+        currentIntegration = integration
+        const schema = integration.payload_schema ?? {}
+        const payload = integrationPayloads[integration.id] ?? {}
+        const sanitizedPayload: Record<string, string> = {}
+        Object.keys(schema).forEach(field => {
+          sanitizedPayload[field] = (payload[field] ?? "").trim()
+        })
+
+        await setupIntegration(integration.id, sanitizedPayload)
+      }
+    } catch (error) {
+      console.error("Integration setup error:", error)
+      setIntegrationSetupError(
+        translateIntegrationError(
+          error,
+          currentIntegration?.name ?? entity.name,
+        ),
+      )
+      return false
+    } finally {
+      setIsSettingUpIntegrations(false)
+    }
+
+    // Refresh AppContext so status flips to ON (e.g. showIncludeWalletTokens
+    // and any other integration-derived UI stay in sync). This runs outside
+    // the setup try/catch: all setupIntegration calls already succeeded, so a
+    // refresh failure here must not be misreported as a setup error or abort
+    // the wallet-create flow.
+    try {
+      await fetchExternalIntegrations(true)
+    } catch (error) {
+      console.error("Post-setup integration refresh error:", error)
+    }
+
+    return true
   }
 
   const validateManualForm = () => {
@@ -220,6 +383,15 @@ export function AddWalletForm({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
+    // Guards the submit button too, but a text input's Enter key still
+    // submits the form even while that button is disabled — so re-check here.
+    if (integrationsStatusUnknown) return
+
+    // Set up any required integration (e.g. Zerion's API key) before ever
+    // touching the wallet-create call below. Aborts the submit on failure.
+    const integrationsReady = await setupPendingIntegrations()
+    if (!integrationsReady) return
+
     if (isDerived) {
       const validated = validateDerivedForm(true)
       if (!validated) return
@@ -236,6 +408,7 @@ export function AddWalletForm({
           addresses: [],
           xpub: validated.trimmedXpub,
           scriptType: validated.scriptType,
+          includeWalletTokens,
         })
 
         const failedEntries = result?.failed ?? {}
@@ -271,6 +444,7 @@ export function AddWalletForm({
         name: trimmedName,
         source: AddressSource.MANUAL,
         addresses: trimmedAddresses,
+        includeWalletTokens,
       })
 
       if (!result || !result.failed) return
@@ -370,6 +544,74 @@ export function AddWalletForm({
       </CardHeader>
       <CardContent className="overflow-y-auto min-h-0">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {pendingIntegrations.length > 0 && (
+            <div className="space-y-4">
+              {pendingIntegrations.map(integration => {
+                const schemaEntries = Object.entries(
+                  integration.payload_schema ?? {},
+                )
+                const payload = integrationPayloads[integration.id] ?? {}
+                const fieldErrors = integrationFieldErrors[integration.id] ?? {}
+
+                return (
+                  <div
+                    key={integration.id}
+                    className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {t.walletForm.integrationSetup.heading.replace(
+                          "{integration}",
+                          integration.name,
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.walletForm.integrationSetup.helper}
+                      </p>
+                    </div>
+                    {schemaEntries.map(([field, label]) => {
+                      const value = payload[field] ?? ""
+                      const hasError = !!fieldErrors[field]
+                      const inputType = /secret|password|token|key/i.test(field)
+                        ? "password"
+                        : "text"
+
+                      return (
+                        <div key={field} className="space-y-2">
+                          <Label htmlFor={`${integration.id}-${field}`}>
+                            {label}
+                          </Label>
+                          <Input
+                            id={`${integration.id}-${field}`}
+                            type={inputType}
+                            value={value}
+                            onChange={e =>
+                              handleIntegrationFieldChange(
+                                integration.id,
+                                field,
+                                e.target.value,
+                              )
+                            }
+                            disabled={isLoading || isSettingUpIntegrations}
+                            className={hasError ? "border-red-500" : ""}
+                          />
+                          {hasError && (
+                            <p className="text-sm text-red-500">
+                              {t.walletForm.errors.integrationFieldRequired}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+              {integrationSetupError && (
+                <p className="text-sm text-red-500">{integrationSetupError}</p>
+              )}
+            </div>
+          )}
+
           {!isDerived && (
             <div className="space-y-2">
               <Label htmlFor="wallet-name">{t.walletForm.fields.name}</Label>
@@ -664,22 +906,51 @@ export function AddWalletForm({
             </div>
           )}
 
+          {showIncludeWalletTokens && (
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="include-wallet-tokens"
+                  className="text-sm font-medium"
+                >
+                  {t.walletForm.includeWalletTokens.label}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t.walletForm.includeWalletTokens.description}
+                </p>
+              </div>
+              <Switch
+                id="include-wallet-tokens"
+                checked={includeWalletTokens}
+                onCheckedChange={setIncludeWalletTokens}
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
-              disabled={isLoading}
+              disabled={isLoading || isSettingUpIntegrations}
               className="flex-1"
             >
               {t.common.cancel}
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || (isDerived && !derivedPreview)}
+              disabled={
+                isLoading ||
+                isSettingUpIntegrations ||
+                integrationsStatusUnknown ||
+                (isDerived && !derivedPreview)
+              }
               className="flex-1"
             >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {(isLoading || isSettingUpIntegrations) && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               {t.walletForm.submit}
             </Button>
           </div>
