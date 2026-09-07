@@ -434,7 +434,10 @@ export default function LoginPage() {
             paddingBottom: "max(24px, env(safe-area-inset-bottom, 0px))",
           }}
         >
-          <div
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.1, ease: "easeOut" }}
             className="absolute inset-x-0 top-0 pointer-events-none overflow-hidden"
             style={{
               height: "55vh",
@@ -461,7 +464,7 @@ export default function LoginPage() {
                 draggable={false}
               />
             ))}
-          </div>
+          </motion.div>
 
           <div
             className="absolute left-6"
@@ -797,7 +800,10 @@ export default function LoginPage() {
         isLight ? "bg-white" : "bg-black"
       }`}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.1, ease: "easeOut" }}
         className="absolute inset-0 pointer-events-none overflow-hidden"
         style={{
           maskImage:
@@ -823,7 +829,7 @@ export default function LoginPage() {
             draggable={false}
           />
         ))}
-      </div>
+      </motion.div>
       <div className="absolute bottom-6 left-6 z-10">
         <LoginQuickSettings
           isDesktop={isDesktopApp}

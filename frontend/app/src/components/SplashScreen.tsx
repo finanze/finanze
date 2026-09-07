@@ -78,7 +78,7 @@ export default function SplashScreen() {
     ? "from-gray-400 via-gray-700 to-gray-300"
     : "from-gray-800 via-white to-gray-700"
   const isMobile = isNativeMobile()
-  const iconSize = 75
+  const iconSize = 38
 
   const getStatusMessage = () => {
     if (!serverInfo) {
@@ -92,13 +92,9 @@ export default function SplashScreen() {
 
   return (
     <div
-      className={
-        isMobile
-          ? `select-none min-h-screen flex flex-col items-center justify-center ${
-              isLight ? "bg-white" : "bg-black"
-            }`
-          : "select-none min-h-screen flex flex-col items-center justify-center bg-gradient-50 dark:bg-black p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gradient-100 to-gradient-300 dark:from-gradient-900 dark:to-black"
-      }
+      className={`select-none min-h-screen flex flex-col items-center justify-center ${
+        isLight ? "bg-white" : "bg-black"
+      }`}
     >
       <img
         src="finanze-fg.svg"
@@ -108,7 +104,7 @@ export default function SplashScreen() {
             ? `animate-breathing select-none pointer-events-none ${
                 isLight ? "invert" : ""
               }`
-            : `w-64 h-64 ${backendFailed ? "" : "animate-breathing"} drop-shadow invert dark:invert-0 select-none pointer-events-none`
+            : `w-32 h-32 ${backendFailed ? "" : "animate-breathing"} drop-shadow ${isLight ? "invert" : ""} select-none pointer-events-none`
         }
         style={isMobile ? { width: iconSize, height: iconSize } : undefined}
         draggable={false}
