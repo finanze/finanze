@@ -531,6 +531,15 @@
     "goToDashboard": "Go to dashboard",
     "restart": "Restart"
   },
+  "telemetryConsent": {
+    "title": "Report errors automatically",
+    "description": "Error reporting is off, so nothing was sent about this failure. Turn it on and errors like this one are reported from now on, so they can be fixed.",
+    "detail": "Only anonymous diagnostics are sent. Amounts, account details and personal data are removed before sending. You can turn it off anytime in Settings.",
+    "enable": "Enable reporting",
+    "notNow": "Not now",
+    "reportAction": "Enable error reporting",
+    "enabled": "Error reporting enabled"
+  },
   "entities": {
     "title": "Integrations",
     "storeNotice": "This version does not support connections with financial entities. You can manage your data manually, import from files, visit {link} for more options.",

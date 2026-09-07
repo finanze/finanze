@@ -335,7 +335,7 @@ export function IntegrationsTab() {
           1500,
         )
       } else {
-        showToast(t.common.error, "error")
+        showToast(t.common.error, "error", { reportable: false })
       }
     },
     [showToast, t],
@@ -407,7 +407,7 @@ export function IntegrationsTab() {
             ...missingFields,
           },
         }))
-        showToast(t.settings.validationError, "error")
+        showToast(t.settings.validationError, "error", { reportable: false })
         return
       }
 

@@ -73,6 +73,7 @@ interface AppContextType {
   toast: {
     message: React.ReactNode
     type: "success" | "error" | "warning" | "info" | null
+    reportable: boolean
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
@@ -97,6 +98,7 @@ interface AppContextType {
   showToast: (
     message: React.ReactNode,
     type: "success" | "error" | "warning" | "info",
+    options?: { reportable?: boolean },
   ) => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
@@ -224,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<{
     message: React.ReactNode
     type: "success" | "error" | "warning" | "info" | null
+    reportable: boolean
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
@@ -267,8 +270,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (
       message: React.ReactNode,
       type: "success" | "error" | "warning" | "info",
+      // Expected outcomes such as form validation opt out of being reportable.
+      options?: { reportable?: boolean },
     ) => {
-      setToast({ message, type })
+      setToast({ message, type, reportable: options?.reportable ?? true })
       setTimeout(
         () => {
           setToast(null)

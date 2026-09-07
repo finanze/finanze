@@ -24,6 +24,11 @@ import { SwipeBackGesture } from "./SwipeBackGesture"
 import { useModalRegistry } from "@/context/ModalRegistryContext"
 import { canNavigateBack } from "@/lib/mobile/backNavigation"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import {
+  TelemetryConsentDialog,
+  useErrorReportingConsent,
+} from "@/components/telemetry/TelemetryConsentDialog"
+import { MessageSquareWarning } from "lucide-react"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -80,7 +85,7 @@ function BackButtonHandler() {
 }
 
 function LayoutContent({ children }: LayoutProps) {
-  const { toast, hideToast } = useAppContext()
+  const { toast, hideToast, showToast } = useAppContext()
   const { t } = useI18n()
   const location = useLocation()
   const prevPathnameRef = useRef(location.pathname)
@@ -88,6 +93,9 @@ function LayoutContent({ children }: LayoutProps) {
   const { handleScroll, resetScroll } = useLayoutScroll()
   const isMobilePlatform = isNativeMobile()
   const isMobileViewport = isMobilePlatform || isPWAStandalone()
+  const { enabled: isErrorReportingEnabled, refresh: refreshErrorReporting } =
+    useErrorReportingConsent()
+  const [isConsentDialogOpen, setIsConsentDialogOpen] = useState(false)
 
   const [isNarrowView, setIsNarrowView] = useState(() => {
     if (typeof window !== "undefined") {
@@ -169,6 +177,21 @@ function LayoutContent({ children }: LayoutProps) {
                 ? "bottom-[calc(64px+max(12px,var(--safe-area-inset-bottom,0px)))]"
                 : undefined
             }
+            action={
+              toast.type === "error" &&
+              toast.reportable &&
+              isErrorReportingEnabled === false ? (
+                <button
+                  onClick={() => setIsConsentDialogOpen(true)}
+                  title={t.telemetryConsent.reportAction}
+                  aria-label={t.telemetryConsent.reportAction}
+                  data-testid="toast-enable-error-reporting"
+                  className="shrink-0 rounded p-0.5 text-red-400 transition-colors hover:text-red-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <MessageSquareWarning className="h-3.5 w-3.5" />
+                </button>
+              ) : undefined
+            }
             onClose={hideToast}
           >
             <div className="font-medium">
@@ -184,6 +207,15 @@ function LayoutContent({ children }: LayoutProps) {
           </Toast>
         )}
       </AnimatePresence>
+
+      <TelemetryConsentDialog
+        isOpen={isConsentDialogOpen}
+        onClose={() => setIsConsentDialogOpen(false)}
+        onEnabled={() => {
+          refreshErrorReporting()
+          showToast(t.telemetryConsent.enabled, "success")
+        }}
+      />
     </>
   )
 }

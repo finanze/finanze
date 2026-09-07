@@ -432,7 +432,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       const loginAPI = getExternalLoginAPI()
       if (!loginAPI) {
         console.error("External login API not available")
-        showToast(t.common.incompatibleLoginPlatform, "error")
+        showToast(t.common.incompatibleLoginPlatform, "error", {
+          reportable: false,
+        })
         return
       }
 
@@ -445,7 +447,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         })
 
         if (!result.success) {
-          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error", {
+            reportable: false,
+          })
           resetState()
           setView("entities")
         }
@@ -620,7 +624,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setChallengeType(ChallengeType.RECAPTCHA)
                 setChallengeRequired(true)
               } else {
-                showToast(t.common.incompatibleLoginPlatform, "error")
+                showToast(t.common.incompatibleLoginPlatform, "error", {
+                  reportable: false,
+                })
                 resetState()
                 setView("entities")
               }
@@ -697,6 +703,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               t.common.loginErrorEntity,
             ),
             "error",
+            { reportable: false },
           )
         } else if (response.code === "INVALID_CREDENTIALS") {
           showToast(
@@ -706,6 +713,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               t.common.loginErrorEntity,
             ),
             "error",
+            { reportable: false },
           )
         } else {
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
@@ -757,9 +765,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       const notify = (
         message: string,
         type: "success" | "error" | "warning",
+        options?: { reportable?: boolean },
       ) => {
         if (!silent) {
-          showToast(message, type)
+          showToast(message, type, options)
         }
       }
 
@@ -908,7 +917,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setChallengeType(challengeTypeValue)
                 setChallengeRequired(true)
               } else {
-                showToast(t.common.incompatibleLoginPlatform, "error")
+                showToast(t.common.incompatibleLoginPlatform, "error", {
+                  reportable: false,
+                })
                 resetState()
                 setView("entities")
               }
@@ -1222,7 +1233,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             entityName,
             t.common.fetchErrorEntity,
           )
-          notify(errorMessage, "error")
+          notify(errorMessage, "error", { reportable: false })
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
             navigate("/entities")
@@ -1233,7 +1244,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             entityName,
             t.common.fetchErrorEntity,
           )
-          notify(errorMessage, "error")
+          notify(errorMessage, "error", { reportable: false })
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
           }
@@ -1600,7 +1611,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setChallengeType(ChallengeType.RECAPTCHA)
               setChallengeRequired(true)
             } else {
-              showToast(t.common.incompatibleLoginPlatform, "error")
+              showToast(t.common.incompatibleLoginPlatform, "error", {
+                reportable: false,
+              })
               resetState()
               setView("entities")
             }
@@ -1731,7 +1744,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               }
             }
           } else {
-            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error", {
+              reportable: false,
+            })
             resetState()
             setView("entities")
           }

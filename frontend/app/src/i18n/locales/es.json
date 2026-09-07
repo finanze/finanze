@@ -529,6 +529,15 @@
     "goToDashboard": "Ir al panel",
     "restart": "Reiniciar"
   },
+  "telemetryConsent": {
+    "title": "Informar de errores automáticamente",
+    "description": "El envío de errores está desactivado, así que no se ha enviado nada sobre este fallo. Actívalo y los errores como este se informarán a partir de ahora para poder corregirlos.",
+    "detail": "Solo se envían diagnósticos anónimos. Los importes, datos de cuentas y datos personales se eliminan antes de enviarlos. Puedes desactivarlo cuando quieras en Ajustes.",
+    "enable": "Activar envío",
+    "notNow": "Ahora no",
+    "reportAction": "Activar el envío de errores",
+    "enabled": "Envío de errores activado"
+  },
   "entities": {
     "title": "Integraciones",
     "storeNotice": "Esta versión no soporta conexiones con entidades financieras. Puedes gestionar tus datos manualmente, importar desde archivos, visita {link} para más opciones.",

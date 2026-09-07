@@ -1,25 +1,13 @@
 import type React from "react"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Switch } from "@/components/ui/Switch"
 import { motion } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
 import {
-  LockKeyhole,
-  AlertCircle,
-  User,
-  KeyRound,
   Wrench,
   ScanFace,
   Fingerprint,
@@ -118,8 +106,9 @@ export default function LoginPage() {
   }, [isLight])
 
   const floatingLogos = useMemo(() => {
-    const count = window.innerWidth >= 900 ? 120 : 80
-    return generateFloatingLogos(count, count * 8)
+    const isWide = window.innerWidth >= 900
+    const count = isWide ? 280 : 80
+    return generateFloatingLogos(count, count * 12, isWide ? 0.55 : 1.2)
   }, [])
 
   const initialHeightRef = useRef<number | null>(null)
@@ -159,13 +148,13 @@ export default function LoginPage() {
         t.login.biometricLoginReason,
       )
       if (!authenticated) {
-        showToast(t.login.biometricLoginFailed, "error")
+        showToast(t.login.biometricLoginFailed, "error", { reportable: false })
         return
       }
 
       const credentials = await getCredentials()
       if (!credentials) {
-        showToast(t.login.biometricLoginFailed, "error")
+        showToast(t.login.biometricLoginFailed, "error", { reportable: false })
         return
       }
 
@@ -377,7 +366,7 @@ export default function LoginPage() {
           error.message?.toLowerCase().includes("invalid")
         ) {
           setError(t.login.invalidCredentials)
-          showToast(t.login.invalidCredentials, "error")
+          showToast(t.login.invalidCredentials, "error", { reportable: false })
         } else {
           const errorMessage = error.message || t.login.changePasswordError
           setError(errorMessage)
@@ -416,26 +405,16 @@ export default function LoginPage() {
     }
   }
 
-  const getSubtitle = () => {
-    if (isChangingPassword) {
-      return null
-    } else if (isSignupMode) {
-      return t.login.signupSubtitle
-    } else {
-      return t.login.subtitle
-    }
-  }
+  const inputClass = cn(
+    "w-full bg-transparent border-0 border-b rounded-none px-1 py-3 text-base text-center outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200",
+    isLight
+      ? "border-black/15 text-black placeholder:text-black/30 focus-visible:border-black/40"
+      : "border-white/15 text-white placeholder:text-white/30 focus-visible:border-white/40",
+  )
+  const passwordValueClass =
+    "[&:not(:placeholder-shown)]:text-[22px] [&:not(:placeholder-shown)]:tracking-[4px]"
 
   if (isMobile) {
-    const inputClass = cn(
-      "w-full bg-transparent border-0 border-b rounded-none px-1 py-3 text-base text-center outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200",
-      isLight
-        ? "border-black/15 text-black placeholder:text-black/30 focus-visible:border-black/40"
-        : "border-white/15 text-white placeholder:text-white/30 focus-visible:border-white/40",
-    )
-    const passwordValueClass =
-      "[&:not(:placeholder-shown)]:text-[22px] [&:not(:placeholder-shown)]:tracking-[4px]"
-
     return (
       <div
         className={`select-none ${isLight ? "bg-white" : "bg-black"}`}
@@ -813,8 +792,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-50 dark:bg-black p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gradient-100 to-gradient-300 dark:from-gradient-900 dark:to-black">
-      <div className="absolute bottom-6 left-6">
+    <div
+      className={`relative min-h-screen flex items-center justify-center p-4 select-none ${
+        isLight ? "bg-white" : "bg-black"
+      }`}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none overflow-hidden"
+        style={{
+          maskImage:
+            "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.45) 55%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.45) 55%, transparent 100%)",
+        }}
+      >
+        {floatingLogos.map((pos, i) => (
+          <img
+            key={i}
+            src="finanze-fg.svg"
+            alt=""
+            className={`absolute select-none pointer-events-none ${isLight ? "invert" : ""}`}
+            style={{
+              left: `${pos.x}%`,
+              top: `${pos.y}%`,
+              width: pos.size,
+              height: pos.size,
+              opacity: pos.opacity,
+              transform: `rotate(${pos.rotation}deg)`,
+            }}
+            draggable={false}
+          />
+        ))}
+      </div>
+      <div className="absolute bottom-6 left-6 z-10">
         <LoginQuickSettings
           isDesktop={isDesktopApp}
           onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
@@ -825,368 +835,302 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="relative w-full max-w-sm flex flex-col items-center px-10 z-10"
       >
-        <Card
-          className={cn("relative shadow-lg", error ? "border-red-500" : "")}
+        {isChangingPassword && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={`absolute left-0 top-0 ${isLight ? "text-black/60" : "text-white/60"}`}
+            onClick={handleCancelPasswordChange}
+            disabled={isLoading}
+            aria-label={t.common.cancel}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        )}
+        <img
+          src="finanze-fg.svg"
+          alt="Finanze Logo"
+          className={`select-none pointer-events-none mb-5 ${isLight ? "invert" : ""}`}
+          style={{ width: 56, height: 56 }}
+          draggable={false}
+        />
+        <h1
+          className={`text-xl font-medium text-center mb-10 tracking-tight ${isLight ? "text-black" : "text-white"}`}
         >
-          <CardHeader className="space-y-1 flex flex-col items-center">
+          {cloudRestoreMode ? t.login.cloudRestore.title : getTitle()}
+        </h1>
+        {cloudRestoreMode ? (
+          <div className="w-full">
+            <p
+              className={`text-center text-sm mb-6 ${isLight ? "text-black/50" : "text-white/50"}`}
+            >
+              {t.login.cloudRestore.description}
+            </p>
+            <CloudRestore
+              onBack={() => setCloudRestoreMode(false)}
+              onRestoreComplete={() => {}}
+              isDesktop={true}
+              pendingUsername={
+                pendingRegister ? lastLoggedUser || undefined : undefined
+              }
+            />
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="w-full space-y-6"
+            noValidate={isChangingPassword}
+          >
+            {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
+              <div className="relative">
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder={t.login.namePlaceholder}
+                  required={!isChangingPassword}
+                  autoFocus={
+                    !isNativeMobile() && (isSignupMode || !lastLoggedUser)
+                  }
+                  autoCapitalize="off"
+                  disabled={pendingRegister}
+                  className={inputClass}
+                />
+                {isSignupMode && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={t.login.usernameInfoTooltip}
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 text-sm" sideOffset={8}>
+                      <p className="text-muted-foreground">
+                        {t.login.usernameInfoTooltip}
+                      </p>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            )}
+
             {isChangingPassword && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute left-4 top-4"
-                onClick={handleCancelPasswordChange}
-                disabled={isLoading}
-                aria-label={t.common.cancel}
+              <input
+                id="oldPassword"
+                type="password"
+                value={oldPassword}
+                onChange={e => setOldPassword(e.target.value)}
+                placeholder={t.login.oldPasswordPlaceholder}
+                required
+                autoFocus={!isNativeMobile()}
+                className={cn(inputClass, passwordValueClass)}
+              />
+            )}
+
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder={
+                isChangingPassword
+                  ? t.login.newPasswordPlaceholder
+                  : t.login.passwordPlaceholder
+              }
+              required
+              autoFocus={
+                !isNativeMobile() &&
+                !isSignupMode &&
+                !isChangingPassword &&
+                !!lastLoggedUser
+              }
+              className={cn(inputClass, passwordValueClass)}
+            />
+
+            {(isSignupMode || isChangingPassword) && password.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                transition={{ duration: 0.25 }}
               >
-                <ArrowLeft className="h-5 w-5" />
+                <input
+                  id="repeatPassword"
+                  type="password"
+                  value={repeatPassword}
+                  onChange={e => setRepeatPassword(e.target.value)}
+                  placeholder={t.login.repeatPasswordPlaceholder}
+                  required
+                  className={cn(inputClass, passwordValueClass)}
+                />
+              </motion.div>
+            )}
+
+            {isNativeMobile() &&
+              biometricAvailability?.isAvailable &&
+              (!isLoginMode || !hasStoredCredentials) && (
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    {biometricTypeForDisplay === BiometricType.FACE ? (
+                      <ScanFace className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <Fingerprint className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <Label
+                      htmlFor="enableBiometric"
+                      className="text-sm cursor-pointer"
+                    >
+                      {t.login.enableBiometric.replace(
+                        "{type}",
+                        biometricTypeForDisplay === BiometricType.FACE
+                          ? t.login.biometricFaceId
+                          : t.login.biometricFingerprint,
+                      )}
+                    </Label>
+                  </div>
+                  <Switch
+                    id="enableBiometric"
+                    checked={enableBiometric}
+                    onCheckedChange={setEnableBiometric}
+                  />
+                </div>
+              )}
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-sm text-red-500 dark:text-red-400 text-center flex items-center justify-center"
+              >
+                {error}
+                {errorCode === AuthResultCode.UNEXPECTED_ERROR &&
+                  errorDetails && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 h-7 w-7 text-red-500"
+                          aria-label={t.login.viewErrorDetails}
+                        >
+                          <Wrench className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
+                        sideOffset={8}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-foreground">
+                            {t.login.errorDetailsTitle}
+                          </p>
+                          <button
+                            type="button"
+                            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={async () => {
+                              if (await copyToClipboard(errorDetails || "")) {
+                                setDetailsCopied(true)
+                                setTimeout(() => setDetailsCopied(false), 2000)
+                              }
+                            }}
+                          >
+                            {detailsCopied ? (
+                              <Check className="h-3.5 w-3.5 text-green-500" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-muted-foreground break-words">
+                          {errorDetails}
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+              </motion.div>
+            )}
+
+            {isNativeMobile() && hasStoredCredentials && isLoginMode ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  type="submit"
+                  className="flex-1 text-lg py-6 from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.common.loading}
+                    </>
+                  ) : (
+                    t.common.unlock
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  className="h-12 w-12 p-0 shrink-0"
+                  disabled={isBiometricLoading}
+                  onClick={handleBiometricLogin}
+                  aria-label={t.login.biometricAuth}
+                  title={t.login.biometricAuth}
+                >
+                  {isBiometricLoading ? (
+                    <LoadingSpinner size="sm" color="invert" />
+                  ) : biometricTypeForDisplay === BiometricType.FACE ? (
+                    <ScanFace className="h-5 w-5" />
+                  ) : (
+                    <Fingerprint className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                variant="ghost"
+                className="w-full text-lg py-6 font-bold bg-transparent text-white shadow-none hover:bg-transparent hover:text-white dark:bg-transparent dark:text-white dark:hover:bg-transparent dark:hover:text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    {t.common.loading}
+                  </>
+                ) : isChangingPassword ? (
+                  t.login.changePassword
+                ) : isSignupMode ? (
+                  t.login.signup
+                ) : (
+                  t.common.unlock
+                )}
               </Button>
             )}
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4 shadow-md">
-              {cloudRestoreMode ? (
-                <Cloud className="h-8 w-8 text-primary-foreground" />
-              ) : isChangingPassword ? (
-                <KeyRound className="h-8 w-8 text-primary-foreground" />
-              ) : lastLoggedUser && !isSignupMode ? (
-                <User className="h-8 w-8 text-primary-foreground" />
-              ) : (
-                <LockKeyhole className="h-8 w-8 text-primary-foreground" />
-              )}
-            </div>
-            <CardTitle className="text-3xl text-center">
-              {cloudRestoreMode ? t.login.cloudRestore.title : getTitle()}
-            </CardTitle>
-            {!isChangingPassword && !cloudRestoreMode && (
-              <CardDescription className="text-center text-base">
-                {getSubtitle()}
-              </CardDescription>
+
+            {(isSignupMode || isChangingPassword) && (
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                {t.login.syncPasswordHint}
+              </p>
             )}
-            {cloudRestoreMode && (
-              <CardDescription className="text-center text-base">
-                {t.login.cloudRestore.description}
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {cloudRestoreMode ? (
-              <CloudRestore
-                onBack={() => setCloudRestoreMode(false)}
-                onRestoreComplete={() => {}}
-                isDesktop={true}
-                pendingUsername={
-                  pendingRegister ? lastLoggedUser || undefined : undefined
-                }
-              />
-            ) : (
-              <form
-                onSubmit={handleSubmit}
-                className="space-y-6"
-                noValidate={isChangingPassword}
+
+            {isSignupMode && !isChangingPassword && (
+              <button
+                type="button"
+                onClick={() => setCloudRestoreMode(true)}
+                className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2"
               >
-                {/* Username field - show for signup or when no lastLoggedUser, but NOT in change password mode */}
-                {!isChangingPassword && (isSignupMode || !lastLoggedUser) && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="username">{t.login.usernameLabel}</Label>
-                      {isSignupMode && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                              aria-label={t.login.usernameInfoTooltip}
-                            >
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-56 text-sm"
-                            sideOffset={8}
-                          >
-                            <p className="text-muted-foreground">
-                              {t.login.usernameInfoTooltip}
-                            </p>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <Input
-                        id="username"
-                        type="text"
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        placeholder={t.login.usernamePlaceholder}
-                        required={!isChangingPassword}
-                        autoFocus={
-                          !isNativeMobile() && (isSignupMode || !lastLoggedUser)
-                        }
-                        autoCapitalize="off"
-                        disabled={pendingRegister}
-                        className={cn(error ? "border-red-500 pr-10" : "")}
-                      />
-                      {error && (
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                          <AlertCircle className="h-5 w-5 text-red-500" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Old password field - only for change password mode */}
-                {isChangingPassword && (
-                  <div className="space-y-2">
-                    <Label htmlFor="oldPassword">
-                      {t.login.oldPasswordLabel}
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="oldPassword"
-                        type="password"
-                        value={oldPassword}
-                        onChange={e => setOldPassword(e.target.value)}
-                        placeholder={t.login.oldPasswordPlaceholder}
-                        required
-                        autoFocus={!isNativeMobile()}
-                        className={cn(error ? "border-red-500 pr-10" : "")}
-                      />
-                      {error && (
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                          <AlertCircle className="h-5 w-5 text-red-500" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Password field - label and placeholder change based on mode */}
-                <div className="space-y-2">
-                  <Label htmlFor="password">
-                    {isChangingPassword
-                      ? t.login.newPasswordLabel
-                      : t.login.passwordLabel}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder={
-                        isChangingPassword
-                          ? t.login.newPasswordPlaceholder
-                          : t.login.passwordPlaceholder
-                      }
-                      required
-                      autoFocus={
-                        !isNativeMobile() &&
-                        !isSignupMode &&
-                        !isChangingPassword &&
-                        !!lastLoggedUser
-                      }
-                      className={cn(error ? "border-red-500 pr-10" : "")}
-                    />
-                    {error && (
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Repeat password field - show for signup and change password modes */}
-                {(isSignupMode || isChangingPassword) && (
-                  <div className="space-y-2">
-                    <Label htmlFor="repeatPassword">
-                      {t.login.repeatPasswordLabel}
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="repeatPassword"
-                        type="password"
-                        value={repeatPassword}
-                        onChange={e => setRepeatPassword(e.target.value)}
-                        placeholder={t.login.repeatPasswordPlaceholder}
-                        required
-                        className={cn(error ? "border-red-500 pr-10" : "")}
-                      />
-                      {error && (
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                          <AlertCircle className="h-5 w-5 text-red-500" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {isNativeMobile() &&
-                  biometricAvailability?.isAvailable &&
-                  (!isLoginMode || !hasStoredCredentials) && (
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        {biometricTypeForDisplay === BiometricType.FACE ? (
-                          <ScanFace className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <Fingerprint className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <Label
-                          htmlFor="enableBiometric"
-                          className="text-sm cursor-pointer"
-                        >
-                          {t.login.enableBiometric.replace(
-                            "{type}",
-                            biometricTypeForDisplay === BiometricType.FACE
-                              ? t.login.biometricFaceId
-                              : t.login.biometricFingerprint,
-                          )}
-                        </Label>
-                      </div>
-                      <Switch
-                        id="enableBiometric"
-                        checked={enableBiometric}
-                        onCheckedChange={setEnableBiometric}
-                      />
-                    </div>
-                  )}
-
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-sm text-red-500 dark:text-red-400 text-center flex items-center justify-center"
-                  >
-                    {error}
-                    {errorCode === AuthResultCode.UNEXPECTED_ERROR &&
-                      errorDetails && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="ml-2 h-7 w-7 text-red-500"
-                              aria-label={t.login.viewErrorDetails}
-                            >
-                              <Wrench className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
-                            sideOffset={8}
-                          >
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium text-foreground">
-                                {t.login.errorDetailsTitle}
-                              </p>
-                              <button
-                                type="button"
-                                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                                onClick={async () => {
-                                  if (
-                                    await copyToClipboard(errorDetails || "")
-                                  ) {
-                                    setDetailsCopied(true)
-                                    setTimeout(
-                                      () => setDetailsCopied(false),
-                                      2000,
-                                    )
-                                  }
-                                }}
-                              >
-                                {detailsCopied ? (
-                                  <Check className="h-3.5 w-3.5 text-green-500" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </div>
-                            <p className="mt-2 text-muted-foreground break-words">
-                              {errorDetails}
-                            </p>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                  </motion.div>
-                )}
-
-                {isNativeMobile() && hasStoredCredentials && isLoginMode ? (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      type="submit"
-                      className="flex-1 text-lg py-6 from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          {t.common.loading}
-                        </>
-                      ) : (
-                        t.common.unlock
-                      )}
-                    </Button>
-
-                    <Button
-                      type="button"
-                      className="h-12 w-12 p-0 shrink-0"
-                      disabled={isBiometricLoading}
-                      onClick={handleBiometricLogin}
-                      aria-label={t.login.biometricAuth}
-                      title={t.login.biometricAuth}
-                    >
-                      {isBiometricLoading ? (
-                        <LoadingSpinner size="sm" color="invert" />
-                      ) : biometricTypeForDisplay === BiometricType.FACE ? (
-                        <ScanFace className="h-5 w-5" />
-                      ) : (
-                        <Fingerprint className="h-5 w-5" />
-                      )}
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="submit"
-                    className="w-full text-lg py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <LoadingSpinner size="sm" className="mr-2" />
-                        {t.common.loading}
-                      </>
-                    ) : isChangingPassword ? (
-                      t.login.changePassword
-                    ) : isSignupMode ? (
-                      t.login.signup
-                    ) : (
-                      t.common.unlock
-                    )}
-                  </Button>
-                )}
-
-                {(isSignupMode || isChangingPassword) && (
-                  <p className="text-xs text-muted-foreground text-center mt-4">
-                    {t.login.syncPasswordHint}
-                  </p>
-                )}
-
-                {isSignupMode && !isChangingPassword && (
-                  <button
-                    type="button"
-                    onClick={() => setCloudRestoreMode(true)}
-                    className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2"
-                  >
-                    <Cloud className="h-4 w-4" />
-                    {t.login.cloudRestore.trigger}
-                  </button>
-                )}
-              </form>
+                <Cloud className="h-4 w-4" />
+                {t.login.cloudRestore.trigger}
+              </button>
             )}
-          </CardContent>
-        </Card>
+          </form>
+        )}
       </motion.div>
       <AdvancedSettings
         isOpen={showAdvancedSettings}

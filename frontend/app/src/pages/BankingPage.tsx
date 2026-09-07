@@ -244,7 +244,11 @@ function BankingManualControls({
 }: {
   controllers: ManualSectionController[]
   t: Translations
-  showToast: (message: string, type: "success" | "error" | "warning") => void
+  showToast: (
+    message: string,
+    type: "success" | "error" | "warning",
+    options?: { reportable?: boolean },
+  ) => void
   refreshEntity: (entityId: string) => Promise<void>
   fetchEntities: () => Promise<void>
   refreshData: () => Promise<void>
@@ -426,9 +430,10 @@ function BankingManualControls({
           showToast(
             translate("management.manualPositions.toasts.saveError"),
             "error",
+            { reportable: false },
           )
         } else if (t.common?.error) {
-          showToast(t.common.error, "error")
+          showToast(t.common.error, "error", { reportable: false })
         }
         controllers.forEach(controller => controller.setSavingState(false))
         setIsSaving(false)

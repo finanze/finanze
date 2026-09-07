@@ -170,7 +170,9 @@ export function SavingsCalculator() {
     let hasErrors = false
 
     if (scenarios.length === 0) {
-      showToast(t.calculations.savings.errors.atLeastOneScenario, "error")
+      showToast(t.calculations.savings.errors.atLeastOneScenario, "error", {
+        reportable: false,
+      })
       return
     }
 

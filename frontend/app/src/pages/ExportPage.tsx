@@ -1768,7 +1768,7 @@ export default function ExportPage() {
 
     const isValid = runExportValidation(exportConfigDraft)
     if (!isValid) {
-      showToast(t.settings.validationError, "error")
+      showToast(t.settings.validationError, "error", { reportable: false })
       return
     }
 
@@ -1844,7 +1844,7 @@ export default function ExportPage() {
 
     const isValid = runImportValidation(importConfigDraft)
     if (!isValid) {
-      showToast(t.settings.validationError, "error")
+      showToast(t.settings.validationError, "error", { reportable: false })
       return
     }
 
@@ -2057,6 +2057,7 @@ export default function ExportPage() {
           showToast(
             t.export.sheetNotFound.replace("{sheetName}", sheetName),
             "error",
+            { reportable: false },
           )
           setExportState(prev => ({ ...prev, isExporting: false }))
           return
