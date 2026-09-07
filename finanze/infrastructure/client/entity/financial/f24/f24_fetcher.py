@@ -118,6 +118,40 @@ def _position_market_value(pos: dict, shares: Dezimal) -> Dezimal:
     return market_value
 
 
+F24_KIND_STOCK = 1
+F24_KIND_ETF = 7
+
+
+def _parse_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _equity_type(kind) -> EquityType | None:
+    parsed = _parse_int(kind)
+    if parsed == F24_KIND_ETF:
+        return EquityType.ETF
+    if parsed == F24_KIND_STOCK:
+        return EquityType.STOCK
+    return None
+
+
+def _as_ticker_info(ticker_info) -> dict:
+    if isinstance(ticker_info, list):
+        first = ticker_info[0] if ticker_info else None
+        return first if isinstance(first, dict) else {}
+    if not isinstance(ticker_info, dict):
+        return {}
+    if any(key in ticker_info for key in ("kind", "k", "isin", "nm", "mkt")):
+        return ticker_info
+    for value in ticker_info.values():
+        if isinstance(value, list) and value and isinstance(value[0], dict):
+            return value[0]
+    return ticker_info
+
+
 def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
     stocks = []
     for pos in raw_positions or []:
@@ -129,6 +163,15 @@ def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
                 "Skipping F24 position %s: unsupported type t=%s",
                 name,
                 pos.get("t"),
+            )
+            continue
+
+        equity_type = _equity_type(pos.get("k", pos.get("kind")))
+        if equity_type is None:
+            _log.warning(
+                "Skipping F24 position %s: unsupported kind k=%s",
+                name,
+                pos.get("k", pos.get("kind")),
             )
             continue
 
@@ -163,7 +206,7 @@ def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
                 shares=shares,
                 market_value=market_value,
                 currency=currency,
-                type=EquityType.STOCK,
+                type=equity_type,
                 initial_investment=market_value,
                 average_buy_price=round(market_value / shares, 4),
                 market=market,
@@ -483,7 +526,18 @@ class F24Fetcher(FinancialEntityFetcher):
 
             ticker = trade["ticker"]
 
-            ticker_info = await self._client.find_by_ticker(ticker)
+            ticker_info = _as_ticker_info(await self._client.find_by_ticker(ticker))
+            instrument_type = _parse_int(ticker_info.get("type", ticker_info.get("t")))
+            equity_type = _equity_type(ticker_info.get("kind", ticker_info.get("k")))
+            if instrument_type not in (None, 1) or equity_type is None:
+                _log.warning(
+                    "Skipping F24 trade %s: unsupported type t=%s kind k=%s",
+                    ticker,
+                    instrument_type,
+                    ticker_info.get("kind", ticker_info.get("k")),
+                )
+                continue
+
             isin = ticker_info.get("isin")
             market = ticker_info.get("mkt")
             name = ticker_info.get("nm", ticker)
@@ -507,6 +561,7 @@ class F24Fetcher(FinancialEntityFetcher):
                 retentions=Dezimal(0),
                 order_date=None,
                 product_type=ProductType.STOCK_ETF,
+                equity_type=equity_type,
                 linked_tx=None,
                 source=DataSource.REAL,
             )
