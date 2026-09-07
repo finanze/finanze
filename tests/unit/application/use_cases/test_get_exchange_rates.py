@@ -702,3 +702,89 @@ class TestPreviousRatesArePreserved:
 
         assert matrix["EUR"]["BTC"] == self.STORED_BTC
         assert matrix["USD"]["BTC"] == Dezimal(1) / Dezimal("50000")
+
+
+class TestInitialLoadCryptoWarmup:
+    def _base_matrix(self):
+        return {
+            "EUR": {"USD": Dezimal("1.1")},
+            "USD": {"EUR": Dezimal("0.9")},
+        }
+
+    @pytest.mark.asyncio
+    async def test_syncs_fiat_matrix_before_crypto_and_batches_both_fiats(self):
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(return_value=self._base_matrix())
+
+        synced = []
+        crypto_provider = AsyncMock()
+
+        def _capture_sync(matrix):
+            synced.append({base: dict(quotes) for base, quotes in matrix.items()})
+
+        crypto_provider.set_base_fiat_rates = MagicMock(side_effect=_capture_sync)
+
+        async def _prices(symbols, fiat_isos, **kwargs):
+            assert synced
+            assert synced[-1].get("USD", {}).get("EUR") == Dezimal("0.9")
+            symbol = symbols[0]
+            return {symbol: {"EUR": Dezimal("50000"), "USD": Dezimal("55000")}}
+
+        crypto_provider.get_multiple_prices_by_symbol = AsyncMock(side_effect=_prices)
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
+        crypto_provider.get_price = AsyncMock()
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        matrix = await uc.execute(initial_load=True)
+
+        crypto_provider.get_price.assert_not_called()
+        crypto_provider.get_prices_by_addresses.assert_not_called()
+        assert crypto_provider.get_multiple_prices_by_symbol.await_count == len(
+            GetExchangeRatesImpl.BASE_CRYPTO_SYMBOLS
+        )
+        called_symbols = [
+            call.args[0][0]
+            for call in crypto_provider.get_multiple_prices_by_symbol.await_args_list
+        ]
+        assert called_symbols == GetExchangeRatesImpl.BASE_CRYPTO_SYMBOLS
+        for call in crypto_provider.get_multiple_prices_by_symbol.await_args_list:
+            assert call.args[0] == [call.args[0][0]]
+            assert list(call.args[1]) == ["EUR", "USD"]
+
+        assert matrix["EUR"]["USD"] == Dezimal("1.1")
+        assert matrix["USD"]["EUR"] == Dezimal("0.9")
+        assert matrix["EUR"]["BTC"] == Dezimal(1) / Dezimal("50000")
+        assert matrix["USD"]["BTC"] == Dezimal(1) / Dezimal("55000")
+
+    @pytest.mark.asyncio
+    async def test_failed_base_matrix_still_schedules_crypto(self):
+        exchange_rates_provider = AsyncMock()
+        exchange_rates_provider.get_matrix = AsyncMock(
+            side_effect=RuntimeError("fiat down")
+        )
+
+        crypto_provider = AsyncMock()
+        crypto_provider.set_base_fiat_rates = MagicMock()
+        crypto_provider.get_multiple_prices_by_symbol = AsyncMock(
+            return_value={"BTC": {"EUR": Dezimal("50000"), "USD": Dezimal("55000")}}
+        )
+        crypto_provider.get_prices_by_addresses = AsyncMock(return_value={})
+        crypto_provider.get_price = AsyncMock()
+
+        uc = _build_use_case(
+            exchange_rates_provider=exchange_rates_provider,
+            crypto_asset_info_provider=crypto_provider,
+            job_scheduler=_run_jobs_sequentially,
+        )
+
+        await uc.execute(initial_load=True)
+
+        crypto_provider.get_price.assert_not_called()
+        assert crypto_provider.get_multiple_prices_by_symbol.await_count == len(
+            GetExchangeRatesImpl.BASE_CRYPTO_SYMBOLS
+        )

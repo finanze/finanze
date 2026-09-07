@@ -231,41 +231,25 @@ class GetExchangeRatesImpl(GetExchangeRates):
         error: BaseException | None,
         commodity_rates,
         crypto_rates,
-        refreshed_base,
     ):
         try:
             if error is not None:
                 raise error
 
-            if kind == "base":
-                if result is not None:
-                    refreshed_base = self._normalize_matrix(result)
-            elif kind == "commodity":
+            if kind == "commodity":
                 commodity, symbol = meta
                 if result is not None:
                     commodity_rates[commodity] = (result, symbol)
-            elif kind == "crypto":
-                symbol, base_currency = meta
-                crypto_rates.setdefault(base_currency, {})[symbol] = result
             elif kind == "crypto_batch":
                 for symbol, fiat_map in result.items():
                     for fiat_iso, price in fiat_map.items():
                         crypto_rates.setdefault(fiat_iso, {})[symbol] = price
         except Exception as e:
-            if kind == "base":
-                self._log.error(f"Failed base fiat matrix fetch: {e}")
-            elif kind == "commodity":
+            if kind == "commodity":
                 commodity, _ = meta
                 self._log.error(f"Failed commodity price for {commodity}: {e}")
-            elif kind == "crypto_batch":
-                self._log.error(f"Failed batched crypto prices fetch: {e}")
             else:
-                symbol, base_currency = meta
-                self._log.error(
-                    f"Failed crypto price for {symbol} in {base_currency}: {e}"
-                )
-
-        return refreshed_base
+                self._log.error(f"Failed batched crypto prices fetch: {e}")
 
     async def _get_initial_exchange_rates(self) -> ExchangeRates:
         stored = await self._exchange_rates_storage.get()
@@ -303,14 +287,15 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         self._sync_base_fiat_rates_to_crypto_provider()
 
+        if refresh_base:
+            await self._fetch_and_sync_base_matrix(timeout, initial_load)
+
         commodity_rates = {}
         crypto_rates = {}
-        refreshed_base = None
 
         try:
             jobs: list[JobDef] = []
             if refresh_base:
-                jobs.extend(self._schedule_base_matrix(timeout))
                 jobs.extend(self._schedule_commodity_rates(timeout))
 
             try:
@@ -329,24 +314,17 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
             outcomes = await self._job_scheduler(jobs, timeout)
             for kind, meta, result, error in outcomes:
-                refreshed_base = self._consume_outcome(
+                self._consume_outcome(
                     kind,
                     meta,
                     result,
                     error,
                     commodity_rates,
                     crypto_rates,
-                    refreshed_base,
                 )
 
         except Exception as e:
             self._log.exception(f"Unexpected error during parallel fetch: {e}")
-
-        if refreshed_base is not None:
-            self._merge_matrix(refreshed_base)
-            if not initial_load:
-                self._last_base_refresh_ts = _now()
-            self._sync_base_fiat_rates_to_crypto_provider()
 
         self._apply_rates(commodity_rates, crypto_rates)
         # Save to storage if not initial load (logged in) or not stored (new)
@@ -372,13 +350,22 @@ class GetExchangeRatesImpl(GetExchangeRates):
         except Exception as e:
             self._log.error(f"Failed to persist refreshed exchange rates: {e}")
 
-    def _schedule_base_matrix(self, timeout: int):
-        async def _run():
-            return await self._port_call_runner(
+    async def _fetch_and_sync_base_matrix(
+        self, timeout: int, initial_load: bool
+    ) -> None:
+        try:
+            base_rates = await self._port_call_runner(
                 self._exchange_rates_provider.get_matrix(timeout=timeout)
             )
-
-        return [(_run, ("base", None))]
+        except Exception as e:
+            self._log.error(f"Failed base fiat matrix fetch: {e}")
+            return
+        if not base_rates:
+            return
+        self._merge_matrix(self._normalize_matrix(base_rates))
+        if not initial_load:
+            self._last_base_refresh_ts = _now()
+        self._sync_base_fiat_rates_to_crypto_provider()
 
     def _schedule_commodity_rates(self, timeout: int):
         items = []
@@ -470,17 +457,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
         # If initial load, fetch generic prices
         if initial_load:
             tasks = []
-            for base_currency in SUPPORTED_CURRENCIES:
-                for symbol in self.BASE_CRYPTO_SYMBOLS:
+            for symbol in self.BASE_CRYPTO_SYMBOLS:
 
-                    async def _run(sym=symbol, base=base_currency):
-                        return await self._port_call_runner(
-                            self._crypto_asset_info_provider.get_price(
-                                sym, base, timeout=timeout
-                            )
+                async def _run(sym=symbol):
+                    return await self._port_call_runner(
+                        self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                            [sym], SUPPORTED_CURRENCIES, timeout=timeout
                         )
+                    )
 
-                    tasks.append((_run, ("crypto", (symbol, base_currency))))
+                tasks.append((_run, ("crypto_batch", None)))
             return tasks
 
         # Otherwise, fetch user position-related crypto prices
