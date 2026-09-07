@@ -491,7 +491,7 @@
       "encryptionKeyLabel": "Chiave di crittografia",
       "encryptionKeyPlaceholder": "La chiave di crittografia del tuo account",
       "encryptionKeyHint": "Questa è la chiave di crittografia che usavi nell'app, non la password del tuo account Cloud.",
-      "restoreButton": "Ripristina dati",
+      "restoreButton": "Ripristina",
       "importing": "Ripristino dati in corso...",
       "dontCloseApp": "Non chiudere l'app durante questo processo",
       "invalidEncryptionKey": "Chiave di crittografia non valida. Controllala e riprova.",
@@ -549,7 +549,11 @@
     "enable": "Attiva invio",
     "notNow": "Non ora",
     "reportAction": "Attiva l'invio degli errori",
-    "enabled": "Invio degli errori attivato"
+    "enabled": "Invio degli errori attivato",
+    "shortLabel": "Segnala errori",
+    "pointAnonymous": "Completamente anonime, non collegate a te o al tuo account",
+    "pointNoSensitiveData": "Non vengono inviati importi, saldi, nomi o credenziali",
+    "pointChangeLater": "Puoi attivarlo o disattivarlo più tardi nelle Impostazioni"
   },
   "entities": {
     "title": "Integrazioni",

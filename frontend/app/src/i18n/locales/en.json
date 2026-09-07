@@ -492,7 +492,7 @@
       "encryptionKeyLabel": "Encryption key",
       "encryptionKeyPlaceholder": "Your account encryption key",
       "encryptionKeyHint": "This is the encryption key you used in the app, not your Cloud account password.",
-      "restoreButton": "Restore data",
+      "restoreButton": "Restore",
       "importing": "Restoring data...",
       "dontCloseApp": "Please don't close the app during this process",
       "invalidEncryptionKey": "Invalid encryption key. Please check and try again.",
@@ -550,7 +550,11 @@
     "enable": "Enable reporting",
     "notNow": "Not now",
     "reportAction": "Enable error reporting",
-    "enabled": "Error reporting enabled"
+    "enabled": "Error reporting enabled",
+    "shortLabel": "Report errors",
+    "pointAnonymous": "Completely anonymous, not linked to you or your account",
+    "pointNoSensitiveData": "No amounts, balances, names or credentials are sent",
+    "pointChangeLater": "You can turn it on or off later in Settings"
   },
   "entities": {
     "title": "Integrations",

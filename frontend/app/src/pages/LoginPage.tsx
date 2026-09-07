@@ -50,6 +50,12 @@ import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 import { generateFloatingLogos } from "@/lib/floatingLogos"
 import { copyToClipboard } from "@/lib/clipboard"
 import { CloudRestore } from "@/components/auth/CloudRestore"
+import {
+  authInputClass,
+  authPasswordValueClass,
+  isLightTheme,
+} from "@/components/auth/authStyles"
+import { ErrorReportingToggle } from "@/components/telemetry/ErrorReportingToggle"
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_\-.$€#]{2,}$/
 const PASSWORD_PATTERN = /^[\x21-\x7e]{8,}$/
@@ -94,11 +100,7 @@ export default function LoginPage() {
   const { theme } = useTheme()
 
   const isMobile = isNativeMobile()
-  const isLight =
-    theme === "light" ||
-    (theme === "system" &&
-      typeof window !== "undefined" &&
-      !window.matchMedia("(prefers-color-scheme: dark)").matches)
+  const isLight = isLightTheme(theme)
 
   useEffect(() => {
     if (!isNativeMobile()) return
@@ -405,14 +407,20 @@ export default function LoginPage() {
     }
   }
 
-  const inputClass = cn(
-    "w-full bg-transparent border-0 border-b rounded-none px-1 py-3 text-base text-center outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors duration-200",
-    isLight
-      ? "border-black/15 text-black placeholder:text-black/30 focus-visible:border-black/40"
-      : "border-white/15 text-white placeholder:text-white/30 focus-visible:border-white/40",
-  )
-  const passwordValueClass =
-    "[&:not(:placeholder-shown)]:text-[22px] [&:not(:placeholder-shown)]:tracking-[4px]"
+  const inputClass = authInputClass(isLight)
+  const passwordValueClass = authPasswordValueClass
+
+  const renderConsentToggle = (mutedClass: string, activeClass: string) => {
+    if (!isSignupMode || isChangingPassword) return null
+
+    return (
+      <ErrorReportingToggle
+        mutedClass={mutedClass}
+        activeClass={activeClass}
+        className="shrink-0"
+      />
+    )
+  }
 
   if (isMobile) {
     return (
@@ -729,25 +737,31 @@ export default function LoginPage() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="submit"
-                    className={cn(
-                      "w-full flex items-center justify-center text-lg font-medium tracking-wide py-4 transition-opacity duration-200 mt-4",
-                      isLight ? "text-black" : "text-white",
-                      isLoading ? "opacity-40" : "active:opacity-60",
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className={cn(
+                        "flex-1 min-w-0 flex items-center justify-center text-lg font-medium tracking-wide py-4 transition-opacity duration-200",
+                        isLight ? "text-black" : "text-white",
+                        isLoading ? "opacity-40" : "active:opacity-60",
+                      )}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <LoadingSpinner size="sm" />
+                      ) : isChangingPassword ? (
+                        t.login.changePassword
+                      ) : isSignupMode ? (
+                        t.login.signup
+                      ) : (
+                        t.common.unlock
+                      )}
+                    </button>
+                    {renderConsentToggle(
+                      isLight ? "text-black/35" : "text-white/35",
+                      isLight ? "text-black/70" : "text-white/70",
                     )}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : isChangingPassword ? (
-                      t.login.changePassword
-                    ) : isSignupMode ? (
-                      t.login.signup
-                    ) : (
-                      t.common.unlock
-                    )}
-                  </button>
+                  </div>
                 )}
 
                 {(isSignupMode || isChangingPassword) && (
@@ -1098,30 +1112,36 @@ export default function LoginPage() {
                 </Button>
               </div>
             ) : (
-              <Button
-                type="submit"
-                variant="ghost"
-                className={cn(
-                  "w-full text-lg py-6 font-bold bg-transparent shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent",
-                  isLight
-                    ? "text-black hover:text-black"
-                    : "text-white hover:text-white dark:text-white dark:hover:text-white",
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  className={cn(
+                    "flex-1 min-w-0 text-lg py-6 font-bold bg-transparent shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent",
+                    isLight
+                      ? "text-black hover:text-black"
+                      : "text-white hover:text-white dark:text-white dark:hover:text-white",
+                  )}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.common.loading}
+                    </>
+                  ) : isChangingPassword ? (
+                    t.login.changePassword
+                  ) : isSignupMode ? (
+                    t.login.signup
+                  ) : (
+                    t.common.unlock
+                  )}
+                </Button>
+                {renderConsentToggle(
+                  "text-muted-foreground",
+                  "text-foreground",
                 )}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    {t.common.loading}
-                  </>
-                ) : isChangingPassword ? (
-                  t.login.changePassword
-                ) : isSignupMode ? (
-                  t.login.signup
-                ) : (
-                  t.common.unlock
-                )}
-              </Button>
+              </div>
             )}
 
             {(isSignupMode || isChangingPassword) && (

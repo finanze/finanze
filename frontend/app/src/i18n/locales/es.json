@@ -490,7 +490,7 @@
       "encryptionKeyLabel": "Clave de cifrado",
       "encryptionKeyPlaceholder": "Tu clave de cifrado de la app",
       "encryptionKeyHint": "Esta es la clave de cifrado que usabas en la app, no la de tu cuenta Cloud.",
-      "restoreButton": "Restaurar datos",
+      "restoreButton": "Restaurar",
       "importing": "Restaurando datos...",
       "dontCloseApp": "Por favor, no cierres la app durante este proceso",
       "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
@@ -548,7 +548,11 @@
     "enable": "Activar envío",
     "notNow": "Ahora no",
     "reportAction": "Activar el envío de errores",
-    "enabled": "Envío de errores activado"
+    "enabled": "Envío de errores activado",
+    "shortLabel": "Informar errores",
+    "pointAnonymous": "Completamente anónimos, sin vínculo contigo ni con tu cuenta",
+    "pointNoSensitiveData": "No se envían importes, saldos, nombres ni credenciales",
+    "pointChangeLater": "Puedes activarlo o desactivarlo más tarde en Ajustes"
   },
   "entities": {
     "title": "Integraciones",

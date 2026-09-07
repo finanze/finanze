@@ -2,7 +2,6 @@ import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
-import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -24,6 +23,13 @@ import {
   getApiServerInfo,
 } from "@/services/api"
 import { useAuth } from "@/context/AuthContext"
+import { useTheme } from "@/context/ThemeContext"
+import {
+  authInputClass,
+  authPasswordValueClass,
+  isLightTheme,
+} from "@/components/auth/authStyles"
+import { ErrorReportingToggle } from "@/components/telemetry/ErrorReportingToggle"
 import type { FullBackupsInfo, BackupFileType } from "@/types"
 
 type RestoreStep = "login" | "checking" | "credentials" | "importing" | "error"
@@ -73,6 +79,10 @@ export function CloudRestore({
 }: CloudRestoreProps) {
   const { t } = useI18n()
   const { guestSignup, signup, logout } = useAuth()
+  const { theme } = useTheme()
+
+  const isLight = isLightTheme(theme)
+  const inputClass = authInputClass(isLight)
 
   const [step, setStep] = useState<RestoreStep>("login")
   const [email, setEmail] = useState("")
@@ -476,25 +486,20 @@ export function CloudRestore({
           </div>
 
           <form onSubmit={handleRestore} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="restoreUsername">{t.login.nameLabel}</Label>
-              <Input
-                id="restoreUsername"
-                type="text"
-                value={restoreUsername}
-                onChange={e => setRestoreUsername(e.target.value)}
-                placeholder={t.login.namePlaceholder}
-                required
-                autoCapitalize="off"
-                disabled={!!loadingMethod || !!pendingUsername}
-              />
-            </div>
+            <input
+              id="restoreUsername"
+              type="text"
+              value={restoreUsername}
+              onChange={e => setRestoreUsername(e.target.value)}
+              placeholder={t.login.namePlaceholder}
+              required
+              autoCapitalize="off"
+              disabled={!!loadingMethod || !!pendingUsername}
+              className={inputClass}
+            />
 
             <div className="space-y-2">
-              <Label htmlFor="encryptionKey">
-                {t.login.cloudRestore.encryptionKeyLabel}
-              </Label>
-              <Input
+              <input
                 id="encryptionKey"
                 type="password"
                 value={encryptionKey}
@@ -502,8 +507,9 @@ export function CloudRestore({
                 placeholder={t.login.cloudRestore.encryptionKeyPlaceholder}
                 required
                 disabled={!!loadingMethod}
+                className={cn(inputClass, authPasswordValueClass)}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground text-center">
                 {t.login.cloudRestore.encryptionKeyHint}
               </p>
             </div>
@@ -519,24 +525,32 @@ export function CloudRestore({
               </motion.div>
             )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={!!loadingMethod || !restoreUsername || !encryptionKey}
-            >
-              {loadingMethod === "restore" ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  {t.login.cloudRestore.importing}
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-2" />
-                  {t.login.cloudRestore.restoreButton}
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="submit"
+                variant="ghost"
+                className={cn(
+                  "flex-1 min-w-0 text-base py-6 font-bold tracking-wide bg-transparent shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent disabled:opacity-40",
+                  isLight
+                    ? "text-black hover:text-black"
+                    : "text-white hover:text-white dark:text-white dark:hover:text-white",
+                )}
+                disabled={!!loadingMethod || !restoreUsername || !encryptionKey}
+              >
+                {loadingMethod === "restore" ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    {t.login.cloudRestore.importing}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2 shrink-0" />
+                    {t.login.cloudRestore.restoreButton}
+                  </>
+                )}
+              </Button>
+              <ErrorReportingToggle className="shrink-0" />
+            </div>
           </form>
 
           <button
