@@ -825,7 +825,7 @@ export default function TransactionsPage() {
                 <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
-            {stockTx.shares && (
+            {Number(stockTx.shares || 0) !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:

@@ -82,7 +82,7 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 | Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets           |
 | Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                           |
 | Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments               |
-| Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending              |
+| Mintos              | ✅ (Smart Cash) | -     | -     | Single ETFs    | -        | -          | -                   | ❌     | ❌    | Crowdlending              |
 | Freedom24           | ✅              | -     | -     | ✅             | -        | -          | -                   | ❌     | -     | Old structured placements |
 | Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                           |
 | ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                           |
@@ -126,7 +126,7 @@ Not all entities support the same features, in general we can group data in the 
 | Trade Republic      | ✅              | ✅                        | ✅                             | -                      |
 | Unicaja             | ✅              | ✅                        | ❌                             | -                      |
 | Wecity              | ✅              | -                         | ✅                             | ✅                     |
-| Mintos              | ✅              | -                         | ❌                             | ❌                     |
+| Mintos              | ✅              | -                         | Single ETFs                    | ❌                     |
 | Freedom24           | ✅              | -                         | ✅                             | ❌                     |
 | Indexa Capital      | ✅              | -                         | ✅                             | -                      |
 | ING                 | ✅              | ✅                        | ✅                             | -                      |
