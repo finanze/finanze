@@ -480,13 +480,13 @@ export default function LoginPage() {
           {isChangingPassword && (
             <button
               type="button"
-              className={`absolute left-6 p-2 z-10 ${isLight ? "text-black/60" : "text-white/60"}`}
+              className={`absolute left-6 p-2 z-10 ${isLight ? "text-black" : "text-white"}`}
               onClick={handleCancelPasswordChange}
               disabled={isLoading}
               aria-label={t.common.cancel}
               style={{ top: "max(16px, env(safe-area-inset-top, 0px))" }}
             >
-              <ArrowLeft className="h-6 w-6" />
+              <ArrowLeft className="h-6 w-6" strokeWidth={2.75} />
             </button>
           )}
 
@@ -842,12 +842,12 @@ export default function LoginPage() {
             type="button"
             variant="ghost"
             size="icon"
-            className={`absolute left-0 top-0 ${isLight ? "text-black/60" : "text-white/60"}`}
+            className={`absolute left-0 top-0 ${isLight ? "text-black" : "text-white"}`}
             onClick={handleCancelPasswordChange}
             disabled={isLoading}
             aria-label={t.common.cancel}
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-6 w-6" strokeWidth={2.75} />
           </Button>
         )}
         <img
@@ -1095,7 +1095,12 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 variant="ghost"
-                className="w-full text-lg py-6 font-bold bg-transparent text-white shadow-none hover:bg-transparent hover:text-white dark:bg-transparent dark:text-white dark:hover:bg-transparent dark:hover:text-white"
+                className={cn(
+                  "w-full text-lg py-6 font-bold bg-transparent shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent",
+                  isLight
+                    ? "text-black hover:text-black"
+                    : "text-white hover:text-white dark:text-white dark:hover:text-white",
+                )}
                 disabled={isLoading}
               >
                 {isLoading ? (
