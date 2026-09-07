@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
-import { ShieldCheck } from "lucide-react"
+import { EyeOff, Lock, ShieldCheck, SlidersHorizontal, X } from "lucide-react"
 
 import { Button } from "@/components/ui/Button"
 import { useI18n } from "@/i18n"
@@ -16,6 +16,19 @@ interface TelemetryConsentDialogProps {
   isOpen: boolean
   onClose: () => void
   onEnabled?: () => void
+  reason?: "error" | "manual"
+}
+
+export function errorReportingPoints(texts: {
+  pointAnonymous: string
+  pointNoSensitiveData: string
+  pointChangeLater: string
+}) {
+  return [
+    { icon: EyeOff, text: texts.pointAnonymous },
+    { icon: Lock, text: texts.pointNoSensitiveData },
+    { icon: SlidersHorizontal, text: texts.pointChangeLater },
+  ]
 }
 
 export function useErrorReportingConsent() {
@@ -40,6 +53,7 @@ export function TelemetryConsentDialog({
   isOpen,
   onClose,
   onEnabled,
+  reason = "error",
 }: TelemetryConsentDialogProps) {
   const { t } = useI18n()
   const [isSaving, setIsSaving] = useState(false)
@@ -76,7 +90,7 @@ export function TelemetryConsentDialog({
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             onClick={event => event.stopPropagation()}
-            className="w-full max-w-sm rounded-lg border border-border bg-background p-5 shadow-lg"
+            className="w-full max-w-sm select-none rounded-lg border border-border bg-background p-5 shadow-lg"
           >
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary" />
@@ -85,13 +99,23 @@ export function TelemetryConsentDialog({
               </h2>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              {t.telemetryConsent.description}
+              {reason === "error"
+                ? t.telemetryConsent.descriptionAfterError
+                : t.telemetryConsent.descriptionManual}
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t.telemetryConsent.detail}
-            </p>
+            <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
+              {errorReportingPoints(t.telemetryConsent).map(
+                ({ icon: PointIcon, text }) => (
+                  <li key={text} className="flex items-start gap-2.5">
+                    <PointIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="leading-relaxed">{text}</span>
+                  </li>
+                ),
+              )}
+            </ul>
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="mr-1.5 h-3.5 w-3.5" />
                 {t.telemetryConsent.notNow}
               </Button>
               <Button
@@ -100,6 +124,7 @@ export function TelemetryConsentDialog({
                 disabled={isSaving}
                 data-testid="telemetry-consent-enable"
               >
+                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                 {t.telemetryConsent.enable}
               </Button>
             </div>

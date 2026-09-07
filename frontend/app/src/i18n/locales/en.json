@@ -545,9 +545,9 @@
   },
   "telemetryConsent": {
     "title": "Report errors automatically",
-    "description": "Error reporting is off, so nothing was sent about this failure. Turn it on and errors like this one are reported from now on, so they can be fixed.",
-    "detail": "Only anonymous diagnostics are sent. Amounts, account details and personal data are removed before sending. You can turn it off anytime in Settings.",
-    "enable": "Enable reporting",
+    "descriptionAfterError": "Error reporting is off, so nothing was sent about this failure. Turn it on and errors like this one are reported from now on, so they can be fixed.",
+    "descriptionManual": "Error reporting is off. Turn it on so any failure you run into is reported automatically and can be fixed.",
+    "enable": "Enable",
     "notNow": "Not now",
     "reportAction": "Enable error reporting",
     "enabled": "Error reporting enabled",

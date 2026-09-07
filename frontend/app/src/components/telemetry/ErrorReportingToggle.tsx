@@ -10,7 +10,10 @@ import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { isNativeMobile } from "@/lib/platform"
 import { updateTelemetryConsent } from "@/lib/telemetry"
-import { useErrorReportingConsent } from "@/components/telemetry/TelemetryConsentDialog"
+import {
+  errorReportingPoints,
+  useErrorReportingConsent,
+} from "@/components/telemetry/TelemetryConsentDialog"
 
 interface ErrorReportingToggleProps {
   mutedClass?: string
@@ -77,17 +80,15 @@ export function ErrorReportingToggle({
         sideOffset={8}
         onOpenAutoFocus={event => event.preventDefault()}
       >
-        <ul className="space-y-2 text-muted-foreground">
-          {[
-            t.telemetryConsent.pointAnonymous,
-            t.telemetryConsent.pointNoSensitiveData,
-            t.telemetryConsent.pointChangeLater,
-          ].map(point => (
-            <li key={point} className="flex gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-              {point}
-            </li>
-          ))}
+        <ul className="space-y-2.5 text-muted-foreground">
+          {errorReportingPoints(t.telemetryConsent).map(
+            ({ icon: PointIcon, text }) => (
+              <li key={text} className="flex items-start gap-2.5">
+                <PointIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="leading-relaxed">{text}</span>
+              </li>
+            ),
+          )}
         </ul>
       </PopoverContent>
     </Popover>

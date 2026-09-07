@@ -126,7 +126,7 @@ test.describe('Cloud Restore - Credentials and Import', () => {
         await page.locator('#restoreUsername').waitFor({ timeout: 10_000 })
         await fillOrVerifyUsername(page, 'restoreuser')
         await page.fill('#encryptionKey', 'WrongKey123!')
-        await page.getByRole('button', { name: 'Restore data' }).click()
+        await page.getByRole('button', { name: 'Restore' }).click()
 
         await expect(
             page.getByText(
@@ -136,7 +136,7 @@ test.describe('Cloud Restore - Credentials and Import', () => {
 
         await expect(page.locator('#encryptionKey')).toBeVisible()
         await expect(
-            page.getByRole('button', { name: 'Restore data' }),
+            page.getByRole('button', { name: 'Restore' }),
         ).toBeVisible()
 
         await clearCloudMocks(page)
@@ -190,7 +190,7 @@ test.describe('Cloud Restore - Credentials and Import', () => {
         await page.locator('#restoreUsername').waitFor({ timeout: 10_000 })
         await fillOrVerifyUsername(page, 'restoreuser')
         await page.fill('#encryptionKey', TEST_PASSWORD)
-        await page.getByRole('button', { name: 'Restore data' }).click()
+        await page.getByRole('button', { name: 'Restore' }).click()
 
         await expect(page.getByText('Restoring data...')).toBeVisible({
             timeout: 10_000,
@@ -222,7 +222,7 @@ test.describe('Cloud Restore - Credentials and Import', () => {
         await page.locator('#restoreUsername').waitFor({ timeout: 10_000 })
         await fillOrVerifyUsername(page, 'restoreuser')
         await page.fill('#encryptionKey', 'WrongKey123!')
-        await page.getByRole('button', { name: 'Restore data' }).click()
+        await page.getByRole('button', { name: 'Restore' }).click()
 
         await expect(page.getByText('Invalid encryption key')).toBeVisible({
             timeout: 10_000,

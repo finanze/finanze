@@ -544,9 +544,9 @@
   },
   "telemetryConsent": {
     "title": "Segnala gli errori automaticamente",
-    "description": "L'invio degli errori è disattivato, quindi non è stato inviato nulla su questo problema. Attivalo e gli errori come questo verranno segnalati d'ora in poi, così potranno essere corretti.",
-    "detail": "Vengono inviate solo diagnostiche anonime. Importi, dati dei conti e dati personali vengono rimossi prima dell'invio. Puoi disattivarlo quando vuoi nelle Impostazioni.",
-    "enable": "Attiva invio",
+    "descriptionAfterError": "L'invio degli errori è disattivato, quindi non è stato inviato nulla su questo problema. Attivalo e gli errori come questo verranno segnalati d'ora in poi, così potranno essere corretti.",
+    "descriptionManual": "L'invio degli errori è disattivato. Attivalo perché qualsiasi problema che incontri venga segnalato automaticamente e possa essere corretto.",
+    "enable": "Attiva",
     "notNow": "Non ora",
     "reportAction": "Attiva l'invio degli errori",
     "enabled": "Invio degli errori attivato",

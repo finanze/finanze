@@ -16,6 +16,7 @@ import {
   Check,
   Info,
   Cloud,
+  ShieldOff,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -56,6 +57,10 @@ import {
   isLightTheme,
 } from "@/components/auth/authStyles"
 import { ErrorReportingToggle } from "@/components/telemetry/ErrorReportingToggle"
+import {
+  TelemetryConsentDialog,
+  useErrorReportingConsent,
+} from "@/components/telemetry/TelemetryConsentDialog"
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_\-.$€#]{2,}$/
 const PASSWORD_PATTERN = /^[\x21-\x7e]{8,}$/
@@ -73,6 +78,7 @@ export default function LoginPage() {
   const [isDesktopApp, setIsDesktopApp] = useState(false)
   const [detailsCopied, setDetailsCopied] = useState(false)
   const [cloudRestoreMode, setCloudRestoreMode] = useState(false)
+  const [showConsentDialog, setShowConsentDialog] = useState(false)
 
   useModalBackHandler(showAdvancedSettings, () =>
     setShowAdvancedSettings(false),
@@ -98,6 +104,8 @@ export default function LoginPage() {
   const { showToast } = useAppContext()
   const { t } = useI18n()
   const { theme } = useTheme()
+  const { enabled: errorReportingEnabled, refresh: refreshConsent } =
+    useErrorReportingConsent()
 
   const isMobile = isNativeMobile()
   const isLight = isLightTheme(theme)
@@ -422,6 +430,33 @@ export default function LoginPage() {
     )
   }
 
+  const renderConsentQuickAction = () => {
+    if (!isLoginMode || errorReportingEnabled !== false) return null
+
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="rounded-full h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800"
+        onClick={() => setShowConsentDialog(true)}
+        aria-label={t.telemetryConsent.reportAction}
+        title={t.telemetryConsent.reportAction}
+        data-testid="login-enable-error-reporting"
+      >
+        <ShieldOff size={18} />
+      </Button>
+    )
+  }
+
+  const consentDialog = (
+    <TelemetryConsentDialog
+      isOpen={showConsentDialog}
+      onClose={() => setShowConsentDialog(false)}
+      onEnabled={refreshConsent}
+      reason="manual"
+    />
+  )
+
   if (isMobile) {
     return (
       <div
@@ -475,7 +510,7 @@ export default function LoginPage() {
           </motion.div>
 
           <div
-            className="absolute left-6"
+            className="absolute left-6 flex items-center gap-2"
             style={{
               bottom:
                 "calc(24px + max(calc(var(--safe-area-inset-bottom, 0px) - 24px), 0px))",
@@ -486,6 +521,7 @@ export default function LoginPage() {
               onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
               versionMismatch={versionMismatch}
             />
+            {renderConsentQuickAction()}
           </div>
 
           {isChangingPassword && (
@@ -803,6 +839,7 @@ export default function LoginPage() {
             isOpen={showAdvancedSettings}
             onClose={() => setShowAdvancedSettings(false)}
           />
+          {consentDialog}
         </div>
       </div>
     )
@@ -844,12 +881,13 @@ export default function LoginPage() {
           />
         ))}
       </motion.div>
-      <div className="absolute bottom-6 left-6 z-10">
+      <div className="absolute bottom-6 left-6 z-10 flex items-center gap-2">
         <LoginQuickSettings
           isDesktop={isDesktopApp}
           onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
           versionMismatch={versionMismatch}
         />
+        {renderConsentQuickAction()}
       </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -1167,6 +1205,7 @@ export default function LoginPage() {
         isOpen={showAdvancedSettings}
         onClose={() => setShowAdvancedSettings(false)}
       />
+      {consentDialog}
     </div>
   )
 }

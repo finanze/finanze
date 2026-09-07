@@ -543,9 +543,9 @@
   },
   "telemetryConsent": {
     "title": "Informar de errores automáticamente",
-    "description": "El envío de errores está desactivado, así que no se ha enviado nada sobre este fallo. Actívalo y los errores como este se informarán a partir de ahora para poder corregirlos.",
-    "detail": "Solo se envían diagnósticos anónimos. Los importes, datos de cuentas y datos personales se eliminan antes de enviarlos. Puedes desactivarlo cuando quieras en Ajustes.",
-    "enable": "Activar envío",
+    "descriptionAfterError": "El envío de errores está desactivado, así que no se ha enviado nada sobre este fallo. Actívalo y los errores como este se informarán a partir de ahora para poder corregirlos.",
+    "descriptionManual": "El envío de errores está desactivado. Actívalo para que cualquier fallo que encuentres se informe automáticamente y pueda corregirse.",
+    "enable": "Activar",
     "notNow": "Ahora no",
     "reportAction": "Activar el envío de errores",
     "enabled": "Envío de errores activado",
