@@ -40,6 +40,11 @@ DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 DATE_FORMAT = "%Y-%m-%d"
 
+_FX_IN_COMMENT = re.compile(
+    r"Currency exchange of trade \(([A-Z]{3})\) to a currency exchange of the service plan \(([A-Z]{3})\) is ([0-9]+(?:\.[0-9]+)?)"
+)
+_CCY_PAIR_TICKER = re.compile(r"^[A-Z]{3}/[A-Z]{3}(?:\.[A-Z]+)?$")
+
 _log = logging.getLogger(__name__)
 
 
@@ -118,6 +123,13 @@ def _position_market_value(pos: dict, shares: Dezimal) -> Dezimal:
     return market_value
 
 
+def _position_average_buy_price(pos: dict) -> Dezimal:
+    raw = pos.get("price_a")
+    if raw is None:
+        raw = pos.get("bal_price_a")
+    return Dezimal(0 if raw is None else raw)
+
+
 F24_KIND_STOCK = 1
 F24_KIND_ETF = 7
 
@@ -136,6 +148,98 @@ def _equity_type(kind) -> EquityType | None:
     if parsed == F24_KIND_STOCK:
         return EquityType.STOCK
     return None
+
+
+def _trade_fee(trade: dict) -> Dezimal:
+    fee = Dezimal(trade.get("commission") or 0)
+    if fee == Dezimal(0):
+        return Dezimal(0)
+
+    trade_ccy = trade.get("currency")
+    fee_ccy = trade.get("commission_currency") or trade_ccy
+    if not fee_ccy or fee_ccy == trade_ccy:
+        return round(fee, 2)
+
+    comment = trade.get("commission_comment") or ""
+    match = _FX_IN_COMMENT.search(comment)
+    if not match:
+        _log.warning(
+            "F24 trade %s: commission %s %s vs trade %s, no FX rate in comment",
+            trade.get("ticker"),
+            fee,
+            fee_ccy,
+            trade_ccy,
+        )
+        return round(fee, 2)
+
+    from_ccy, to_ccy, rate = match.group(1), match.group(2), Dezimal(match.group(3))
+    if rate <= Dezimal(0):
+        _log.warning(
+            "F24 trade %s: invalid FX rate %s in comment",
+            trade.get("ticker"),
+            rate,
+        )
+        return round(fee, 2)
+
+    if from_ccy == trade_ccy and to_ccy == fee_ccy:
+        return round(fee / rate, 2)
+    if from_ccy == fee_ccy and to_ccy == trade_ccy:
+        return round(fee * rate, 2)
+
+    _log.warning(
+        "F24 trade %s: FX comment %s->%s does not match commission %s vs trade %s",
+        trade.get("ticker"),
+        from_ccy,
+        to_ccy,
+        fee_ccy,
+        trade_ccy,
+    )
+    return round(fee, 2)
+
+
+def _currency_pair_tickers(raw) -> set[str]:
+    payload = raw
+    if isinstance(raw, dict):
+        tickers = raw.get("tickers")
+        if tickers is None:
+            for key in ("result", "data", "response"):
+                nested = raw.get(key)
+                if isinstance(nested, dict) and nested.get("tickers") is not None:
+                    payload = nested
+                    tickers = nested.get("tickers")
+                    break
+        else:
+            payload = raw
+    else:
+        tickers = None
+
+    pairs: set[str] = set()
+    if isinstance(tickers, dict):
+        for key, value in tickers.items():
+            if key:
+                pairs.add(str(key).strip())
+            if value:
+                pairs.add(str(value).strip())
+    elif isinstance(tickers, list):
+        for value in tickers:
+            if value:
+                pairs.add(str(value).strip())
+
+    if isinstance(payload, dict):
+        for fiat in payload.get("fiat") or []:
+            code = str(fiat).strip()
+            if code:
+                pairs.add(code)
+    return pairs
+
+
+def _is_currency_pair(ticker: str, pairs: set[str]) -> bool:
+    ticker = (ticker or "").strip()
+    if not ticker:
+        return False
+    if ticker in pairs:
+        return True
+    return bool(_CCY_PAIR_TICKER.fullmatch(ticker))
 
 
 def _as_ticker_info(ticker_info) -> dict:
@@ -196,6 +300,7 @@ def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
 
         market_value = round(_position_market_value(pos, shares), 2)
         market = ticker.rsplit(".", 1)[-1] if "." in ticker else ""
+        average_buy_price = _position_average_buy_price(pos)
 
         stocks.append(
             StockDetail(
@@ -207,8 +312,8 @@ def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
                 market_value=market_value,
                 currency=currency,
                 type=equity_type,
-                initial_investment=market_value,
-                average_buy_price=round(market_value / shares, 4),
+                initial_investment=round(average_buy_price * shares, 2),
+                average_buy_price=average_buy_price,
                 market=market,
                 source=DataSource.REAL,
             )
@@ -501,10 +606,17 @@ class F24Fetcher(FinancialEntityFetcher):
         return txs
 
     async def _map_investment_txs(self, raw_trades, registered_txs):
+        currency_pairs = _currency_pair_tickers(
+            await self._client.get_allowed_currency_pairs()
+        )
         investment_tx = []
         for trade in raw_trades:
             trade_id = str(trade["trade_id"])
             if trade_id in registered_txs:
+                continue
+
+            ticker = (trade.get("ticker") or "").strip()
+            if _is_currency_pair(ticker, currency_pairs):
                 continue
 
             trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(
@@ -522,9 +634,7 @@ class F24Fetcher(FinancialEntityFetcher):
             amount = round(Dezimal(trade["sum"]), 2)
             shares = Dezimal(trade["q"])
             price = Dezimal(trade["p"])
-            fee = Dezimal(trade.get("commission", 0))
-
-            ticker = trade["ticker"]
+            fee = _trade_fee(trade)
 
             ticker_info = _as_ticker_info(await self._client.find_by_ticker(ticker))
             instrument_type = _parse_int(ticker_info.get("type", ticker_info.get("t")))

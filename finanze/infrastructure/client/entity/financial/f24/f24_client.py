@@ -22,11 +22,18 @@ class F24APIClient:
         self._log = logging.getLogger(__name__)
 
     async def _execute_request(
-        self, path: str, method: str, data: str, headers: Optional[dict] = None
+        self,
+        path: str,
+        method: str,
+        data: Optional[str] = None,
+        headers: Optional[dict] = None,
     ) -> dict:
-        response = await self._session.request(
-            method, self.BASE_URL + path, data=data, headers=headers
-        )
+        kwargs = {}
+        if data is not None:
+            kwargs["data"] = data
+        if headers is not None:
+            kwargs["headers"] = headers
+        response = await self._session.request(method, self.BASE_URL + path, **kwargs)
 
         if response.ok:
             return await response.json()
@@ -252,3 +259,10 @@ class F24APIClient:
         )
         headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         return await self._post_request("/api", data=data, headers=headers)
+
+    @cached(
+        ttl=3600,
+        key_builder=lambda f, self: "f24_allowed_currency_pairs",
+    )
+    async def get_allowed_currency_pairs(self) -> dict:
+        return await self._execute_request("/api?cmd=getAllowedCurrencyPairs", "GET")

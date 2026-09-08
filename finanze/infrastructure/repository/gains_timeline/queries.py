@@ -237,22 +237,28 @@ class GainsTimelineQueries(str, Enum):
                            WHERE gp.entity_id = it.entity_id
                              AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
                              AND gp.source = it.source
+                             AND f.currency = it.currency
                              AND COALESCE(NULLIF(f.isin, ''), f.name) = COALESCE(NULLIF(it.isin, ''), it.name)
-                                                         AND gp.date >= it.date
-                                                     ORDER BY gp.date ASC
-                                                     LIMIT 1
-                                             ),
-                                             (
-                                                     SELECT p.name
-                                                     FROM fund_positions f
-                                                             JOIN global_positions gp ON gp.id = f.global_position_id
-                                                             LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
-                                                     WHERE gp.entity_id = it.entity_id
-                                                         AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
-                                                         AND gp.source = it.source
-                                                         AND COALESCE(NULLIF(f.isin, ''), f.name) = COALESCE(NULLIF(it.isin, ''), it.name)
-                                                         AND gp.date < it.date
-                                                     ORDER BY gp.date DESC
+                             AND gp.date >= it.date
+                           GROUP BY gp.date
+                           HAVING COUNT(DISTINCT COALESCE(p.name, '')) = 1
+                           ORDER BY gp.date ASC
+                           LIMIT 1
+                       ),
+                       (
+                           SELECT p.name
+                           FROM fund_positions f
+                               JOIN global_positions gp ON gp.id = f.global_position_id
+                               LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
+                           WHERE gp.entity_id = it.entity_id
+                             AND COALESCE(gp.entity_account_id, '') = COALESCE(it.entity_account_id, '')
+                             AND gp.source = it.source
+                             AND f.currency = it.currency
+                             AND COALESCE(NULLIF(f.isin, ''), f.name) = COALESCE(NULLIF(it.isin, ''), it.name)
+                             AND gp.date < it.date
+                           GROUP BY gp.date
+                           HAVING COUNT(DISTINCT COALESCE(p.name, '')) = 1
+                           ORDER BY gp.date DESC
                            LIMIT 1
                        )
                    )

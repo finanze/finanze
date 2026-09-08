@@ -569,6 +569,88 @@ class TestGainsTimelineRepositoryIntegration:
         assert flows_by_type[ProductType.STOCK_ETF].equity_type == EquityType.ETF
 
     @pytest.mark.asyncio
+    async def test_fund_flow_portfolio_is_resolved_per_currency(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        position_id = _insert_position(conn, entity_id, "2025-01-02")
+        portfolio_id = str(uuid4())
+        conn.execute(
+            "INSERT INTO fund_portfolios (id, global_position_id, name) VALUES (?, ?, 'goifolio')",
+            (portfolio_id, position_id),
+        )
+        conn.execute(
+            "INSERT INTO fund_positions "
+            "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+            "VALUES (?, ?, 'Vangoi', 'IE00FUND0001', 'EUR', '650', '10', '600', ?)",
+            (str(uuid4()), position_id, portfolio_id),
+        )
+        conn.execute(
+            "INSERT INTO fund_positions "
+            "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+            "VALUES (?, ?, 'Vangoi', 'IE00FUND0001', 'GBP', '600', '500', '500', NULL)",
+            (str(uuid4()), position_id),
+        )
+        for currency, amount in (("EUR", "600"), ("GBP", "32350")):
+            conn.execute(
+                "INSERT INTO investment_transactions "
+                "(id, ref, entity_id, entity_account_id, source, product_type, type, date, amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+                "VALUES (?, ?, ?, NULL, 'REAL', 'FUND', 'BUY', '2025-01-01T12:00:00', ?, ?, '1', ?, '0', '0', 'IE00FUND0001', NULL, NULL, 'Vangoi')",
+                (str(uuid4()), str(uuid4()), str(entity_id), amount, currency, amount),
+            )
+        conn.commit()
+
+        flows = await repository.get_flows(
+            [GainsAssetFilter(product_type=ProductType.FUND)], [str(entity_id)]
+        )
+
+        by_currency = {flow.currency: flow for flow in flows}
+        assert by_currency["EUR"].portfolio_name == "goifolio"
+        assert by_currency["GBP"].portfolio_name is None
+
+    @pytest.mark.asyncio
+    async def test_fund_flow_portfolio_is_left_unset_when_the_asset_is_ambiguous(
+        self, setup
+    ):
+        repository, conn = setup
+        entity_id = uuid4()
+        position_id = _insert_position(conn, entity_id, "2025-01-02")
+        portfolio_id = str(uuid4())
+        other_portfolio_id = str(uuid4())
+        conn.execute(
+            "INSERT INTO fund_portfolios (id, global_position_id, name) VALUES (?, ?, 'goifolio')",
+            (portfolio_id, position_id),
+        )
+        conn.execute(
+            "INSERT INTO fund_portfolios (id, global_position_id, name) VALUES (?, ?, 'other')",
+            (other_portfolio_id, position_id),
+        )
+        conn.execute(
+            "INSERT INTO fund_positions "
+            "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+            "VALUES (?, ?, 'Vangoi', 'IE00FUND0001', 'EUR', '650', '10', '600', ?)",
+            (str(uuid4()), position_id, portfolio_id),
+        )
+        conn.execute(
+            "INSERT INTO fund_positions "
+            "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+            "VALUES (?, ?, 'Vangoi', 'IE00FUND0001', 'EUR', '600', '500', '500', ?)",
+            (str(uuid4()), position_id, other_portfolio_id),
+        )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, ?, ?, NULL, 'REAL', 'FUND', 'SELL', '2025-01-01T12:00:00', '32350', 'EUR', '1', '32350', '0', '0', 'IE00FUND0001', NULL, NULL, 'Vangoi')",
+            (str(uuid4()), str(uuid4()), str(entity_id)),
+        )
+        conn.commit()
+
+        flows = await repository.get_flows(
+            [GainsAssetFilter(product_type=ProductType.FUND)], [str(entity_id)]
+        )
+
+        assert [flow.portfolio_name for flow in flows] == [None]
+
+    @pytest.mark.asyncio
     async def test_inferring_commodity_flows_normalizes_units_and_keeps_same_type_holdings(
         self, setup
     ):
