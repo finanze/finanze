@@ -572,7 +572,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "TRADING_TRADE_EXECUTED",
         "MUTUAL_FUND_TRADE_EXECUTED",
         "SAVINGS_PLAN_EXECUTED",
-        "TRADING_SAVGINSPLAN_EXECUTED",
+        "TRADING_SAVINGSPLAN_EXECUTED",
         "PRIVATE_MARKETS_ORDER_CREATED",
         "TRADE_CORRECTED",
     ]
@@ -588,12 +588,20 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "SSP_CORPORATE_ACTION_CASH",
     ]
 
+    CORPORATE_ACTION_TX_TYPES = [
+        "SSP_CORPORATE_ACTION_INVOICE_SHARES",
+    ]
+
     OTHER_TX_TYPES = [
         "TIMELINE_LEGACY_MIGRATED_EVENTS",
     ]
 
     HANDLED_TX_TYPES = (
-        ACCOUNT_INTEREST_TX_TYPES + TRADE_TX_TYPES + DIVIDEND_TX_TYPES + OTHER_TX_TYPES
+        ACCOUNT_INTEREST_TX_TYPES
+        + TRADE_TX_TYPES
+        + DIVIDEND_TX_TYPES
+        + CORPORATE_ACTION_TX_TYPES
+        + OTHER_TX_TYPES
     )
 
     async def transactions(
@@ -633,7 +641,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 else:
                     mapped_tx = await self.map_investment_tx(raw_tx, date)
                     if mapped_tx:
-                        investment_txs.append(mapped_tx)
+                        if isinstance(mapped_tx, list):
+                            investment_txs.extend(mapped_tx)
+                        else:
+                            investment_txs.append(mapped_tx)
             except Exception:
                 self._log.warning(
                     "Skipping Trade Republic transaction %s due to mapping error",
@@ -770,14 +781,25 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def map_investment_tx(
         self, raw_tx: dict, date: datetime
-    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx]:
+    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx | list[StockTx | FundTx]]:
         name = (raw_tx.get("title") or "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().lower()
         amount_obj = raw_tx.get("amount") or {}
-        currency = amount_obj.get("currency")
+        currency = amount_obj.get("currency") or "EUR"
         raw_amount_value = amount_obj.get("value")
         event_type = (raw_tx.get("eventType") or "").strip().upper()
-        if not amount_obj or not currency or not raw_amount_value:
+        detail_sections = (raw_tx.get("details") or {}).get("sections") or []
+
+        if event_type in self.CORPORATE_ACTION_TX_TYPES:
+            return await self._map_corporate_action_tx(
+                raw_tx=raw_tx,
+                name=name,
+                currency=currency,
+                date=date,
+                detail_sections=detail_sections,
+            )
+
+        if not amount_obj or not raw_amount_value:
             self._log.warning("Incomplete transaction data: %s", raw_tx.get("id"))
             return None
 
@@ -978,6 +1000,135 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 linked_tx=None,
                 source=DataSource.REAL,
             )
+
+    async def _map_corporate_action_tx(
+        self,
+        raw_tx: dict,
+        name: str,
+        currency: str,
+        date: datetime,
+        detail_sections: list[dict],
+    ) -> Optional[list[StockTx | FundTx] | StockTx | FundTx]:
+        isin = self._get_tx_isin(raw_tx, detail_sections)
+        if not isin:
+            self._log.warning(
+                f"No ISIN found for corporate action transaction: {raw_tx.get('id')}"
+            )
+            return None
+
+        instrument_details = await self._client.get_instrument_details(isin) or {}
+        raw_type = (instrument_details.get("typeId") or "").upper()
+        product_subtype: FundType | EquityType | None = None
+        product_type: ProductType
+
+        if raw_type == "STOCK":
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.STOCK
+        elif raw_type == "FUND":
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.ETF
+        elif raw_type == "MUTUALFUND":
+            product_type = ProductType.FUND
+            product_subtype = FundType.MUTUAL_FUND
+        elif raw_type in self.UNSUPPORTED_INSTRUMENT_TYPES:
+            self._log.warning(
+                "Skipping unsupported product type: %s for ISIN %s",
+                raw_type,
+                isin,
+            )
+            return None
+        else:
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.STOCK
+
+        parent_section = get_section(detail_sections, "Transaction")
+        if not parent_section:
+            parent_section = get_section(detail_sections, "Overview")
+        section_data = parent_section.get("data", []) if parent_section else []
+
+        inferred_locale = infer_locale_from_section(
+            get_section(section_data, "Total")
+        ) or infer_locale_from_section(get_section(section_data, "Fee"))
+
+        shares_removed = parse_sub_section_float(
+            get_section(section_data, "Shares removed"), inferred_locale
+        )
+        shares_added = parse_sub_section_float(
+            get_section(section_data, "Shares added"), inferred_locale
+        )
+
+        if shares_removed is None and shares_added is None:
+            shares = parse_sub_section_float(
+                get_section(section_data, "Shares"), inferred_locale
+            )
+            if shares is not None:
+                shares_added = shares
+
+        if not shares_removed and not shares_added:
+            self._log.warning(
+                "No shares found for corporate action %s on ISIN %s",
+                raw_tx.get("id"),
+                isin,
+            )
+            return None
+
+        txs: list[StockTx | FundTx] = []
+
+        def _build_tx(tx_type: TxType, qty: Dezimal) -> StockTx | FundTx:
+            tx_id = uuid4()
+            if product_type == ProductType.FUND:
+                return FundTx(
+                    id=tx_id,
+                    ref=raw_tx["id"],
+                    name=name,
+                    amount=Dezimal(0),
+                    currency=currency,
+                    type=tx_type,
+                    date=date,
+                    entity=TRADE_REPUBLIC,
+                    net_amount=Dezimal(0),
+                    isin=isin,
+                    shares=qty,
+                    price=Dezimal(0),
+                    market=None,
+                    fees=Dezimal(0),
+                    retentions=Dezimal(0),
+                    order_date=None,
+                    product_type=product_type,
+                    fund_type=product_subtype,
+                    source=DataSource.REAL,
+                )
+            return StockTx(
+                id=tx_id,
+                ref=raw_tx["id"],
+                name=name,
+                amount=Dezimal(0),
+                currency=currency,
+                type=tx_type,
+                date=date,
+                entity=TRADE_REPUBLIC,
+                net_amount=Dezimal(0),
+                isin=isin,
+                ticker=None,
+                shares=qty,
+                price=Dezimal(0),
+                market=None,
+                fees=Dezimal(0),
+                retentions=Dezimal(0),
+                order_date=None,
+                product_type=product_type,
+                equity_type=product_subtype,
+                linked_tx=None,
+                source=DataSource.REAL,
+            )
+
+        if shares_removed and shares_removed > 0:
+            txs.append(_build_tx(TxType.SWAP_FROM, abs(shares_removed)))
+
+        if shares_added and shares_added > 0:
+            txs.append(_build_tx(TxType.SWAP_TO, abs(shares_added)))
+
+        return txs
 
     @staticmethod
     def _extract_isin_from_asset(asset: str | dict) -> Optional[str]:

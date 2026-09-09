@@ -17,7 +17,7 @@ from domain.global_position import (
     StockDetail,
 )
 from domain.public_keychain import PublicKeychain
-from domain.transactions import StockTx
+from domain.transactions import StockTx, TxType
 from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
     TradeRepublicFetcher,
 )
@@ -391,6 +391,103 @@ class TestFetcherTransactionsHardening:
         assert isinstance(txs.investment[0], StockTx)
         assert txs.investment[0].ref == "tx-stock"
         assert txs.investment[0].isin == "US0378331005"
+
+    @pytest.mark.asyncio
+    async def test_corporate_action_stock_split_mapped_to_swap_to(self):
+        fetcher = _make_fetcher()
+        split_tx = {
+            "id": "tx-split-1",
+            "title": "Chipotle Mexican Grill",
+            "subtitle": "Aktiensplit",
+            "status": "EXECUTED",
+            "eventType": "SSP_CORPORATE_ACTION_INVOICE_SHARES",
+            "timestamp": "2024-06-26T08:06:40.347+00:00",
+            "amount": {"currency": "EUR", "value": "0"},
+            "icon": "logos/US1696561059/v2",
+            "details": {
+                "sections": [
+                    {
+                        "title": "Overview",
+                        "data": [
+                            {"title": "Shares added", "detail": {"text": "49"}},
+                        ],
+                    }
+                ]
+            },
+        }
+
+        fetcher._client.get_instrument_details = AsyncMock(
+            return_value={"typeId": "STOCK"}
+        )
+        fetcher._client.get_transactions = AsyncMock(return_value=[split_tx])
+        fetcher._client.close = AsyncMock()
+
+        txs = await fetcher.transactions(set(), FetchOptions())
+        assert len(txs.investment) == 1
+        inv = txs.investment[0]
+        assert isinstance(inv, StockTx)
+        assert inv.ref == "tx-split-1"
+        assert inv.type == TxType.SWAP_TO
+        assert inv.isin == "US1696561059"
+        assert inv.shares == Dezimal("49")
+        assert inv.amount == Dezimal(0)
+        assert inv.net_amount == Dezimal(0)
+        assert inv.price == Dezimal(0)
+        assert inv.fees == Dezimal(0)
+        assert inv.retentions == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_corporate_action_reverse_split_mapped_to_swap_from_and_swap_to(self):
+        fetcher = _make_fetcher()
+        reverse_split_tx = {
+            "id": "tx-rev-split-1",
+            "title": "Globalstar",
+            "subtitle": "Reverse Split",
+            "status": "EXECUTED",
+            "eventType": "SSP_CORPORATE_ACTION_INVOICE_SHARES",
+            "timestamp": "2025-02-11T08:13:48.877+00:00",
+            "amount": {"currency": "EUR", "value": "0"},
+            "icon": "logos/US3789734080/v2",
+            "details": {
+                "sections": [
+                    {
+                        "title": "Overview",
+                        "data": [
+                            {
+                                "title": "Shares removed",
+                                "detail": {"text": "110.403067"},
+                            },
+                            {"title": "Shares added", "detail": {"text": "7.360204"}},
+                        ],
+                    }
+                ]
+            },
+        }
+
+        fetcher._client.get_instrument_details = AsyncMock(
+            return_value={"typeId": "STOCK"}
+        )
+        fetcher._client.get_transactions = AsyncMock(return_value=[reverse_split_tx])
+        fetcher._client.close = AsyncMock()
+
+        txs = await fetcher.transactions(set(), FetchOptions())
+        assert len(txs.investment) == 2
+
+        swap_from = txs.investment[0]
+        assert isinstance(swap_from, StockTx)
+        assert swap_from.ref == "tx-rev-split-1"
+        assert swap_from.type == TxType.SWAP_FROM
+        assert swap_from.isin == "US3789734080"
+        assert swap_from.shares == Dezimal("110.403067")
+        assert swap_from.amount == Dezimal(0)
+
+        swap_to = txs.investment[1]
+        assert isinstance(swap_to, StockTx)
+        assert swap_to.ref == "tx-rev-split-1"
+        assert swap_to.type == TxType.SWAP_TO
+        assert swap_to.isin == "US3789734080"
+        assert swap_to.shares == Dezimal("7.360204")
+        assert swap_to.amount == Dezimal(0)
 
 
 class TestFetcherAutoContributionsHardening:

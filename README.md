@@ -177,6 +177,10 @@ At the moment the only available feature for crypto is **Global Position**, tran
 
 Some financial entities such as Trade Republic support crypto too.
 
+#### Zerion
+
+Zerion is also supported (by providing your free API key), which allows to multiple crypto asset tracking and DeFi.
+
 #### Other entity types
 
 This app also is capable of tracking market forecast platforms such as Polymarket, tracking transactions, PnL and current & historic positions (not manual data).
