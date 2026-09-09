@@ -491,7 +491,7 @@
       "encryptionKeyLabel": "Chiave di crittografia",
       "encryptionKeyPlaceholder": "La chiave di crittografia del tuo account",
       "encryptionKeyHint": "Questa è la chiave di crittografia che usavi nell'app, non la password del tuo account Cloud.",
-      "restoreButton": "Ripristina dati",
+      "restoreButton": "Ripristina",
       "importing": "Ripristino dati in corso...",
       "dontCloseApp": "Non chiudere l'app durante questo processo",
       "invalidEncryptionKey": "Chiave di crittografia non valida. Controllala e riprova.",
@@ -534,6 +534,26 @@
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
     "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro."
+  },
+  "errorBoundary": {
+    "title": "Qualcosa è andato storto",
+    "description": "L'applicazione ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "pageDescription": "Questa pagina ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "goToDashboard": "Vai alla dashboard",
+    "restart": "Riavvia"
+  },
+  "telemetryConsent": {
+    "title": "Segnala gli errori automaticamente",
+    "descriptionAfterError": "L'invio degli errori è disattivato, quindi non è stato inviato nulla su questo problema. Attivalo e gli errori come questo verranno segnalati d'ora in poi, così potranno essere corretti.",
+    "descriptionManual": "L'invio degli errori è disattivato. Attivalo perché qualsiasi problema che incontri venga segnalato automaticamente e possa essere corretto.",
+    "enable": "Attiva",
+    "notNow": "Non ora",
+    "reportAction": "Attiva l'invio degli errori",
+    "enabled": "Invio degli errori attivato",
+    "shortLabel": "Segnala errori",
+    "pointAnonymous": "Pseudonimo, identificato solo da un ID di installazione e mai collegato ai tuoi dati personali o al tuo account",
+    "pointNoSensitiveData": "Non vengono inviati importi, saldi, nomi o credenziali",
+    "pointChangeLater": "Puoi attivarlo o disattivarlo più tardi nelle Impostazioni"
   },
   "entities": {
     "title": "Integrazioni",
@@ -717,6 +737,13 @@
       "description": "Informazioni legali e policy",
       "privacyPolicy": "Informativa sulla Privacy",
       "termsOfService": "Termini di Servizio"
+    },
+    "privacy": {
+      "title": "Diagnostica",
+      "description": "Tutto qui è disattivato per impostazione predefinita e resta su questo dispositivo se non lo attivi.",
+      "errorReportingLabel": "Invia segnalazioni di errore",
+      "errorReportingDescription": "Condividi segnalazioni pseudonime di crash ed errori identificate solo da un ID di installazione per poterli correggere. Importi, dati dei conti e dati personali non vengono mai inviati.",
+      "installId": "ID di installazione"
     },
     "cloud": {
       "tabTitle": "Cloud",

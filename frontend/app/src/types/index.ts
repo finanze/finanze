@@ -287,6 +287,7 @@ export interface StatusResponse {
   server: {
     version: string
     platform_type: PlatformType
+    platform_version?: string | null
     options: BackendOptions
   }
   features: FeatureFlags
@@ -690,6 +691,10 @@ declare global {
       checkForUpdates: () => Promise<AutoUpdateCheckResult>
       downloadUpdate: () => Promise<AutoUpdateActionResult>
       quitAndInstall: () => Promise<AutoUpdateActionResult>
+      setTelemetryConsent: (consent: {
+        errorReporting: boolean
+        installId?: string
+      }) => Promise<void>
       onCheckingForUpdate: (callback: () => void) => () => void
       onUpdateAvailable: (
         callback: (info: AutoUpdateInfo) => void,

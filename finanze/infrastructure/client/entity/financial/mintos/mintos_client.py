@@ -118,3 +118,47 @@ class MintosAPIClient:
     @cached(cache=Cache.MEMORY, ttl=120)
     async def get_smart_cash_fund(self) -> dict:
         return await self._get_request("/msc-api/v1/funds/current")
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_asset_accounts(self) -> dict:
+        return await self._get_request("/assetx-api/v1/accounts")
+
+    async def get_asset_positions(self, account_id: str) -> list[dict]:
+        return await self._get_asset_pages(account_id, "positions")
+
+    async def get_asset_transactions(self, account_id: str) -> list[dict]:
+        return await self._get_asset_pages(account_id, "transactions")
+
+    async def get_asset_orders(self, account_id: str) -> list[dict]:
+        return await self._get_asset_pages(account_id, "orders")
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_etf_quotes(self, isin: str) -> dict:
+        return await self._get_request(
+            f"/assetx-price-api/v1/history/quotes/{isin}",
+            params={"range": "ONE_DAY"},
+        )
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_etf_details(self, isin: str) -> dict:
+        return await self._get_request(f"/assetx-price-api/v1/instruments/etf/{isin}")
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_etf_instrument_details(self, isin: str) -> dict:
+        return await self._get_request(
+            f"/assetx-api/v1/instruments/{isin}",
+            params={"productType": "SINGLE_ETF"},
+        )
+
+    async def _get_asset_pages(self, account_id: str, resource: str) -> list[dict]:
+        entries = []
+        page = 0
+        while True:
+            response = await self._get_request(
+                f"/assetx-api/v1/accounts/{account_id}/{resource}",
+                params={"page": page, "size": 30},
+            )
+            entries.extend(response["content"])
+            if not response["metadata"]["hasNext"]:
+                return entries
+            page += 1

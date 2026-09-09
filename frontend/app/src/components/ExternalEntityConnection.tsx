@@ -340,7 +340,7 @@ export function useExternalEntityConnection() {
       if (error || !entityId) {
         await closeExternalAuthBrowser()
         setShowCompleteExternalModal(false)
-        showToast(t.entities.externalLinkError, "error")
+        showToast(t.entities.externalLinkError, "error", { reportable: false })
         return
       }
 

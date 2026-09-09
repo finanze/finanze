@@ -67,7 +67,7 @@ export function PartialAmortizeDialog({
 
   const handleSubmit = async () => {
     if (!amount || amount <= 0) {
-      showToast(at.invalidAmount, "error")
+      showToast(at.invalidAmount, "error", { reportable: false })
       return
     }
     setIsSubmitting(true)

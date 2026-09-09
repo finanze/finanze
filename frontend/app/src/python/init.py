@@ -4,9 +4,11 @@ from finanze.logs import configure_logging
 app = MobileApp()
 
 
-async def initialize(operative_system: str | None = None):
+async def initialize(
+    operative_system: str | None = None, os_version: str | None = None
+):
     configure_logging()
-    await app.initialize(operative_system=operative_system)
+    await app.initialize(operative_system=operative_system, os_version=os_version)
 
 
 async def initialize_deferred():

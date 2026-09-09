@@ -28,4 +28,5 @@ Pillow==12.3.0
 httpx==0.28.1
 base58==2.1.1
 ecdsa==0.19.2
+sentry-sdk==2.68.1
 degiro-connector>=3.0.36

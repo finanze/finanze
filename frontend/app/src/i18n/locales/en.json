@@ -492,7 +492,7 @@
       "encryptionKeyLabel": "Encryption key",
       "encryptionKeyPlaceholder": "Your account encryption key",
       "encryptionKeyHint": "This is the encryption key you used in the app, not your Cloud account password.",
-      "restoreButton": "Restore data",
+      "restoreButton": "Restore",
       "importing": "Restoring data...",
       "dontCloseApp": "Please don't close the app during this process",
       "invalidEncryptionKey": "Invalid encryption key. Please check and try again.",
@@ -535,6 +535,26 @@
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "The application ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "pageDescription": "This page ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "goToDashboard": "Go to dashboard",
+    "restart": "Restart"
+  },
+  "telemetryConsent": {
+    "title": "Report errors automatically",
+    "descriptionAfterError": "Error reporting is off, so nothing was sent about this failure. Turn it on and errors like this one are reported from now on, so they can be fixed.",
+    "descriptionManual": "Error reporting is off. Turn it on so any failure you run into is reported automatically and can be fixed.",
+    "enable": "Enable",
+    "notNow": "Not now",
+    "reportAction": "Enable error reporting",
+    "enabled": "Error reporting enabled",
+    "shortLabel": "Report errors",
+    "pointAnonymous": "Pseudonymous, identified only by an installation ID and never linked to you or your account",
+    "pointNoSensitiveData": "No amounts, balances, names or credentials are sent",
+    "pointChangeLater": "You can turn it on or off later in Settings"
   },
   "entities": {
     "title": "Integrations",
@@ -718,6 +738,13 @@
       "description": "Legal information and policies",
       "privacyPolicy": "Privacy Policy",
       "termsOfService": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Diagnostics",
+      "description": "Everything here is off by default and stays on this device unless you turn it on.",
+      "errorReportingLabel": "Send error reports",
+      "errorReportingDescription": "Share pseudonymous crash and error reports identified only by an installation ID so bugs can be fixed. Amounts, account details and personal data are never sent.",
+      "installId": "Installation ID"
     },
     "cloud": {
       "tabTitle": "Cloud",

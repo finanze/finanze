@@ -1181,6 +1181,7 @@ function CryptoInvestmentContent({
       ],
       base_currency: settings.general.defaultCurrency,
       entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+      calculation_mode: "SNAPSHOTS",
     }
   }, [
     hasUnsupportedWalletScope,

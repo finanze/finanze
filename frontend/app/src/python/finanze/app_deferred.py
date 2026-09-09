@@ -157,6 +157,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
         self.register = RegisterUserImpl(
             core.db_manager,
@@ -164,6 +165,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
         self.get_settings = GetSettingsImpl(self.config_loader)
 
@@ -175,6 +177,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
 
         if INCLUDE_CONNECTIONS:

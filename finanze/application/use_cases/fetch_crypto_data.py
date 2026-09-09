@@ -13,6 +13,7 @@ from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.crypto_wallet_port import CryptoWalletPort
+from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
@@ -79,6 +80,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         external_integration_port: ExternalIntegrationPort,
         transaction_handler_port: TransactionHandlerPort,
         public_key_derivation: PublicKeyDerivation,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
         self._entity_fetchers = entity_fetchers
@@ -89,6 +91,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         self._external_integration_port = external_integration_port
         self._transaction_handler_port = transaction_handler_port
         self._public_key_derivation = public_key_derivation
+        self._error_reporter = error_reporter
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -132,6 +135,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
 
         fetched_data = []
         exception = None
+        failures: List[tuple[Entity, Exception]] = []
         for entity in entities:
             lock = self._get_lock(entity.id)
 
@@ -153,14 +157,26 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 except Exception as e:
                     self._log.exception(e)
                     exception = e
+                    failures.append((entity, e))
 
         code = (
             FetchResultCode.COMPLETED
             if not exception
             else FetchResultCode.PARTIALLY_COMPLETED
         )
+        # Surfaced as an unexpected error response, which is reported there.
         if exception and len(entities) == 1:
             raise exception
+
+        if self._error_reporter:
+            for entity, error in failures:
+                self._error_reporter.capture_exception(
+                    error,
+                    tags={
+                        "use_case": "fetch_crypto_data",
+                        "entity": entity.name,
+                    },
+                )
 
         return FetchResult(code, data=fetched_data)
 

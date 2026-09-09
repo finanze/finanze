@@ -39,6 +39,7 @@ import {
   entityHasPin,
 } from "@/utils/autoRefreshUtils"
 import { copyToClipboard } from "@/lib/clipboard"
+import { PrivacyCard } from "@/components/settings/PrivacyCard"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -867,6 +868,7 @@ export function GeneralTab() {
           </CardContent>
         </Card>
       </motion.div>
+      <PrivacyCard />
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

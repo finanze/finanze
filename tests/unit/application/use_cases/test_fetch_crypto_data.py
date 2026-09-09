@@ -1690,3 +1690,91 @@ class TestIncludeWalletTokensGrouping:
         first_call = fetcher.fetch_calls[0]
         assert first_call.include_wallet_tokens is True
         assert set(first_call.addresses) == {"addr_a", "addr_b"}
+
+
+class TestFetchCryptoDataErrorReporting:
+    @pytest.mark.asyncio
+    async def test_partial_failure_is_reported(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        ethereum = native_entities.ETHEREUM
+        wallet_port = MockCryptoWalletPort(
+            [
+                _make_manual_wallet(),
+                _make_manual_wallet(entity_id=ethereum.id),
+            ]
+        )
+        error = RuntimeError("eth boom")
+        failing_fetcher = MockCryptoEntityFetcher(
+            results_fn=lambda request: (_ for _ in ()).throw(error)
+        )
+        reporter = MagicMock()
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {
+                BITCOIN_ENTITY: MockCryptoEntityFetcher(),
+                ethereum: failing_fetcher,
+            },
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+            reporter,
+        )
+
+        result = await use_case.execute(FetchRequest(features=[Feature.POSITION]))
+
+        assert result.code == FetchResultCode.PARTIALLY_COMPLETED
+        reporter.capture_exception.assert_called_once()
+        assert reporter.capture_exception.call_args.args[0] is error
+        tags = reporter.capture_exception.call_args.kwargs["tags"]
+        assert tags["use_case"] == "fetch_crypto_data"
+        assert tags["entity"] == ethereum.name
+
+    @pytest.mark.asyncio
+    async def test_single_entity_failure_is_not_reported(
+        self,
+        position_port,
+        crypto_asset_registry,
+        crypto_asset_info,
+        last_fetches_port,
+        ext_int_port,
+        tx_handler,
+        public_key_derivation,
+    ):
+        wallet_port = MockCryptoWalletPort([_make_manual_wallet()])
+        failing_fetcher = MockCryptoEntityFetcher(
+            results_fn=lambda request: (_ for _ in ()).throw(RuntimeError("btc boom"))
+        )
+        reporter = MagicMock()
+
+        use_case = FetchCryptoDataImpl(
+            position_port,
+            {BITCOIN_ENTITY: failing_fetcher},
+            wallet_port,
+            crypto_asset_registry,
+            crypto_asset_info,
+            last_fetches_port,
+            ext_int_port,
+            tx_handler,
+            public_key_derivation,
+            reporter,
+        )
+
+        with pytest.raises(RuntimeError):
+            await use_case.execute(
+                FetchRequest(entity_id=BITCOIN_ID, features=[Feature.POSITION])
+            )
+
+        reporter.capture_exception.assert_not_called()

@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import os
 import socket
@@ -108,6 +109,8 @@ from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
+from application.use_cases.get_telemetry_consent import GetTelemetryConsentImpl
+from application.use_cases.update_telemetry_consent import UpdateTelemetryConsentImpl
 from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
@@ -117,6 +120,7 @@ from application.use_cases.user_logout import UserLogoutImpl
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
+from domain.telemetry import TelemetryContext
 from domain.user_login import LoginRequest
 from infrastructure.client.cloud.backup.backup_client import BackupClient
 from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
@@ -200,7 +204,13 @@ from infrastructure.cloud.backup.backup_processor_adapter import (
 )
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
-from infrastructure.config.server_details_adapter import ServerDetailsAdapter
+from infrastructure.config.server_details_adapter import (
+    ServerDetailsAdapter,
+    detect_distribution,
+    detect_os,
+    detect_os_version,
+    resolve_version,
+)
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
 from infrastructure.crypto.public_key_derivation_adapter import (
@@ -283,6 +293,9 @@ from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
 from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
+from infrastructure.telemetry.file_telemetry_consent import FileTelemetryConsent
+from infrastructure.telemetry.noop_error_reporter import NoopErrorReporter
+from infrastructure.telemetry.sentry_error_reporter import SentryErrorReporter
 from infrastructure.user_files.user_data_manager import UserDataManager
 
 
@@ -292,7 +305,46 @@ class FinanzeServer:
         self._quart_app = None
         self._db_client = None
         self._financial_entity_fetchers = None
+        self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
+
+    async def _setup_error_reporting(self, consent_port: FileTelemetryConsent):
+        dsn = os.getenv("FINANZE_ERRORS_DSN")
+        if not dsn:
+            return
+
+        self._error_reporter = SentryErrorReporter(
+            dsn=dsn,
+            environment=os.getenv("FINANZE_ENVIRONMENT", "production"),
+            release=resolve_version(),
+        )
+
+        try:
+            consent = await consent_port.get()
+        except Exception:
+            self._log.warning("Could not read telemetry consent", exc_info=True)
+            return
+
+        self._error_reporter.set_context(
+            TelemetryContext(
+                environment=os.getenv("FINANZE_ENVIRONMENT", "production"),
+                release=resolve_version(),
+                operative_system=detect_os(),
+                os_version=detect_os_version(),
+                distribution=detect_distribution(),
+                install_id=consent.install_id,
+            )
+        )
+        self._error_reporter.set_enabled(consent.error_reporting)
+
+    def _handle_loop_exception(self, loop, context):
+        loop.default_exception_handler(context)
+
+        exception = context.get("exception")
+        if exception:
+            self._error_reporter.capture_exception(
+                exception, tags={"phase": "event_loop"}
+            )
 
     async def _init(self):
         args = self._args
@@ -304,6 +356,9 @@ class FinanzeServer:
         db_client = self._db_client
         db_manager = DBManager(db_client)
         data_manager = UserDataManager(args.data_dir)
+
+        telemetry_consent_port = FileTelemetryConsent(args.data_dir)
+        await self._setup_error_reporting(telemetry_consent_port)
 
         static_upload_dir = args.data_dir / Path("static")
 
@@ -446,6 +501,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         register_user = RegisterUserImpl(
             db_manager,
@@ -453,6 +509,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
         server_options_port = ServerDetailsAdapter(args)
@@ -476,6 +533,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -510,6 +568,7 @@ class FinanzeServer:
             loan_calculator,
             real_estate_repository,
             feature_flag_port,
+            self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -521,6 +580,7 @@ class FinanzeServer:
             external_integration_repository,
             transaction_handler,
             public_key_derivation,
+            self._error_reporter,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
             entity_repository,
@@ -597,6 +657,10 @@ class FinanzeServer:
         )
         get_settings = GetSettingsImpl(config_loader)
         update_settings = UpdateSettingsImpl(config_loader)
+        get_telemetry_consent = GetTelemetryConsentImpl(telemetry_consent_port)
+        update_telemetry_consent = UpdateTelemetryConsentImpl(
+            telemetry_consent_port, self._error_reporter
+        )
         get_entities_position = GetPositionImpl(position_repository, entity_repository)
         get_contributions = GetContributionsImpl(
             auto_contrib_repository, entity_repository
@@ -843,6 +907,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
             position_port=position_repository,
@@ -851,6 +916,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         settle_pending_flow = SettlePendingFlowImpl(
             pending_flow_port=pending_flow_repository,
@@ -918,7 +984,7 @@ class FinanzeServer:
 
         self._log.info("Setting up REST API...")
 
-        self._quart_app = quart(static_upload_dir)
+        self._quart_app = quart(static_upload_dir, self._error_reporter)
         await register_routes(
             self._quart_app,
             user_login,
@@ -1006,6 +1072,8 @@ class FinanzeServer:
             get_backup_settings,
             save_backup_settings,
             get_euribor_rates,
+            get_telemetry_consent,
+            update_telemetry_consent,
         )
 
         self._log.info("Warming up exchange rates...")
@@ -1036,6 +1104,12 @@ class FinanzeServer:
                 return
             else:
                 raise
+        except Exception as e:
+            self._error_reporter.capture_exception(e, tags={"phase": "startup"})
+            await self._error_reporter.flush()
+            raise
+
+        asyncio.get_running_loop().set_exception_handler(self._handle_loop_exception)
 
         self._log.info("Starting server...")
 
@@ -1057,13 +1131,15 @@ class FinanzeServer:
                 self._log.info(f"Port {self._args.port} is already in use.")
             else:
                 raise
-        except Exception:
+        except Exception as e:
             self._log.exception(
                 "An unexpected error occurred while running the server."
             )
+            self._error_reporter.capture_exception(e, tags={"phase": "runtime"})
             raise
         finally:
             self._log.info("Finanze server shutting down.")
+            await self._error_reporter.flush()
             await self._close_financial_entity_fetchers()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")

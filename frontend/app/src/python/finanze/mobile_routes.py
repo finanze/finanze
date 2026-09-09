@@ -33,6 +33,20 @@ def _setup_routes(router: "Router", routes: list[tuple]):
 def setup_core_routes(router: "Router", core: "MobileAppCore") -> None:
     routes = [
         ("GET", "/api/v1/status", "get_status", "status", core.status),
+        (
+            "GET",
+            "/api/v1/telemetry/consent",
+            "get_telemetry_consent",
+            "get_telemetry_consent",
+            core.get_telemetry_consent,
+        ),
+        (
+            "POST",
+            "/api/v1/telemetry/consent",
+            "update_telemetry_consent",
+            "update_telemetry_consent",
+            core.update_telemetry_consent,
+        ),
     ]
     _setup_routes(router, routes)
 

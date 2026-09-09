@@ -17,6 +17,7 @@ interface BackendControllerOptions {
   appConfig: AppConfig
   devEntryPoint: string
   defaultArgs: BackendRuntimeArgs
+  extraEnv?: () => Record<string, string>
 }
 
 type StatusListener = (status: BackendStatus) => void
@@ -220,9 +221,13 @@ export class BackendController extends EventEmitter {
     return cliArgs
   }
 
+  private spawnEnv(): NodeJS.ProcessEnv {
+    return { ...process.env, ...(this.options.extraEnv?.() ?? {}) }
+  }
+
   private spawnDev(args: string[]) {
     const devArgs = [this.options.devEntryPoint, ...args]
-    return spawn("python", devArgs, { shell: true })
+    return spawn("python", devArgs, { shell: true, env: this.spawnEnv() })
   }
 
   private spawnProd(args: string[]) {
@@ -244,7 +249,7 @@ export class BackendController extends EventEmitter {
     }
 
     const executablePath = join(serverDirPath, serverFile)
-    return spawn(executablePath, args)
+    return spawn(executablePath, args, { env: this.spawnEnv() })
   }
 
   private attachProcess(child: ChildProcess) {

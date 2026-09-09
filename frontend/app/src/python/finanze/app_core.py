@@ -12,10 +12,20 @@ from infrastructure.config.capacitor_server_details_adapter import (
     CapacitorServerDetailsAdapter,
 )
 from infrastructure.client.features.feature_flag_client import FeatureFlagClient
+from infrastructure.telemetry.bridge_error_reporter import (
+    BridgeErrorReporter,
+    get_environment,
+)
+from infrastructure.telemetry.capacitor_telemetry_consent import (
+    CapacitorTelemetryConsent,
+)
 
-from domain.platform import OS
+from domain.platform import OS, Distribution, parse_os
+from domain.telemetry import TelemetryContext
 
 from application.use_cases.get_status import GetStatusImpl
+from application.use_cases.get_telemetry_consent import GetTelemetryConsentImpl
+from application.use_cases.update_telemetry_consent import UpdateTelemetryConsentImpl
 
 if TYPE_CHECKING:
     from finanze.app_deferred import DeferredComponents
@@ -27,6 +37,7 @@ class MobileAppCore:
         self.log = logging.getLogger(__name__)
         self._router = Router()
         self.operative_system: OS | None = None
+        self.os_version: str | None = None
         self._deferred: "DeferredComponents | None" = None
         self._deferred_ready = asyncio.Event()
         self._deferred_loading = False
@@ -40,6 +51,9 @@ class MobileAppCore:
 
         self.status: GetStatusImpl | None = None
         self.ff_client: FeatureFlagClient | None = None
+        self.error_reporter: BridgeErrorReporter | None = None
+        self.get_telemetry_consent: GetTelemetryConsentImpl | None = None
+        self.update_telemetry_consent: UpdateTelemetryConsentImpl | None = None
 
     @property
     def router(self):
@@ -67,10 +81,11 @@ class MobileAppCore:
         await self._lazy_ready.wait()
         return self._lazy
 
-    async def initialize(self, operative_system: str | None = None):
-        self.operative_system = (
-            OS(operative_system.upper()) if operative_system else None
-        )
+    async def initialize(
+        self, operative_system: str | None = None, os_version: str | None = None
+    ):
+        self.operative_system = parse_os(operative_system)
+        self.os_version = os_version
 
         self.db_client = CapacitorDBClient()
         self.db_manager = CapacitorDBManager(self.db_client)
@@ -78,7 +93,9 @@ class MobileAppCore:
 
         users = await self.data_manager.get_users()
 
-        server_details = CapacitorServerDetailsAdapter(self.operative_system)
+        server_details = CapacitorServerDetailsAdapter(
+            self.operative_system, self.os_version
+        )
         self.ff_client = FeatureFlagClient(
             users=users, operative_system=server_details.get_os()
         )
@@ -89,6 +106,8 @@ class MobileAppCore:
             self.ff_client,
         )
 
+        await self._setup_telemetry(server_details)
+
         self._setup_core_routes()
 
         print("MobileApp Core Initialized")
@@ -97,6 +116,34 @@ class MobileAppCore:
         from finanze.mobile_routes import setup_core_routes
 
         setup_core_routes(self.router, self)
+
+    async def _setup_telemetry(self, server_details):
+        consent_port = CapacitorTelemetryConsent()
+        self.error_reporter = BridgeErrorReporter()
+        self.get_telemetry_consent = GetTelemetryConsentImpl(consent_port)
+        self.update_telemetry_consent = UpdateTelemetryConsentImpl(
+            consent_port, self.error_reporter
+        )
+        self._router.error_reporter = self.error_reporter
+
+        try:
+            consent = await self.get_telemetry_consent.execute()
+        except Exception:
+            self.log.warning("Could not read telemetry consent", exc_info=True)
+            return
+
+        details = await server_details.get_backend_details()
+        self.error_reporter.set_context(
+            TelemetryContext(
+                environment=get_environment(),
+                release=details.version,
+                operative_system=self.operative_system,
+                os_version=self.os_version,
+                distribution=Distribution.MOBILE,
+                install_id=consent.install_id,
+            )
+        )
+        self.error_reporter.set_enabled(consent.error_reporting)
 
     async def initialize_deferred(self):
         if self._deferred_loading:

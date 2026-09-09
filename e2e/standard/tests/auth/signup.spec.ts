@@ -13,6 +13,9 @@ test.describe('Initial Setup - Signup', () => {
 
         await expect(page.locator('#username')).toBeVisible()
         await expect(page.locator('#password')).toBeVisible()
+        await expect(page.locator('#repeatPassword')).toHaveCount(0)
+
+        await page.fill('#password', 'x')
         await expect(page.locator('#repeatPassword')).toBeVisible()
     })
 

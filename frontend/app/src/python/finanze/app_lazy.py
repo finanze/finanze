@@ -364,6 +364,7 @@ class LazyComponents:
                 d.loan_calculator,
                 d.re_repo,
                 self._core.ff_client,
+                self._core.error_reporter,
             )
             self.fetch_crypto = FetchCryptoDataImpl(
                 d.position_repo,
@@ -375,6 +376,7 @@ class LazyComponents:
                 d.ext_int_repo,
                 d.tx_handler,
                 public_key_derivation,
+                self._core.error_reporter,
             )
             self.conn_crypto = ConnectCryptoWalletImpl(
                 d.wallet_repo,

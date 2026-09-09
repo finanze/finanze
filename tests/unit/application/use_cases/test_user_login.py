@@ -157,6 +157,31 @@ class TestUserLoginSuccess:
             "source_initiator_initialize",
         ]
 
+    @pytest.mark.asyncio
+    async def test_reports_hashed_user_id_to_telemetry(self):
+        user = _make_user("alice")
+        (
+            source_initiator,
+            data_manager,
+            config_port,
+            sheets_initiator,
+            cloud_register,
+        ) = _create_mocks(unlocked=False, user=user)
+        error_reporter = MagicMock()
+
+        use_case = UserLoginImpl(
+            source_initiator=source_initiator,
+            data_manager=data_manager,
+            config_port=config_port,
+            sheets_initiator=sheets_initiator,
+            cloud_register=cloud_register,
+            error_reporter=error_reporter,
+        )
+
+        await use_case.execute(LoginRequest(username="alice", password="secret"))
+
+        error_reporter.set_user.assert_called_once_with(user.hashed_id())
+
 
 class TestUserLoginRollback:
     @pytest.mark.asyncio

@@ -395,6 +395,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         flow_index = 0
         settlement_index = 0
         opening_values: dict[_AssetIdentity, Dezimal] = {}
+        opening_costs: dict[tuple[str, ProductType, str, str, str], Dezimal] = {}
         seeded_opening_keys: set[tuple[str, ProductType, str, str, str]] = set()
 
         if bounded:
@@ -444,6 +445,17 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 settlement_index += 1
             opening_assets = self._flatten(current)
             opening_keys = {self._identity_key(identity) for identity in opening_assets}
+            for identity, valuation in opening_assets.items():
+                if valuation.cost_basis is None:
+                    continue
+                converted_cost = self._convert(
+                    valuation.cost_basis,
+                    valuation.currency,
+                    query.base_currency,
+                    rates,
+                )
+                if converted_cost is not None:
+                    opening_costs[self._identity_key(identity)] = converted_cost
             for identity, position in replay_positions.items():
                 if (
                     position.book_value > 0
@@ -517,8 +529,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         )
         pending_transfer_outs: list[GainsFlow] = []
         transfer_exit_sources: set[_AssetIdentity] = set()
+        transfer_out_quantities: dict[_AssetIdentity, Dezimal] = defaultdict(
+            lambda: Dezimal(0)
+        )
         transfer_transitions: list[_TransferTransition] = []
         suppressed_transfer_sources: set[_AssetIdentity] = set()
+        internal_transfer_targets: set[tuple[str, ProductType, str, str, str]] = set()
         points: list[GainsTimelinePoint] = []
 
         for day in output_days:
@@ -642,12 +658,18 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 if flow.transaction_type in _INFLOW_TYPES:
                     transfer_exit_sources.discard(identity)
                     suppressed_transfer_sources.discard(identity)
+                    transfer_out_quantities.pop(identity, None)
                     pending_transfer_outs = [
                         outgoing
                         for outgoing in pending_transfer_outs
                         if self._flow_identity(outgoing) != identity
                     ]
-                if self._is_full_transfer_exit(flow, previous_assets.get(identity)):
+                if self._is_full_transfer_exit(
+                    flow,
+                    previous_assets.get(identity),
+                    transfer_out_quantities,
+                    identity,
+                ):
                     transfer_exit_sources.add(identity)
                     pending_transfer_outs.append(flow)
                 elif flow.transaction_type in _TRANSFER_IN_TYPES:
@@ -670,6 +692,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                                 + flow.quantity,
                             )
                         )
+                        internal_transfer_targets.add(self._identity_key(identity))
                 flow_index += 1
 
             settlement_identities: set[_AssetIdentity] = set()
@@ -732,13 +755,25 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             current_keys = {self._identity_key(identity) for identity in current_assets}
             day_estimated = False
             for identity, position in replay_positions.items():
-                if (
-                    identity in replay_ended
-                    or self._identity_key(identity) in current_keys
-                ):
+                if identity in replay_ended:
                     continue
                 window = replay_windows.get(identity)
                 if position.book_value <= 0 and (window is None or day > window[2]):
+                    continue
+                snapshot_identity = self._snapshot_identity_for_replay(
+                    identity, current_assets
+                )
+                if snapshot_identity is not None:
+                    overlaid = self._overlay_replay_on_snapshot(
+                        current_assets[snapshot_identity],
+                        position,
+                        day,
+                        history_by_key,
+                    )
+                    if overlaid is not None:
+                        current_assets[snapshot_identity] = overlaid
+                    continue
+                if self._identity_key(identity) in current_keys:
                     continue
                 if position.book_value > 0 and not self._has_replay_price(
                     identity[2], position, day, history_by_key
@@ -876,11 +911,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         else None
                     )
                     current_valuation = current_assets.get(identity)
+                    identity_key = self._identity_key(identity)
                     if (
                         replay_book is not None
                         and replay_book > 0
                         and current_valuation is not None
                         and current_valuation.cost_basis is not None
+                        and identity_key not in internal_transfer_targets
                     ):
                         stored_cost = self._convert(
                             current_valuation.cost_basis,
@@ -895,17 +932,28 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             query.base_currency,
                             rates,
                         )
-                        baseline = (
-                            opening_values.get(identity, Dezimal(0))
-                            if self._identity_key(identity) in seeded_opening_keys
-                            else Dezimal(0)
-                        )
+                        recorded = contributions[identity]
+                        if replay_identity is not None and replay_identity != identity:
+                            recorded += contributions[replay_identity]
+                        if identity_key in seeded_opening_keys:
+                            # the seeded cost is already priced into the opening value,
+                            # so only the cost added inside the range is a contribution
+                            opening_cost = opening_costs.get(identity_key)
+                            target = (
+                                stored_cost - opening_cost
+                                if stored_cost is not None and opening_cost is not None
+                                else None
+                            )
+                            reference = recorded
+                        else:
+                            target = stored_cost
+                            reference = replay_book
                         if (
-                            stored_cost is not None
-                            and replay_book is not None
-                            and stored_cost != replay_book + baseline
+                            target is not None
+                            and reference is not None
+                            and target != reference
                         ):
-                            correction = stored_cost - (replay_book + baseline)
+                            correction = target - reference
                             period_flows[identity] += correction
                             contributions[identity] += correction
                             provenance.add(
@@ -1531,7 +1579,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             )
             if unit_value is None:
                 return None, None
-            return residual_quantity * unit_value, GainsFlowProvenance.QUANTITY_RESIDUAL
+            inferred = residual_quantity * unit_value
+            # a restated share count must not withdraw more than the position held
+            if inferred >= 0 or -inferred <= previous_value:
+                return inferred, GainsFlowProvenance.QUANTITY_RESIDUAL
 
         if has_transaction_cash:
             return None, None
@@ -2109,6 +2160,61 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             type=instrument_type, ticker=asset_key, name=name, currency=currency
         )
 
+    @staticmethod
+    def _snapshot_identity_for_replay(
+        identity: _AssetIdentity,
+        current_assets: dict[_AssetIdentity, AssetValuation],
+    ) -> Optional[_AssetIdentity]:
+        if identity in current_assets:
+            return identity
+        key = GetGainsTimelineImpl._identity_key(identity)
+        matches = [
+            existing
+            for existing in current_assets
+            if GetGainsTimelineImpl._identity_key(existing) == key
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        return None
+
+    def _overlay_replay_on_snapshot(
+        self,
+        snapshot: AssetValuation,
+        position: _ReplayPosition,
+        day: date,
+        history_by_key: Optional[dict[str, dict[date, Dezimal]]],
+    ) -> Optional[AssetValuation]:
+        replay_qty = position.quantity
+        if (replay_qty is None or replay_qty == 0) and position.book_value <= 0:
+            return None
+        quantity = snapshot.quantity
+        if quantity is not None and replay_qty is not None:
+            quantity = quantity + replay_qty
+            if quantity < 0:
+                quantity = Dezimal(0)
+        elif quantity is None:
+            quantity = replay_qty
+        cost_basis = snapshot.cost_basis
+        if position.book_value != 0:
+            cost_basis = (
+                position.book_value
+                if cost_basis is None
+                else cost_basis + position.book_value
+            )
+        market_value = snapshot.market_value + position.book_value
+        if quantity is not None and quantity > 0 and history_by_key:
+            prices = history_by_key.get(snapshot.asset_key)
+            if prices:
+                price = self._price_at(prices, day)
+                if price is not None:
+                    market_value = quantity * price
+        return replace(
+            snapshot,
+            quantity=quantity,
+            cost_basis=cost_basis,
+            market_value=market_value,
+        )
+
     @classmethod
     def _has_replay_price(
         cls,
@@ -2298,15 +2404,20 @@ class GetGainsTimelineImpl(GetGainsTimeline):
 
     @staticmethod
     def _is_full_transfer_exit(
-        flow: GainsFlow, previous: Optional[AssetValuation]
+        flow: GainsFlow,
+        previous: Optional[AssetValuation],
+        transferred: dict[_AssetIdentity, Dezimal],
+        identity: _AssetIdentity,
     ) -> bool:
-        return (
-            flow.transaction_type in _TRANSFER_OUT_TYPES
-            and flow.quantity is not None
-            and previous is not None
-            and previous.quantity is not None
-            and flow.quantity >= previous.quantity
-        )
+        if (
+            flow.transaction_type not in _TRANSFER_OUT_TYPES
+            or flow.quantity is None
+            or previous is None
+            or previous.quantity is None
+        ):
+            return False
+        transferred[identity] += flow.quantity
+        return transferred[identity] >= previous.quantity
 
     @staticmethod
     def _pop_matching_transfer_out(

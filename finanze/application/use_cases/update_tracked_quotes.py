@@ -9,6 +9,7 @@ from dateutil.tz import tzlocal
 
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.exchange_rate_storage import ExchangeRateStorage
+from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.instrument_info_provider import InstrumentInfoProvider
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
@@ -59,6 +60,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         snapshot_writer: ManualPositionSnapshotWriter,
         throttle_port: TrackedUpdatesPort,
         transaction_handler_port: TransactionHandlerPort,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
         self._manual_position_data_port = manual_position_data_port
@@ -69,6 +71,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
         self._snapshot_writer = snapshot_writer
         self._throttle_port = throttle_port
         self._transaction_handler_port = transaction_handler_port
+        self._error_reporter = error_reporter
 
         self._lock = Lock()
         self._log = logging.getLogger(__name__)
@@ -162,7 +165,7 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                         entity_id, entry_count = result
                         changed_entities.add(entity_id)
                         changed_entries += entry_count
-                except Exception:
+                except Exception as e:
                     tracker_keys = [
                         mpd.data.tracker_key
                         for mpd in position_entries
@@ -176,6 +179,14 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                         len(position_entries),
                         tracker_keys,
                     )
+                    if self._error_reporter:
+                        self._error_reporter.capture_exception(
+                            e,
+                            tags={
+                                "use_case": "update_tracked_quotes",
+                                "crypto": str(is_crypto),
+                            },
+                        )
                     continue
 
             if has_commodities and stored_rates is not None:
@@ -187,8 +198,16 @@ class UpdateTrackedQuotesImpl(UpdateTrackedQuotes):
                         entity_id, entry_count = result
                         changed_entities.add(entity_id)
                         changed_entries += entry_count
-                except Exception:
+                except Exception as e:
                     self._log.exception("Failed updating tracked commodities")
+                    if self._error_reporter:
+                        self._error_reporter.capture_exception(
+                            e,
+                            tags={
+                                "use_case": "update_tracked_quotes",
+                                "phase": "commodities",
+                            },
+                        )
 
             self._log.info(
                 "Finished updating tracked quotes: had_tracked=%s, "

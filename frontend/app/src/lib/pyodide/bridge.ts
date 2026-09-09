@@ -2,6 +2,7 @@ import { sqliteBridge } from "./bridges/sqliteBridge"
 import { preferencesBridge } from "./bridges/preferencesBridge"
 import { filesystemBridge } from "./bridges/filesystemBridge"
 import { yahooFinanceBridge } from "./bridges/yahooFinanceBridge"
+import { telemetryBridge } from "./bridges/telemetryBridge"
 import { isPyodideReady } from "./runtime"
 import { appConsole } from "../capacitor/appConsole"
 
@@ -17,6 +18,9 @@ export const jsBridge = {
   },
   yahooFinance: {
     ...yahooFinanceBridge,
+  },
+  telemetry: {
+    ...telemetryBridge,
   },
 }
 

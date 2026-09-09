@@ -74,23 +74,23 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 
 ### Supported Assets by Financial Entity & Crypto Exchanges
 
-| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
-| Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
-| SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
-| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending        |
-| Freedom24           | ✅              | -     | -     | Stocks         | -        | -          | -                   | ❌     | ❌    |                     |
-| Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
-| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
-| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
-| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                     |
-| Crescenta           | -               | -     | ✅    | -              | -        | -          | -                   | -      | -     |                     |
+| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific                  |
+| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------------- |
+| Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments       |
+| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                           |
+| SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring                 |
+| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets           |
+| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                           |
+| Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments               |
+| Mintos              | ✅ (Smart Cash) | -     | -     | Single ETFs    | -        | -          | -                   | ❌     | ❌    | Crowdlending              |
+| Freedom24           | ✅              | -     | -     | ✅             | -        | -          | -                   | ❌     | -     | Old structured placements |
+| Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                           |
+| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                           |
+| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                           |
+| DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                           |
+| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                           |
+| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                           |
+| Crescenta           | -               | -     | ✅    | -              | -        | -          | -                   | -      | -     |                           |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
@@ -126,7 +126,7 @@ Not all entities support the same features, in general we can group data in the 
 | Trade Republic      | ✅              | ✅                        | ✅                             | -                      |
 | Unicaja             | ✅              | ✅                        | ❌                             | -                      |
 | Wecity              | ✅              | -                         | ✅                             | ✅                     |
-| Mintos              | ✅              | -                         | ❌                             | ❌                     |
+| Mintos              | ✅              | -                         | Single ETFs                    | ❌                     |
 | Freedom24           | ✅              | -                         | ✅                             | ❌                     |
 | Indexa Capital      | ✅              | -                         | ✅                             | -                      |
 | ING                 | ✅              | ✅                        | ✅                             | -                      |
@@ -176,6 +176,10 @@ currently the following are supported:
 At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
 
 Some financial entities such as Trade Republic support crypto too.
+
+#### Zerion
+
+Zerion is also supported (by providing your free API key), which allows to multiple crypto asset tracking and DeFi.
 
 #### Other entity types
 

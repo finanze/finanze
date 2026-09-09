@@ -96,6 +96,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_ELECTRON_MAIN_DSN: ${{ secrets.VITE_BS_ELECTRON_MAIN_DSN }}
+          VITE_BS_DESKTOP_BACKEND_DSN: ${{ secrets.VITE_BS_DESKTOP_BACKEND_DSN }}
+          VITE_BS_ENVIRONMENT: production
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_KEY_PASSWORD || '' }}
@@ -211,6 +219,12 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_MOBILE_BACKEND_DSN: ${{ secrets.VITE_BS_MOBILE_BACKEND_DSN }}
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
         run: |
           pnpm build:mobile
           pnpm exec cap sync android
@@ -230,6 +244,12 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_MOBILE_BACKEND_DSN: ${{ secrets.VITE_BS_MOBILE_BACKEND_DSN }}
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
         run: |
           pnpm build:mobile:store
           pnpm exec cap sync android
@@ -286,7 +306,7 @@ jobs:
           default_branch: main
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
-          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }},VITE_BS_FRONTEND_DSN=${{ secrets.VITE_BS_FRONTEND_DSN }}
           tags: |
             ${{ env.RELEASE_TAG }},latest
 

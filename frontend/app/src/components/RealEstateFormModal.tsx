@@ -2605,6 +2605,7 @@ export function RealEstateFormModal({
                                             t.realEstate.errors
                                               .missingLoanAmounts,
                                             "error",
+                                            { reportable: false },
                                           )
                                           return
                                         }

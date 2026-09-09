@@ -91,10 +91,12 @@ async function ensureCoreInitialized() {
 
     const t2 = performance.now()
     const platformType = (window as any)?.platform?.type
+    const osVersion = (window as any)?.platform?.osVersion
     await callPythonFunction(
       "init",
       "initialize",
       typeof platformType === "string" ? platformType : null,
+      typeof osVersion === "string" ? osVersion : null,
     )
     logInfo(
       `Python init.initialize done in ${(performance.now() - t2).toFixed(0)}ms`,
@@ -201,6 +203,9 @@ function warmStartBackgroundWorker(): void {
   backgroundWarmStarted = true
   initBackgroundWorker().catch(e => {
     appConsole.error("[PyodideInit][bg] Background warm-start failed:", e)
+    import("@/lib/telemetry").then(({ reportError }) => {
+      reportError(e, { phase: "background_worker_warm_start" })
+    })
   })
 }
 
@@ -214,10 +219,12 @@ function connectBackgroundWorker(username: string): Promise<void> {
   backgroundConnectedPromise = (async () => {
     await initBackgroundWorker()
     const platformType = (window as any)?.platform?.type
+    const osVersion = (window as any)?.platform?.osVersion
     await callBackgroundPythonFunction(
       "init_background",
       "initialize",
       typeof platformType === "string" ? platformType : null,
+      typeof osVersion === "string" ? osVersion : null,
     )
     logInfo("[bg] Connecting background worker to shared DB...")
     await callBackgroundPythonFunction(

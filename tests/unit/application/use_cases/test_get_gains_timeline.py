@@ -152,6 +152,23 @@ class TestGetGainsTimeline:
         assert result.points[0].metrics.value == Dezimal(200)
 
     @pytest.mark.asyncio
+    async def test_restated_quantity_does_not_infer_an_oversized_withdrawal(self):
+        first = date(2025, 1, 1)
+        second = date(2025, 1, 2)
+        use_case, _ = _build(
+            [
+                _snapshot(first, "500", "6600", "6200"),
+                _snapshot(second, "10", "650", "600"),
+            ]
+        )
+
+        result = await use_case.execute(_query())
+
+        point = next(point for point in result.points if point.date == second)
+        assert point.metrics.net_contributions == Dezimal(600)
+        assert point.metrics.gain == Dezimal(50)
+
+    @pytest.mark.asyncio
     async def test_filters_values_and_flows_by_fund_portfolio_and_equity_type(self):
         moment = datetime(2025, 1, 1, 12)
         use_case, _ = _build(
@@ -984,6 +1001,390 @@ class TestGetGainsTimeline:
         assert metrics.value == Dezimal(1000)
         assert metrics.cost_basis == Dezimal(1020)
         assert metrics.index == Dezimal(100)
+
+    @pytest.mark.asyncio
+    async def test_split_transfer_outs_drop_stale_source_snapshot(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        first_day = date(2025, 1, 1)
+        transfer_day = date(2025, 1, 2)
+        stale_day = date(2025, 1, 3)
+
+        def valuation(asset_key, quantity, value, cost_basis):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key=asset_key,
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost_basis),
+            )
+
+        def snapshot(day, valuations):
+            return AssetSnapshot(
+                holder="wallet",
+                moment=datetime(day.year, day.month, day.day, 12),
+                valuations=valuations,
+            )
+
+        def flow(day, asset_key, transaction_type, amount, quantity):
+            return GainsFlow(
+                holder="wallet",
+                product_type=ProductType.FUND,
+                asset_key=asset_key,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=transaction_type,
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = [
+            snapshot(first_day, [valuation("OLD", "100", "1000", "900")]),
+            snapshot(stale_day, [valuation("OLD", "100", "1000", "900")]),
+        ]
+        port.get_flows.return_value = [
+            flow(transfer_day, "OLD", TxType.TRANSFER_OUT, "400", "40"),
+            flow(transfer_day, "OLD", TxType.TRANSFER_OUT, "350", "35"),
+            flow(transfer_day, "OLD", TxType.TRANSFER_OUT, "250", "25"),
+            flow(transfer_day, "NEW", TxType.TRANSFER_IN, "400", "40"),
+            flow(transfer_day, "NEW", TxType.TRANSFER_IN, "350", "35"),
+            flow(transfer_day, "NEW", TxType.TRANSFER_IN, "250", "25"),
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = [
+            InstrumentPricePoint(date=transfer_day, price=Dezimal(10), currency="EUR"),
+            InstrumentPricePoint(date=stale_day, price=Dezimal(10), currency="EUR"),
+        ]
+        history_storage.get_covered_range.return_value = (transfer_day, stale_day)
+        history_storage.get_resolved_symbol.return_value = None
+        history_provider = AsyncMock()
+        history_provider.get_history.return_value = ([], None, None)
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+        query = GainsTimelineQuery(
+            assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+            entities=[uuid4()],
+        )
+
+        result = await use_case.execute(query)
+
+        by_day = {point.date: point.metrics for point in result.points}
+        after = by_day[transfer_day]
+        stale = by_day[stale_day]
+        assert after.value == Dezimal(1000)
+        assert after.net_contributions == Dezimal(900)
+        assert after.gain == Dezimal(100)
+        assert stale.value == Dezimal(1000)
+        assert stale.net_contributions == Dezimal(900)
+        assert stale.gain == Dezimal(100)
+
+    @pytest.mark.asyncio
+    async def test_bounded_handover_books_only_cost_added_inside_range(self):
+        seed_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 3)
+        range_from = date(2025, 1, 5)
+        snapshot_day = date(2025, 1, 7)
+
+        def valuation(quantity, value, cost_basis):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key="ACC",
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost_basis),
+            )
+
+        def snapshot(day, value):
+            return AssetSnapshot(
+                holder="wallet",
+                moment=datetime(day.year, day.month, day.day, 12),
+                valuations=[value],
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = [
+            snapshot(seed_day, valuation("10", "1000", "900")),
+            snapshot(snapshot_day, valuation("11", "1150", "1000")),
+        ]
+        port.get_flows.return_value = [
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.FUND,
+                asset_key="ACC",
+                moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                amount=Dezimal(100),
+                currency="EUR",
+                quantity=Dezimal(1),
+                transaction_type=TxType.BUY,
+            )
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        use_case = GetGainsTimelineImpl(port, exchange, entity, metal)
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+                from_date=range_from,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert result.opening_value == Dezimal(1000)
+        # the buy predates the range but postdates the seed snapshot, so it is the
+        # only contribution the handover may book
+        assert by_day[snapshot_day].net_contributions == Dezimal(100)
+        assert by_day[snapshot_day].gain == Dezimal(50)
+
+    @pytest.mark.asyncio
+    async def test_bounded_handover_ignores_cost_carried_by_internal_transfer(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        seed_day = date(2025, 1, 1)
+        range_from = date(2025, 1, 2)
+        transfer_day = date(2025, 1, 3)
+        buy_day = date(2025, 1, 4)
+        snapshot_day = date(2025, 1, 6)
+
+        def valuation(asset_key, quantity, value, cost_basis):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key=asset_key,
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost_basis),
+            )
+
+        def snapshot(day, valuations):
+            return AssetSnapshot(
+                holder="wallet",
+                moment=datetime(day.year, day.month, day.day, 12),
+                valuations=valuations,
+            )
+
+        def flow(day, asset_key, transaction_type, amount, quantity):
+            return GainsFlow(
+                holder="wallet",
+                product_type=ProductType.FUND,
+                asset_key=asset_key,
+                moment=datetime(day.year, day.month, day.day, 12),
+                amount=Dezimal(amount),
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                transaction_type=transaction_type,
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = [
+            snapshot(seed_day, [valuation("OLD", "10", "1000", "900")]),
+            snapshot(snapshot_day, [valuation("NEW", "6", "1300", "1100")]),
+        ]
+        port.get_flows.return_value = [
+            flow(transfer_day, "OLD", TxType.TRANSFER_OUT, "1000", "10"),
+            flow(transfer_day, "NEW", TxType.TRANSFER_IN, "1000", "5"),
+            flow(buy_day, "NEW", TxType.BUY, "200", "1"),
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_resolved_symbol.return_value = None
+        history_storage.get_history.return_value = [
+            InstrumentPricePoint(date=transfer_day, price=Dezimal(200), currency="EUR"),
+            InstrumentPricePoint(date=buy_day, price=Dezimal(200), currency="EUR"),
+        ]
+        history_storage.get_covered_range.return_value = (transfer_day, buy_day)
+        history_provider = AsyncMock()
+        history_provider.get_history.return_value = ([], None, None)
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+                from_date=range_from,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert result.opening_value == Dezimal(1000)
+        # the switch carries cost across assets, so only the buy is a contribution
+        assert by_day[snapshot_day].net_contributions == Dezimal(200)
+        assert by_day[snapshot_day].gain == Dezimal(100)
+
+    @pytest.mark.asyncio
+    async def test_stale_snapshot_overlays_in_range_buy_at_market(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        seed_day = date(2025, 12, 25)
+        range_from = date(2026, 1, 1)
+        buy_day = date(2026, 1, 20)
+        covering_day = date(2026, 2, 28)
+
+        def valuation(quantity, value, cost_basis):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key="IE000N4ZYX28",
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost_basis),
+            )
+
+        def snapshot(day, value):
+            return AssetSnapshot(
+                holder="wallet",
+                moment=datetime(day.year, day.month, day.day, 12),
+                valuations=[value],
+            )
+
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = [
+            snapshot(seed_day, valuation("10", "1000", "900")),
+            snapshot(covering_day, valuation("11", "1150", "1000")),
+        ]
+        port.get_flows.return_value = [
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.FUND,
+                asset_key="IE000N4ZYX28",
+                moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                amount=Dezimal(100),
+                currency="EUR",
+                quantity=Dezimal(1),
+                transaction_type=TxType.BUY,
+            )
+        ]
+        port.get_settlements.return_value = []
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_resolved_symbol.return_value = None
+        history_storage.get_history.return_value = [
+            InstrumentPricePoint(date=buy_day, price=Dezimal(100), currency="EUR"),
+            InstrumentPricePoint(date=covering_day, price=Dezimal(100), currency="EUR"),
+        ]
+        history_storage.get_covered_range.return_value = (buy_day, covering_day)
+        history_provider = AsyncMock()
+        history_provider.get_history.return_value = ([], None, None)
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+                from_date=range_from,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        bought = by_day[buy_day]
+        assert result.opening_value == Dezimal(1000)
+        assert bought.net_contributions == Dezimal(100)
+        assert bought.value == Dezimal(1100)
+        assert bought.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
+    async def test_stale_snapshot_overlays_in_range_buy_at_book_without_price(self):
+        seed_day = date(2025, 12, 25)
+        range_from = date(2026, 1, 1)
+        buy_day = date(2026, 1, 20)
+        covering_day = date(2026, 2, 28)
+
+        def valuation(quantity, value, cost_basis):
+            return AssetValuation(
+                product_type=ProductType.FUND,
+                asset_key="IE000N4ZYX28",
+                currency="EUR",
+                quantity=Dezimal(quantity),
+                market_value=Dezimal(value),
+                cost_basis=Dezimal(cost_basis),
+            )
+
+        def snapshot(day, value):
+            return AssetSnapshot(
+                holder="wallet",
+                moment=datetime(day.year, day.month, day.day, 12),
+                valuations=[value],
+            )
+
+        use_case, _ = _build(
+            [
+                snapshot(seed_day, valuation("10", "1000", "900")),
+                snapshot(covering_day, valuation("11", "1150", "1000")),
+            ],
+            [
+                GainsFlow(
+                    holder="wallet",
+                    product_type=ProductType.FUND,
+                    asset_key="IE000N4ZYX28",
+                    moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                    amount=Dezimal(100),
+                    currency="EUR",
+                    quantity=Dezimal(1),
+                    transaction_type=TxType.BUY,
+                )
+            ],
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[uuid4()],
+                from_date=range_from,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        bought = by_day[buy_day]
+        assert result.opening_value == Dezimal(1000)
+        assert bought.net_contributions == Dezimal(100)
+        assert bought.value == Dezimal(1100)
+        assert bought.gain == Dezimal(0)
 
     @pytest.mark.asyncio
     async def test_retains_fixed_income_rate_when_later_snapshot_reports_zero(self):

@@ -83,7 +83,11 @@ export function connectBackgroundWorker(username: string): void {
 
   // Fire-and-forget: must not block backend or frontend.
   import("@/lib/pyodide/init").then(({ connectBackgroundWorker }) => {
-    connectBackgroundWorker(username).catch(() => undefined)
+    connectBackgroundWorker(username).catch(error => {
+      import("@/lib/telemetry").then(({ reportError }) => {
+        reportError(error, { phase: "background_worker_connect" })
+      })
+    })
   })
 }
 

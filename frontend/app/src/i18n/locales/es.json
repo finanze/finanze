@@ -490,7 +490,7 @@
       "encryptionKeyLabel": "Clave de cifrado",
       "encryptionKeyPlaceholder": "Tu clave de cifrado de la app",
       "encryptionKeyHint": "Esta es la clave de cifrado que usabas en la app, no la de tu cuenta Cloud.",
-      "restoreButton": "Restaurar datos",
+      "restoreButton": "Restaurar",
       "importing": "Restaurando datos...",
       "dontCloseApp": "Por favor, no cierres la app durante este proceso",
       "invalidEncryptionKey": "Clave de cifrado incorrecta. Por favor, revísala e inténtalo de nuevo.",
@@ -533,6 +533,26 @@
     "DISABLED": "Importación de datos deshabilitada en configuración.",
     "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
     "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra."
+  },
+  "errorBoundary": {
+    "title": "Algo ha salido mal",
+    "description": "La aplicación ha encontrado un error inesperado. Tus datos están a salvo. Reinicia si persiste.",
+    "pageDescription": "Esta página ha encontrado un error inesperado. Tus datos están a salvo. Reinicia si persiste.",
+    "goToDashboard": "Ir al panel",
+    "restart": "Reiniciar"
+  },
+  "telemetryConsent": {
+    "title": "Informar de errores automáticamente",
+    "descriptionAfterError": "El envío de errores está desactivado, así que no se ha enviado nada sobre este fallo. Actívalo y los errores como este se informarán a partir de ahora para poder corregirlos.",
+    "descriptionManual": "El envío de errores está desactivado. Actívalo para que cualquier fallo que encuentres se informe automáticamente y pueda corregirse.",
+    "enable": "Activar",
+    "notNow": "Ahora no",
+    "reportAction": "Activar el envío de errores",
+    "enabled": "Envío de errores activado",
+    "shortLabel": "Informar errores",
+    "pointAnonymous": "Seudónimo, identificado solo por un ID de instalación y nunca vinculado a tus datos personales ni a tu cuenta",
+    "pointNoSensitiveData": "No se envían importes, saldos, nombres ni credenciales",
+    "pointChangeLater": "Puedes activarlo o desactivarlo más tarde en Ajustes"
   },
   "entities": {
     "title": "Integraciones",
@@ -717,6 +737,13 @@
       "description": "Información legal y políticas",
       "privacyPolicy": "Política de privacidad",
       "termsOfService": "Términos del servicio"
+    },
+    "privacy": {
+      "title": "Diagnóstico",
+      "description": "Todo esto está desactivado por defecto y permanece en este dispositivo salvo que lo actives.",
+      "errorReportingLabel": "Enviar informes de errores",
+      "errorReportingDescription": "Comparte informes seudónimos de fallos y errores identificados solo por un ID de instalación para poder corregirlos. Los importes, datos de cuentas y datos personales nunca se envían.",
+      "installId": "ID de instalación"
     },
     "cloud": {
       "tabTitle": "Cloud",

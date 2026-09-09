@@ -70,6 +70,7 @@ def _build_use_case(
     snapshot_writer=None,
     throttle_port=None,
     transaction_handler_port=None,
+    error_reporter=None,
 ):
     if position_port is None:
         position_port = MagicMock()
@@ -111,6 +112,7 @@ def _build_use_case(
         snapshot_writer=snapshot_writer,
         throttle_port=throttle_port,
         transaction_handler_port=transaction_handler_port,
+        error_reporter=error_reporter,
     )
 
 
@@ -1451,3 +1453,57 @@ class TestThrottle:
 
         assert result.throttled is False
         throttle.update_last_executed.assert_awaited_once()
+
+
+class TestErrorReporting:
+    @pytest.mark.asyncio
+    async def test_position_refresh_failure_is_reported(self):
+        position_id = uuid4()
+        error = RuntimeError("refresh boom")
+
+        position_port = MagicMock()
+        position_port.get_by_id = AsyncMock(side_effect=error)
+        position_port.get_manual_crypto_position_ids = AsyncMock(return_value=set())
+
+        manual_port = MagicMock()
+        manual_port.get_trackable = AsyncMock(
+            return_value=[_make_trackable_entry(global_position_id=position_id)]
+        )
+
+        reporter = MagicMock()
+        use_case = _build_use_case(
+            position_port=position_port,
+            manual_position_data_port=manual_port,
+            error_reporter=reporter,
+        )
+
+        result = await use_case.execute()
+
+        assert result.had_tracked is True
+        reporter.capture_exception.assert_called_once()
+        assert reporter.capture_exception.call_args.args[0] is error
+        tags = reporter.capture_exception.call_args.kwargs["tags"]
+        assert tags["use_case"] == "update_tracked_quotes"
+
+    @pytest.mark.asyncio
+    async def test_failure_without_reporter_is_swallowed(self):
+        position_id = uuid4()
+
+        position_port = MagicMock()
+        position_port.get_by_id = AsyncMock(side_effect=RuntimeError("refresh boom"))
+        position_port.get_manual_crypto_position_ids = AsyncMock(return_value=set())
+
+        manual_port = MagicMock()
+        manual_port.get_trackable = AsyncMock(
+            return_value=[_make_trackable_entry(global_position_id=position_id)]
+        )
+
+        use_case = _build_use_case(
+            position_port=position_port,
+            manual_position_data_port=manual_port,
+        )
+
+        result = await use_case.execute()
+
+        assert result.had_tracked is True
+        assert result.changed_entities == []

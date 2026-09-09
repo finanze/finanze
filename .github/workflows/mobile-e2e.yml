@@ -75,6 +75,8 @@ jobs:
 
       - name: Build mobile web assets
         working-directory: frontend/app
+        env:
+          BETTER_STACK_API_TOKEN: ""
         run: pnpm build:mobile
 
       - name: Sync Capacitor to iOS
@@ -170,6 +172,8 @@ jobs:
 
       - name: Build mobile web assets
         working-directory: frontend/app
+        env:
+          BETTER_STACK_API_TOKEN: ""
         run: pnpm build:mobile
 
       - name: Sync Capacitor to Android

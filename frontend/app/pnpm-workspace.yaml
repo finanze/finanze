@@ -19,5 +19,6 @@ overrides:
   mdast-util-to-hast@>=13.0.0 <13.2.1: ">=13.2.1"
 
 allowBuilds:
+  "@sentry/cli": true
   electron-winstaller: true
   esbuild: true
