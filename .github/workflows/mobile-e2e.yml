@@ -235,6 +235,13 @@ jobs:
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
 
+      - name: Install Appium XCUITest driver
+        working-directory: e2e/mobile
+        run: |
+          DRIVER_VERSION=$(node -p "require('./package.json').devDependencies['appium-xcuitest-driver'].replace(/^[^0-9]*/, '')")
+          pnpm exec appium driver install --source=npm "appium-xcuitest-driver@$DRIVER_VERSION"
+          pnpm exec appium driver list --installed
+
       - name: Boot iOS Simulator
         run: |
           DEVICE_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^[[:space:]]*//' | sed 's/ (.*//')
@@ -338,6 +345,13 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
+
+      - name: Install Appium UiAutomator2 driver
+        working-directory: e2e/mobile
+        run: |
+          DRIVER_VERSION=$(node -p "require('./package.json').devDependencies['appium-uiautomator2-driver'].replace(/^[^0-9]*/, '')")
+          pnpm exec appium driver install --source=npm "appium-uiautomator2-driver@$DRIVER_VERSION"
+          pnpm exec appium driver list --installed
 
       - name: Pre-download Chromedriver
         run: |
