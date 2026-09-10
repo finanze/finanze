@@ -1,2 +1,2 @@
-pre-commit==4.6.0
-python-minifier==3.2.0
+pre-commit==4.6.2
+python-minifier==3.3.0
