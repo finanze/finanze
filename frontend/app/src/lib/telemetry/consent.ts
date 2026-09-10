@@ -1,6 +1,7 @@
 import { Preferences } from "@capacitor/preferences"
 
 import { isNativeMobile } from "@/lib/platform"
+import { randomUuid } from "@/lib/telemetry/uuid"
 
 export const TELEMETRY_CONSENT_KEY = "telemetry_consent"
 
@@ -14,7 +15,7 @@ let cached: TelemetryConsent | null = null
 function defaultConsent(): TelemetryConsent {
   return {
     errorReporting: false,
-    installId: crypto.randomUUID(),
+    installId: randomUuid(),
   }
 }
 
@@ -30,7 +31,7 @@ function parse(raw: string | null): TelemetryConsent | null {
       installId:
         typeof parsed.installId === "string" && parsed.installId
           ? parsed.installId
-          : crypto.randomUUID(),
+          : randomUuid(),
     }
   } catch {
     return null

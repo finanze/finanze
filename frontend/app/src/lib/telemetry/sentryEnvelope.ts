@@ -1,3 +1,5 @@
+import { randomUuid } from "@/lib/telemetry/uuid"
+
 export interface SentryStackFrame {
   filename?: string
   abs_path?: string
@@ -68,7 +70,7 @@ export function parseDsn(dsn: string): ParsedDsn | null {
 }
 
 function randomEventId(): string {
-  return crypto.randomUUID().replace(/-/g, "")
+  return randomUuid().replace(/-/g, "")
 }
 
 export function buildEvent(

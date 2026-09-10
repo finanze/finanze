@@ -26,6 +26,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import F24
 from domain.transactions import (
     AccountTx,
@@ -315,6 +316,11 @@ def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
                 initial_investment=round(average_buy_price * shares, 2),
                 average_buy_price=average_buy_price,
                 market=market,
+                issuer=(
+                    resolve_issuer(None, name)
+                    if equity_type == EquityType.ETF
+                    else None
+                ),
                 source=DataSource.REAL,
             )
         )
