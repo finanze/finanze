@@ -19,6 +19,7 @@ _LEVELS = {
 }
 
 MAX_FRAMES = 30
+MAX_CAUSES = 3
 MAX_CONTEXT_LENGTH = 400
 CONTEXT_PADDING = 120
 
@@ -81,6 +82,49 @@ def _frame_source(frame) -> tuple[Optional[str], Optional[int], Optional[dict]]:
     )
 
 
+def _exception_entry(exc: BaseException) -> dict:
+    summary = traceback.TracebackException.from_exception(exc)
+
+    frames = []
+    for frame in summary.stack[-MAX_FRAMES:]:
+        context_line, colno, frame_vars = _frame_source(frame)
+        entry = {
+            "filename": _relative_filename(frame.filename),
+            "function": frame.name,
+            "lineno": frame.lineno,
+            "context_line": context_line,
+        }
+        if colno is not None:
+            entry["colno"] = colno
+        if frame_vars:
+            entry["vars"] = frame_vars
+        frames.append(entry)
+
+    return {
+        "type": type(exc).__name__,
+        "value": scrub_text(str(exc)),
+        "frames": frames,
+    }
+
+
+def _cause_chain(exc: BaseException) -> list[BaseException]:
+    chain = [exc]
+    seen = {id(exc)}
+    current = exc
+
+    while len(chain) <= MAX_CAUSES:
+        nxt = current.__cause__
+        if nxt is None and not current.__suppress_context__:
+            nxt = current.__context__
+        if nxt is None or id(nxt) in seen:
+            break
+        chain.append(nxt)
+        seen.add(id(nxt))
+        current = nxt
+
+    return chain
+
+
 def get_environment() -> str:
     try:
         return js.jsBridge.telemetry.environment or "production"
@@ -125,22 +169,7 @@ class BridgeErrorReporter(ErrorReporterPort):
         pass
 
     def _build_payload(self, exc, tags, extra, level) -> dict:
-        summary = traceback.TracebackException.from_exception(exc)
-
-        frames = []
-        for frame in summary.stack[-MAX_FRAMES:]:
-            context_line, colno, frame_vars = _frame_source(frame)
-            entry = {
-                "filename": _relative_filename(frame.filename),
-                "function": frame.name,
-                "lineno": frame.lineno,
-                "context_line": context_line,
-            }
-            if colno is not None:
-                entry["colno"] = colno
-            if frame_vars:
-                entry["vars"] = frame_vars
-            frames.append(entry)
+        chain = _cause_chain(exc)
 
         all_tags = {"component": "mobile-backend"}
         context = self._context
@@ -161,14 +190,18 @@ class BridgeErrorReporter(ErrorReporterPort):
         if tags:
             all_tags.update({k: str(v) for k, v in tags.items()})
 
-        return {
-            "type": type(exc).__name__,
-            "value": scrub_text(str(exc)),
+        payload = {
+            **_exception_entry(exc),
             "level": _LEVELS[level],
-            "frames": frames,
             "tags": all_tags,
             "extra": scrub(extra) if extra else None,
             "release": context.release if context else None,
             "user_id": context.user_hash if context else None,
             "os": os_context,
         }
+
+        # Sentry renders the last value as the title, so causes go root-first.
+        if len(chain) > 1:
+            payload["causes"] = [_exception_entry(c) for c in reversed(chain[1:])]
+
+        return payload

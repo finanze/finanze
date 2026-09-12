@@ -17,7 +17,6 @@ from domain.data_init import (
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
-    MigrationAheadOfTime,
     MigrationError,
 )
 from domain.user import User
@@ -92,13 +91,8 @@ class DBManager(DatasourceInitiator, Backupable):
                             "Failed to decrypt database. Incorrect password or corrupted file"
                         ) from e
 
-                elif not isinstance(e, MigrationAheadOfTime):
-                    self._log.exception(e)
-
                 elif not isinstance(e, MigrationError):
-                    self._log.exception(
-                        "An unexpected error occurred during database connection/unlock"
-                    )
+                    self._log.exception(e)
 
                 self._unlocked = False
                 if connection:
@@ -171,7 +165,7 @@ class DBManager(DatasourceInitiator, Backupable):
         except MigrationError:
             raise
         except Exception as e:
-            raise MigrationError from e
+            raise MigrationError(f"Database schema setup failed: {e}") from e
 
     async def export(self) -> bytes:
         tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)

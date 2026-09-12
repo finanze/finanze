@@ -11,7 +11,6 @@ from domain.data_init import (
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
-    MigrationAheadOfTime,
     MigrationError,
 )
 from domain.user import User
@@ -114,7 +113,7 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
                         "Failed to decrypt database. Incorrect password or corrupted file"
                     ) from e
 
-                if not isinstance(e, (MigrationAheadOfTime, MigrationError)):
+                if not isinstance(e, MigrationError):
                     self._log.exception("Failed to unlock database: %s", e)
 
                 self._unlocked = False
@@ -247,7 +246,7 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
         except MigrationError:
             raise
         except Exception as e:
-            raise MigrationError from e
+            raise MigrationError(f"Database schema setup failed: {e}") from e
 
     async def export(self) -> bytes:
         if js is None:

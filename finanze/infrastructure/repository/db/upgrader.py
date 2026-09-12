@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Set
 
@@ -67,13 +68,25 @@ class DatabaseUpgrader:
             result = await cursor.fetchone()
             return (result[0] + 1) if result[0] is not None else 0
 
+    @asynccontextmanager
+    async def _phase(self, description: str):
+        try:
+            yield
+        except MigrationError:
+            raise
+        except Exception as e:
+            raise MigrationError(f"{description} failed: {e}") from e
+
     async def upgrade(self):
         if not self._versions:
             return
 
-        await self._ensure_migrations_table()
+        async with self._phase("Ensuring migrations table"):
+            await self._ensure_migrations_table()
 
-        applied_names = await self._get_applied_migration_names()
+        async with self._phase("Reading applied migrations"):
+            applied_names = await self._get_applied_migration_names()
+
         known_names = {m.name for m in self._versions}
         unknown_applied = applied_names - known_names
         if unknown_applied:
@@ -87,26 +100,25 @@ class DatabaseUpgrader:
             self._log.debug("No pending migrations to apply.")
             return
 
-        next_version = await self._get_next_version()
+        async with self._phase("Reading current migration version"):
+            next_version = await self._get_next_version()
 
         for migration in pending:
-            async with self._db_client.tx(skip_last_update=True) as cursor:
-                self._log.info(f"Applying migration: {migration.name}")
-                try:
+            async with self._phase(f"Migration {migration.name}"):
+                async with self._db_client.tx(skip_last_update=True) as cursor:
+                    self._log.info(f"Applying migration: {migration.name}")
+
                     await migration.upgrade(cursor, self._context)
-                except Exception as e:
-                    raise MigrationError(
-                        f"There was an error while executing migration {migration.name}: {str(e)}"
-                    ) from e
 
-                applied_at = datetime.now().astimezone().isoformat()
+                    applied_at = datetime.now().astimezone().isoformat()
 
-                await cursor.execute(
-                    "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
-                    (next_version, applied_at, migration.name),
-                )
-                next_version += 1
+                    await cursor.execute(
+                        "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
+                        (next_version, applied_at, migration.name),
+                    )
+            next_version += 1
 
-        async with self._db_client.tx():
-            # Update last update date after successful migration
-            pass
+        async with self._phase("Finalising migrations"):
+            async with self._db_client.tx():
+                # Update last update date after successful migration
+                pass
