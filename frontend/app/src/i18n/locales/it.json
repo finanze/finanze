@@ -425,10 +425,13 @@
       "secretKey": "Chiave Segreta"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "Questa integrazione è in beta e non è stata testata adeguatamente. Crea la chiave API nell'app Trading 212 con gli ambiti account, portfolio e history (orders, dividends e transactions)."
     },
     "addAccountName": "Assegna un nome a questo conto",
     "accountNamePlaceholder": "Nome del conto (opzionale)",
+    "showCredential": "Mostra valore",
+    "hideCredential": "Nascondi valore",
     "credentialsSecurityTitle": "I tuoi dati sono al sicuro",
     "credentialsSecurityBody": "Le tue credenziali e tutti i dati mostrati qui sono archiviati localmente in modo crittografato. Non saranno mai condivisi con nessuno, a meno che tu non lo scelga esplicitamente. Non condividere mai la password dell'app con nessuno, poiché permetterebbe di accedere a tutti questi dati. Inoltre, questa app è open source e puoi verificare tu stesso come vengono archiviati e gestiti i dati.",
     "title": "Benvenuto in Finanze",
