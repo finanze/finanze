@@ -1667,7 +1667,10 @@ export default function TransactionsPage() {
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="overflow-hidden -mx-6"
+                className={cn(
+                  "-mx-6",
+                  showMobileFilters ? "overflow-visible" : "overflow-hidden",
+                )}
               >
                 <Card className="mt-3 rounded-none border-x-0 p-4">
                   <div className="flex flex-wrap items-end gap-3">

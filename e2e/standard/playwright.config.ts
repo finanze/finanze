@@ -5,7 +5,7 @@ const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT || 5273)
 const FRESH_BACKEND_PORT = 7693
 const FRESH_FRONTEND_PORT = 5274
 
-export default defineConfig({
+export default defineConfig<{}, { backendPort: number }>({
     testDir: './tests',
     timeout: 60_000,
     retries: 1,

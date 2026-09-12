@@ -196,6 +196,8 @@ jobs:
     needs: build-ios
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
     runs-on: macos-latest
+    env:
+      APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -234,6 +236,10 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
+
+      - name: Register Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver list --installed
 
       - name: Boot iOS Simulator
         run: |
@@ -301,6 +307,8 @@ jobs:
     needs: build-android
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
     runs-on: ubuntu-latest
+    env:
+      APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -338,6 +346,10 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
+
+      - name: Register Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver list --installed
 
       - name: Pre-download Chromedriver
         run: |

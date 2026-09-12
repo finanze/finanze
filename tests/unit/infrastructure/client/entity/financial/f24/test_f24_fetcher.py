@@ -125,6 +125,7 @@ def test_map_stocks_kind_7_is_etf():
     )
     assert stocks[0].type == EquityType.ETF
     assert stocks[0].ticker == "ERNE.EU"
+    assert stocks[0].issuer == "BlackRock"
 
 
 def test_map_stocks_skips_bond_kind(caplog):

@@ -1,9 +1,20 @@
 from enum import Enum
 
 
+def _account_key(alias: str) -> str:
+    # rows recorded without an account still belong to the entity's own account
+    # whenever there is a single one to attribute them to
+    return (
+        f"COALESCE({alias}.entity_account_id, ("
+        f" SELECT sa.id FROM entity_accounts sa"
+        f" WHERE sa.entity_id = {alias}.entity_id"
+        f" GROUP BY sa.entity_id HAVING COUNT(*) = 1), '')"
+    )
+
+
 class GainsTimelineQueries(str, Enum):
-    GET_REAL_SNAPSHOTS_BASE = """
-        SELECT gp.id, gp.entity_id, COALESCE(gp.entity_account_id, '') AS ea_key,
+    GET_REAL_SNAPSHOTS_BASE = f"""
+        SELECT gp.id, gp.entity_id, {_account_key("gp")} AS ea_key,
                gp.source, gp.date, ea.deleted_at
         FROM global_positions gp
             LEFT JOIN entity_accounts ea ON gp.entity_account_id = ea.id
@@ -179,9 +190,9 @@ class GainsTimelineQueries(str, Enum):
         FROM real_estate_cf_positions
     """
 
-    GET_FLOWS_BASE = """
+    GET_FLOWS_BASE = f"""
         SELECT it.entity_id,
-               COALESCE(it.entity_account_id, '') AS ea_key,
+               {_account_key("it")} AS ea_key,
                it.source,
                it.product_type,
                it.type,
@@ -300,9 +311,9 @@ class GainsTimelineQueries(str, Enum):
         FROM investment_transactions it
     """
 
-    GET_SETTLEMENTS_BASE = """
+    GET_SETTLEMENTS_BASE = f"""
         SELECT h.entity_id,
-               COALESCE(h.entity_account_id, '') AS ea_key,
+               {_account_key("h")} AS ea_key,
                h.source,
                h.product_type,
                h.name AS asset_key,

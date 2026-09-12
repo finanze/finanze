@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import httpx
@@ -142,6 +143,76 @@ async def test_trade_execution_and_dividend(fetcher, raw_type, expected_type):
     assert execution.date.tzinfo is not None
     assert execution.order_date == execution.date
     assert income.order_date is None
+
+
+@pytest.mark.asyncio
+async def test_sell_order_from_mintos_api_response(fetcher):
+    sell_ref = "01a089e7-5db8-7acb-b7b2-0e0bf8431214"
+    order_id = "01a08813-f84f-7f7c-8d00-967ee34a88b3"
+    executed_at = "2026-09-10T06:00:23.201712Z"
+    sell = {
+        "id": sell_ref,
+        "instrument": {
+            "isin": "IE00B5L01S80",
+            "name": "HSBC FTSE EPRA NAREIT Developed UCITS ETF USD",
+            "imageUrl": "https://assets.mintos.com/A63AD73B-490E-23C8-3D39-B09DE3565B7D.png",
+            "attributes": {"ticker": "H4ZL", "expenseRatio": 0.24},
+        },
+        "type": "SELL_ORDER",
+        "totalAmount": {"amount": 1.01, "currency": "EUR"},
+        "feeAmount": {"amount": 0, "currency": "EUR"},
+        "netAmount": {"amount": 1.01, "currency": "EUR"},
+        "createdAt": executed_at,
+        "orderId": order_id,
+        "details": {
+            "orderId": order_id,
+            "totalAmount": {"amount": 1.01, "currency": "EUR"},
+            "feeAmount": {"amount": 0, "currency": "EUR"},
+            "netAmount": {"amount": 1.01, "currency": "EUR"},
+            "isRecurring": False,
+        },
+    }
+    fetcher._client.get_asset_transactions.return_value = [sell]
+    fetcher._client.get_asset_orders.return_value = [
+        {
+            "id": order_id,
+            "direction": "SELL",
+            "status": "EXECUTED",
+            "instrument": sell["instrument"],
+            "submitted": {"type": "SHARES", "shares": 0.05},
+            "isRecurring": False,
+            "executed": {
+                "shares": 0.05,
+                "sharePrice": {"amount": 20.2, "currency": "EUR"},
+                "executedAt": executed_at,
+                "positionWeightedAvgPurchasePrice": {
+                    "amount": 22.230000004231734,
+                    "currency": "EUR",
+                },
+                "value": {
+                    "type": "SELL",
+                    "tradingProceeds": {"amount": 1.01, "currency": "EUR"},
+                    "fee": {"amount": 0, "currency": "EUR"},
+                    "investorProceeds": {"amount": 1.01, "currency": "EUR"},
+                },
+                "upvestOrderId": "01a08813-fbef-7011-a66e-ccbef63fcbd7",
+            },
+        }
+    ]
+
+    result = await fetcher.transactions(set(), FetchOptions())
+
+    assert len(result.investment) == 1
+    sell_tx = result.investment[0]
+    assert sell_tx.ref == sell_ref
+    assert sell_tx.type == TxType.SELL
+    assert sell_tx.amount == Dezimal("1.01")
+    assert sell_tx.net_amount == Dezimal("1.01")
+    assert sell_tx.fees == Dezimal(0)
+    assert sell_tx.shares == Dezimal("0.05")
+    assert sell_tx.price == Dezimal("20.2")
+    assert sell_tx.date == datetime.fromisoformat(executed_at).astimezone()
+    assert sell_tx.order_date == sell_tx.date
 
 
 @pytest.mark.asyncio

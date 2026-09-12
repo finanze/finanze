@@ -182,23 +182,6 @@ export function PortfolioDonutChart({
     }
   }
 
-  const handlePieClick = (data: unknown) => {
-    if (distributionView !== "by-asset" || !data || typeof data !== "object") {
-      return
-    }
-
-    const candidate = data as { payload?: unknown; type?: unknown }
-    const item =
-      candidate.payload && typeof candidate.payload === "object"
-        ? (candidate.payload as { type?: unknown })
-        : candidate
-    const assetType = typeof item.type === "string" ? item.type : null
-    if (!assetType) return
-
-    const route = getInvestmentRoute(assetType)
-    if (route) navigate(route)
-  }
-
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
@@ -747,7 +730,6 @@ export function PortfolioDonutChart({
                   stroke="hsl(var(--background))"
                   strokeWidth={1}
                   paddingAngle={1}
-                  onClick={handlePieClick}
                 >
                   {currentDistribution.map((entry, index) => (
                     <Cell

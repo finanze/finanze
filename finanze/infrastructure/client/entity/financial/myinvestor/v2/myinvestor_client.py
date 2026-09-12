@@ -28,7 +28,7 @@ class MyInvestorAPIV2Client:
     LOGIN_URL = "https://api.myinvestor.es"
     BASE_URL = "https://api.myinvestor.es"
 
-    TIMEOUT = 20
+    TIMEOUT = 30
 
     def __init__(self):
         self._headers = {}
@@ -603,7 +603,7 @@ class MyInvestorAPIV2Client:
 
         return (await self._get_request(path))["payload"]["data"]
 
-    @cached(cache=Cache.MEMORY, ttl=60)
+    @cached(cache=Cache.MEMORY, ttl=240)
     async def get_fund_order_details(self, securities_account_id: str, order_id: str):
         return (
             await self._get_request(
