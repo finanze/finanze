@@ -4,7 +4,7 @@ import logging
 import math
 import time
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -108,6 +108,8 @@ _TAIL_SETTLE_DAYS = 7
 
 # How long an unreconciled inflow is still considered money in flight.
 _INFLOW_SETTLE_DAYS = 7
+# brokers round traded quantities more coarsely than held ones
+_QUANTITY_MATCH_TOLERANCE = Dezimal("0.02")
 
 
 @dataclass
@@ -122,6 +124,17 @@ class _TransferTransition:
 class _ReplayPosition:
     quantity: Optional[Dezimal] = Dezimal(0)
     book_value: Dezimal = Dezimal(0)
+    # proceeds already redeemed but not yet subscribed on the other side, as
+    # (settlement day, book value, redeemed value)
+    in_flight: list[tuple[date, Dezimal, Dezimal]] = field(default_factory=list)
+
+    def in_flight_at(self, day: date) -> tuple[Dezimal, Dezimal]:
+        book, value = Dezimal(0), Dezimal(0)
+        for settles_on, leg_book, leg_value in self.in_flight:
+            if day < settles_on:
+                book += leg_book
+                value += leg_value
+        return book, value
 
 
 class GetGainsTimelineImpl(GetGainsTimeline):
@@ -366,8 +379,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         if not output_days:
             return GainsTimeline(currency=query.base_currency)
 
-        internal_transfer_flow_ids = self._internal_transfer_flow_ids(flows)
         transfer_pairs = self._replay_transfer_pairs(flows)
+        incoming_by_outgoing = {
+            id(transfer_pairs[id(flow)]): flow
+            for flow in flows
+            if id(flow) in transfer_pairs
+        }
+        internal_transfer_flow_ids = self._internal_transfer_flow_ids(transfer_pairs)
         carried_transfer_books: dict[int, Dezimal] = {}
         fund_transfer_costs, fund_transfer_sources = self._detect_fund_transfers(
             snapshots, flows
@@ -433,6 +451,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         replay_positions,
                         replay_identity_by_key,
                         transfer_pairs,
+                        incoming_by_outgoing,
                         carried_transfer_books,
                         flow,
                         replay_identity,
@@ -517,6 +536,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         daily_net_flows: list[tuple[date, Dezimal]] = []
         unreconciled_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
         pending_market_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
+        pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]] = {}
         pending_period_flows: dict[_AssetIdentity, Dezimal] = defaultdict(
             lambda: Dezimal(0)
         )
@@ -527,11 +547,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         recognized_fixed_income_interest_days: dict[_AssetIdentity, set[date]] = (
             defaultdict(set)
         )
-        pending_transfer_outs: list[GainsFlow] = []
         transfer_exit_sources: set[_AssetIdentity] = set()
-        transfer_out_quantities: dict[_AssetIdentity, Dezimal] = defaultdict(
-            lambda: Dezimal(0)
-        )
+        transfer_out_quantities: dict[_AssetIdentity, tuple[Dezimal, Dezimal]] = {}
         transfer_transitions: list[_TransferTransition] = []
         suppressed_transfer_sources: set[_AssetIdentity] = set()
         internal_transfer_targets: set[tuple[str, ProductType, str, str, str]] = set()
@@ -609,6 +626,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             replay_positions,
                             replay_identity_by_key,
                             transfer_pairs,
+                            incoming_by_outgoing,
                             carried_transfer_books,
                             flow,
                             replay_identity,
@@ -624,7 +642,18 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     replay_touched_today = True
                 if flow.product_type in _FIXED_INCOME_TYPES:
                     pending_fixed_income_flows[identity].append(flow)
-                elif id(flow) not in internal_transfer_flow_ids:
+                elif id(flow) in internal_transfer_flow_ids:
+                    if not replay_active and flow.quantity is not None:
+                        # the amount nets against its pair, but the quantity still
+                        # has to reconcile the position once the snapshot catches up
+                        self._defer_market_flow(
+                            pending_market_flows,
+                            pending_market_anchors,
+                            identity,
+                            flow,
+                            previous_assets,
+                        )
+                else:
                     if replay_active:
                         self._record_flow(
                             flow,
@@ -640,7 +669,13 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             orphan_income_flow_ids,
                         )
                     elif self._requires_market_position_observation(flow):
-                        pending_market_flows[identity].append(flow)
+                        self._defer_market_flow(
+                            pending_market_flows,
+                            pending_market_anchors,
+                            identity,
+                            flow,
+                            previous_assets,
+                        )
                     else:
                         self._record_flow(
                             flow,
@@ -659,23 +694,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     transfer_exit_sources.discard(identity)
                     suppressed_transfer_sources.discard(identity)
                     transfer_out_quantities.pop(identity, None)
-                    pending_transfer_outs = [
-                        outgoing
-                        for outgoing in pending_transfer_outs
-                        if self._flow_identity(outgoing) != identity
-                    ]
-                if self._is_full_transfer_exit(
-                    flow,
-                    previous_assets.get(identity),
-                    transfer_out_quantities,
-                    identity,
-                ):
-                    transfer_exit_sources.add(identity)
-                    pending_transfer_outs.append(flow)
+                if flow.transaction_type in _TRANSFER_OUT_TYPES:
+                    if self._is_full_transfer_exit(
+                        flow,
+                        previous_assets.get(identity),
+                        transfer_out_quantities,
+                        identity,
+                    ):
+                        transfer_exit_sources.add(identity)
                 elif flow.transaction_type in _TRANSFER_IN_TYPES:
-                    outgoing = self._pop_matching_transfer_out(
-                        pending_transfer_outs, flow
-                    )
+                    outgoing = transfer_pairs.get(id(flow))
                     if outgoing is not None and flow.quantity is not None:
                         target_previous = previous_assets.get(identity)
                         target_quantity = (
@@ -758,7 +786,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 if identity in replay_ended:
                     continue
                 window = replay_windows.get(identity)
-                if position.book_value <= 0 and (window is None or day > window[2]):
+                _, in_flight_value = position.in_flight_at(day)
+                if (
+                    position.book_value <= 0
+                    and in_flight_value <= 0
+                    and (window is None or day > window[2])
+                ):
                     continue
                 snapshot_identity = self._snapshot_identity_for_replay(
                     identity, current_assets
@@ -775,8 +808,14 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     continue
                 if self._identity_key(identity) in current_keys:
                     continue
-                if position.book_value > 0 and not self._has_replay_price(
-                    identity[2], position, day, history_by_key
+                if (
+                    position.book_value > 0
+                    # holding no units means there is no price to be missing:
+                    # the book amount is already the exact figure
+                    and (position.quantity is None or position.quantity > 0)
+                    and not self._has_replay_price(
+                        identity[2], position, day, history_by_key
+                    )
                 ):
                     day_estimated = True
                 current_assets[identity] = self._replay_valuation(
@@ -788,9 +827,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 if not transition.resolved
             }
             newly_suppressed, resolved_transfer_targets = (
-                self._resolve_transfer_transitions(transfer_transitions, current_assets)
+                self._resolve_transfer_transitions(
+                    transfer_transitions, current_assets, transfer_exit_sources
+                )
             )
             suppressed_transfer_sources.update(newly_suppressed)
+            for identity in newly_suppressed:
+                # the stale source is gone for good, so its legs can never be
+                # observed and must not hold the series back
+                pending_market_flows.pop(identity, None)
+                pending_market_anchors.pop(identity, None)
             current_assets = {
                 identity: valuation
                 for identity, valuation in current_assets.items()
@@ -866,9 +912,31 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 | resolved_transfer_targets
                 | newly_suppressed
             )
+            # reconciled transfer legs are exempt from inference, but their own
+            # recorded trades still have to be booked once the position moves
+            observed_identities = (
+                changed_identities | transfer_reconciliation_identities
+            )
             changed_identities.difference_update(transfer_reconciliation_identities)
-            for identity in transfer_reconciliation_identities:
-                unreconciled_flows.pop(identity, None)
+            self._record_observed_market_flows(
+                pending_market_flows,
+                pending_market_anchors,
+                day,
+                observed_identities,
+                previous_assets,
+                current_assets,
+                period_flows,
+                contributions,
+                unreconciled_flows,
+                query.base_currency,
+                rates,
+                query.accrue_fixed_income,
+                provenance,
+                replay_keys={
+                    self._identity_key(identity) for identity in replay_handover
+                },
+                excluded_flow_ids=internal_transfer_flow_ids,
+            )
             unobserved_market_snapshot_identities = {
                 identity
                 for identity in changed_identities
@@ -883,22 +951,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 and bool(changed_holders)
                 and not (changed_identities - unobserved_market_snapshot_identities)
             )
-            self._record_observed_market_flows(
-                pending_market_flows,
-                changed_identities,
-                previous_assets,
-                current_assets,
-                period_flows,
-                contributions,
-                unreconciled_flows,
-                query.base_currency,
-                rates,
-                query.accrue_fixed_income,
-                provenance,
-                replay_keys={
-                    self._identity_key(identity) for identity in replay_handover
-                },
-            )
+            for identity in transfer_reconciliation_identities:
+                unreconciled_flows.pop(identity, None)
             for identity in changed_identities:
                 if identity in replay_handover:
                     replay_identity = replay_identity_by_key.get(
@@ -1817,6 +1871,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             tuple[str, ProductType, str, str, str], _AssetIdentity
         ],
         transfer_pairs: dict[int, GainsFlow],
+        incoming_by_outgoing: dict[int, GainsFlow],
         carried_books: dict[int, Dezimal],
         flow: GainsFlow,
         identity: Optional[_AssetIdentity],
@@ -1856,6 +1911,14 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         )
         if removed is not None and removed > 0:
             carried_books[id(flow)] = removed
+            incoming = incoming_by_outgoing.get(id(flow))
+            if incoming is not None and incoming.moment.date() > flow.moment.date():
+                # the money left the source but has not reached the target yet,
+                # so it has to stay on the books instead of vanishing
+                source = positions.get(identity or self._flow_identity(flow))
+                if source is not None:
+                    proceeds = flow.amount if flow.amount > 0 else removed
+                    source.in_flight.append((incoming.moment.date(), removed, proceeds))
         return removed
 
     async def _load_replay_history(
@@ -1868,6 +1931,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     ) -> dict[str, dict[date, Dezimal]]:
         if self._instrument_history_provider is None:
             return {}
+        upper = min(query.to_date or yesterday, yesterday)
         replay_windows, _ = self._replay_windows(
             flows, snapshots, query, yesterday, range_from
         )
@@ -1879,6 +1943,9 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         names_by_key: dict[str, str] = {}
         currencies_by_key: dict[str, str] = {}
         etf_keys: set[str] = set()
+        flows_by_identity: dict[
+            tuple[str, ProductType, str, str, str], list[GainsFlow]
+        ] = defaultdict(list)
         for snapshot in snapshots:
             for valuation in snapshot.valuations:
                 if valuation.equity_type == EquityType.ETF:
@@ -1890,7 +1957,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 currencies_by_key[flow.asset_key] = flow.currency
             if flow.equity_type == EquityType.ETF:
                 etf_keys.add(flow.asset_key)
-        for identity, (first_day, last_day, _tail_end) in replay_windows.items():
+            flows_by_identity[self._identity_key(self._flow_identity(flow))].append(
+                flow
+            )
+        for identity, (first_day, last_day, tail_end) in replay_windows.items():
             product_type, asset_key = identity[1], identity[2]
             if product_type == ProductType.FUND:
                 instrument_type = InstrumentType.MUTUAL_FUND
@@ -1909,13 +1979,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     names_by_key.get(asset_key),
                     currencies_by_key.get(asset_key),
                 )
+            # a position still held after its last flow has to stay priced for
+            # the rest of the replay instead of freezing at that day
+            priced_until = (
+                last_day
+                if self._net_quantity_is_zero(
+                    flows_by_identity.get(self._identity_key(identity), ())
+                )
+                else max(last_day, min(tail_end, upper))
+            )
             current = windows_by_key.get(asset_key)
             if current is None:
-                windows_by_key[asset_key] = (first_day, last_day)
+                windows_by_key[asset_key] = (first_day, priced_until)
             else:
                 windows_by_key[asset_key] = (
                     min(current[0], first_day),
-                    max(current[1], last_day),
+                    max(current[1], priced_until),
                 )
         if not requests:
             return {}
@@ -2258,13 +2337,18 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 price = self._price_at(prices, day)
                 if price is not None:
                     market_value = position.quantity * price
+        cost_basis = position.book_value
+        if day is not None:
+            in_flight_book, in_flight_value = position.in_flight_at(day)
+            market_value += in_flight_value
+            cost_basis += in_flight_book
         return AssetValuation(
             product_type=product_type,
             asset_key=asset_key,
             currency=currency,
             market_value=market_value,
             quantity=position.quantity,
-            cost_basis=position.book_value,
+            cost_basis=cost_basis,
             portfolio_name=portfolio_name or None,
             equity_type=EquityType(equity_type) if equity_type else None,
             wallet_id=UUID(wallet_id) if wallet_id else None,
@@ -2349,8 +2433,6 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         return (
             flow.product_type not in _FIXED_INCOME_TYPES
             and flow.transaction_type in _POSITION_CHANGING_TYPES
-            and flow.transaction_type not in _TRANSFER_OUT_TYPES
-            and flow.transaction_type not in _TRANSFER_IN_TYPES
             and flow.quantity is not None
         )
 
@@ -2364,9 +2446,78 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             return True
         return previous.quantity != current.quantity
 
+    @staticmethod
+    def _defer_market_flow(
+        pending_market_flows: dict[_AssetIdentity, list[GainsFlow]],
+        pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]],
+        identity: _AssetIdentity,
+        flow: GainsFlow,
+        previous_assets: dict[_AssetIdentity, AssetValuation],
+    ):
+        if identity not in pending_market_flows:
+            previous = previous_assets.get(identity)
+            pending_market_anchors[identity] = (
+                previous.quantity if previous is not None else Dezimal(0)
+            )
+        pending_market_flows[identity].append(flow)
+
+    @staticmethod
+    def _signed_flow_quantity(flow: GainsFlow) -> Optional[Dezimal]:
+        if flow.quantity is None:
+            return None
+        if flow.transaction_type in _INFLOW_TYPES:
+            return flow.quantity
+        return -flow.quantity
+
+    @classmethod
+    def _releasable_market_flows(
+        cls,
+        flows: list[GainsFlow],
+        anchor: Optional[Dezimal],
+        current: Optional[AssetValuation],
+        day: date,
+    ) -> list[GainsFlow]:
+        if anchor is None or current is None or current.quantity is None:
+            return list(flows)
+        remaining = current.quantity - anchor
+        signed = [cls._signed_flow_quantity(flow) for flow in flows]
+        if all(quantity is not None for quantity in signed):
+            total = sum(signed, Dezimal(0))
+            if abs(total - remaining) <= _QUANTITY_MATCH_TOLERANCE * (
+                abs(total) + Dezimal(1)
+            ):
+                return list(flows)
+        stale_before = day - timedelta(days=_INFLOW_SETTLE_DAYS)
+        selected: set[int] = set()
+        for index, flow in enumerate(flows):
+            if signed[index] is None or flow.moment.date() <= stale_before:
+                selected.add(index)
+                remaining -= signed[index] or Dezimal(0)
+        # settlement does not follow trade order, so the largest legs are matched
+        # against the observed move first
+        for index in sorted(
+            (index for index in range(len(flows)) if index not in selected),
+            key=lambda index: abs(signed[index]),
+            reverse=True,
+        ):
+            quantity = signed[index]
+            tolerance = _QUANTITY_MATCH_TOLERANCE * abs(quantity)
+            # a leg may only be booked once the snapshot has moved far enough,
+            # and in the same direction, to account for it
+            if quantity >= 0:
+                if quantity > remaining + tolerance:
+                    continue
+            elif quantity < remaining - tolerance:
+                continue
+            remaining -= quantity
+            selected.add(index)
+        return [flow for index, flow in enumerate(flows) if index in selected]
+
     def _record_observed_market_flows(
         self,
         pending_market_flows: dict[_AssetIdentity, list[GainsFlow]],
+        pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]],
+        day: date,
         changed_identities: set[_AssetIdentity],
         previous_assets: dict[_AssetIdentity, AssetValuation],
         current_assets: dict[_AssetIdentity, AssetValuation],
@@ -2378,6 +2529,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         accrual_mode: FixedIncomeAccrual,
         provenance: set[GainsFlowProvenance],
         replay_keys: Optional[set[tuple[str, ProductType, str, str, str]]] = None,
+        excluded_flow_ids: Optional[set[int]] = None,
     ):
         replay_keys = replay_keys or set()
         for identity in changed_identities:
@@ -2388,7 +2540,15 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 previous_assets.get(identity), current_assets.get(identity)
             ):
                 continue
-            for flow in flows:
+            released = self._releasable_market_flows(
+                flows,
+                pending_market_anchors.get(identity),
+                current_assets.get(identity),
+                day,
+            )
+            if not released:
+                continue
+            for flow in released:
                 self._record_flow(
                     flow,
                     identity,
@@ -2399,14 +2559,28 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     rates,
                     accrual_mode,
                     provenance,
+                    excluded_flow_ids=excluded_flow_ids,
                 )
-            del pending_market_flows[identity]
+            released_ids = {id(flow) for flow in released}
+            flows[:] = [flow for flow in flows if id(flow) not in released_ids]
+            if not flows:
+                del pending_market_flows[identity]
+                pending_market_anchors.pop(identity, None)
+                continue
+            anchor = pending_market_anchors.get(identity)
+            if anchor is not None:
+                # what is left has to reconcile against the position the booked
+                # legs already moved, not against the original one
+                pending_market_anchors[identity] = anchor + sum(
+                    (self._signed_flow_quantity(flow) or Dezimal(0))
+                    for flow in released
+                )
 
     @staticmethod
     def _is_full_transfer_exit(
         flow: GainsFlow,
         previous: Optional[AssetValuation],
-        transferred: dict[_AssetIdentity, Dezimal],
+        transferred: dict[_AssetIdentity, tuple[Dezimal, Dezimal]],
         identity: _AssetIdentity,
     ) -> bool:
         if (
@@ -2416,35 +2590,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             or previous.quantity is None
         ):
             return False
-        transferred[identity] += flow.quantity
-        return transferred[identity] >= previous.quantity
-
-    @staticmethod
-    def _pop_matching_transfer_out(
-        pending_transfer_outs: list[GainsFlow], incoming: GainsFlow
-    ) -> Optional[GainsFlow]:
-        is_switch = incoming.transaction_type in {TxType.SWITCH_TO}
-        tolerance = Dezimal("0.02")
-        max_days = 1 if is_switch else 7
-        incoming_day = incoming.moment.date()
-        for index, outgoing in enumerate(pending_transfer_outs):
-            if (
-                outgoing.holder != incoming.holder
-                or outgoing.product_type != incoming.product_type
-                or outgoing.currency != incoming.currency
-                or outgoing.asset_key == incoming.asset_key
-                or outgoing.wallet_id != incoming.wallet_id
-            ):
-                continue
-            day_gap = abs((incoming_day - outgoing.moment.date()).days)
-            if day_gap > max_days:
-                continue
-            amount_delta = abs(outgoing.amount - incoming.amount)
-            reference = max(abs(outgoing.amount), abs(incoming.amount), Dezimal(1))
-            if amount_delta / reference > tolerance:
-                continue
-            return pending_transfer_outs.pop(index)
-        return None
+        baseline, accumulated = transferred.get(
+            identity, (previous.quantity, Dezimal(0))
+        )
+        # a re-observed position already nets off the earlier legs, so only legs
+        # racing the same snapshot may be summed against it
+        if baseline != previous.quantity:
+            baseline, accumulated = previous.quantity, Dezimal(0)
+        accumulated += flow.quantity
+        transferred[identity] = (baseline, accumulated)
+        return accumulated >= previous.quantity
 
     @staticmethod
     def _asset_portfolio_key(
@@ -2682,20 +2837,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 pairs[id(incoming)] = best
         return pairs
 
-    @classmethod
-    def _internal_transfer_flow_ids(cls, flows: list[GainsFlow]) -> set[int]:
-        pending_transfer_outs: list[GainsFlow] = []
+    @staticmethod
+    def _internal_transfer_flow_ids(transfer_pairs: dict[int, GainsFlow]) -> set[int]:
         matched_ids: set[int] = set()
-        for flow in flows:
-            if flow.transaction_type in _TRANSFER_OUT_TYPES:
-                pending_transfer_outs.append(flow)
-                continue
-            if flow.transaction_type not in _TRANSFER_IN_TYPES:
-                continue
-            outgoing = cls._pop_matching_transfer_out(pending_transfer_outs, flow)
-            if outgoing is not None:
-                matched_ids.add(id(outgoing))
-                matched_ids.add(id(flow))
+        for incoming_id, outgoing in transfer_pairs.items():
+            matched_ids.add(incoming_id)
+            matched_ids.add(id(outgoing))
         return matched_ids
 
     def _detect_fund_transfers(
@@ -2786,6 +2933,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     def _resolve_transfer_transitions(
         transitions: list[_TransferTransition],
         current_assets: dict[_AssetIdentity, AssetValuation],
+        exited_sources: set[_AssetIdentity],
     ) -> tuple[set[_AssetIdentity], set[_AssetIdentity]]:
         newly_suppressed: set[_AssetIdentity] = set()
         resolved_targets: set[_AssetIdentity] = set()
@@ -2799,7 +2947,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 and target.quantity >= transition.target_required_quantity
             ):
                 transition.resolved = True
-                newly_suppressed.add(transition.source)
+                if transition.source in exited_sources:
+                    newly_suppressed.add(transition.source)
                 resolved_targets.add(transition.target)
         return newly_suppressed, resolved_targets
 

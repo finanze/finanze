@@ -42,9 +42,15 @@ def _parse_datetime(value: str) -> datetime:
 
 
 def _holder(entity_id: str, entity_account_id: str, source: str) -> str:
-    if source in ("MANUAL", "SHEETS"):
+    # the source is only how a row was recorded: hand-entered legs of an account
+    # have to reconcile against the ones the entity itself reported
+    if not entity_id:
         return source
-    return f"{entity_id}|{entity_account_id}|{source}"
+    return f"{entity_id}|{entity_account_id}"
+
+
+def _is_account_holder(holder: str) -> bool:
+    return "|" in holder
 
 
 class GainsTimelineSQLRepository(GainsTimelinePort):
@@ -409,8 +415,8 @@ class GainsTimelineSQLRepository(GainsTimelinePort):
         unique_flows: list[GainsFlow] = []
         seen: set[tuple] = set()
         for flow in flows:
-            if flow.product_type != ProductType.FACTORING or not flow.holder.endswith(
-                "|REAL"
+            if flow.product_type != ProductType.FACTORING or not _is_account_holder(
+                flow.holder
             ):
                 unique_flows.append(flow)
                 continue

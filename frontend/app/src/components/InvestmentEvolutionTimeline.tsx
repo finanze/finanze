@@ -698,7 +698,10 @@ export function InvestmentEvolutionTimeline({
 
   return (
     <section
-      className={cn("min-w-0 -mx-6 lg:mx-0 lg:border-l lg:pl-6", className)}
+      className={cn(
+        "min-w-0 -mx-6 select-none lg:mx-0 lg:border-l lg:pl-6",
+        className,
+      )}
       data-testid="evolution-timeline"
     >
       {!isDesktop && (

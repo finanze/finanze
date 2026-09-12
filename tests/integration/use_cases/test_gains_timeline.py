@@ -34,6 +34,7 @@ _SCHEMA = """
     );
     CREATE TABLE entity_accounts (
         id CHAR(36) PRIMARY KEY,
+        entity_id CHAR(36),
         deleted_at TIMESTAMP
     );
     CREATE TABLE virtual_data_imports (
@@ -287,6 +288,44 @@ class TestGainsTimelineRepositoryIntegration:
         assert by_day[date(2024, 6, 2)].value == Dezimal(0)
         assert by_day[date(2024, 6, 2)].gain == Dezimal(20)
         assert result.quality == GainsQuality.ESTIMATED
+
+    @pytest.mark.asyncio
+    async def test_hand_entered_buy_is_closed_by_the_reported_sell(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'manual-buy', ?, NULL, 'MANUAL', 'STOCK_ETF', 'BUY', ?, '2165.12', 'EUR', '3184', '2165.12', '0', '0', 'ES0162600003', NULL, NULL, 'Duro Felguera')",
+            (str(uuid4()), str(entity_id), "2024-01-01T12:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'reported-sell', ?, ?, 'REAL', 'STOCK_ETF', 'SELL', ?, '2228.80', 'EUR', '3184', '2228.80', '0', '0', 'ES0162600003', NULL, NULL, 'DURO FELGUERA')",
+            (str(uuid4()), str(entity_id), str(account_id), "2024-06-01T12:00:00"),
+        )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[entity_id],
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert by_day[date(2024, 1, 1)].value == Dezimal("2165.12")
+        assert by_day[date(2024, 6, 1)].value == Dezimal(0)
+        assert by_day[date.today() - timedelta(days=1)].value == Dezimal(0)
 
     @pytest.mark.asyncio
     async def test_bounded_range_loads_latest_pre_range_snapshot(self, setup):
