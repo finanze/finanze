@@ -45,3 +45,39 @@ test.describe('Connect Entity - Simple Credentials (Urbanitae)', () => {
         })
     })
 })
+
+test.describe('Connect Entity - API Credentials (Trading 212)', () => {
+    test('connect entity with api key and secret key', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.getByRole('button', { name: 'Integrations' }).click()
+        await page
+            .getByRole('heading', { name: 'Integrations' })
+            .waitFor({ timeout: 15_000 })
+
+        await page.getByText('Trading 212').first().scrollIntoViewIfNeeded()
+        await page.getByText('Trading 212').first().click()
+
+        await page
+            .getByText('Enter credentials for')
+            .waitFor({ timeout: 5_000 })
+
+        await page.locator('#apiKey').fill('mock-api-key')
+        await page.locator('#secretKey').fill('mock-secret-key')
+
+        await page.getByRole('button', { name: 'Submit' }).click()
+
+        await expect(
+            page.getByText('Successfully logged in to Trading 212'),
+        ).toBeVisible({ timeout: 15_000 })
+
+        await page.getByRole('button', { name: 'Integrations' }).click()
+        await page
+            .getByRole('heading', { name: 'Integrations' })
+            .waitFor({ timeout: 15_000 })
+
+        await expect(page.getByText('Connected').first()).toBeVisible({
+            timeout: 5_000,
+        })
+    })
+})

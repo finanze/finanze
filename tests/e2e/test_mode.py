@@ -19,6 +19,7 @@ def get_e2e_financial_fetchers() -> dict:
         native_entities.DEGIRO,
         native_entities.IBKR,
         native_entities.CRESCENTA,
+        native_entities.TRADING212,
     ]
 
     fetchers = {entity: MockFinancialEntityFetcher(entity) for entity in simple}

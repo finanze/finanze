@@ -426,10 +426,13 @@
       "identifier": "Username or wallet address"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "This is in beta and has not been properly tested. Create the API key in the Trading 212 app with account, portfolio, and history scopes (orders, dividends, and transactions)."
     },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
+    "showCredential": "Show value",
+    "hideCredential": "Hide value",
     "credentialsSecurityTitle": "Your data is safe",
     "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",

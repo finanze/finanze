@@ -424,10 +424,13 @@
       "identifier": "Usuario o dirección wallet"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "Integración en beta y no probada adecuadamente. Crea la clave API en la app de Trading 212 con los permisos account, portfolio e history (orders, dividends y transactions)."
     },
     "addAccountName": "Nombrar esta cuenta",
     "accountNamePlaceholder": "Nombre de cuenta (opcional)",
+    "showCredential": "Mostrar valor",
+    "hideCredential": "Ocultar valor",
     "credentialsSecurityTitle": "Tus datos están seguros",
     "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos. Además, esta app es de código abierto y puedes verificar tú mismo cómo se almacenan y manejan los datos.",
     "title": "Bienvenido a Finanze",

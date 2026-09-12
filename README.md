@@ -91,6 +91,7 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 | Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                           |
 | B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                           |
 | Crescenta           | -               | -     | ✅    | -              | -        | -          | -                   | -      | -     |                           |
+| Trading 212 (Beta)  | ✅              | -     | -     | ✅             | -        | -          | -                   | ❌     | -     |                           |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
@@ -135,6 +136,7 @@ Not all entities support the same features, in general we can group data in the 
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
 | B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
 | Crescenta           | ✅              | -                         | ✅                             | -                      |
+| Trading 212 (Beta)  | ✅              | -                         | ✅                             | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
