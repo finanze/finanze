@@ -9,6 +9,7 @@ from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
+    AddManualTransactionRequest,
     BaseTx,
     CryptoCurrencyTx,
     DepositTx,
@@ -210,3 +211,35 @@ def map_manual_transaction(body: dict, tx_id: Optional[UUID] = None) -> BaseTx:
         raise ValueError("Unsupported product_type")
 
     return builder(body, base_kwargs, tx_id)
+
+
+def _historic_entry_id_from_item(item: dict) -> Optional[UUID]:
+    raw_historic_id = item.get("historic_entry_id")
+    return UUID(raw_historic_id) if raw_historic_id else None
+
+
+def map_add_manual_transaction(body) -> AddManualTransactionRequest:
+    if isinstance(body, list):
+        if not body:
+            raise ValueError("At least one transaction is required")
+        txs = [map_manual_transaction(item) for item in body]
+        historic_entry_id = next(
+            (
+                _historic_entry_id_from_item(item)
+                for item in body
+                if isinstance(item, dict) and item.get("historic_entry_id")
+            ),
+            None,
+        )
+        return AddManualTransactionRequest(
+            txs=txs,
+            historic_entry_id=historic_entry_id,
+        )
+
+    if isinstance(body, dict):
+        return AddManualTransactionRequest(
+            txs=[map_manual_transaction(body)],
+            historic_entry_id=_historic_entry_id_from_item(body),
+        )
+
+    raise ValueError("Body must be a JSON object or array")

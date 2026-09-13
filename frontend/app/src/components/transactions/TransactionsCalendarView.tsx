@@ -1139,17 +1139,25 @@ function DayDetailModal({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 pr-1.5">
-                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
+                        <p
+                          onClick={
+                            hasDetails ? () => toggleExpanded(tx.id) : undefined
+                          }
+                          className={`font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate ${hasDetails ? "cursor-pointer" : ""}`}
+                        >
                           {tx.name}
                         </p>
                         <span
+                          onClick={
+                            hasDetails ? () => toggleExpanded(tx.id) : undefined
+                          }
                           className={`font-semibold text-sm sm:text-base shrink-0 ${
                             displayType === "in"
                               ? "text-green-600 dark:text-green-400"
                               : tx.type === TxType.FEE
                                 ? "text-red-600 dark:text-red-400"
                                 : "text-gray-900 dark:text-gray-100"
-                          }`}
+                          } ${hasDetails ? "cursor-pointer" : ""}`}
                         >
                           <Sensitive>
                             {getTransactionDisplaySign(tx.type, displayAmount)}

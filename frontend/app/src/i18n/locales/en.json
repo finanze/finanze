@@ -1745,6 +1745,17 @@
       "netAmountFormulaIncoming": "amount - fees - retentions",
       "netAmountFormulaOutgoing": "amount + fees + retentions",
       "autoAmountHint": "Amount auto-fills from shares × price when both values are provided.",
+      "transfer": "Transfer",
+      "swap": "Swap",
+      "swapRatio": "Ratio",
+      "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",
+      "origin": "Origin",
+      "destination": "Destination",
+      "createOrigin": "Create origin",
+      "createDestination": "Create destination",
+      "sameAsOrigin": "Same as origin",
+      "moreDetails": "More details",
+      "destEntityOptional": "Optional — uses origin entity if empty",
       "createSuccess": "Manual transaction created successfully",
       "updateSuccess": "Manual transaction updated successfully",
       "submitError": "Unable to save manual transaction",
@@ -1754,7 +1765,9 @@
         "required": "This field is required",
         "positive": "Enter a positive number",
         "nonNegative": "Enter zero or a positive number",
-        "invalidNumber": "Enter a valid number"
+        "invalidNumber": "Enter a valid number",
+        "needOneLeg": "Enable at least the origin or the destination",
+        "destEntityRequired": "Destination entity is required"
       }
     },
     "deleteManualTransactionTitle": "Delete manual transaction",

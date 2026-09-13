@@ -1740,6 +1740,17 @@
       "netAmountFormulaIncoming": "importo - commissioni - ritenute",
       "netAmountFormulaOutgoing": "importo + commissioni + ritenute",
       "autoAmountHint": "L'importo si compila automaticamente da quote × prezzo quando entrambi i valori sono forniti.",
+      "transfer": "Trasferimento",
+      "swap": "Swap",
+      "swapRatio": "Rapporto",
+      "swapRatioHint": "Quote di destinazione per ogni quota di origine. Compila quote e prezzo di destinazione a partire dall'origine.",
+      "origin": "Origine",
+      "destination": "Destinazione",
+      "createOrigin": "Crea origine",
+      "createDestination": "Crea destinazione",
+      "sameAsOrigin": "Uguale all'origine",
+      "moreDetails": "Altri dettagli",
+      "destEntityOptional": "Facoltativa — usa l'entità di origine se vuota",
       "createSuccess": "Transazione manuale creata con successo",
       "updateSuccess": "Transazione manuale aggiornata con successo",
       "submitError": "Impossibile salvare la transazione manuale",
@@ -1749,7 +1760,9 @@
         "required": "Questo campo è obbligatorio",
         "positive": "Inserisci un numero positivo",
         "nonNegative": "Inserisci zero o un numero positivo",
-        "invalidNumber": "Inserisci un numero valido"
+        "invalidNumber": "Inserisci un numero valido",
+        "needOneLeg": "Abilita almeno l'origine o la destinazione",
+        "destEntityRequired": "L'entità di destinazione è obbligatoria"
       }
     },
     "deleteManualTransactionTitle": "Elimina transazione manuale",

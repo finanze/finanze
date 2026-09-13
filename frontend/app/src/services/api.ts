@@ -522,7 +522,7 @@ export async function updateTrackedLoans(): Promise<UpdateTrackedResult> {
 }
 
 export async function createManualTransaction(
-  request: ManualTransactionPayload,
+  request: ManualTransactionPayload | ManualTransactionPayload[],
 ): Promise<void> {
   return (await getApiClient()).post("/data/manual/transactions", request)
 }

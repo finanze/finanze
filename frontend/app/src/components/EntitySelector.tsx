@@ -47,6 +47,7 @@ interface EntitySelectorProps {
   emptyMessage?: string
   emptySelectionBadge?: string
   className?: string
+  id?: string
   entityImageOverride?: (entity: Entity) => string | null | undefined
 }
 
@@ -137,6 +138,7 @@ export function EntitySelector({
   emptyMessage,
   emptySelectionBadge,
   className,
+  id,
   entityImageOverride,
 }: EntitySelectorProps) {
   const { t } = useI18n()
@@ -208,6 +210,7 @@ export function EntitySelector({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}
