@@ -1597,10 +1597,10 @@ export default function TransactionsPage() {
             {t.transactions.title}
           </h1>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:p-1">
+            <div className="flex h-8 items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:h-9 sm:p-1">
               <button
                 onClick={() => handleViewModeChange("list")}
-                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex h-full items-center gap-1 rounded px-2 py-0 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ${
                   viewMode === "list"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -1613,7 +1613,7 @@ export default function TransactionsPage() {
               </button>
               <button
                 onClick={() => handleViewModeChange("calendar")}
-                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex h-full items-center gap-1 rounded px-2 py-0 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ${
                   viewMode === "calendar"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"

@@ -94,6 +94,18 @@ const OUTGOING_TX_TYPES = new Set<TxType>([
   TxType.SWAP_FROM,
 ])
 
+const NO_ORDER_DATE_TX_TYPES = new Set<TxType>([
+  TxType.SWAP_FROM,
+  TxType.SWAP_TO,
+  TxType.FEE,
+  TxType.DIVIDEND,
+])
+
+const MANUAL_INPUT_EXCLUDED_TX_TYPES = new Set<TxType>([
+  TxType.SWITCH_FROM,
+  TxType.SWITCH_TO,
+])
+
 const INVESTMENT_FLOW_TX_TYPES = [
   TxType.INVESTMENT,
   TxType.REPAYMENT,
@@ -121,8 +133,6 @@ const TX_TYPES_BY_PRODUCT: Record<
     TxType.SELL,
     TxType.DIVIDEND,
     TxType.FEE,
-    TxType.SWITCH_FROM,
-    TxType.SWITCH_TO,
     TxType.TRANSFER_IN,
     TxType.TRANSFER_OUT,
   ],
@@ -1094,15 +1104,27 @@ export function ManualTransactionDialog({
 
   const fieldConfigs = useMemo(() => {
     const configs = getFieldConfigs(formState.productType, t)
-    if (isFeeType) {
-      return configs.filter(field => field.name !== "fees")
-    }
-    return configs
-  }, [formState.productType, isFeeType, t])
+    return configs.filter(field => {
+      if (isFeeType && field.name === "fees") {
+        return false
+      }
+      if (
+        NO_ORDER_DATE_TX_TYPES.has(formState.type) &&
+        field.name === "order_date"
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [formState.productType, formState.type, isFeeType, t])
 
   const availableTxTypes = useMemo(() => {
     const types = [...getTxTypesForProduct(formState.productType)]
-    if (formState.type && !types.includes(formState.type)) {
+    if (
+      formState.type &&
+      !types.includes(formState.type) &&
+      !MANUAL_INPUT_EXCLUDED_TX_TYPES.has(formState.type)
+    ) {
       types.unshift(formState.type)
     }
     return types
@@ -1404,7 +1426,7 @@ export function ManualTransactionDialog({
             className="w-full max-w-3xl"
           >
             <Card className="max-h-[calc(100vh-5rem)] flex flex-col">
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <CardHeader className="flex flex-row items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-xl">
                     {mode === "create"

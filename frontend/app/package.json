@@ -39,7 +39,7 @@
     "dist:mac:arm64": "vite build && pnpm exec electron-builder --mac --arm64",
     "dist:mac:x64": "vite build && pnpm exec electron-builder --mac --x64",
     "lint": "eslint .",
-    "format": "prettier --write .",
+    "format": "prettier --write src electron test scripts '*.{json,js,cjs,ts,html}' pnpm-workspace.yaml public/site.webmanifest .prettierrc.json --ignore-unknown",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
     "lint-staged": "lint-staged --no-stash",
@@ -54,8 +54,11 @@
     "cap:android:store": "pnpm build:mobile:store && pnpm exec cap sync android && pnpm exec cap open android"
   },
   "lint-staged": {
-    "*": "eslint .",
-    "*.*": "prettier --check ."
+    "**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,json,css}": [
+      "eslint",
+      "prettier --check"
+    ],
+    "**/*.{html,md,yaml,yml,webmanifest}": "prettier --check"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.1",
