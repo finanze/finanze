@@ -29,7 +29,7 @@ class FakeResponse:
             return
         raise httpx.HTTPStatusError(
             message=str(self.status),
-            request=httpx.Request("GET", "https://demo.trading212.com"),
+            request=httpx.Request("GET", "https://live.trading212.com/api/v0"),
             response=httpx.Response(self.status),
         )
 
@@ -66,7 +66,7 @@ async def test_setup_unauthorized():
     client.get_account_summary = AsyncMock(
         side_effect=httpx.HTTPStatusError(
             message="401",
-            request=httpx.Request("GET", "https://demo.trading212.com"),
+            request=httpx.Request("GET", "https://live.trading212.com/api/v0"),
             response=httpx.Response(401),
         )
     )
@@ -106,9 +106,12 @@ async def test_get_retries_on_429(monkeypatch):
             FakeResponse(200, body={"id": 1}),
         ]
     )
-    result = await client._get("/api/v0/equity/account/summary")
+    result = await client._get("/equity/account/summary")
     assert result == {"id": 1}
     assert slept == [7]
+    assert client._session.get.await_args.args == (
+        "https://live.trading212.com/api/v0/equity/account/summary",
+    )
 
 
 @pytest.mark.asyncio
@@ -134,7 +137,7 @@ async def test_get_retries_on_429_without_zero_wait(monkeypatch):
             FakeResponse(200, body={"id": 1}),
         ]
     )
-    result = await client._get("/api/v0/equity/account/summary")
+    result = await client._get("/equity/account/summary")
     assert result == {"id": 1}
     assert slept == [2.0, 4.0]
     assert all(delay > 0 for delay in slept)
@@ -163,22 +166,18 @@ async def test_iter_pages_follows_next_page_path():
             {"items": [{"id": 2}], "nextPagePath": None},
         ]
     )
-    pages = [page async for page in client.iter_pages("/api/v0/equity/history/orders")]
+    pages = [page async for page in client.iter_pages("/equity/history/orders")]
     assert pages == [[{"id": 1}], [{"id": 2}]]
-    assert client._get.await_args_list[0].args == (
-        "/api/v0/equity/history/orders?limit=50",
-    )
-    assert client._get.await_args_list[1].args == (
-        "/api/v0/equity/history/orders?cursor=abc",
-    )
+    assert client._get.await_args_list[0].args == ("/equity/history/orders?limit=50",)
+    assert client._get.await_args_list[1].args == ("/equity/history/orders?cursor=abc",)
 
 
 @pytest.mark.asyncio
 async def test_to_path_strips_host_from_absolute_url():
     path = Trading212Client._to_path(
-        "https://demo.trading212.com/api/v0/equity/history/orders?cursor=xyz"
+        "https://live.trading212.com/api/v0/equity/history/orders?cursor=xyz"
     )
-    assert path == "/api/v0/equity/history/orders?cursor=xyz"
+    assert path == "/equity/history/orders?cursor=xyz"
 
 
 @pytest.mark.asyncio

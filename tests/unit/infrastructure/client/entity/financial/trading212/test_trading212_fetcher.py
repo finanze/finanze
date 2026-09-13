@@ -203,6 +203,8 @@ async def test_global_position_maps_cash_stock_and_etf():
     assert apple.shares == Dezimal("2")
     assert etf.type == EquityType.ETF
     assert etf.ticker == "VWCE"
+    assert etf.issuer == "Vanguard"
+    assert apple.issuer is None
     assert ProductType.CRYPTO not in position.products
 
 

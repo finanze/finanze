@@ -20,6 +20,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import TRADING212
 from domain.transactions import (
     AccountTx,
@@ -215,6 +216,12 @@ class Trading212Fetcher(FinancialEntityFetcher):
             self._log.warning("Skipping equity position without ISIN: %s", t212_id)
             return None
 
+        issuer = (
+            resolve_issuer(None, meta["name"])
+            if equity_type == EquityType.ETF
+            else None
+        )
+
         return StockDetail(
             id=uuid4(),
             name=meta["name"],
@@ -227,6 +234,7 @@ class Trading212Fetcher(FinancialEntityFetcher):
             initial_investment=round(initial_investment, 4),
             average_buy_price=round(average_buy_price, 4),
             market=meta["market"],
+            issuer=issuer,
             source=DataSource.REAL,
         )
 

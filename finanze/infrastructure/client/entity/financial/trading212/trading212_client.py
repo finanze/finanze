@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+import os
 import random
 import time
 from collections.abc import AsyncIterator
@@ -21,7 +22,7 @@ _SUMMARY_TTL = 30.0
 
 
 class Trading212Client:
-    BASE_URL = "https://demo.trading212.com"
+    BASE_URL = os.getenv("TRADING212_BASE_URL") or "https://live.trading212.com/api/v0"
 
     def __init__(self):
         self._headers: dict[str, str] = {}
@@ -77,7 +78,11 @@ class Trading212Client:
         return True
 
     async def _get(self, path: str, timeout: float | None = None):
-        url = path if path.startswith("http") else self.BASE_URL + path
+        url = (
+            path
+            if path.startswith("http")
+            else f"{self.BASE_URL.rstrip('/')}/{path.lstrip('/')}"
+        )
         for attempt in range(_MAX_RETRIES + 1):
             kwargs = {"headers": self._headers}
             if timeout is not None:
@@ -96,11 +101,14 @@ class Trading212Client:
     def _to_path(next_page: str | None) -> str | None:
         if not next_page:
             return None
-        if next_page.startswith("http"):
-            parsed = urlparse(next_page)
-            query = f"?{parsed.query}" if parsed.query else ""
-            return f"{parsed.path}{query}"
-        return next_page
+        parsed = urlparse(next_page)
+        path = parsed.path
+        if path == "/api/v0":
+            path = ""
+        elif path.startswith("/api/v0/"):
+            path = path[len("/api/v0") :]
+        query = f"?{parsed.query}" if parsed.query else ""
+        return f"{path}{query}"
 
     async def iter_pages(self, path: str) -> AsyncIterator[list[dict]]:
         separator = "&" if "?" in path else "?"
@@ -141,29 +149,29 @@ class Trading212Client:
             and now - self._account_summary_at < _SUMMARY_TTL
         ):
             return self._account_summary
-        result = await self._get("/api/v0/equity/account/summary")
+        result = await self._get("/equity/account/summary")
         summary = result if isinstance(result, dict) else {}
         self._account_summary = summary
         self._account_summary_at = now
         return summary
 
     async def get_positions(self) -> list[dict]:
-        result = await self._get("/api/v0/equity/positions")
+        result = await self._get("/equity/positions")
         return result if isinstance(result, list) else []
 
     @cached(cache=Cache.MEMORY, ttl=86400, noself=True)
     async def get_instruments(self) -> list[dict]:
-        result = await self._get("/api/v0/equity/metadata/instruments")
+        result = await self._get("/equity/metadata/instruments")
         return result if isinstance(result, list) else []
 
     async def iter_history_orders(self) -> AsyncIterator[list[dict]]:
-        async for page in self.iter_pages("/api/v0/equity/history/orders"):
+        async for page in self.iter_pages("/equity/history/orders"):
             yield page
 
     async def iter_history_dividends(self) -> AsyncIterator[list[dict]]:
-        async for page in self.iter_pages("/api/v0/equity/history/dividends"):
+        async for page in self.iter_pages("/equity/history/dividends"):
             yield page
 
     async def iter_history_transactions(self) -> AsyncIterator[list[dict]]:
-        async for page in self.iter_pages("/api/v0/equity/history/transactions"):
+        async for page in self.iter_pages("/equity/history/transactions"):
             yield page
