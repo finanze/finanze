@@ -314,6 +314,26 @@ CRESCENTA = NativeFinancialEntity(
     icon_url=None,
 )
 
+TRADING212 = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000016"),
+    name="Trading 212",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+    ],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "apiKey": CredentialType.API_TOKEN,
+        "secretKey": CredentialType.API_TOKEN,
+    },
+    icon_url=None,
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -405,6 +425,7 @@ NATIVE_ENTITIES = [
     IBKR,
     B100,
     CRESCENTA,
+    TRADING212,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

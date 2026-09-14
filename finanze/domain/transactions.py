@@ -173,3 +173,9 @@ class TransactionQueryRequest:
     to_date: Optional[datetime] = None
     types: Optional[list[TxType]] = None
     historic_entry_id: Optional[UUID] = None
+
+
+@dataclass
+class AddManualTransactionRequest:
+    txs: list[BaseTx]
+    historic_entry_id: Optional[UUID] = None

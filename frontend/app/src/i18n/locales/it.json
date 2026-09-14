@@ -425,10 +425,13 @@
       "secretKey": "Chiave Segreta"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "Questa integrazione è in beta e non è stata testata adeguatamente. Crea la chiave API nell'app Trading 212 con gli ambiti account, portfolio e history (orders, dividends e transactions)."
     },
     "addAccountName": "Assegna un nome a questo conto",
     "accountNamePlaceholder": "Nome del conto (opzionale)",
+    "showCredential": "Mostra valore",
+    "hideCredential": "Nascondi valore",
     "credentialsSecurityTitle": "I tuoi dati sono al sicuro",
     "credentialsSecurityBody": "Le tue credenziali e tutti i dati mostrati qui sono archiviati localmente in modo crittografato. Non saranno mai condivisi con nessuno, a meno che tu non lo scelga esplicitamente. Non condividere mai la password dell'app con nessuno, poiché permetterebbe di accedere a tutti questi dati. Inoltre, questa app è open source e puoi verificare tu stesso come vengono archiviati e gestiti i dati.",
     "title": "Benvenuto in Finanze",
@@ -1737,6 +1740,18 @@
       "netAmountFormulaIncoming": "importo - commissioni - ritenute",
       "netAmountFormulaOutgoing": "importo + commissioni + ritenute",
       "autoAmountHint": "L'importo si compila automaticamente da quote × prezzo quando entrambi i valori sono forniti.",
+      "transfer": "Trasferimento",
+      "transferHint": "Usa Trasferimento quando un asset viene spostato o convertito da un'entità a un'altra. In Spagna si usa anche per i trasferimenti tra fondi comuni con differimento fiscale.",
+      "swap": "Swap",
+      "swapRatio": "Rapporto",
+      "swapRatioHint": "Quote di destinazione per ogni quota di origine. Compila quote e prezzo di destinazione a partire dall'origine.",
+      "origin": "Origine",
+      "destination": "Destinazione",
+      "createOrigin": "Crea origine",
+      "createDestination": "Crea destinazione",
+      "sameAsOrigin": "Uguale all'origine",
+      "moreDetails": "Altri dettagli",
+      "destEntityOptional": "Facoltativa — usa l'entità di origine se vuota",
       "createSuccess": "Transazione manuale creata con successo",
       "updateSuccess": "Transazione manuale aggiornata con successo",
       "submitError": "Impossibile salvare la transazione manuale",
@@ -1746,7 +1761,9 @@
         "required": "Questo campo è obbligatorio",
         "positive": "Inserisci un numero positivo",
         "nonNegative": "Inserisci zero o un numero positivo",
-        "invalidNumber": "Inserisci un numero valido"
+        "invalidNumber": "Inserisci un numero valido",
+        "needOneLeg": "Abilita almeno l'origine o la destinazione",
+        "destEntityRequired": "L'entità di destinazione è obbligatoria"
       }
     },
     "deleteManualTransactionTitle": "Elimina transazione manuale",

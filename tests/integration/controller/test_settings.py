@@ -24,7 +24,7 @@ def _build_settings(
 ):
     return {
         "lastUpdate": "2025-01-01T00:00:00+00:00",
-        "version": 6,
+        "version": 7,
         "general": {
             "defaultCurrency": currency,
             "defaultCommodityWeightUnit": weight_unit,
@@ -55,7 +55,7 @@ class TestGetSettings:
         assert response.status_code == 200
         body = await response.get_json()
         assert body["general"]["defaultCurrency"] == "EUR"
-        assert body["version"] == 6
+        assert body["version"] == 7
         assert "lastUpdate" in body
 
     @pytest.mark.asyncio
@@ -66,6 +66,7 @@ class TestGetSettings:
         stablecoins = body["assets"]["crypto"]["stablecoins"]
         assert "USDT" in stablecoins
         assert "USDC" in stablecoins
+        assert "PUSD" in stablecoins
 
     @pytest.mark.asyncio
     async def test_returns_401_when_not_logged_in(self, client):

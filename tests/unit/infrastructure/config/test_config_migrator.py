@@ -25,6 +25,40 @@ class TestNoMigrationNeeded:
         assert was_migrated is False
 
 
+class TestMigrationToV7:
+    def test_adds_pusd_to_existing_stablecoins(self):
+        migrator = ConfigMigrator()
+        data = {
+            "version": 6,
+            "assets": {"crypto": {"stablecoins": ["USDC"]}},
+        }
+
+        result, was_migrated = migrator.migrate(data)
+
+        assert was_migrated is True
+        assert result["version"] == CURRENT_VERSION
+        assert result["assets"]["crypto"]["stablecoins"] == ["USDC", "PUSD"]
+
+    def test_adds_pusd_when_stablecoins_are_missing(self):
+        migrator = ConfigMigrator()
+        data = {"version": 6, "assets": {"crypto": {}}}
+
+        result, _ = migrator.migrate(data)
+
+        assert result["assets"]["crypto"]["stablecoins"] == ["PUSD"]
+
+    def test_does_not_duplicate_existing_pusd(self):
+        migrator = ConfigMigrator()
+        data = {
+            "version": 6,
+            "assets": {"crypto": {"stablecoins": ["PUSD", "USDC"]}},
+        }
+
+        result, _ = migrator.migrate(data)
+
+        assert result["assets"]["crypto"]["stablecoins"] == ["PUSD", "USDC"]
+
+
 class TestMigrationFromMissingVersion:
     def test_assumes_version_1_and_applies_all_migrations(self):
         migrator = ConfigMigrator()

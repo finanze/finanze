@@ -426,10 +426,13 @@
       "identifier": "Username or wallet address"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "This is in beta and has not been properly tested. Create the API key in the Trading 212 app with account, portfolio, and history scopes (orders, dividends, and transactions)."
     },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
+    "showCredential": "Show value",
+    "hideCredential": "Hide value",
     "credentialsSecurityTitle": "Your data is safe",
     "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",
@@ -1742,6 +1745,18 @@
       "netAmountFormulaIncoming": "amount - fees - retentions",
       "netAmountFormulaOutgoing": "amount + fees + retentions",
       "autoAmountHint": "Amount auto-fills from shares × price when both values are provided.",
+      "transfer": "Transfer",
+      "transferHint": "Use Transfer when an asset is moved or converted from one entity to another. In Spain, it is also used for tax-deferred exchanges between mutual funds.",
+      "swap": "Swap",
+      "swapRatio": "Ratio",
+      "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",
+      "origin": "Origin",
+      "destination": "Destination",
+      "createOrigin": "Create origin",
+      "createDestination": "Create destination",
+      "sameAsOrigin": "Same as origin",
+      "moreDetails": "More details",
+      "destEntityOptional": "Optional — uses origin entity if empty",
       "createSuccess": "Manual transaction created successfully",
       "updateSuccess": "Manual transaction updated successfully",
       "submitError": "Unable to save manual transaction",
@@ -1751,7 +1766,9 @@
         "required": "This field is required",
         "positive": "Enter a positive number",
         "nonNegative": "Enter zero or a positive number",
-        "invalidNumber": "Enter a valid number"
+        "invalidNumber": "Enter a valid number",
+        "needOneLeg": "Enable at least the origin or the destination",
+        "destEntityRequired": "Destination entity is required"
       }
     },
     "deleteManualTransactionTitle": "Delete manual transaction",

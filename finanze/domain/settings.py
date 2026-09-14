@@ -5,7 +5,7 @@ from typing import Optional
 from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
-CURRENT_VERSION = 6
+CURRENT_VERSION = 7
 
 FilterValues = str | list[str]
 

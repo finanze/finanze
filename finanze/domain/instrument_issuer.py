@@ -16,7 +16,9 @@ class KnownIssuer(str, Enum):
     BNP_PARIBAS = "BNP Paribas"
     CASER = "Caser"
     CBNK = "CBNK"
+    COINSHARES = "CoinShares"
     CRESCENTA = "Crescenta"
+    DDA = "DDA"
     DWS = "DWS"
     EQT = "EQT"
     FIDELITY = "Fidelity"
@@ -25,16 +27,20 @@ class KnownIssuer(str, Enum):
     GENERALI = "Generali"
     GLOBAL_X = "Global X"
     GOLDMAN = "Goldman"
+    GRANITESHARES = "GraniteShares"
     HANETF = "HANetf"
     HSBC = "HSBC"
     ING = "ING"
     INVESCO = "Invesco"
     JP_MORGAN = "JP Morgan"
+    KRANESHARES = "KraneShares"
     LEGAL_GENERAL = "Legal & General"
+    LEVERAGE_SHARES = "Leverage Shares"
     MORGAN_STANLEY = "Morgan Stanley"
     MY_INVESTOR = "MyInvestor"
     PIMCO = "PIMCO"
     ROBECO = "Robeco"
+    SPROTT = "Sprott"
     STATE_STREET = "State Street"
     UBS = "UBS"
     VANECK = "VanEck"
@@ -61,6 +67,10 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "ssga ": KnownIssuer.STATE_STREET,
     "lyxor": KnownIssuer.AMUNDI,
     "sycomore": KnownIssuer.GENERALI,
+    "incomeshares": KnownIssuer.LEVERAGE_SHARES,
+    "income shares": KnownIssuer.LEVERAGE_SHARES,
+    "deutsche digital assets": KnownIssuer.DDA,
+    "l&g ": KnownIssuer.LEGAL_GENERAL,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

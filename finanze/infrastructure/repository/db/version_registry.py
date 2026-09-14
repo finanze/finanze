@@ -194,6 +194,9 @@ from infrastructure.repository.db.versions.v0.v10.v0100_5_crypto_defi_zerion imp
 from infrastructure.repository.db.versions.v0.v10.v0100_6_clear_instrument_negative_cache import (
     V01006ClearInstrumentNegativeCache,
 )
+from infrastructure.repository.db.versions.v0.v10.v0100_7_trading212 import (
+    V01007Trading212,
+)
 
 versions = [
     V0Genesis(),
@@ -272,4 +275,5 @@ versions = [
     V01004CryptoEtpToCryptoPositions(),
     V01005CryptoDefiZerion(),
     V01006ClearInstrumentNegativeCache(),
+    V01007Trading212(),
 ]

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { SecretInput } from "@/components/ui/SecretInput"
 import { Label } from "@/components/ui/Label"
 import {
   Card,
@@ -822,9 +823,7 @@ export function IntegrationsTab() {
               schemaEntries.map(([field, label], index) => {
                 const value = payload[field] ?? ""
                 const hasError = !!errors[field]
-                const inputType = /secret|password|token|key/i.test(field)
-                  ? "password"
-                  : "text"
+                const isSecure = /secret|password|token|key/i.test(field)
                 const showHintInline = Boolean(hintContent) && index === 0
 
                 return (
@@ -887,10 +886,25 @@ export function IntegrationsTab() {
                           )
                         }
                       />
+                    ) : isSecure ? (
+                      <SecretInput
+                        id={`${integration.id}-${field}`}
+                        value={value}
+                        onChange={event =>
+                          handleIntegrationFieldChange(
+                            integration.id,
+                            field,
+                            event.target.value,
+                          )
+                        }
+                        placeholder={String(label)}
+                        disabled={isUnavailable || disabledForPlatform}
+                        className={cn(hasError ? "border-red-500" : undefined)}
+                      />
                     ) : (
                       <Input
                         id={`${integration.id}-${field}`}
-                        type={inputType}
+                        type="text"
                         value={value}
                         onChange={event =>
                           handleIntegrationFieldChange(

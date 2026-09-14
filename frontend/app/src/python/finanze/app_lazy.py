@@ -81,6 +81,9 @@ class LazyComponents:
             from infrastructure.client.entity.financial.crescenta.crescenta_fetcher import (
                 CrescentaFetcher,
             )
+            from infrastructure.client.entity.financial.trading212.trading212_fetcher import (
+                Trading212Fetcher,
+            )
             from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
                 WecityFetcher,
             )
@@ -292,6 +295,7 @@ class LazyComponents:
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
                 domain.native_entities.CRESCENTA: CrescentaFetcher(),
+                domain.native_entities.TRADING212: Trading212Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
                 domain.native_entities.POLYMARKET: polymarket_fetcher,
             }

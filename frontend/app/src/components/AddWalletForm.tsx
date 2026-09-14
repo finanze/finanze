@@ -664,7 +664,7 @@ export function AddWalletForm({
                     }}
                     placeholder={derivedT.xpubPlaceholder}
                     disabled={isLoading || isDerivingAddresses}
-                    className={xpubError ? "border-red-500" : ""}
+                    className={`font-mono ${xpubError ? "border-red-500" : ""}`}
                   />
                   {xpubError && (
                     <p className="text-sm text-red-500">{xpubError}</p>
@@ -846,7 +846,7 @@ export function AddWalletForm({
                 </span>
               </div>
 
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-72 overflow-y-auto p-1.5">
                 {addresses.map((address, index) => (
                   <div key={`wallet-address-${index}`} className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -864,8 +864,9 @@ export function AddWalletForm({
                           onClick={() => handleRemoveAddress(index)}
                           disabled={isLoading}
                           aria-label={t.walletForm.actions.removeAddress}
+                          className="h-6 w-6"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
@@ -876,7 +877,7 @@ export function AddWalletForm({
                       onChange={e => handleAddressChange(index, e.target.value)}
                       placeholder={t.walletForm.placeholders.address}
                       disabled={isLoading}
-                      className={addressErrors[index] ? "border-red-500" : ""}
+                      className={`font-mono ${addressErrors[index] ? "border-red-500" : ""}`}
                     />
                     {addressErrors[index] && (
                       <p className="text-sm text-red-500">

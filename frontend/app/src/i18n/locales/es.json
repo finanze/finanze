@@ -424,10 +424,13 @@
       "identifier": "Usuario o dirección wallet"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Incluye el prefijo internacional en el número de teléfono (ej. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "Integración en beta y no probada adecuadamente. Crea la clave API en la app de Trading 212 con los permisos account, portfolio e history (orders, dividends y transactions)."
     },
     "addAccountName": "Nombrar esta cuenta",
     "accountNamePlaceholder": "Nombre de cuenta (opcional)",
+    "showCredential": "Mostrar valor",
+    "hideCredential": "Ocultar valor",
     "credentialsSecurityTitle": "Tus datos están seguros",
     "credentialsSecurityBody": "Tus credenciales y todos los datos mostrados aquí se almacenan localmente en un almacenamiento cifrado. Nunca se compartirán con nadie ni con nada a menos que tú lo elijas explícitamente. Nunca compartas tu contraseña de la app con nadie, ya que permitiría acceder a todos estos datos. Además, esta app es de código abierto y puedes verificar tú mismo cómo se almacenan y manejan los datos.",
     "title": "Bienvenido a Finanze",
@@ -1741,6 +1744,18 @@
       "netAmountFormulaIncoming": "importe - comisiones - retenciones",
       "netAmountFormulaOutgoing": "importe + comisiones + retenciones",
       "autoAmountHint": "El importe se rellena automáticamente a partir de participaciones × precio cuando ambos valores están presentes.",
+      "transfer": "Traspaso",
+      "transferHint": "Usa Traspaso cuando un activo se mueve o se convierte de una entidad a otra. En España también se usa para traspasos entre fondos de inversión con diferimiento fiscal.",
+      "swap": "Canje",
+      "swapRatio": "Ratio",
+      "swapRatioHint": "Participaciones de destino por cada participación de origen. Rellena participaciones y precio de destino a partir del origen.",
+      "origin": "Origen",
+      "destination": "Destino",
+      "createOrigin": "Crear origen",
+      "createDestination": "Crear destino",
+      "sameAsOrigin": "Igual que el origen",
+      "moreDetails": "Más detalles",
+      "destEntityOptional": "Opcional — usa la entidad de origen si se deja vacío",
       "createSuccess": "Transacción manual creada correctamente",
       "updateSuccess": "Transacción manual actualizada correctamente",
       "submitError": "No se pudo guardar la transacción manual",
@@ -1750,7 +1765,9 @@
         "required": "Este campo es obligatorio",
         "positive": "Introduce un número positivo",
         "nonNegative": "Introduce un número mayor o igual que cero",
-        "invalidNumber": "Introduce un número válido"
+        "invalidNumber": "Introduce un número válido",
+        "needOneLeg": "Activa al menos el origen o el destino",
+        "destEntityRequired": "La entidad de destino es obligatoria"
       }
     },
     "deleteManualTransactionTitle": "Eliminar transacción manual",

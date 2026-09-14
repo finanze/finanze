@@ -686,12 +686,21 @@ export default function TransactionsPage() {
     setIsSubmittingTransaction(true)
     try {
       if (isEdit && result.transactionId) {
-        await updateManualTransaction(result.transactionId, result.payload)
+        const payload = Array.isArray(result.payload)
+          ? result.payload[0]
+          : result.payload
+        await updateManualTransaction(result.transactionId, payload)
         showToast(t.transactions.form.updateSuccess, "success")
       } else {
         await createManualTransaction(result.payload)
         showToast(t.transactions.form.createSuccess, "success")
-        updateEntityVirtualFeatures(result.payload.entity_id, ["TRANSACTIONS"])
+        const payloads = Array.isArray(result.payload)
+          ? result.payload
+          : [result.payload]
+        const entityIds = [...new Set(payloads.map(item => item.entity_id))]
+        entityIds.forEach(entityId =>
+          updateEntityVirtualFeatures(entityId, ["TRANSACTIONS"]),
+        )
       }
 
       setIsDialogOpen(false)
@@ -1597,10 +1606,10 @@ export default function TransactionsPage() {
             {t.transactions.title}
           </h1>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:p-1">
+            <div className="flex h-8 items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:h-9 sm:p-1">
               <button
                 onClick={() => handleViewModeChange("list")}
-                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex h-full items-center gap-1 rounded px-2 py-0 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ${
                   viewMode === "list"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -1613,7 +1622,7 @@ export default function TransactionsPage() {
               </button>
               <button
                 onClick={() => handleViewModeChange("calendar")}
-                className={`flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
+                className={`flex h-full items-center gap-1 rounded px-2 py-0 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ${
                   viewMode === "calendar"
                     ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -1793,7 +1802,17 @@ export default function TransactionsPage() {
                                       className="group rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
                                     >
                                       <div className="py-3 px-3">
-                                        <div className="min-w-0 font-medium text-sm text-gray-900 dark:text-gray-100 whitespace-normal break-words leading-snug">
+                                        <div
+                                          onClick={
+                                            hasDetails
+                                              ? () => toggleCardExpansion(tx.id)
+                                              : undefined
+                                          }
+                                          className={cn(
+                                            "min-w-0 font-medium text-sm text-gray-900 dark:text-gray-100 whitespace-normal break-words leading-snug",
+                                            hasDetails && "cursor-pointer",
+                                          )}
+                                        >
                                           {tx.name}
                                         </div>
                                         <div className="mt-1 flex items-center justify-between gap-3">
@@ -1849,7 +1868,18 @@ export default function TransactionsPage() {
                                           </div>
 
                                           <div className="shrink-0 flex items-center gap-1.5 self-center -translate-y-0.5">
-                                            <div className="text-right">
+                                            <div
+                                              onClick={
+                                                hasDetails
+                                                  ? () =>
+                                                      toggleCardExpansion(tx.id)
+                                                  : undefined
+                                              }
+                                              className={cn(
+                                                "text-right",
+                                                hasDetails && "cursor-pointer",
+                                              )}
+                                            >
                                               <div
                                                 className={`font-semibold ${
                                                   displayType === "in"
@@ -2044,7 +2074,17 @@ export default function TransactionsPage() {
                                   className="group rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
                                 >
                                   <div className="py-3 pl-3 pr-1.5">
-                                    <div className="min-w-0 font-medium text-sm text-gray-900 dark:text-gray-100 whitespace-normal break-words leading-snug">
+                                    <div
+                                      onClick={
+                                        hasDetails
+                                          ? () => toggleCardExpansion(tx.id)
+                                          : undefined
+                                      }
+                                      className={cn(
+                                        "min-w-0 font-medium text-sm text-gray-900 dark:text-gray-100 whitespace-normal break-words leading-snug",
+                                        hasDetails && "cursor-pointer",
+                                      )}
+                                    >
                                       {tx.name}
                                     </div>
                                     <div className="mt-1 flex items-center justify-between gap-3">
@@ -2097,7 +2137,17 @@ export default function TransactionsPage() {
                                       </div>
 
                                       <div className="shrink-0 flex items-center gap-1.5 self-center -translate-y-3">
-                                        <div className="text-right">
+                                        <div
+                                          onClick={
+                                            hasDetails
+                                              ? () => toggleCardExpansion(tx.id)
+                                              : undefined
+                                          }
+                                          className={cn(
+                                            "text-right",
+                                            hasDetails && "cursor-pointer",
+                                          )}
+                                        >
                                           <div
                                             className={`font-semibold ${
                                               displayType === "in"

@@ -10,10 +10,15 @@ from application.use_cases.manual_transaction_common import (
     ManualTransactionVirtualImportHelper,
 )
 from domain.exception.exceptions import EntityNotFound
-from domain.transactions import AccountTx, BaseInvestmentTx, BaseTx, Transactions
+from domain.global_position import ProductType
+from domain.transactions import (
+    AccountTx,
+    AddManualTransactionRequest,
+    BaseInvestmentTx,
+    BaseTx,
+    Transactions,
+)
 from domain.use_cases.add_manual_transaction import AddManualTransaction
-
-from typing import Optional
 
 
 class AddManualTransactionImpl(AddManualTransaction, AtomicUCMixin):
@@ -31,34 +36,48 @@ class AddManualTransactionImpl(AddManualTransaction, AtomicUCMixin):
         self._historic_port = historic_port
         self._helper = ManualTransactionVirtualImportHelper(virtual_import_registry)
 
-    async def execute(
-        self, tx: BaseTx, historic_entry_id: Optional[UUID] = None
-    ) -> UUID:
-        existing_entity = await self._entity_port.get_by_id(tx.entity.id)
-        if existing_entity is None:
-            raise EntityNotFound(tx.entity.id)
+    async def execute(self, request: AddManualTransactionRequest) -> UUID:
+        txs = request.txs
+        if not txs:
+            raise ValueError("At least one transaction is required")
 
-        tx.entity = existing_entity
-        tx.id = uuid4()
+        resolved: list[BaseTx] = []
+        for item in txs:
+            existing_entity = await self._entity_port.get_by_id(item.entity.id)
+            if existing_entity is None:
+                raise EntityNotFound(item.entity.id)
 
-        tx = self._helper.update_derived_fields(tx)
+            item.entity = existing_entity
+            item.id = uuid4()
+            resolved.append(self._helper.update_derived_fields(item))
 
-        if tx.product_type == tx.product_type.ACCOUNT:
-            if not isinstance(tx, AccountTx):
-                raise ValueError(
-                    "ACCOUNT product_type requires AccountTx data structure"
-                )
-            await self._transaction_port.save(Transactions(account=[tx]))
-        else:
-            if not isinstance(tx, BaseInvestmentTx):
-                raise ValueError(
-                    "Investment product_type requires investment tx structure"
-                )
-            await self._transaction_port.save(Transactions(investment=[tx]))
+        account_txs: list[AccountTx] = []
+        investment_txs: list[BaseInvestmentTx] = []
+        for item in resolved:
+            if item.product_type == ProductType.ACCOUNT:
+                if not isinstance(item, AccountTx):
+                    raise ValueError(
+                        "ACCOUNT product_type requires AccountTx data structure"
+                    )
+                account_txs.append(item)
+            else:
+                if not isinstance(item, BaseInvestmentTx):
+                    raise ValueError(
+                        "Investment product_type requires investment tx structure"
+                    )
+                investment_txs.append(item)
 
-        if historic_entry_id is not None:
-            await self._historic_port.link_txs(historic_entry_id, [tx.id])
+        if account_txs:
+            await self._transaction_port.save(Transactions(account=account_txs))
+        if investment_txs:
+            await self._transaction_port.save(Transactions(investment=investment_txs))
 
-        await self._helper.refresh(tx.entity.id, has_transactions=True)
+        if request.historic_entry_id is not None:
+            await self._historic_port.link_txs(
+                request.historic_entry_id, [item.id for item in resolved]
+            )
 
-        return tx.id
+        for entity_id in {item.entity.id for item in resolved}:
+            await self._helper.refresh(entity_id, has_transactions=True)
+
+        return resolved[0].id
