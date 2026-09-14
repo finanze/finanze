@@ -1746,6 +1746,7 @@
       "netAmountFormulaOutgoing": "amount + fees + retentions",
       "autoAmountHint": "Amount auto-fills from shares × price when both values are provided.",
       "transfer": "Transfer",
+      "transferHint": "Use Transfer when an asset is moved or converted from one entity to another. In Spain, it is also used for tax-deferred exchanges between mutual funds.",
       "swap": "Swap",
       "swapRatio": "Ratio",
       "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",

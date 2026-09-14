@@ -2727,6 +2727,11 @@ export function ManualTransactionDialog({
                           {errors.type}
                         </p>
                       )}
+                      {isTransferCreate && (
+                        <p className="text-xs text-muted-foreground">
+                          {t.transactions.form.transferHint}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">

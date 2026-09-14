@@ -1741,6 +1741,7 @@
       "netAmountFormulaOutgoing": "importo + commissioni + ritenute",
       "autoAmountHint": "L'importo si compila automaticamente da quote × prezzo quando entrambi i valori sono forniti.",
       "transfer": "Trasferimento",
+      "transferHint": "Usa Trasferimento quando un asset viene spostato o convertito da un'entità a un'altra. In Spagna si usa anche per i trasferimenti tra fondi comuni con differimento fiscale.",
       "swap": "Swap",
       "swapRatio": "Rapporto",
       "swapRatioHint": "Quote di destinazione per ogni quota di origine. Compila quote e prezzo di destinazione a partire dall'origine.",
