@@ -70,6 +70,7 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "incomeshares": KnownIssuer.LEVERAGE_SHARES,
     "income shares": KnownIssuer.LEVERAGE_SHARES,
     "deutsche digital assets": KnownIssuer.DDA,
+    "l&g ": KnownIssuer.LEGAL_GENERAL,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

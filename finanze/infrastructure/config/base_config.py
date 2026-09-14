@@ -19,6 +19,7 @@ DEFAULT_STABLECOINS = [
     "USD1",
     "BUSD",
     "PYUSD",
+    "PUSD",
     "FDUSD",
     "TUSD",
     "USDD",
