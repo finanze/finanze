@@ -1,3 +1,42 @@
+## [0.10.0] - 2026-09-14
+
+### 🚀 Features
+
+- Add Crescenta support (#159)
+- Improve instrument lookup & related UI (#162)
+- Add Polymarket support (#160)
+- Add per asset value & gains timeline BETA (#172)
+- Isolate feature fetch
+- Improve TX paging and minor real estate equity calculation bug
+- Add mobile 2FA code autocomplete
+- Native DeFi positions via Zerion (#178)
+- Add optional error reporting & F24/mintos position & ETF support (#183)
+- Update dependencies & minor UI fixes (#185)
+- Improve migration handling (#186)
+- Add Trading 212 support & improve special TX types input (#187)
+
+### 🐛 Bug Fixes
+
+- Properly update exchange rates (#161)
+- TR repeated login (#163)
+- Hide missing sensitive cryptocurrency values in Dashboard (#164)
+- Properly show account, losses and handle multi accounts for market forecast (#166)
+- Wallet deletion not cleaning assets (#167)
+- Enhance currency handling and exchange rate resolution (#170)
+- Proper input for shares and price in TXs, improve Real Estate purchase expenses view and more fixes
+- TR better WS handling and add MyInvestor OTP support
+- Cajamar login
+- Handle Urbanitae investmentPeriod given as a range
+- IBKR transactions fetch (#180)
+- Improve asset switch and transfer handling in gains calculation & cleaned TX input types (#176)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update altstore upload flow
+- Add GNU Affero General Public License v3 (#171)
+- Revise CONTRIBUTING.md for clarity and structure
+- Use Go 1.26
+- Fix macOS Intel build (#182)
 ## [0.9.2] - 2026-07-20
 
 ### 🐛 Bug Fixes
