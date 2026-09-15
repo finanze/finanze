@@ -142,6 +142,12 @@ interface CreditsSummary {
   count: number
 }
 
+const BANKING_ACCOUNT_ENTITY_TYPES: EntityType[] = [
+  EntityType.FINANCIAL_INSTITUTION,
+  EntityType.CRYPTO_EXCHANGE,
+  EntityType.MARKET_FORECAST_PLATFORM,
+]
+
 const formatIban = (iban?: string | null, reveal?: boolean) => {
   if (!iban) return null
   if (reveal) {
@@ -238,7 +244,11 @@ function BankingManualControls({
 }: {
   controllers: ManualSectionController[]
   t: Translations
-  showToast: (message: string, type: "success" | "error" | "warning") => void
+  showToast: (
+    message: string,
+    type: "success" | "error" | "warning",
+    options?: { reportable?: boolean },
+  ) => void
   refreshEntity: (entityId: string) => Promise<void>
   fetchEntities: () => Promise<void>
   refreshData: () => Promise<void>
@@ -420,9 +430,10 @@ function BankingManualControls({
           showToast(
             translate("management.manualPositions.toasts.saveError"),
             "error",
+            { reportable: false },
           )
         } else if (t.common?.error) {
-          showToast(t.common.error, "error")
+          showToast(t.common.error, "error", { reportable: false })
         }
         controllers.forEach(controller => controller.setSavingState(false))
         setIsSaving(false)
@@ -736,7 +747,7 @@ export default function BankingPage() {
         )
         if (
           entityMeta &&
-          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+          !BANKING_ACCOUNT_ENTITY_TYPES.includes(entityMeta.type)
         ) {
           return []
         }
@@ -906,13 +917,19 @@ export default function BankingPage() {
         if (entityId.startsWith("new-")) {
           return false
         }
-        if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
+        if (!BANKING_ACCOUNT_ENTITY_TYPES.includes(entity.type)) {
           return false
         }
         return ids.has(entityId)
       }) ?? []
     )
-  }, [accountPositions, cardPositions, loanPositions, entities])
+  }, [
+    accountPositions,
+    cardPositions,
+    loanPositions,
+    creditPositions,
+    entities,
+  ])
 
   useEffect(() => {
     if (bankingEntities.length === 0) {
@@ -935,7 +952,7 @@ export default function BankingPage() {
         return
       }
       const entityType = entities?.find(entity => entity.id === entityId)?.type
-      if (entityType && entityType !== EntityType.FINANCIAL_INSTITUTION) {
+      if (entityType && !BANKING_ACCOUNT_ENTITY_TYPES.includes(entityType)) {
         return
       }
       setSelectedEntities(prev =>

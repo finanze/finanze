@@ -79,6 +79,16 @@ export interface CryptoCurrencyTx extends BaseInvestmentTx {
   order_date?: string
 }
 
+export interface MarketForecastTx extends BaseInvestmentTx {
+  net_amount: number
+  size: number
+  price: number
+  fees: number
+  symbol: string
+  retentions?: number
+  order_date?: string
+}
+
 // Fund transaction interface
 export interface FundTx extends BaseInvestmentTx {
   net_amount: number
@@ -218,6 +228,7 @@ export interface Transactions {
 type Tx = AccountTx &
   StockTx &
   CryptoCurrencyTx &
+  MarketForecastTx &
   FundTx &
   FactoringTx &
   RealEstateCFTx &

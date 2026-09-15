@@ -91,6 +91,7 @@ class CryptoWalletRepository(CryptoWalletPort):
                 name=row["name"],
                 address_source=AddressSource(row["address_source"]),
                 hd_wallet=hd_wallet,
+                include_wallet_tokens=bool(row["include_wallet_tokens"]),
             )
             wallets.append(wallet)
 
@@ -136,6 +137,7 @@ class CryptoWalletRepository(CryptoWalletPort):
                     connection.name,
                     connection.address_source.value,
                     datetime.now(tzlocal()),
+                    int(connection.include_wallet_tokens),
                 ),
             )
 

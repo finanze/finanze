@@ -173,6 +173,30 @@ from infrastructure.repository.db.versions.v0.v09.v090_7_rebuild_networth_timeli
 from infrastructure.repository.db.versions.v0.v09.v090_8_historic_source import (
     V0908HistoricSource,
 )
+from infrastructure.repository.db.versions.v0.v10.v0100_0_crescenta import (
+    V0100Crescenta,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_1_polymarket import (
+    V01001Polymarket,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_2_clear_sego_real_txs import (
+    V01002ClearSegoRealTransactions,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_3_instrument_price_history import (
+    V01003InstrumentPriceHistory,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_4_crypto_etp_to_crypto_positions import (
+    V01004CryptoEtpToCryptoPositions,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_5_crypto_defi_zerion import (
+    V01005CryptoDefiZerion,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_6_clear_instrument_negative_cache import (
+    V01006ClearInstrumentNegativeCache,
+)
+from infrastructure.repository.db.versions.v0.v10.v0100_7_trading212 import (
+    V01007Trading212,
+)
 
 versions = [
     V0Genesis(),
@@ -244,4 +268,12 @@ versions = [
     V0906PendingFlowStatus(),
     V0907RebuildNetworthTimeline(),
     V0908HistoricSource(),
+    V0100Crescenta(),
+    V01001Polymarket(),
+    V01002ClearSegoRealTransactions(),
+    V01003InstrumentPriceHistory(),
+    V01004CryptoEtpToCryptoPositions(),
+    V01005CryptoDefiZerion(),
+    V01006ClearInstrumentNegativeCache(),
+    V01007Trading212(),
 ]

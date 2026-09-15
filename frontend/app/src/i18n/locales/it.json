@@ -1,11 +1,13 @@
 {
   "common": {
     "back": "Indietro",
+    "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
     "fetching": "Recupero in corso...",
     "saving": "Salvataggio...",
     "refresh": "Aggiorna",
+    "update": "Aggiorna",
     "export": "Esporta",
     "success": "Successo",
     "error": "Errore",
@@ -67,6 +69,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Crowdfunding Immobiliare",
     "cryptoInvestments": "Crypto",
+    "marketForecast": "Previsione di Mercato",
     "distributionByEntity": "Distribuzione per Entità",
     "distributionByAsset": "Distribuzione per Bene",
     "distribution": "Distribuzione",
@@ -225,6 +228,18 @@
       "viewModes": {
         "wallets": "Per wallet",
         "network": "Per origine"
+      },
+      "defi": {
+        "title": "Posizioni DeFi",
+        "unknownProtocol": "Altro",
+        "chainLabel": "Rete",
+        "roles": {
+          "SUPPLIED": "Fornito",
+          "BORROWED": "Preso in prestito",
+          "STAKED": "In staking",
+          "LP": "Pool di liquidità",
+          "REWARD": "Ricompensa"
+        }
       }
     },
     "derivatives": {
@@ -338,6 +353,53 @@
       "sortInvested": "Importo"
     }
   },
+  "marketForecast": {
+    "untitledMarket": "Mercato senza titolo",
+    "chartPreviewUnavailable": "L'anteprima del grafico non è disponibile per questa previsione di mercato.",
+    "status": {
+      "open": "Aperta",
+      "closed": "Chiusa"
+    },
+    "labels": {
+      "shares": "Quote",
+      "entry": "Entrata",
+      "initialInvestment": "Investimento iniziale",
+      "realizedPnl": "P&L realizzato",
+      "tradingActivity": "Attività di trading",
+      "mark": "Prezzo attuale",
+      "resolves": "Si risolve",
+      "closed": "Chiusa",
+      "value": "Valore",
+      "bought": "Acquistato",
+      "sold": "Venduto",
+      "viewMarket": "Vedi mercato"
+    },
+    "summary": {
+      "openExposure": "Esposizione aperta",
+      "costBasis": "Costo base",
+      "openPositions": "Posizioni aperte",
+      "closedPositions": "posizioni",
+      "realizedPnl": "realizzato",
+      "pnlHistory": "PnL",
+      "unrealizedPnl": "PnL non realizzato",
+      "averageExposure": "Esposizione media"
+    },
+    "empty": {
+      "connectionTitle": "Collega una piattaforma di previsioni di mercato",
+      "connectionDescription": "Le previsioni di mercato usano dati collegati e non possono essere inserite manualmente.",
+      "openTitle": "Nessuna previsione di mercato aperta",
+      "openDescription": "Gli account collegati non hanno previsioni di mercato attive al momento.",
+      "pnlTitle": "Nessuno storico PnL",
+      "pnlDescription": "Lo storico PnL apparirà quando sarà disponibile attività sulle previsioni di mercato."
+    },
+    "sections": {
+      "openTitle": "Aperte",
+      "openDescription": "Mercati attivi con performance mark-to-market attuale.",
+      "closedTitle": "Chiuse",
+      "closedDescription": "Mercati regolati e profitto o perdita realizzati.",
+      "positions": "posizioni"
+    }
+  },
   "toast": {
     "success": "Successo",
     "warning": "Avviso",
@@ -363,10 +425,13 @@
       "secretKey": "Chiave Segreta"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Includi il prefisso internazionale nel numero di telefono (es. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "Questa integrazione è in beta e non è stata testata adeguatamente. Crea la chiave API nell'app Trading 212 con gli ambiti account, portfolio e history (orders, dividends e transactions)."
     },
     "addAccountName": "Assegna un nome a questo conto",
     "accountNamePlaceholder": "Nome del conto (opzionale)",
+    "showCredential": "Mostra valore",
+    "hideCredential": "Nascondi valore",
     "credentialsSecurityTitle": "I tuoi dati sono al sicuro",
     "credentialsSecurityBody": "Le tue credenziali e tutti i dati mostrati qui sono archiviati localmente in modo crittografato. Non saranno mai condivisi con nessuno, a meno che tu non lo scelga esplicitamente. Non condividere mai la password dell'app con nessuno, poiché permetterebbe di accedere a tutti questi dati. Inoltre, questa app è open source e puoi verificare tu stesso come vengono archiviati e gestiti i dati.",
     "title": "Benvenuto in Finanze",
@@ -429,7 +494,7 @@
       "encryptionKeyLabel": "Chiave di crittografia",
       "encryptionKeyPlaceholder": "La chiave di crittografia del tuo account",
       "encryptionKeyHint": "Questa è la chiave di crittografia che usavi nell'app, non la password del tuo account Cloud.",
-      "restoreButton": "Ripristina dati",
+      "restoreButton": "Ripristina",
       "importing": "Ripristino dati in corso...",
       "dontCloseApp": "Non chiudere l'app durante questo processo",
       "invalidEncryptionKey": "Chiave di crittografia non valida. Controllala e riprova.",
@@ -447,7 +512,8 @@
     "cancelLoginDescription": "Vuoi uscire dal processo di accesso?",
     "cancelFetchDescription": "Vuoi uscire dal processo di recupero?",
     "pendingRequests": "Altre entità richiedono un codice",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Codice di verifica"
   },
   "errors": {
     "INVALID_CODE": "Codice fornito non valido",
@@ -466,10 +532,31 @@
     "REMOTE_FAILED": "L'entità non ha risposto correttamente, riprova più tardi.",
     "LINK_EXPIRED": "Il link di connessione è scaduto. Ricollega l'entità per continuare.",
     "PARTIALLY_COMPLETED": "Non tutte le fonti sono state caricate correttamente per {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Alcune funzionalità non sono state caricate per {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
     "INVALID_TEMPLATE": "Il modello selezionato non è valido per questa importazione. Scegline un altro."
+  },
+  "errorBoundary": {
+    "title": "Qualcosa è andato storto",
+    "description": "L'applicazione ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "pageDescription": "Questa pagina ha riscontrato un errore inatteso. I tuoi dati sono al sicuro. Riavvia se persiste.",
+    "goToDashboard": "Vai alla dashboard",
+    "restart": "Riavvia"
+  },
+  "telemetryConsent": {
+    "title": "Segnala gli errori automaticamente",
+    "descriptionAfterError": "L'invio degli errori è disattivato, quindi non è stato inviato nulla su questo problema. Attivalo e gli errori come questo verranno segnalati d'ora in poi, così potranno essere corretti.",
+    "descriptionManual": "L'invio degli errori è disattivato. Attivalo perché qualsiasi problema che incontri venga segnalato automaticamente e possa essere corretto.",
+    "enable": "Attiva",
+    "notNow": "Non ora",
+    "reportAction": "Attiva l'invio degli errori",
+    "enabled": "Invio degli errori attivato",
+    "shortLabel": "Segnala errori",
+    "pointAnonymous": "Pseudonimo, identificato solo da un ID di installazione e mai collegato ai tuoi dati personali o al tuo account",
+    "pointNoSensitiveData": "Non vengono inviati importi, saldi, nomi o credenziali",
+    "pointChangeLater": "Puoi attivarlo o disattivarlo più tardi nelle Impostazioni"
   },
   "entities": {
     "title": "Integrazioni",
@@ -653,6 +740,13 @@
       "description": "Informazioni legali e policy",
       "privacyPolicy": "Informativa sulla Privacy",
       "termsOfService": "Termini di Servizio"
+    },
+    "privacy": {
+      "title": "Diagnostica",
+      "description": "Tutto qui è disattivato per impostazione predefinita e resta su questo dispositivo se non lo attivi.",
+      "errorReportingLabel": "Invia segnalazioni di errore",
+      "errorReportingDescription": "Condividi segnalazioni pseudonime di crash ed errori identificate solo da un ID di installazione per poterli correggere. Importi, dati dei conti e dati personali non vengono mai inviati.",
+      "installId": "ID di installazione"
     },
     "cloud": {
       "tabTitle": "Cloud",
@@ -1043,6 +1137,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configura la tua API Zerion per recuperare le posizioni DeFi e dei wallet su numerose reti EVM.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API Zerion",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Registrati sul "
+            },
+            {
+              "type": "link",
+              "label": "portale sviluppatori di Zerion",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (è disponibile un piano gratuito), crea una chiave API e incollala qui sotto."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",
@@ -1160,18 +1276,55 @@
     "clear": "Cancella",
     "productTypes": "Prodotti",
     "options": "Opzioni",
+    "area": "Area",
     "stacked": "Impilato",
     "lines": "Linee",
     "showTotal": "Totale",
     "selectAll": "Seleziona tutto",
     "clearAll": "Cancella tutto",
     "ranges": {
+      "1D": "1D",
       "ALL": "Tutto",
       "1Y": "1A",
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1S"
+      "1W": "1S",
+      "YTD": "YTD"
+    }
+  },
+  "evolutionChart": {
+    "title": "Andamento",
+    "value": "Valore",
+    "gain": "Guadagno",
+    "twr": "TWR",
+    "beta": "Funzione in beta",
+    "betaNotice": "L'andamento del valore e i guadagni sono in beta e possono contenere errori.",
+    "show": "Mostra andamento",
+    "hide": "Nascondi andamento",
+    "loading": "Caricamento andamento",
+    "fullRangeHint": "Lo storico completo può richiedere tempo la prima volta",
+    "noData": "Nessun andamento disponibile",
+    "error": "Impossibile caricare l'andamento",
+    "retry": "Riprova",
+    "period": "Periodo",
+    "dateRange": "Intervallo di date",
+    "from": "Da",
+    "to": "A",
+    "clear": "Cancella",
+    "ranges": {
+      "4Y": "4A",
+      "1Y": "1A",
+      "YTD": "YTD",
+      "1M": "1M"
+    },
+    "warningsTitle": "Note sull'accuratezza",
+    "warnings": {
+      "UNRECONCILED_FLOWS": "Alcuni movimenti non sono stati valorizzati o abbinati, quindi i risultati possono essere incompleti.",
+      "REPLAYED_POSITIONS": "Alcune posizioni sono state ricostruite dalle transazioni.",
+      "INFERRED_FLOWS": "Alcuni movimenti sono stati dedotti da variazioni di quantità o costo, quindi versamenti e rendimenti sono stime.",
+      "ORPHAN_SELLS": "Alcune vendite non hanno un acquisto corrispondente e sono state escluse dal guadagno, quindi lo storico della posizione è incompleto.",
+      "PARTIAL_COST_BASIS": "Alcune posizioni non hanno un costo registrato, quindi il guadagno copre solo quelle che ce l'hanno."
     }
   },
   "export": {
@@ -1564,11 +1717,12 @@
     "page": "Pagina",
     "of": "di",
     "selectEntities": "Seleziona entità...",
+    "selectAccounts": "Seleziona conti...",
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
     "form": {
-      "createTitle": "Aggiungi transazione manuale",
-      "editTitle": "Modifica transazione manuale",
+      "createTitle": "Aggiungi transazione",
+      "editTitle": "Modifica transazione",
       "entity": "Entità",
       "transactionType": "Tipo di transazione",
       "pickDate": "Seleziona una data",
@@ -1586,6 +1740,18 @@
       "netAmountFormulaIncoming": "importo - commissioni - ritenute",
       "netAmountFormulaOutgoing": "importo + commissioni + ritenute",
       "autoAmountHint": "L'importo si compila automaticamente da quote × prezzo quando entrambi i valori sono forniti.",
+      "transfer": "Trasferimento",
+      "transferHint": "Usa Trasferimento quando un asset viene spostato o convertito da un'entità a un'altra. In Spagna si usa anche per i trasferimenti tra fondi comuni con differimento fiscale.",
+      "swap": "Swap",
+      "swapRatio": "Rapporto",
+      "swapRatioHint": "Quote di destinazione per ogni quota di origine. Compila quote e prezzo di destinazione a partire dall'origine.",
+      "origin": "Origine",
+      "destination": "Destinazione",
+      "createOrigin": "Crea origine",
+      "createDestination": "Crea destinazione",
+      "sameAsOrigin": "Uguale all'origine",
+      "moreDetails": "Altri dettagli",
+      "destEntityOptional": "Facoltativa — usa l'entità di origine se vuota",
       "createSuccess": "Transazione manuale creata con successo",
       "updateSuccess": "Transazione manuale aggiornata con successo",
       "submitError": "Impossibile salvare la transazione manuale",
@@ -1595,7 +1761,9 @@
         "required": "Questo campo è obbligatorio",
         "positive": "Inserisci un numero positivo",
         "nonNegative": "Inserisci zero o un numero positivo",
-        "invalidNumber": "Inserisci un numero valido"
+        "invalidNumber": "Inserisci un numero valido",
+        "needOneLeg": "Abilita almeno l'origine o la destinazione",
+        "destEntityRequired": "L'entità di destinazione è obbligatoria"
       }
     },
     "deleteManualTransactionTitle": "Elimina transazione manuale",
@@ -1659,8 +1827,8 @@
       "SUBSCRIPTION": "Sottoscrizione",
       "SWAP_FROM": "Swap Origine",
       "SWAP_TO": "Swap Destinazione",
-      "TRANSFER_IN": "Trasf. F. Entrata",
-      "TRANSFER_OUT": "Trasf. F. Uscita",
+      "TRANSFER_IN": "Trasf. Entrata",
+      "TRANSFER_OUT": "Trasf. Uscita",
       "SWITCH_FROM": "Switch F. Origine",
       "SWITCH_TO": "Switch F. Destinazione",
       "INVESTMENT": "Investimento",
@@ -1685,7 +1853,8 @@
       "PENDING_FLOWS": "In sospeso",
       "BOND": "Obbligazione",
       "DERIVATIVE": "Derivato",
-      "CREDIT": "Credito"
+      "CREDIT": "Credito",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Azionario",
@@ -1787,7 +1956,8 @@
       "addressDuplicate": "Indirizzo duplicato. Rimuovilo o modificalo prima di continuare.",
       "maxAddresses": "Puoi aggiungere fino a 10 indirizzi per wallet.",
       "allFailed": "Non siamo riusciti ad aggiungere nessuno degli indirizzi. Rivedi gli errori sottostanti.",
-      "generic": "Impossibile aggiungere il wallet. Riprova."
+      "generic": "Impossibile aggiungere il wallet. Riprova.",
+      "integrationFieldRequired": "Questo campo è obbligatorio."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Questo indirizzo è già connesso.",
@@ -1800,6 +1970,14 @@
       "partialSuccessSingle": "1 indirizzo aggiunto con successo.",
       "partialSuccessMultiple": "{count} indirizzi aggiunti con successo.",
       "allFailed": "Nessun indirizzo è stato aggiunto."
+    },
+    "includeWalletTokens": {
+      "label": "Traccia anche i token del wallet",
+      "description": "Includi i saldi dei token del wallet oltre alle posizioni DeFi. Disattiva se tracci questi wallet altrove."
+    },
+    "integrationSetup": {
+      "heading": "Configurazione di {integration} richiesta",
+      "helper": "Necessario per connettersi tramite questo provider."
     },
     "submit": "Aggiungi wallet",
     "derived": {
@@ -2148,8 +2326,8 @@
     "manualContributions": {
       "unnamed": "Contributo manuale",
       "add": "Nuovo",
-      "createTitle": "Aggiungi contributo manuale",
-      "editTitle": "Modifica contributo manuale",
+      "createTitle": "Aggiungi contributo",
+      "editTitle": "Modifica contributo",
       "entity": "Entità",
       "targetName": "Nome destinazione",
       "targetNameHelper": "Nome amichevole opzionale mostrato nell'elenco",
@@ -2259,9 +2437,14 @@
         "cancelEntityCreation": "Annulla nuova entità",
         "newEntityPlaceholder": "Inserisci il nome della nuova entità",
         "trackPrice": "Monitora prezzo",
+        "trackPriceShort": "Monitora",
         "trackPriceUnavailable": "Seleziona uno strumento per abilitare il monitoraggio del prezzo.",
         "createInvestmentTxs": "Crea transazioni",
+        "createInvestmentTxsShort": "Transazioni",
         "createInvestmentTxsInfo": "Se attivato, viene creata una transazione di investimento iniziale (più una transazione di rimborso se il capitale residuo è inferiore all'importo investito).",
+        "termShortcut": "Durata",
+        "monthsShort": "m",
+        "yearsShort": "a",
         "currencyConversionWarning": "La valuta dello strumento è diversa da quella selezionata. La conversione utilizza i tassi più recenti e può variare.",
         "summary": {
           "shares": "Quote"
@@ -2297,7 +2480,7 @@
         "form": {
           "createTitle": "Aggiungi un conto",
           "createDescription": "Compila i dettagli del conto per monitorarlo manualmente.",
-          "editTitle": "Modifica conto bancario manuale",
+          "editTitle": "Modifica conto bancario",
           "editDescription": "Aggiorna il conto bancario manuale selezionato."
         },
         "fields": {
@@ -2331,7 +2514,7 @@
         "form": {
           "createTitle": "Aggiungi una carta",
           "createDescription": "Fornisci le informazioni della carta per gestirla manualmente.",
-          "editTitle": "Modifica carta manuale",
+          "editTitle": "Modifica carta",
           "editDescription": "Aggiorna la carta manuale selezionata."
         },
         "fields": {
@@ -2358,7 +2541,7 @@
         "form": {
           "createTitle": "Aggiungi un prestito",
           "createDescription": "Inserisci i dettagli del prestito per gestirlo manualmente.",
-          "editTitle": "Modifica prestito manuale",
+          "editTitle": "Modifica prestito",
           "editDescription": "Aggiorna il prestito manuale selezionato."
         },
         "fields": {
@@ -2409,7 +2592,7 @@
         "form": {
           "createTitle": "Aggiungi una linea di credito",
           "createDescription": "Inserisci i dettagli della linea di credito per gestirla manualmente.",
-          "editTitle": "Modifica credito manuale",
+          "editTitle": "Modifica linea di credito",
           "editDescription": "Aggiorna la linea di credito manuale selezionata."
         },
         "fields": {
@@ -2432,9 +2615,9 @@
           "description": "Crea un portafoglio di fondi manuale per raggruppare i tuoi investimenti."
         },
         "form": {
-          "createTitle": "Aggiungi portafoglio di fondi manuale",
+          "createTitle": "Aggiungi portafoglio di fondi",
           "createDescription": "Configura un portafoglio per raggruppare i fondi monitorati manualmente.",
-          "editTitle": "Modifica portafoglio di fondi manuale",
+          "editTitle": "Modifica portafoglio di fondi",
           "editDescription": "Aggiorna il portafoglio di fondi manuale selezionato."
         },
         "fields": {
@@ -2472,9 +2655,9 @@
           "description": "Aggiungi una posizione manuale di fondo per includerla nel tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi fondo manuale",
+          "createTitle": "Aggiungi fondo",
           "createDescription": "Compila i dettagli del fondo per monitorarlo manualmente.",
-          "editTitle": "Modifica fondo manuale",
+          "editTitle": "Modifica fondo",
           "editDescription": "Aggiorna il fondo manuale selezionato."
         },
         "fields": {
@@ -2510,9 +2693,9 @@
           "description": "Aggiungi una posizione manuale di azione o ETF al tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi azione manuale",
+          "createTitle": "Aggiungi azione",
           "createDescription": "Fornisci i dettagli dell'azione per monitorarla manualmente.",
-          "editTitle": "Modifica azione manuale",
+          "editTitle": "Modifica azione",
           "editDescription": "Aggiorna l'azione manuale selezionata."
         },
         "fields": {
@@ -2542,9 +2725,9 @@
           "description": "Aggiungi una posizione manuale di criptovaluta al tuo portafoglio."
         },
         "form": {
-          "createTitle": "Aggiungi crypto manuale",
+          "createTitle": "Aggiungi crypto",
           "createDescription": "Fornisci i dettagli della criptovaluta per monitorarla manualmente.",
-          "editTitle": "Modifica crypto manuale",
+          "editTitle": "Modifica crypto",
           "editDescription": "Aggiorna la criptovaluta manuale selezionata."
         },
         "fields": {
@@ -2583,9 +2766,9 @@
           "description": "Aggiungi un deposito manuale per monitorarne il rendimento."
         },
         "form": {
-          "createTitle": "Aggiungi deposito manuale",
+          "createTitle": "Aggiungi deposito",
           "createDescription": "Inserisci le informazioni del deposito per gestirlo manualmente.",
-          "editTitle": "Modifica deposito manuale",
+          "editTitle": "Modifica deposito",
           "editDescription": "Aggiorna il deposito manuale selezionato."
         },
         "fields": {
@@ -2605,9 +2788,9 @@
           "description": "Aggiungi una posizione manuale di factoring per includerla nei tuoi investimenti."
         },
         "form": {
-          "createTitle": "Aggiungi factoring manuale",
+          "createTitle": "Aggiungi factoring",
           "createDescription": "Fornisci i dettagli del factoring per monitorarlo manualmente.",
-          "editTitle": "Modifica factoring manuale",
+          "editTitle": "Modifica factoring",
           "editDescription": "Aggiorna la voce di factoring manuale selezionata."
         },
         "fields": {
@@ -2630,9 +2813,9 @@
           "description": "Aggiungi una posizione manuale di crowdfunding immobiliare per monitorarla."
         },
         "form": {
-          "createTitle": "Aggiungi crowdfunding immobiliare manuale",
+          "createTitle": "Aggiungi crowdfunding immobiliare",
           "createDescription": "Inserisci i dettagli del progetto per monitorarlo manualmente.",
-          "editTitle": "Modifica crowdfunding immobiliare manuale",
+          "editTitle": "Modifica crowdfunding immobiliare",
           "editDescription": "Aggiorna la posizione manuale di crowdfunding immobiliare selezionata."
         },
         "fields": {
@@ -2793,6 +2976,7 @@
       "price": "Prezzo di acquisto",
       "expenses": "Spese di acquisto",
       "addExpense": "Aggiungi",
+      "totalExpenses": "Totale spese",
       "totalCost": "Costo totale",
       "purchaseConceptDescription": "Concetto di spesa di acquisto",
       "suggestedConcepts": "Concetti suggeriti:",

@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
+from typing import Optional
 
+from application.ports.error_reporter_port import ErrorReporterPort
 from domain.dezimal import Dezimal
 from quart import Quart
 from quart.json.provider import DefaultJSONProvider
@@ -23,13 +25,13 @@ class QuartApp(Quart):
     json_provider_class = FJSONProvider
 
 
-def quart(static_upload_dir: Path):
+def quart(static_upload_dir: Path, error_reporter: Optional[ErrorReporterPort] = None):
     app = QuartApp(
         __name__,
         static_url_path="/static",
         static_folder=str(static_upload_dir.absolute()),
     )
     cors(app, expose_headers=["Content-Disposition"])
-    exception_handler.register_exception_handlers(app)
+    exception_handler.register_exception_handlers(app, error_reporter)
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1000 * 1000
     return app

@@ -31,6 +31,7 @@ export enum EntityType {
   FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION",
   CRYPTO_WALLET = "CRYPTO_WALLET",
   CRYPTO_EXCHANGE = "CRYPTO_EXCHANGE",
+  MARKET_FORECAST_PLATFORM = "MARKET_FORECAST_PLATFORM",
   COMMODITY = "COMMODITY",
 }
 
@@ -101,9 +102,7 @@ export interface Entity {
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
   session_category?: EntitySessionCategory
-  pin?: {
-    positions: number
-  }
+  pin?: PinDetails
   connected?: CryptoWalletConnection[]
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
@@ -125,6 +124,18 @@ export enum EntitySessionCategory {
   MEDIUM = "MEDIUM",
   // No session, renewable or weeks-long session
   UNDEFINED = "UNDEFINED",
+}
+
+export enum PinChannel {
+  SMS = "SMS",
+  EMAIL = "EMAIL",
+  APP = "APP",
+}
+
+export interface PinDetails {
+  positions: number
+  channel?: PinChannel
+  pattern?: string | null
 }
 
 export enum EntitySetupLoginType {
@@ -276,6 +287,7 @@ export interface StatusResponse {
   server: {
     version: string
     platform_type: PlatformType
+    platform_version?: string | null
     options: BackendOptions
   }
   features: FeatureFlags
@@ -335,6 +347,8 @@ export interface FetchResponse {
     challengeType?: ChallengeType
     challengeDomain?: string
     credentials?: Record<string, string>
+    failedFeatures?: Feature[]
+    completedFeatures?: Feature[]
   }
   data?: any
 }
@@ -586,6 +600,7 @@ export interface CreateCryptoWalletRequest {
   source: AddressSource
   xpub?: string | null
   script_type?: ScriptType | null
+  includeWalletTokens?: boolean
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -676,6 +691,10 @@ declare global {
       checkForUpdates: () => Promise<AutoUpdateCheckResult>
       downloadUpdate: () => Promise<AutoUpdateActionResult>
       quitAndInstall: () => Promise<AutoUpdateActionResult>
+      setTelemetryConsent: (consent: {
+        errorReporting: boolean
+        installId?: string
+      }) => Promise<void>
       onCheckingForUpdate: (callback: () => void) => () => void
       onUpdateAvailable: (
         callback: (info: AutoUpdateInfo) => void,
@@ -817,6 +836,10 @@ export interface GoogleIntegrationCredentials {
 }
 
 export interface EtherscanIntegrationData {
+  api_key: string
+}
+
+export interface ZerionIntegrationData {
   api_key: string
 }
 

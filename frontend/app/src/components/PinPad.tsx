@@ -6,6 +6,13 @@ import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { Input } from "@/components/ui/Input"
+import {
+  addSmsOtpReceivedListener,
+  getLastSmsOtpMessage,
+} from "@/lib/mobile/smsOtp"
+import { parseSmsOtp } from "@/lib/otp/parseSmsOtp"
+import { isIOS } from "@/lib/platform"
 
 export function PinPad() {
   const {
@@ -28,32 +35,14 @@ export function PinPad() {
     getPendingPinEntities,
   } = useEntityWorkflow()
   const pinByEntityRef = useRef<Map<string, string[]>>(new Map())
+  const otpInputRef = useRef<HTMLInputElement>(null)
   const [pin, setPin] = useState<string[]>([])
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const { t } = useI18n()
 
-  if (!selectedEntity) return null
-
-  const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
-    selectedEntity.id,
-  )
-  const pendingEntities = getPendingPinEntities()
-  const idsRequiringCode = [
-    selectedEntity.id,
-    ...pendingEntities.map(p => p.id),
-  ]
-  const allRequiringAreFetching = idsRequiringCode.every(id =>
-    fetchingEntityState.fetchingEntityIds.includes(id),
-  )
-  const isBackgroundFetch =
-    currentAction === "scrape" && isEntityFetching && allRequiringAreFetching
-  const cancelButtonLabel = isBackgroundFetch
-    ? t.common.continueInBackground
-    : t.common.cancel
-  const cancelMessage =
-    currentAction === "scrape"
-      ? t.pinpad.cancelFetchDescription
-      : t.pinpad.cancelLoginDescription
+  const isEntityFetching = selectedEntity
+    ? fetchingEntityState.fetchingEntityIds.includes(selectedEntity.id)
+    : false
 
   const syncPinForEntity = useCallback(
     (nextPin: string[]) => {
@@ -65,6 +54,14 @@ export function PinPad() {
     [selectedEntity],
   )
 
+  const applySmsMessage = useRef<(message: string) => void>(() => {})
+  applySmsMessage.current = (message: string) => {
+    if (!selectedEntity) return
+    const code = parseSmsOtp(message, pinLength, selectedEntity.pin?.pattern)
+    if (!code) return
+    syncPinForEntity(code.split(""))
+  }
+
   useEffect(() => {
     if (!selectedEntity) return
     const storedPin = pinByEntityRef.current.get(selectedEntity.id)
@@ -72,11 +69,42 @@ export function PinPad() {
   }, [selectedEntity])
 
   useEffect(() => {
+    if (!isIOS() || !selectedEntity) return
+    otpInputRef.current?.focus()
+  }, [selectedEntity])
+
+  useEffect(() => {
+    let cancelled = false
+    let handle: { remove: () => Promise<void> } | null = null
+    void getLastSmsOtpMessage().then(message => {
+      if (!cancelled && message) applySmsMessage.current(message)
+    })
+    addSmsOtpReceivedListener(event => {
+      applySmsMessage.current(event.message)
+    }).then(listener => {
+      if (cancelled) {
+        void listener?.remove()
+        return
+      }
+      handle = listener
+    })
+    return () => {
+      cancelled = true
+      void handle?.remove()
+    }
+  }, [])
+
+  useEffect(() => {
     if (pinError) {
       syncPinForEntity([])
       clearPinError()
     }
   }, [pinError, clearPinError, syncPinForEntity])
+
+  const handleOtpInputChange = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, pinLength).split("")
+    syncPinForEntity(digits)
+  }
 
   const handleNumberClick = (num: string) => {
     if (pin.length < pinLength) {
@@ -94,7 +122,7 @@ export function PinPad() {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     const pinString = pin.join("")
 
     if (currentAction === "login" && storedCredentials) {
@@ -115,9 +143,28 @@ export function PinPad() {
         pendingParams?.entityAccountId,
       )
     }
-  }
+  }, [
+    currentAction,
+    fetchOptions,
+    getPendingScrapeParams,
+    login,
+    pin,
+    scrape,
+    selectedEntity,
+    selectedFeatures,
+    storedCredentials,
+  ])
 
   const handleCancelRequest = () => {
+    const pending = getPendingPinEntities()
+    const idsRequiringCode = selectedEntity
+      ? [selectedEntity.id, ...pending.map(p => p.id)]
+      : pending.map(p => p.id)
+    const allRequiringAreFetching = idsRequiringCode.every(id =>
+      fetchingEntityState.fetchingEntityIds.includes(id),
+    )
+    const isBackgroundFetch =
+      currentAction === "scrape" && isEntityFetching && allRequiringAreFetching
     if (isBackgroundFetch) {
       handleCancelConfirm()
       return
@@ -127,6 +174,16 @@ export function PinPad() {
 
   const handleCancelConfirm = () => {
     setShowCancelDialog(false)
+
+    const pending = getPendingPinEntities()
+    const idsRequiringCode = selectedEntity
+      ? [selectedEntity.id, ...pending.map(p => p.id)]
+      : pending.map(p => p.id)
+    const allRequiringAreFetching = idsRequiringCode.every(id =>
+      fetchingEntityState.fetchingEntityIds.includes(id),
+    )
+    const isBackgroundFetch =
+      currentAction === "scrape" && isEntityFetching && allRequiringAreFetching
 
     if (isBackgroundFetch) {
       pinByEntityRef.current.clear()
@@ -199,6 +256,25 @@ export function PinPad() {
     return () => window.removeEventListener("keydown", handleKeyboardInput)
   }, [handleKeyboardInput])
 
+  if (!selectedEntity) return null
+
+  const pendingEntities = getPendingPinEntities()
+  const idsRequiringCode = [
+    selectedEntity.id,
+    ...pendingEntities.map(p => p.id),
+  ]
+  const allRequiringAreFetching = idsRequiringCode.every(id =>
+    fetchingEntityState.fetchingEntityIds.includes(id),
+  )
+  const isBackgroundFetch =
+    currentAction === "scrape" && isEntityFetching && allRequiringAreFetching
+  const cancelButtonLabel = isBackgroundFetch
+    ? t.common.continueInBackground
+    : t.common.cancel
+  const cancelMessage =
+    currentAction === "scrape"
+      ? t.pinpad.cancelFetchDescription
+      : t.pinpad.cancelLoginDescription
   const enterCodeText = t.pinpad.enterCode.replace(
     "{length}",
     pinLength.toString(),
@@ -237,7 +313,7 @@ export function PinPad() {
           </div>
         )}
 
-        <div className="flex justify-center mb-6">
+        <div className="relative mb-6 flex justify-center py-3">
           {Array.from({ length: pinLength }).map((_, index) => (
             <div
               key={index}
@@ -248,6 +324,31 @@ export function PinPad() {
               }`}
             />
           ))}
+          <Input
+            ref={otpInputRef}
+            id="one-time-code"
+            name="one-time-code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="done"
+            pattern={`[0-9]{${pinLength}}`}
+            maxLength={pinLength}
+            value={pin.join("")}
+            onChange={event => handleOtpInputChange(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Enter" && pin.length === pinLength) {
+                event.preventDefault()
+                handleSubmit()
+              }
+            }}
+            aria-label={t.pinpad.otpInputLabel}
+            disabled={isEntityFetching}
+            className="absolute inset-0 h-full w-full border-0 bg-transparent p-0 text-center text-transparent caret-transparent shadow-none outline-none ring-0 ring-offset-0 selection:bg-transparent selection:text-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
         </div>
 
         <AnimatePresence>

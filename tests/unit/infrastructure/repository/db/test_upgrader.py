@@ -65,6 +65,44 @@ async def _insert_migration_record(conn, version, name):
     conn.commit()
 
 
+class _FailingCursor:
+    def __init__(self, cursor, fragment, error):
+        self._cursor = cursor
+        self._fragment = fragment
+        self._error = error
+
+    def execute(self, statement, *args):
+        if self._fragment in statement:
+            raise self._error
+        return self._cursor.execute(statement, *args)
+
+    def __iter__(self):
+        return iter(self._cursor)
+
+    def __next__(self):
+        return next(self._cursor)
+
+    def __getattr__(self, item):
+        return getattr(self._cursor, item)
+
+
+class _FailingConnection:
+    def __init__(self, connection, fragment, error):
+        self._connection = connection
+        self._fragment = fragment
+        self._error = error
+
+    def cursor(self):
+        return _FailingCursor(self._connection.cursor(), self._fragment, self._error)
+
+    def __getattr__(self, item):
+        return getattr(self._connection, item)
+
+
+def _failing_client(conn, fragment, error):
+    return DBClient(connection=_FailingConnection(conn, fragment, error))
+
+
 class TestUpgradeEmptyVersions:
     @pytest.mark.asyncio
     async def test_no_op_with_empty_list(self, db):
@@ -151,6 +189,72 @@ class TestDuplicateMigrationNameError:
 
         with pytest.raises(DuplicateMigrationNameError, match="same_name"):
             DatabaseUpgrader(db_client, [m0, m1], _make_context())
+
+
+class TestMigrationErrorIsDiagnosable:
+    @pytest.mark.asyncio
+    async def test_message_names_migration_and_keeps_cause(self, db):
+        db_client, _ = db
+        cause = RuntimeError("no such column: foo")
+        upgrader = DatabaseUpgrader(
+            db_client, [FailingMigration("add_foo", cause)], _make_context()
+        )
+
+        with pytest.raises(MigrationError) as excinfo:
+            await upgrader.upgrade()
+
+        assert "add_foo" in str(excinfo.value)
+        assert "no such column: foo" in str(excinfo.value)
+        assert excinfo.value.__cause__ is cause
+
+    @pytest.mark.asyncio
+    async def test_record_insert_failure_names_migration(self, db):
+        _, conn = db
+        db_client = _failing_client(
+            conn, "INSERT INTO migrations", sqlite3.OperationalError("disk I/O error")
+        )
+        upgrader = DatabaseUpgrader(
+            db_client, [FakeMigration("drops_table")], _make_context()
+        )
+
+        with pytest.raises(MigrationError) as excinfo:
+            await upgrader.upgrade()
+
+        assert "drops_table" in str(excinfo.value)
+        assert "disk I/O error" in str(excinfo.value)
+        assert excinfo.value.__cause__ is not None
+
+    @pytest.mark.asyncio
+    async def test_migrations_table_failure_is_identified(self, db):
+        _, conn = db
+        db_client = _failing_client(
+            conn,
+            "CREATE TABLE IF NOT EXISTS migrations",
+            sqlite3.OperationalError("database is locked"),
+        )
+        upgrader = DatabaseUpgrader(db_client, [FakeMigration("any")], _make_context())
+
+        with pytest.raises(MigrationError) as excinfo:
+            await upgrader.upgrade()
+
+        assert "migrations table" in str(excinfo.value)
+        assert "database is locked" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_ahead_of_time_is_not_wrapped(self, db):
+        db_client, conn = db
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
+        )
+        conn.commit()
+        await _insert_migration_record(conn, 0, "from_the_future")
+
+        upgrader = DatabaseUpgrader(
+            db_client, [FakeMigration("known")], _make_context()
+        )
+
+        with pytest.raises(MigrationAheadOfTime, match="from_the_future"):
+            await upgrader.upgrade()
 
 
 class TestUpgradeAppliesOnlyPendingMigrations:

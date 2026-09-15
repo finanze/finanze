@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 import os
 import socket
@@ -68,9 +69,14 @@ from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_gains_timeline import GetGainsTimelineImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
+from application.use_cases.get_market_forecast_closed_positions import (
+    GetMarketForecastClosedPositionsImpl,
+)
+from application.use_cases.get_market_forecast_pnl import GetMarketForecastPnlImpl
 from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
@@ -103,6 +109,8 @@ from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
+from application.use_cases.get_telemetry_consent import GetTelemetryConsentImpl
+from application.use_cases.update_telemetry_consent import UpdateTelemetryConsentImpl
 from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
@@ -112,6 +120,7 @@ from application.use_cases.user_logout import UserLogoutImpl
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
+from domain.telemetry import TelemetryContext
 from domain.user_login import LoginRequest
 from infrastructure.client.cloud.backup.backup_client import BackupClient
 from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
@@ -119,6 +128,7 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
 )
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
+from infrastructure.client.crypto.zerion.zerion_client import ZerionClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
 from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
@@ -128,13 +138,23 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
     LitecoinFetcher,
 )
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
+from infrastructure.client.entity.crypto.zerion.zerion_fetcher import ZerionFetcher
 from infrastructure.client.entity.exchange.binance.binance_fetcher import (
     BinanceFetcher,
+)
+from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+    PolymarketFetcher,
 )
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
 from infrastructure.client.entity.financial.b100.b100_fetcher import B100Fetcher
+from infrastructure.client.entity.financial.crescenta.crescenta_fetcher import (
+    CrescentaFetcher,
+)
+from infrastructure.client.entity.financial.trading212.trading212_fetcher import (
+    Trading212Fetcher,
+)
 from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
 from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import IBKRFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
@@ -187,7 +207,13 @@ from infrastructure.cloud.backup.backup_processor_adapter import (
 )
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
-from infrastructure.config.server_details_adapter import ServerDetailsAdapter
+from infrastructure.config.server_details_adapter import (
+    ServerDetailsAdapter,
+    detect_distribution,
+    detect_os,
+    detect_os_version,
+    resolve_version,
+)
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
 from infrastructure.crypto.public_key_derivation_adapter import (
@@ -249,6 +275,12 @@ from infrastructure.repository.real_estate.real_estate_repository import (
 from infrastructure.repository.networth_timeline.networth_timeline_repository import (
     NetworthTimelineSQLRepository,
 )
+from infrastructure.repository.gains_timeline.gains_timeline_repository import (
+    GainsTimelineSQLRepository,
+)
+from infrastructure.repository.instrument_history.instrument_price_history_repository import (
+    InstrumentPriceHistorySQLRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
 from infrastructure.repository.tracked_updates.tracked_updates_repository import (
@@ -264,6 +296,9 @@ from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
 from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
+from infrastructure.telemetry.file_telemetry_consent import FileTelemetryConsent
+from infrastructure.telemetry.noop_error_reporter import NoopErrorReporter
+from infrastructure.telemetry.sentry_error_reporter import SentryErrorReporter
 from infrastructure.user_files.user_data_manager import UserDataManager
 
 
@@ -272,7 +307,47 @@ class FinanzeServer:
         self._args = args
         self._quart_app = None
         self._db_client = None
+        self._financial_entity_fetchers = None
+        self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
+
+    async def _setup_error_reporting(self, consent_port: FileTelemetryConsent):
+        dsn = os.getenv("FINANZE_ERRORS_DSN")
+        if not dsn:
+            return
+
+        self._error_reporter = SentryErrorReporter(
+            dsn=dsn,
+            environment=os.getenv("FINANZE_ENVIRONMENT", "production"),
+            release=resolve_version(),
+        )
+
+        try:
+            consent = await consent_port.get()
+        except Exception:
+            self._log.warning("Could not read telemetry consent", exc_info=True)
+            return
+
+        self._error_reporter.set_context(
+            TelemetryContext(
+                environment=os.getenv("FINANZE_ENVIRONMENT", "production"),
+                release=resolve_version(),
+                operative_system=detect_os(),
+                os_version=detect_os_version(),
+                distribution=detect_distribution(),
+                install_id=consent.install_id,
+            )
+        )
+        self._error_reporter.set_enabled(consent.error_reporting)
+
+    def _handle_loop_exception(self, loop, context):
+        loop.default_exception_handler(context)
+
+        exception = context.get("exception")
+        if exception:
+            self._error_reporter.capture_exception(
+                exception, tags={"phase": "event_loop"}
+            )
 
     async def _init(self):
         args = self._args
@@ -285,6 +360,9 @@ class FinanzeServer:
         db_manager = DBManager(db_client)
         data_manager = UserDataManager(args.data_dir)
 
+        telemetry_consent_port = FileTelemetryConsent(args.data_dir)
+        await self._setup_error_reporting(telemetry_consent_port)
+
         static_upload_dir = args.data_dir / Path("static")
 
         config_loader = ConfigLoader()
@@ -292,8 +370,10 @@ class FinanzeServer:
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
         ethplorer_client = EthplorerClient()
+        zerion_client = ZerionClient()
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
+        polymarket_fetcher = PolymarketFetcher()
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -303,6 +383,7 @@ class FinanzeServer:
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
             domain.native_entities.BSC: BSCFetcher(etherscan_client, ethplorer_client),
+            domain.native_entities.ZERION: ZerionFetcher(zerion_client),
         }
 
         if os.getenv("E2E_TEST_MODE", "").strip() == "1":
@@ -326,8 +407,13 @@ class FinanzeServer:
                 domain.native_entities.DEGIRO: DegiroFetcher(),
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
+                domain.native_entities.CRESCENTA: CrescentaFetcher(),
+                domain.native_entities.TRADING212: Trading212Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
+
+        self._financial_entity_fetchers = financial_entity_fetchers
 
         external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),
@@ -342,6 +428,7 @@ class FinanzeServer:
             ExternalIntegrationId.GOCARDLESS: gocardless_client,
             ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
+            ExternalIntegrationId.ZERION: zerion_client,
         }
 
         sheets_adapter = SheetsAdapter(sheets_initiator)
@@ -378,6 +465,10 @@ class FinanzeServer:
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)
         networth_timeline_repository = NetworthTimelineSQLRepository(client=db_client)
+        gains_timeline_repository = GainsTimelineSQLRepository(client=db_client)
+        instrument_price_history_repository = InstrumentPriceHistorySQLRepository(
+            client=db_client
+        )
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
@@ -414,6 +505,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         register_user = RegisterUserImpl(
             db_manager,
@@ -421,6 +513,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
         change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
         server_options_port = ServerDetailsAdapter(args)
@@ -444,6 +537,7 @@ class FinanzeServer:
             config_loader,
             sheets_initiator,
             cloud_register,
+            self._error_reporter,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -478,6 +572,7 @@ class FinanzeServer:
             loan_calculator,
             real_estate_repository,
             feature_flag_port,
+            self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -489,6 +584,7 @@ class FinanzeServer:
             external_integration_repository,
             transaction_handler,
             public_key_derivation,
+            self._error_reporter,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
             entity_repository,
@@ -565,11 +661,23 @@ class FinanzeServer:
         )
         get_settings = GetSettingsImpl(config_loader)
         update_settings = UpdateSettingsImpl(config_loader)
+        get_telemetry_consent = GetTelemetryConsentImpl(telemetry_consent_port)
+        update_telemetry_consent = UpdateTelemetryConsentImpl(
+            telemetry_consent_port, self._error_reporter
+        )
         get_entities_position = GetPositionImpl(position_repository, entity_repository)
         get_contributions = GetContributionsImpl(
             auto_contrib_repository, entity_repository
         )
         get_historic = GetHistoricImpl(historic_repository, entity_repository)
+        get_gains_timeline = GetGainsTimelineImpl(
+            gains_timeline_repository,
+            exchange_rate_storage,
+            entity_repository,
+            historic_metal_price_client,
+            instrument_provider,
+            instrument_price_history_repository,
+        )
         get_networth_timeline = GetNetworthTimelineImpl(
             networth_timeline_repository,
             exchange_rate_storage,
@@ -579,6 +687,17 @@ class FinanzeServer:
         )
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
+        )
+        market_forecast_provider = polymarket_fetcher
+        get_market_forecast_pnl = GetMarketForecastPnlImpl(
+            entity_account_repository,
+            credentials_port,
+            market_forecast_provider,
+        )
+        get_market_forecast_closed_positions = GetMarketForecastClosedPositionsImpl(
+            entity_account_repository,
+            credentials_port,
+            market_forecast_provider,
         )
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
@@ -620,7 +739,9 @@ class FinanzeServer:
             crypto_wallet_repository
         )
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
-            crypto_wallet_repository
+            crypto_wallet_repository,
+            position_repository,
+            transaction_handler,
         )
         get_crypto_wallet_addresses = GetCryptoWalletAddressesImpl(
             crypto_wallet_repository
@@ -790,6 +911,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         update_tracked_loans = UpdateTrackedLoansImpl(
             position_port=position_repository,
@@ -798,6 +920,7 @@ class FinanzeServer:
             snapshot_writer=manual_position_snapshot_writer,
             throttle_port=tracked_updates_repository,
             transaction_handler_port=transaction_handler,
+            error_reporter=self._error_reporter,
         )
         settle_pending_flow = SettlePendingFlowImpl(
             pending_flow_port=pending_flow_repository,
@@ -865,7 +988,7 @@ class FinanzeServer:
 
         self._log.info("Setting up REST API...")
 
-        self._quart_app = quart(static_upload_dir)
+        self._quart_app = quart(static_upload_dir, self._error_reporter)
         await register_routes(
             self._quart_app,
             user_login,
@@ -889,6 +1012,7 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_historic,
+            get_gains_timeline,
             get_networth_timeline,
             get_transactions,
             get_exchange_rates,
@@ -910,6 +1034,8 @@ class FinanzeServer:
             update_periodic_flow,
             delete_periodic_flow,
             get_periodic_flows,
+            get_market_forecast_pnl,
+            get_market_forecast_closed_positions,
             save_pending_flow,
             update_pending_flow,
             delete_pending_flow,
@@ -950,6 +1076,8 @@ class FinanzeServer:
             get_backup_settings,
             save_backup_settings,
             get_euribor_rates,
+            get_telemetry_consent,
+            update_telemetry_consent,
         )
 
         self._log.info("Warming up exchange rates...")
@@ -980,6 +1108,12 @@ class FinanzeServer:
                 return
             else:
                 raise
+        except Exception as e:
+            self._error_reporter.capture_exception(e, tags={"phase": "startup"})
+            await self._error_reporter.flush()
+            raise
+
+        asyncio.get_running_loop().set_exception_handler(self._handle_loop_exception)
 
         self._log.info("Starting server...")
 
@@ -1001,15 +1135,29 @@ class FinanzeServer:
                 self._log.info(f"Port {self._args.port} is already in use.")
             else:
                 raise
-        except Exception:
+        except Exception as e:
             self._log.exception(
                 "An unexpected error occurred while running the server."
             )
+            self._error_reporter.capture_exception(e, tags={"phase": "runtime"})
             raise
         finally:
             self._log.info("Finanze server shutting down.")
+            await self._error_reporter.flush()
+            await self._close_financial_entity_fetchers()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _close_financial_entity_fetchers(self):
+        fetchers = self._financial_entity_fetchers or {}
+        for fetcher in fetchers.values():
+            close = getattr(fetcher, "close", None)
+            if close is None:
+                continue
+            try:
+                await close()
+            except Exception:
+                self._log.debug("Error closing financial entity fetcher", exc_info=True)
 
     def _check_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

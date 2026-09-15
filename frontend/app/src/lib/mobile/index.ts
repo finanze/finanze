@@ -1,4 +1,5 @@
 import { isNativeMobile } from "@/lib/platform"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 
 export async function preinit(): Promise<void> {
   if (!__MOBILE__) return
@@ -82,7 +83,11 @@ export function connectBackgroundWorker(username: string): void {
 
   // Fire-and-forget: must not block backend or frontend.
   import("@/lib/pyodide/init").then(({ connectBackgroundWorker }) => {
-    connectBackgroundWorker(username).catch(() => undefined)
+    connectBackgroundWorker(username).catch(error => {
+      import("@/lib/telemetry").then(({ reportError }) => {
+        reportError(error, { phase: "background_worker_connect" })
+      })
+    })
   })
 }
 
@@ -116,6 +121,13 @@ export async function backgroundGetNetworthTimeline<T = unknown>(query?: {
 }): Promise<T> {
   const { backgroundGetNetworthTimeline } = await import("@/lib/pyodide/init")
   return backgroundGetNetworthTimeline(query) as Promise<T>
+}
+
+export async function backgroundGetGainsTimeline<T = unknown>(
+  query: GainsTimelineQuery,
+): Promise<T> {
+  const { backgroundGetGainsTimeline } = await import("@/lib/pyodide/init")
+  return backgroundGetGainsTimeline(query) as Promise<T>
 }
 
 export function hideSplashScreen() {

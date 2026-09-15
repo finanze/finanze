@@ -5,6 +5,7 @@ from typing import Optional
 
 from application.ports.instrument_info_provider import InstrumentInfoProvider
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InstrumentProviderUnavailable
 from domain.instrument import (
     InstrumentDataRequest,
     InstrumentInfo,
@@ -18,7 +19,7 @@ MAX_INSTRUMENTS_RETURNED = 15
 class InstrumentProviderAdapter(InstrumentInfoProvider):
     def __init__(self, enabled_clients: Optional[list[str]] = None):
         if enabled_clients is None:
-            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je", "le"]
+            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je", "jeh", "le"]
 
         self._clients_enabled = {name.lower() for name in enabled_clients}
         self._log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         self._tv = None
         self._ee = None
         self._je = None
+        self._jeh = None
         self._le = None
 
         if "ft" in self._clients_enabled:
@@ -63,6 +65,13 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
             self._je = JustEtfClient()
 
+        if "jeh" in self._clients_enabled:
+            from infrastructure.client.instrument.justetf_history_client import (
+                JustEtfHistoryClient,
+            )
+
+            self._jeh = JustEtfHistoryClient()
+
         if "le" in self._clients_enabled:
             from infrastructure.client.instrument.local_etf_client import LocalEtfClient
 
@@ -94,7 +103,12 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
     ) -> list[InstrumentOverview]:
         if self._tv is not None:
             try:
-                return await self._tv.search(request)
+                results = await self._tv.search(request)
+                if results:
+                    return results
+                self._log.debug(
+                    "TradingViewClient returned no results, falling back to YFinanceClient"
+                )
             except Exception:
                 self._log.exception(
                     "TradingViewClient search failed, falling back to YFinanceClient"
@@ -110,7 +124,12 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
     ) -> list[InstrumentOverview]:
         if self._finect is not None:
             try:
-                return await self._finect.search(request)
+                results = await self._finect.search(request)
+                if results:
+                    return results
+                self._log.debug(
+                    "FinectClient returned no results, falling back to FtClient"
+                )
             except Exception:
                 self._log.exception(
                     "FinectClient search failed, falling back to FtClient"
@@ -118,7 +137,12 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         if self._ft is not None:
             try:
-                return await self._ft.search(request)
+                results = await self._ft.search(request)
+                if results:
+                    return results
+                self._log.debug(
+                    "FtClient returned no results, falling back to ExtraEtfClient/YFinanceClient"
+                )
             except Exception:
                 self._log.exception(
                     "FtClient search failed, falling back to ExtraEtfClient/YFinanceClient"
@@ -126,7 +150,12 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         if request.type == InstrumentType.ETF and self._ee is not None:
             try:
-                return await self._ee.search(request)
+                results = await self._ee.search(request)
+                if results:
+                    return results
+                self._log.debug(
+                    "ExtraEtfClient returned no results, falling back to YFinanceClient"
+                )
             except Exception:
                 self._log.exception(
                     "ExtraEtfClient search failed, falling back to YFinanceClient"
@@ -134,7 +163,9 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         if self._yf is not None:
             try:
-                return await self._yf.lookup(request)
+                results = await self._yf.lookup(request)
+                if results:
+                    return results
             except Exception:
                 if request.type == InstrumentType.ETF:
                     self._log.exception(
@@ -181,6 +212,76 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         return self._normalize_info(info)
 
+    def _history_chain(
+        self, instrument_type: InstrumentType, preferred_source: Optional[str]
+    ) -> list[tuple[str, object]]:
+        if instrument_type == InstrumentType.STOCK:
+            chain = [("yfinance", self._yf)]
+        elif instrument_type == InstrumentType.ETF:
+            chain = [
+                ("finect", self._finect),
+                ("justetf", self._jeh),
+                ("yfinance", self._yf),
+            ]
+        else:
+            chain = [("finect", self._finect), ("yfinance", self._yf)]
+
+        chain = [(source, client) for source, client in chain if client is not None]
+        chain.sort(key=lambda entry: entry[0] != preferred_source)
+        return chain
+
+    async def get_history(
+        self,
+        request: InstrumentDataRequest,
+        from_date,
+        to_date,
+        preferred_symbol=None,
+        preferred_source=None,
+    ):
+        failed = False
+        for source, client in self._history_chain(request.type, preferred_source):
+            symbol = preferred_symbol if source == preferred_source else None
+            try:
+                points, resolved, resolved_source = await client.get_history(
+                    request, from_date, to_date, symbol
+                )
+                if points:
+                    return points, resolved, resolved_source
+                self._log.debug("%s returned no history, trying next provider", source)
+            except Exception:
+                failed = True
+                self._log.exception(
+                    "%s get_history failed, trying next provider", source
+                )
+        if failed:
+            raise InstrumentProviderUnavailable(
+                request.isin or request.ticker or request.name or ""
+            )
+        return [], None, None
+
+    async def get_splits(
+        self,
+        request: InstrumentDataRequest,
+        from_date,
+        to_date,
+        preferred_symbol=None,
+        preferred_source=None,
+    ):
+        if self._yf is None:
+            return None
+        try:
+            return await self._yf.get_splits(
+                request,
+                from_date,
+                to_date,
+                preferred_symbol if preferred_source == "yfinance" else None,
+            )
+        except Exception:
+            self._log.exception(
+                "InstrumentProviderAdapter get_splits failed, returning None"
+            )
+            return None
+
     async def _get_instrument_info(
         self, query: str, instrument_type: InstrumentType
     ) -> Optional[InstrumentInfo]:
@@ -190,7 +291,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                 if info:
                     return info
                 else:
-                    self._log.warning(
+                    self._log.debug(
                         "FinectClient returned no info, falling back to Yfinance"
                     )
             except Exception:
@@ -200,7 +301,12 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         if self._yf is not None:
             try:
-                return await self._yf.get_instrument_info(query, instrument_type)
+                info = await self._yf.get_instrument_info(query, instrument_type)
+                if info is not None:
+                    return info
+                self._log.debug(
+                    "YFinanceClient returned no info, falling back to JustEtfClient"
+                )
             except Exception:
                 if instrument_type == InstrumentType.ETF:
                     self._log.exception(
@@ -212,15 +318,15 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         if self._je is not None:
             try:
                 res = await self._je.get_instrument_info(query, instrument_type)
-                if res.price is not None:
+                if res is not None and res.price is not None:
                     return res
                 else:
-                    self._log.warning(
-                        "JustEtfClient returned info with no price, falling back to YFinanceClient"
+                    self._log.debug(
+                        "JustEtfClient returned no usable info, falling back to ExtraEtfClient"
                     )
             except Exception:
                 self._log.exception(
-                    "JustEtfClient get_instrument_info failed, returning None"
+                    "JustEtfClient get_instrument_info failed, falling back to ExtraEtfClient"
                 )
 
         if self._ee is not None:

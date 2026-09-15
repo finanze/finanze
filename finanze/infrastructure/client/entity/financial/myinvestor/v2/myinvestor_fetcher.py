@@ -376,7 +376,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     )
                 currency = tx["currency"]
                 name = tx["concept"].strip()
-                amount = abs(Dezimal(tx["amount"]))
+                raw_amount = Dezimal(tx["amount"])
+                amount = abs(raw_amount)
 
                 if tx_class == "MOVIMIENTOS DEPOSITOS":
                     if raw_tx_type == "ABONO LIQUIDAC DEPO":
@@ -465,6 +466,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
                 elif tx_class == "0":
                     if raw_tx_type == "INTERESES S/F":
+                        amount = raw_amount
                         retentions = amount * CAPITAL_GAINS_BASE_TAX
                         interest_txs.append(
                             _map_account_tx(

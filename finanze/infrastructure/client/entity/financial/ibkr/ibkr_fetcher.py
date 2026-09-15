@@ -45,6 +45,9 @@ class IBKRFetcher(FinancialEntityFetcher):
             login_params.credentials, login_params.options, login_params.session
         )
 
+    async def close(self) -> None:
+        await self._client.close()
+
     async def global_position(self) -> GlobalPosition:
         account_id = self._client.account_id
         if not account_id:
@@ -141,7 +144,8 @@ class IBKRFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        to_date = date.today()
+        # Statements only cover closed days, the current one is not reportable yet
+        to_date = date.today() - timedelta(days=1)
         all_isin_map: dict[str, str] = {}
         all_investment_txs: list[StockTx] = []
         all_account_txs: list[AccountTx] = []

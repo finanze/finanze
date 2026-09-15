@@ -9,6 +9,7 @@ interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
   onClose?: () => void
   isAnimating?: boolean
   bottomOffsetClassName?: string
+  action?: React.ReactNode
 }
 
 const variantConfig = {
@@ -43,6 +44,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       children,
       isAnimating,
       bottomOffsetClassName,
+      action,
       ...props
     },
     ref,
@@ -64,6 +66,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
         <div className="flex-1 text-sm text-foreground leading-snug">
           {children}
         </div>
+        {action}
         {onClose && (
           <button
             onClick={onClose}

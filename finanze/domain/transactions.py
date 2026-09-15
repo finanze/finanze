@@ -7,7 +7,11 @@ from domain.base import BaseData
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
-from domain.global_position import EquityType, FundType, ProductType
+from domain.global_position import (
+    EquityType,
+    FundType,
+    ProductType,
+)
 from pydantic.dataclasses import dataclass
 
 
@@ -90,6 +94,18 @@ class CryptoCurrencyTx(BaseInvestmentTx):
 
 
 @dataclass(kw_only=True)
+class MarketForecastTx(BaseInvestmentTx):
+    symbol: str
+    size: Dezimal
+    price: Dezimal
+    fees: Dezimal
+    contract_address: Optional[str] = None
+    net_amount: Optional[Dezimal] = None
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
+
+
+@dataclass(kw_only=True)
 class FundTx(BaseInvestmentTx):
     shares: Dezimal
     price: Dezimal
@@ -156,4 +172,10 @@ class TransactionQueryRequest:
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     types: Optional[list[TxType]] = None
+    historic_entry_id: Optional[UUID] = None
+
+
+@dataclass
+class AddManualTransactionRequest:
+    txs: list[BaseTx]
     historic_entry_id: Optional[UUID] = None

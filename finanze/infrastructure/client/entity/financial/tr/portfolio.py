@@ -55,13 +55,22 @@ class Portfolio:
             await self.tr.unsubscribe(subscription_id)
 
         isins = set()
+        valid_positions = []
         for pos in self.portfolio:
-            isins.add(pos["instrumentId"])
+            isin = pos.get("instrumentId")
+            if not isin:
+                self._log.warning("Skipping portfolio position without instrumentId")
+                continue
+            isins.add(isin)
+            valid_positions.append(pos)
+        self.portfolio = valid_positions
 
         # extend portfolio with watchlist elements
         if self.watchlist:
             for pos in self.watchlist:
-                isin = pos["instrumentId"]
+                isin = pos.get("instrumentId")
+                if not isin:
+                    continue
                 if isin not in isins:
                     isins.add(isin)
                     self.portfolio.append(pos)
@@ -79,8 +88,12 @@ class Portfolio:
             if subscription["type"] == "instrument":
                 await self.tr.unsubscribe(subscription_id)
                 pos = subscriptions.pop(subscription_id, None)
-                pos["name"] = response["shortName"]
-                pos["exchangeIds"] = response["exchangeIds"]
+                if pos is None:
+                    continue
+                pos["name"] = (response or {}).get("shortName") or pos.get(
+                    "instrumentId"
+                )
+                pos["exchangeIds"] = (response or {}).get("exchangeIds") or []
             else:
                 print(
                     f"unmatched subscription of type '{subscription['type']}':\n{preview(response)}"
@@ -90,11 +103,10 @@ class Portfolio:
         self._log.info("Subscribing to tickers...")
         subscriptions = {}
         for pos in self.portfolio:
-            isin = pos["instrumentId"]
-            if len(pos["exchangeIds"]) > 0:
-                subscription_id = await self.tr.ticker(
-                    isin, exchange=pos["exchangeIds"][0]
-                )
+            isin = pos.get("instrumentId")
+            exchange_ids = pos.get("exchangeIds") or []
+            if exchange_ids:
+                subscription_id = await self.tr.ticker(isin, exchange=exchange_ids[0])
                 subscriptions[subscription_id] = pos
 
         self._log.info("Waiting for tickers...")
@@ -111,10 +123,14 @@ class Portfolio:
             if subscription["type"] == "ticker":
                 await self.tr.unsubscribe(subscription_id)
                 pos = subscriptions.pop(subscription_id, None)
-                pos["price"] = response["last"]["price"]
+                if pos is None:
+                    continue
+                pos["price"] = ((response or {}).get("last") or {}).get("price")
+                if pos["price"] is None:
+                    continue
                 # Bond handling
                 # Identify bonds by parsing the name - bond names are like "... month year"
-                if bond_pattern.search(pos["name"]):
+                if bond_pattern.search(pos.get("name") or ""):
                     # Bond prices are per €100 face value
                     pos["price"] = Decimal(pos["price"]) / 100
 
@@ -134,9 +150,9 @@ class Portfolio:
         # does not deliver a price. Then we kick it out of the list and log this.
         portfolionew = []
         for pos in self.portfolio:
-            if "price" not in pos:
+            if "price" not in pos or pos.get("price") is None:
                 print(
-                    f"Missing price for {pos['name']} ({pos['instrumentId']}), removing from result."
+                    f"Missing price for {pos.get('name')} ({pos.get('instrumentId')}), removing from result."
                 )
             else:
                 portfolionew.append(pos)

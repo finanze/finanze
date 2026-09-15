@@ -28,6 +28,7 @@ import {
   updateTrackedLoans,
 } from "@/services/api"
 import { waitForLazyInit } from "@/lib/mobile"
+import { reportError } from "@/lib/telemetry"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
@@ -73,6 +74,7 @@ interface AppContextType {
   toast: {
     message: React.ReactNode
     type: "success" | "error" | "warning" | "info" | null
+    reportable: boolean
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
@@ -89,10 +91,15 @@ interface AppContextType {
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   updateEntityLastFetch: (entityId: string, features: string[]) => void
   updateEntityVirtualFeatures: (entityId: string, features: string[]) => void
-  updateEntityAccount: (entityId: string, accountId: string) => void
+  updateEntityAccount: (
+    entityId: string,
+    accountId: string,
+    accountName?: string | null,
+  ) => void
   showToast: (
     message: React.ReactNode,
     type: "success" | "error" | "warning" | "info",
+    options?: { reportable?: boolean },
   ) => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
@@ -220,6 +227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<{
     message: React.ReactNode
     type: "success" | "error" | "warning" | "info" | null
+    reportable: boolean
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
@@ -263,8 +271,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (
       message: React.ReactNode,
       type: "success" | "error" | "warning" | "info",
+      // Expected outcomes such as form validation opt out of being reportable.
+      options?: { reportable?: boolean },
     ) => {
-      setToast({ message, type })
+      setToast({ message, type, reportable: options?.reportable ?? true })
       setTimeout(
         () => {
           setToast(null)
@@ -453,17 +463,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const updateEntityAccount = useCallback(
-    (entityId: string, accountId: string) => {
+    (entityId: string, accountId: string, accountName?: string | null) => {
       setEntities(prevEntities =>
         prevEntities.map(entity => {
           if (entity.id !== entityId) return entity
           const existing = entity.accounts || []
-          if (existing.some(a => a.id === accountId)) return entity
+          const existingAccount = existing.find(a => a.id === accountId)
+          if (existingAccount) {
+            if (
+              accountName === undefined ||
+              existingAccount.name === accountName
+            ) {
+              return entity
+            }
+            return {
+              ...entity,
+              accounts: existing.map(account =>
+                account.id === accountId
+                  ? { ...account, name: accountName }
+                  : account,
+              ),
+            }
+          }
           return {
             ...entity,
             accounts: [
               ...existing,
-              { id: accountId, name: null, status: EntityStatus.CONNECTED },
+              {
+                id: accountId,
+                name: accountName ?? null,
+                status: EntityStatus.CONNECTED,
+              },
             ],
           }
         }),
@@ -512,6 +542,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error("Error updating manual positions quotes:", error)
+        reportError(error, { phase: "update_tracked_quotes" })
       }
     }
   }, [
@@ -538,6 +569,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error("Error updating tracked loans:", error)
+        reportError(error, { phase: "update_tracked_loans" })
       }
     }
   }, [LAST_UPDATE_LOANS_KEY, LOANS_UPDATE_INTERVAL_MS])

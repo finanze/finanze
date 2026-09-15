@@ -12,6 +12,7 @@ import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
@@ -48,6 +49,7 @@ import {
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
 import type { Entity } from "@/types"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   mergeManualDisplayItems,
@@ -346,6 +348,27 @@ function StocksViewContent({
   const [equityTypeFilter, setEquityTypeFilter] = useState<
     "all" | "STOCK" | "ETF"
   >("all")
+  const gainsQuery = useMemo<GainsTimelineQuery>(
+    () => ({
+      assets: [
+        {
+          product_type: ProductType.STOCK_ETF,
+          equity_types:
+            equityTypeFilter === "all"
+              ? undefined
+              : [
+                  equityTypeFilter === "STOCK"
+                    ? EquityType.STOCK
+                    : EquityType.ETF,
+                ],
+        },
+      ],
+      base_currency: defaultCurrency,
+      calculation_mode: "HYBRID",
+      entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+    }),
+    [defaultCurrency, equityTypeFilter, selectedEntities],
+  )
 
   const handleEquityTypeToggle = useCallback((type: "STOCK" | "ETF") => {
     setEquityTypeFilter(prev => (prev === type ? "all" : type))
@@ -707,71 +730,79 @@ function StocksViewContent({
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
               <CardContent className="pt-6">
-                <InvestmentDistributionChart
-                  data={chartData}
-                  title={t.common.distribution}
-                  locale={locale}
-                  currency={defaultCurrency}
-                  hideLegend
-                  containerClassName="overflow-visible w-full"
-                  variant="bare"
-                  onSliceClick={handleSliceClick}
-                  toggleConfig={{
-                    activeView: "asset",
-                    onViewChange: () => {},
-                    options: [{ value: "asset", label: t.investments.byAsset }],
-                  }}
-                  badges={[
-                    {
-                      icon: <Layers className="h-3 w-3" />,
-                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
-                    },
-                  ]}
-                  centerContent={{
-                    rawValue: totalValue,
-                    gainPercentage:
-                      totalInitialInvestment > 0
-                        ? ((totalValue - totalInitialInvestment) /
-                            totalInitialInvestment) *
-                          100
-                        : undefined,
-                    infoRows: [
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+                  <InvestmentDistributionChart
+                    data={chartData}
+                    title={t.common.distribution}
+                    locale={locale}
+                    currency={defaultCurrency}
+                    hideLegend
+                    containerClassName="overflow-visible w-full"
+                    variant="bare"
+                    onSliceClick={handleSliceClick}
+                    toggleConfig={{
+                      activeView: "asset",
+                      onViewChange: () => {},
+                      options: [
+                        { value: "asset", label: t.investments.byAsset },
+                      ],
+                    }}
+                    badges={[
                       {
-                        label: t.dashboard.totalValue,
-                        value: formatCurrency(
-                          totalValue,
-                          locale,
-                          defaultCurrency,
-                        ),
+                        icon: <Layers className="h-3 w-3" />,
+                        value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
                       },
-                      ...(totalInitialInvestment > 0
-                        ? [
-                            {
-                              label: t.dashboard.investedAmount,
-                              value: formatCurrency(
-                                totalInitialInvestment,
-                                locale,
-                                defaultCurrency,
-                              ),
-                            },
-                            {
-                              label: t.investments.sortAbsoluteGain,
-                              value: `${totalValue - totalInitialInvestment >= 0 ? "+" : ""}${formatCurrency(
-                                totalValue - totalInitialInvestment,
-                                locale,
-                                defaultCurrency,
-                              )}`,
-                              valueClassName:
-                                totalValue - totalInitialInvestment >= 0
-                                  ? "text-green-500"
-                                  : "text-red-500",
-                            },
-                          ]
-                        : []),
-                    ],
-                  }}
-                  orbitBubbles={orbitBubbleData}
-                />
+                    ]}
+                    centerContent={{
+                      rawValue: totalValue,
+                      gainPercentage:
+                        totalInitialInvestment > 0
+                          ? ((totalValue - totalInitialInvestment) /
+                              totalInitialInvestment) *
+                            100
+                          : undefined,
+                      infoRows: [
+                        {
+                          label: t.dashboard.totalValue,
+                          value: formatCurrency(
+                            totalValue,
+                            locale,
+                            defaultCurrency,
+                          ),
+                        },
+                        ...(totalInitialInvestment > 0
+                          ? [
+                              {
+                                label: t.dashboard.investedAmount,
+                                value: formatCurrency(
+                                  totalInitialInvestment,
+                                  locale,
+                                  defaultCurrency,
+                                ),
+                              },
+                              {
+                                label: t.investments.sortAbsoluteGain,
+                                value: `${totalValue - totalInitialInvestment >= 0 ? "+" : ""}${formatCurrency(
+                                  totalValue - totalInitialInvestment,
+                                  locale,
+                                  defaultCurrency,
+                                )}`,
+                                valueClassName:
+                                  totalValue - totalInitialInvestment >= 0
+                                    ? "text-green-500"
+                                    : "text-red-500",
+                              },
+                            ]
+                          : []),
+                      ],
+                    }}
+                    orbitBubbles={orbitBubbleData}
+                  />
+                  <InvestmentEvolutionTimeline
+                    query={gainsQuery}
+                    currency={defaultCurrency}
+                  />
+                </div>
               </CardContent>
             </Card>
 

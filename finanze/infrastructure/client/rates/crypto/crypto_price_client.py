@@ -60,13 +60,16 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         key_builder=lambda f, self, symbol, fiat_iso, **kwargs: (
             f"crypto_price:{symbol.upper()}_{fiat_iso.upper()}"
         ),
+        skip_cache_func=lambda result: result is None,
         serializer=PickleSerializer(),
     )
-    async def get_price(self, symbol: str, fiat_iso: str, **kwargs) -> Dezimal:
+    async def get_price(
+        self, symbol: str, fiat_iso: str, **kwargs
+    ) -> Optional[Dezimal]:
         return (
             (await self.get_multiple_prices_by_symbol([symbol], [fiat_iso], **kwargs))
             .get(symbol, {})
-            .get(fiat_iso, Dezimal(1))
+            .get(fiat_iso)
         )
 
     @cached(
@@ -74,6 +77,7 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         key_builder=lambda f, self, symbols, fiat_isos, **kwargs: (
             f"crypto_multi_price:{','.join(sorted(symbols)).upper()}_{','.join(sorted(fiat_isos)).upper()}"
         ),
+        skip_cache_func=lambda result: not result,
         serializer=PickleSerializer(),
     )
     async def get_multiple_prices_by_symbol(
@@ -85,6 +89,8 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
             symbol = symbols[0]
             try:
                 usd_price = await self._dia_client.get_price(symbol, timeout)
+                if usd_price is None or usd_price <= 0:
+                    raise ValueError(f"DIA returned a non-positive price for {symbol}")
                 prices = {}
                 for fiat_iso in fiat_isos:
                     converted = self._convert_from_usd(usd_price, fiat_iso)
@@ -133,6 +139,7 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
         key_builder=lambda f, self, addresses, fiat_isos, **kwargs: (
             f"crypto_addr_price:{','.join(sorted(a.lower() for a in addresses))}_{','.join(sorted(f.upper() for f in fiat_isos))}"
         ),
+        skip_cache_func=lambda result: not result,
         serializer=PickleSerializer(),
     )
     async def get_prices_by_addresses(

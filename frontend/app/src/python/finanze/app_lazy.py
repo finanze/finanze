@@ -23,6 +23,9 @@ class LazyComponents:
             from infrastructure.client.crypto.ethplorer.ethplorer_client import (
                 EthplorerClient,
             )
+            from infrastructure.client.crypto.zerion.zerion_client import (
+                ZerionClient,
+            )
             from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import (
                 BitcoinFetcher,
             )
@@ -35,6 +38,9 @@ class LazyComponents:
             )
             from infrastructure.client.entity.crypto.tron.tron_fetcher import (
                 TronFetcher,
+            )
+            from infrastructure.client.entity.crypto.zerion.zerion_fetcher import (
+                ZerionFetcher,
             )
             from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
                 CajamarFetcher,
@@ -72,11 +78,20 @@ class LazyComponents:
             from infrastructure.client.entity.financial.b100.b100_fetcher import (
                 B100Fetcher,
             )
+            from infrastructure.client.entity.financial.crescenta.crescenta_fetcher import (
+                CrescentaFetcher,
+            )
+            from infrastructure.client.entity.financial.trading212.trading212_fetcher import (
+                Trading212Fetcher,
+            )
             from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
                 WecityFetcher,
             )
             from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
                 BinanceFetcher,
+            )
+            from infrastructure.client.entity.exchange.polymarket.polymarket_fetcher import (
+                PolymarketFetcher,
             )
             from infrastructure.client.financial.enablebanking.enablebanking_client import (
                 EnableBankingClient,
@@ -137,6 +152,12 @@ class LazyComponents:
             )
             from application.use_cases.fetch_external_financial_data import (
                 FetchExternalFinancialDataImpl,
+            )
+            from application.use_cases.get_market_forecast_closed_positions import (
+                GetMarketForecastClosedPositionsImpl,
+            )
+            from application.use_cases.get_market_forecast_pnl import (
+                GetMarketForecastPnlImpl,
             )
             from application.use_cases.disconnect_entity import DisconnectEntityImpl
             from application.use_cases.cancel_entity_login import (
@@ -237,8 +258,10 @@ class LazyComponents:
         if INCLUDE_CONNECTIONS:
             etherscan_client = EtherscanClient()
             ethplorer_client = EthplorerClient()
+            zerion_client = ZerionClient()
 
             enablebanking_client = EnableBankingClient()
+            polymarket_fetcher = PolymarketFetcher()
             external_entity_fetchers = {
                 ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(
                     enablebanking_client
@@ -255,6 +278,7 @@ class LazyComponents:
                 domain.native_entities.BSC: BSCFetcher(
                     etherscan_client, ethplorer_client
                 ),
+                domain.native_entities.ZERION: ZerionFetcher(zerion_client),
             }
             financial_entity_fetchers = {
                 domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
@@ -270,7 +294,10 @@ class LazyComponents:
                 domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
                 domain.native_entities.IBKR: IBKRFetcher(),
                 domain.native_entities.B100: B100Fetcher(),
+                domain.native_entities.CRESCENTA: CrescentaFetcher(),
+                domain.native_entities.TRADING212: Trading212Fetcher(),
                 domain.native_entities.BINANCE: BinanceFetcher(),
+                domain.native_entities.POLYMARKET: polymarket_fetcher,
             }
 
         public_key_derivation = PublicKeyDerivationAdapter()
@@ -282,6 +309,7 @@ class LazyComponents:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = (
                 enablebanking_client
             )
+            external_integrations[ExternalIntegrationId.ZERION] = zerion_client
 
         csv_tsv_adapter = CSVFileTableAdapter()
         table_rw_adapter = TableRWDispatcher(
@@ -340,6 +368,7 @@ class LazyComponents:
                 d.loan_calculator,
                 d.re_repo,
                 self._core.ff_client,
+                self._core.error_reporter,
             )
             self.fetch_crypto = FetchCryptoDataImpl(
                 d.position_repo,
@@ -351,6 +380,7 @@ class LazyComponents:
                 d.ext_int_repo,
                 d.tx_handler,
                 public_key_derivation,
+                self._core.error_reporter,
             )
             self.conn_crypto = ConnectCryptoWalletImpl(
                 d.wallet_repo,
@@ -402,6 +432,20 @@ class LazyComponents:
                 d.tx_handler,
             )
 
+            market_forecast_provider = polymarket_fetcher
+            self.get_market_forecast_pnl = GetMarketForecastPnlImpl(
+                d.entity_account_repo,
+                d.creds_repo,
+                market_forecast_provider,
+            )
+            self.get_market_forecast_closed_positions = (
+                GetMarketForecastClosedPositionsImpl(
+                    d.entity_account_repo,
+                    d.creds_repo,
+                    market_forecast_provider,
+                )
+            )
+
         self.derive_crypto = DeriveCryptoAddressesImpl(
             public_key_derivation, d.entity_repo
         )
@@ -447,7 +491,11 @@ class LazyComponents:
         self.update_settings = UpdateSettingsImpl(d.config_loader)
 
         self.up_crypto = UpdateCryptoWalletConnectionImpl(d.wallet_repo)
-        self.del_crypto = DeleteCryptoWalletConnectionImpl(d.wallet_repo)
+        self.del_crypto = DeleteCryptoWalletConnectionImpl(
+            d.wallet_repo,
+            d.position_repo,
+            d.tx_handler,
+        )
         self.get_wallet_addrs = GetCryptoWalletAddressesImpl(d.wallet_repo)
 
         self.save_commodities = SaveCommoditiesImpl(

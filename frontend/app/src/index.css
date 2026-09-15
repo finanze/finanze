@@ -218,6 +218,25 @@
   border-radius: 999px;
 }
 
+button,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+h1,
+h2,
+h3 {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+img {
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 #titlebar {
   user-select: none;
   app-region: drag;

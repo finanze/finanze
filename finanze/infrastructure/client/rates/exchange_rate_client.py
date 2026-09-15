@@ -12,7 +12,16 @@ AVAILABLE_CURRENCIES = ["EUR", "USD"]
 
 
 def _parse_rates(rates: dict) -> dict:
-    return {currency.upper(): Dezimal(rate) for currency, rate in rates.items()}
+    parsed = {}
+    for currency, rate in rates.items():
+        try:
+            value = Dezimal(rate)
+        except Exception:
+            continue
+        if value <= 0:
+            continue
+        parsed[currency.upper()] = value
+    return parsed
 
 
 class ExchangeRateClient(ExchangeRateProvider):
@@ -41,6 +50,7 @@ class ExchangeRateClient(ExchangeRateProvider):
     @cached(
         ttl=MATRIX_CACHE_TTL,
         key_builder=lambda f, self, **kwargs: "exchange_rate_matrix",
+        skip_cache_func=lambda result: not result,
         serializer=PickleSerializer(),
     )
     async def get_matrix(self, **kwargs) -> ExchangeRates:
@@ -71,7 +81,18 @@ class ExchangeRateClient(ExchangeRateProvider):
         return datetime.now().strftime(self.DATE_FORMAT)
 
     async def _load_rate_matrix(self, request_timeout: int):
+        loaded: ExchangeRates = {}
+        update_date = None
         for currency in AVAILABLE_CURRENCIES:
             result = await self._fetch_rates(currency, request_timeout=request_timeout)
-            self._update_date = datetime.strptime(result["date"], self.DATE_FORMAT)
-            self._rates[currency] = _parse_rates(result[currency.lower()])
+            rates = _parse_rates(result[currency.lower()])
+            if not rates:
+                self._log.warning(
+                    f"Empty rate set received for {currency}, keeping previous matrix"
+                )
+                return
+            update_date = datetime.strptime(result["date"], self.DATE_FORMAT)
+            loaded[currency] = rates
+
+        self._update_date = update_date
+        self._rates = loaded

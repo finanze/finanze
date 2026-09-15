@@ -26,6 +26,7 @@ import {
   CardFooter,
 } from "@/components/ui/Card"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
@@ -44,6 +45,7 @@ import {
   COMMODITY_SYMBOLS,
 } from "@/types/position"
 import { CommodityRegister } from "@/types"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import { saveCommodity } from "@/services/api"
 import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
 import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
@@ -88,6 +90,13 @@ export default function CommoditiesInvestmentPage() {
   const defaultCurrency = settings?.general?.defaultCurrency ?? "EUR"
   const displayUnit =
     settings?.general?.defaultCommodityWeightUnit || WeightUnit.TROY_OUNCE
+  const gainsQuery = useMemo<GainsTimelineQuery>(
+    () => ({
+      assets: [{ product_type: ProductType.COMMODITY }],
+      base_currency: defaultCurrency,
+    }),
+    [defaultCurrency],
+  )
 
   const [deleteTarget, setDeleteTarget] = useState<CommodityEntry | null>(null)
   const [commodities, setCommodities] = useState<CommodityEntry[]>([])
@@ -678,74 +687,82 @@ export default function CommoditiesInvestmentPage() {
         {commodities.length > 0 && (
           <Card className="-mx-6 rounded-none border-x-0">
             <CardContent className="pt-6">
-              <InvestmentDistributionChart
-                data={chartData}
-                title={t.common.distribution}
-                locale={locale}
-                currency={defaultCurrency}
-                hideLegend
-                containerClassName="overflow-visible w-full"
-                variant="bare"
-                onSliceClick={handleSliceClick}
-                orbitBubbles={orbitBubbleData}
-                toggleConfig={{
-                  activeView: "asset",
-                  onViewChange: () => {},
-                  options: [{ value: "asset", label: t.investments.byAsset }],
-                }}
-                badges={[
-                  {
-                    icon: <Layers className="h-3 w-3" />,
-                    value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
-                  },
-                  {
-                    icon: <Scale className="h-3 w-3" />,
-                    value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
-                    sensitive: true,
-                  },
-                ]}
-                centerContent={{
-                  rawValue: totalValue,
-                  gainPercentage:
-                    totalInitialInvestmentConverted > 0
-                      ? (percentageChange ?? undefined)
-                      : undefined,
-                  infoRows: [
+              <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+                <InvestmentDistributionChart
+                  data={chartData}
+                  title={t.common.distribution}
+                  locale={locale}
+                  currency={defaultCurrency}
+                  hideLegend
+                  containerClassName="overflow-visible w-full"
+                  variant="bare"
+                  onSliceClick={handleSliceClick}
+                  orbitBubbles={orbitBubbleData}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
                     {
-                      label: t.dashboard.totalValue,
-                      value: formatCurrency(
-                        totalValue,
-                        locale,
-                        defaultCurrency,
-                      ),
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
                     },
-                    ...(totalInitialInvestmentConverted > 0
-                      ? [
-                          {
-                            label: t.dashboard.investedAmount,
-                            value: formatCurrency(
-                              totalInitialInvestmentConverted,
-                              locale,
-                              defaultCurrency,
-                            ),
-                          },
-                          {
-                            label: t.investments.sortAbsoluteGain,
-                            value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
-                              totalValue - totalInitialInvestmentConverted,
-                              locale,
-                              defaultCurrency,
-                            )}`,
-                            valueClassName:
-                              totalValue - totalInitialInvestmentConverted >= 0
-                                ? "text-green-500"
-                                : "text-red-500",
-                          },
-                        ]
-                      : []),
-                  ],
-                }}
-              />
+                    {
+                      icon: <Scale className="h-3 w-3" />,
+                      value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
+                      sensitive: true,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      totalInitialInvestmentConverted > 0
+                        ? (percentageChange ?? undefined)
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.totalValue,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalInitialInvestmentConverted > 0
+                        ? [
+                            {
+                              label: t.dashboard.investedAmount,
+                              value: formatCurrency(
+                                totalInitialInvestmentConverted,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                            {
+                              label: t.investments.sortAbsoluteGain,
+                              value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
+                                totalValue - totalInitialInvestmentConverted,
+                                locale,
+                                defaultCurrency,
+                              )}`,
+                              valueClassName:
+                                totalValue - totalInitialInvestmentConverted >=
+                                0
+                                  ? "text-green-500"
+                                  : "text-red-500",
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
+                />
+                <InvestmentEvolutionTimeline
+                  supportsGains={false}
+                  query={gainsQuery}
+                  currency={defaultCurrency}
+                />
+              </div>
             </CardContent>
           </Card>
         )}
@@ -951,25 +968,29 @@ export default function CommoditiesInvestmentPage() {
                       </select>
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddForm(false)}
-                    >
-                      {t.common.cancel}
-                    </Button>
-                    <Button
-                      onClick={addNewEntry}
-                      disabled={
-                        !newEntry.name ||
-                        !newEntry.amount ||
-                        newEntry.amount <= 0
-                      }
-                    >
-                      {t.common.add}
-                    </Button>
-                  </div>
                 </CardContent>
+                <CardFooter className="flex w-full flex-wrap justify-end gap-2 pt-4 pb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddForm(false)}
+                    aria-label={t.common.cancel}
+                    title={t.common.cancel}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={addNewEntry}
+                    disabled={
+                      !newEntry.name || !newEntry.amount || newEntry.amount <= 0
+                    }
+                    aria-label={t.common.add}
+                    title={t.common.add}
+                    className="h-9 w-9 p-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </CardFooter>
               </Card>
             </motion.div>
           </motion.div>
@@ -1476,19 +1497,23 @@ export default function CommoditiesInvestmentPage() {
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap justify-end gap-2">
+                <CardFooter className="flex w-full flex-wrap justify-end gap-2 pt-4 pb-4">
                   <Button
                     variant="outline"
                     onClick={() => setEditingCommodityId(null)}
-                    className="whitespace-nowrap"
+                    aria-label={t.common.cancel}
+                    title={t.common.cancel}
+                    className="h-9 w-9 p-0"
                   >
-                    {t.common.cancel}
+                    <X className="h-4 w-4" />
                   </Button>
                   <Button
                     onClick={handleSaveEdit}
-                    className="whitespace-nowrap"
+                    aria-label={t.common.save}
+                    title={t.common.save}
+                    className="h-9 w-9 p-0"
                   >
-                    {t.common.save}
+                    <Save className="h-4 w-4" />
                   </Button>
                 </CardFooter>
               </Card>

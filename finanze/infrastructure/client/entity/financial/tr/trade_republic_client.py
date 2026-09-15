@@ -164,9 +164,10 @@ class TradeRepublicClient:
 
         if session and not login_options.force_new_session:
             self._inject_session(session)
-            if await self._resumable_session():
+            resume_result = await self._resumable_session()
+            if resume_result:
                 self._log.debug("Resuming session")
-                return EntityLoginResult(LoginResultCode.RESUMED)
+                return EntityLoginResult(resume_result)
 
         if waf_token:
             self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
@@ -317,14 +318,19 @@ class TradeRepublicClient:
         )
         return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-    async def _resumable_session(self) -> bool:
+    async def _resumable_session(self) -> LoginResultCode | None:
         try:
             await self._tr_api.settings()
         except httpx.HTTPStatusError:
             self._tr_api._weblogin = False
-            return False
-        else:
-            return True
+            return None
+
+        if not await self._tr_api.has_websocket_auth():
+            self._tr_api._weblogin = False
+            self._log.info("Stored session has no Trade Republic websocket token")
+            return LoginResultCode.LOGIN_REQUIRED
+
+        return LoginResultCode.RESUMED
 
     async def _initiate_weblogin(self) -> int | EntityLoginResult:
         r = await self._tr_api._websession.post(
@@ -502,8 +508,12 @@ class TradeRepublicClient:
         self._tr_api._weblogin = True
 
     async def close(self):
-        if self._tr_api and self._tr_api._ws:
-            await self._tr_api._ws.close()
+        if not self._tr_api:
+            return
+        try:
+            await self._tr_api.close()
+        except Exception:
+            self._log.debug("Error closing Trade Republic websocket", exc_info=True)
 
     @cached(ttl=120, noself=True)
     async def get_portfolio(self):

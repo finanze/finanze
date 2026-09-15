@@ -18,6 +18,7 @@ import {
 import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -68,6 +69,7 @@ import { DeleteHistoricEntryDialog } from "@/components/manual/DeleteHistoricEnt
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { unsettleManualInvestment } from "@/services/api"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import {
   mergeManualDisplayItems,
   type ManualDisplayItem,
@@ -526,6 +528,15 @@ function RealEstateViewContent({
   >({})
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
     {},
+  )
+  const gainsQuery = useMemo<GainsTimelineQuery>(
+    () => ({
+      assets: [{ product_type: ProductType.REAL_ESTATE_CF }],
+      base_currency: defaultCurrency,
+      calculation_mode: "HYBRID",
+      entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+    }),
+    [defaultCurrency, selectedEntities],
   )
 
   const toggleCardExpanded = useCallback((key: string) => {
@@ -1177,72 +1188,80 @@ function RealEstateViewContent({
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
               <CardContent className="pt-6">
-                <InvestmentDistributionChart
-                  data={chartData}
-                  title={t.common.distribution}
-                  locale={locale}
-                  currency={defaultCurrency}
-                  hideLegend
-                  containerClassName="overflow-visible w-full"
-                  variant="bare"
-                  onSliceClick={handleSliceClick}
-                  orbitBubbles={orbitBubbleData}
-                  orbitBubblesCollapsedHidden
-                  toggleConfig={{
-                    activeView: "asset",
-                    onViewChange: () => {},
-                    options: [{ value: "asset", label: t.investments.byAsset }],
-                  }}
-                  badges={[
-                    {
-                      icon: <Layers className="h-3 w-3" />,
-                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
-                    },
-                    {
-                      icon: <Percent className="h-3 w-3" />,
-                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
-                      sensitive: true,
-                    },
-                    {
-                      icon: <TrendingUp className="h-3 w-3" />,
-                      value: formatCurrency(
-                        totalProfit,
-                        locale,
-                        defaultCurrency,
-                      ),
-                      sensitive: true,
-                    },
-                  ]}
-                  centerContent={{
-                    rawValue: totalValue,
-                    gainPercentage:
-                      weightedAverageProfitability > 0
-                        ? weightedAverageProfitability
-                        : undefined,
-                    infoRows: [
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+                  <InvestmentDistributionChart
+                    data={chartData}
+                    title={t.common.distribution}
+                    locale={locale}
+                    currency={defaultCurrency}
+                    hideLegend
+                    containerClassName="overflow-visible w-full"
+                    variant="bare"
+                    onSliceClick={handleSliceClick}
+                    orbitBubbles={orbitBubbleData}
+                    orbitBubblesCollapsedHidden
+                    toggleConfig={{
+                      activeView: "asset",
+                      onViewChange: () => {},
+                      options: [
+                        { value: "asset", label: t.investments.byAsset },
+                      ],
+                    }}
+                    badges={[
                       {
-                        label: t.dashboard.investedAmount,
+                        icon: <Layers className="h-3 w-3" />,
+                        value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                      },
+                      {
+                        icon: <Percent className="h-3 w-3" />,
+                        value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                        sensitive: true,
+                      },
+                      {
+                        icon: <TrendingUp className="h-3 w-3" />,
                         value: formatCurrency(
-                          totalValue,
+                          totalProfit,
                           locale,
                           defaultCurrency,
                         ),
+                        sensitive: true,
                       },
-                      ...(totalProfit > 0
-                        ? [
-                            {
-                              label: t.investments.expectedProfit,
-                              value: formatCurrency(
-                                totalProfit,
-                                locale,
-                                defaultCurrency,
-                              ),
-                            },
-                          ]
-                        : []),
-                    ],
-                  }}
-                />
+                    ]}
+                    centerContent={{
+                      rawValue: totalValue,
+                      gainPercentage:
+                        weightedAverageProfitability > 0
+                          ? weightedAverageProfitability
+                          : undefined,
+                      infoRows: [
+                        {
+                          label: t.dashboard.investedAmount,
+                          value: formatCurrency(
+                            totalValue,
+                            locale,
+                            defaultCurrency,
+                          ),
+                        },
+                        ...(totalProfit > 0
+                          ? [
+                              {
+                                label: t.investments.expectedProfit,
+                                value: formatCurrency(
+                                  totalProfit,
+                                  locale,
+                                  defaultCurrency,
+                                ),
+                              },
+                            ]
+                          : []),
+                      ],
+                    }}
+                  />
+                  <InvestmentEvolutionTimeline
+                    query={gainsQuery}
+                    currency={defaultCurrency}
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -1961,7 +1980,7 @@ function RealEstateViewContent({
                         className="text-gray-400 dark:text-gray-500"
                       />
                       <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                        {item.interestRateFormatted}
+                        <Sensitive>{item.interestRateFormatted}</Sensitive>
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {t.investments.annually}
@@ -2018,11 +2037,13 @@ function RealEstateViewContent({
                       <div className="flex items-center gap-2 self-center">
                         <div className="flex flex-col items-end gap-1 text-right">
                           <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                            {item.invested.formatted ?? notAvailableLabel}
+                            <Sensitive>
+                              {item.invested.formatted ?? notAvailableLabel}
+                            </Sensitive>
                           </span>
                           {item.invested.original && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {item.invested.original}
+                              <Sensitive>{item.invested.original}</Sensitive>
                             </span>
                           )}
                         </div>
@@ -2033,7 +2054,7 @@ function RealEstateViewContent({
                               profitColor(item.netProfit.amount),
                             )}
                           >
-                            {profitDisplay}
+                            <Sensitive>{profitDisplay}</Sensitive>
                           </span>
                         </div>
                       </div>
@@ -2159,12 +2180,16 @@ function RealEstateViewContent({
                                                       amountColor,
                                                     )}
                                                   >
-                                                    {formattedAmount}
+                                                    <Sensitive>
+                                                      {formattedAmount}
+                                                    </Sensitive>
                                                   </span>
                                                 </div>
                                                 {amountDisplay.original && (
                                                   <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                                    {amountDisplay.original}
+                                                    <Sensitive>
+                                                      {amountDisplay.original}
+                                                    </Sensitive>
                                                   </span>
                                                 )}
                                               </button>
@@ -2230,11 +2255,16 @@ function RealEstateViewContent({
                                       profitColor(item.profit.amount),
                                     )}
                                   >
-                                    {item.profit.formatted ?? notAvailableLabel}
+                                    <Sensitive>
+                                      {item.profit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.profit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.profit.percentFormatted}
+                                      <Sensitive>
+                                        {item.profit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2248,12 +2278,16 @@ function RealEstateViewContent({
                                       profitColor(item.netProfit.amount),
                                     )}
                                   >
-                                    {item.netProfit.formatted ??
-                                      notAvailableLabel}
+                                    <Sensitive>
+                                      {item.netProfit.formatted ??
+                                        notAvailableLabel}
+                                    </Sensitive>
                                   </span>
                                   {item.netProfit.percentFormatted && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {item.netProfit.percentFormatted}
+                                      <Sensitive>
+                                        {item.netProfit.percentFormatted}
+                                      </Sensitive>
                                     </span>
                                   )}
                                 </div>
@@ -2269,8 +2303,10 @@ function RealEstateViewContent({
                                   >
                                     <span>{stat.label}:</span>
                                     <span className="font-medium text-gray-900 dark:text-gray-100">
-                                      {stat.amount.formatted ??
-                                        notAvailableLabel}
+                                      <Sensitive>
+                                        {stat.amount.formatted ??
+                                          notAvailableLabel}
+                                      </Sensitive>
                                     </span>
                                   </div>
                                 ))}
@@ -2284,8 +2320,10 @@ function RealEstateViewContent({
                                     >
                                       <span>{stat.label}:</span>
                                       <span className="font-medium text-gray-900 dark:text-gray-100">
-                                        {stat.amount.formatted ??
-                                          notAvailableLabel}
+                                        <Sensitive>
+                                          {stat.amount.formatted ??
+                                            notAvailableLabel}
+                                        </Sensitive>
                                       </span>
                                     </div>
                                   ))}

@@ -41,29 +41,9 @@ jobs:
           cache-dependency-path: frontend/app/pnpm-lock.yaml
 
       - name: Setup Python
-        shell: bash
-        run: |
-          brew update && brew install pyenv pyenv-virtualenv
-
-          export PYENV_ROOT="$HOME/.pyenv"
-          export PATH="$PYENV_ROOT/bin:$PATH"
-
-          eval "$(pyenv init --path)"
-          eval "$(pyenv init -)"
-          eval "$(pyenv virtualenv-init -)"
-
-          pyenv install --skip-existing 3.14.5
-
-          if ! pyenv virtualenvs --bare | grep -q "^finanze-mobile$"; then
-            pyenv virtualenv 3.14.5 finanze-mobile
-          fi
-
-          pyenv activate finanze-mobile
-          pyenv local finanze-mobile
-
-          echo "$PYENV_ROOT/bin" >> $GITHUB_PATH
-          echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
-          echo "$PYENV_ROOT/versions/finanze-mobile/bin" >> $GITHUB_PATH
+        uses: actions/setup-python@v7
+        with:
+          python-version: 3.14.5
 
       - name: Install Python build deps
         run: pip install python-minifier
@@ -71,7 +51,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
 
       - name: Install gomobile
         run: |
@@ -95,6 +75,8 @@ jobs:
 
       - name: Build mobile web assets
         working-directory: frontend/app
+        env:
+          BETTER_STACK_API_TOKEN: ""
         run: pnpm build:mobile
 
       - name: Sync Capacitor to iOS
@@ -151,7 +133,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.14.5
 
@@ -161,7 +143,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
 
       - name: Install gomobile
         run: |
@@ -190,6 +172,8 @@ jobs:
 
       - name: Build mobile web assets
         working-directory: frontend/app
+        env:
+          BETTER_STACK_API_TOKEN: ""
         run: pnpm build:mobile
 
       - name: Sync Capacitor to Android
@@ -212,6 +196,8 @@ jobs:
     needs: build-ios
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'ios'
     runs-on: macos-latest
+    env:
+      APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -250,6 +236,10 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
+
+      - name: Register Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver list --installed
 
       - name: Boot iOS Simulator
         run: |
@@ -317,6 +307,8 @@ jobs:
     needs: build-android
     if: (inputs.platform || 'both') == 'both' || (inputs.platform || 'both') == 'android'
     runs-on: ubuntu-latest
+    env:
+      APPIUM_HOME: ${{ github.workspace }}/e2e/mobile
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -354,6 +346,10 @@ jobs:
       - name: Install test dependencies
         working-directory: e2e/mobile
         run: pnpm install --frozen-lockfile
+
+      - name: Register Appium drivers
+        working-directory: e2e/mobile
+        run: pnpm exec appium driver list --installed
 
       - name: Pre-download Chromedriver
         run: |

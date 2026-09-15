@@ -72,6 +72,11 @@ import {
   ContributionQueryRequest,
   ManualContributionsRequest,
 } from "../types/contributions"
+import type {
+  MarketForecastClosedPositionsResponse,
+  MarketForecastPnlResponse,
+  MarketForecastPnlInterval,
+} from "../types/marketForecast"
 import {
   EntitiesPosition,
   PositionQueryRequest,
@@ -88,6 +93,7 @@ import type {
   NetworthTimeline,
   NetworthTimelineQuery,
 } from "../types/networthTimeline"
+import type { GainsTimeline, GainsTimelineQuery } from "../types/gainsTimeline"
 import {
   TransactionQueryRequest,
   TransactionsResult,
@@ -95,6 +101,7 @@ import {
 } from "../types/transactions"
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
+import { setTelemetryContext } from "@/lib/telemetry"
 import { AppSettings } from "@/context/AppContext"
 import {
   triggerDeferredInit,
@@ -102,6 +109,7 @@ import {
   backgroundUpdateQuotes,
   backgroundUpdateLoans,
   backgroundGetNetworthTimeline,
+  backgroundGetGainsTimeline,
 } from "@/lib/mobile"
 
 export interface ApiServerInfo {
@@ -266,6 +274,13 @@ export async function checkStatus(
 
   const result = await (await getApiClient()).get<StatusResponse>("/status")
 
+  setTelemetryContext({
+    userId: result.user?.id,
+    backendVersion: result.server?.version,
+    backendOs: result.server?.platform_type,
+    backendOsVersion: result.server?.platform_version,
+  })
+
   triggerDeferredInit()
 
   return result
@@ -363,6 +378,32 @@ export async function getTransactions(
   return (await getApiClient()).get(`/transactions${queryString}`)
 }
 
+export async function getMarketForecastPnl(
+  entityAccountIds?: string[],
+  interval: MarketForecastPnlInterval = "all",
+): Promise<MarketForecastPnlResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  params.append("interval", interval)
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/market-forecast/pnl${queryString}`)
+}
+
+export async function getMarketForecastClosedPositions(
+  entityAccountIds?: string[],
+): Promise<MarketForecastClosedPositionsResponse> {
+  const params = new URLSearchParams()
+  entityAccountIds?.forEach(entityAccountId =>
+    params.append("entity_account_id", entityAccountId),
+  )
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(
+    `/market-forecast/closed-positions${queryString}`,
+  )
+}
+
 export async function getHistoric(
   queryParams?: HistoricQueryRequest,
 ): Promise<Historic> {
@@ -427,7 +468,7 @@ export async function signup(
     if (error.status === 409 || error.status === 400) {
       return { success: false }
     }
-    if (error.status === 500) {
+    if (error.status === 500 || error.status === 503) {
       throw new Error("Server error", { cause: error })
     }
     throw new Error("Signup failed", { cause: error })
@@ -481,7 +522,7 @@ export async function updateTrackedLoans(): Promise<UpdateTrackedResult> {
 }
 
 export async function createManualTransaction(
-  request: ManualTransactionPayload,
+  request: ManualTransactionPayload | ManualTransactionPayload[],
 ): Promise<void> {
   return (await getApiClient()).post("/data/manual/transactions", request)
 }
@@ -853,6 +894,48 @@ export async function getNetworthTimeline(
   return (await getApiClient()).get(
     `/networth-timeline${queryString ? `?${queryString}` : ""}`,
   )
+}
+
+export async function getGainsTimeline(
+  query: GainsTimelineQuery,
+): Promise<GainsTimeline> {
+  if (isBackgroundUpdateAvailable()) {
+    return backgroundGetGainsTimeline<GainsTimeline>(query)
+  }
+
+  const params = new URLSearchParams()
+  params.append("base_currency", query.base_currency || "EUR")
+  for (const asset of query.assets) {
+    if (asset.asset_keys?.length) {
+      for (const assetKey of asset.asset_keys) {
+        params.append("asset", `${asset.product_type}:${assetKey}`)
+      }
+    } else {
+      params.append("product_type", asset.product_type)
+    }
+    for (const portfolioName of asset.portfolio_names || []) {
+      params.append("portfolio", portfolioName)
+    }
+    for (const equityType of asset.equity_types || []) {
+      params.append("equity_type", equityType)
+    }
+    for (const walletId of asset.wallet_ids || []) {
+      params.append("wallet_id", walletId)
+    }
+  }
+  for (const entityId of query.entities || []) {
+    params.append("entity", entityId)
+  }
+  if (query.from_date) params.append("from_date", query.from_date)
+  if (query.to_date) params.append("to_date", query.to_date)
+  if (query.accrue_fixed_income) {
+    params.append("accrue_fixed_income", query.accrue_fixed_income)
+  }
+  if (query.calculation_mode) {
+    params.append("calculation_mode", query.calculation_mode)
+  }
+
+  return (await getApiClient()).get(`/gains-timeline?${params.toString()}`)
 }
 
 export async function calculateSavings(

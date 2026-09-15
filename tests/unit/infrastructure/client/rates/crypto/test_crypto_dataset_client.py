@@ -132,6 +132,23 @@ class TestLookups:
         by_address = dataset.prices_by_addresses(["0xTOKEN"], ["EUR"])
         assert by_address == {"0xtoken": {"EUR": Dezimal("2700")}}
 
+    def test_prices_by_symbols_follows_dataset_order_for_shared_tickers(self):
+        client = CryptoDatasetClient()
+        raw = copy.deepcopy(CG_RAW)
+        raw["coins"].append(
+            {
+                "i": "impostor-btc",
+                "s": "btc",
+                "n": "Impostor",
+                "p": {"EUR": "0.000005"},
+            }
+        )
+        dataset = client._build(raw)
+
+        assert dataset.prices_by_symbols(["BTC"], ["EUR"]) == {
+            "BTC": {"EUR": Dezimal("56575.39")}
+        }
+
     def test_to_coingecko_shapes(self):
         client = CryptoDatasetClient()
         dataset = client._build(CG_RAW)

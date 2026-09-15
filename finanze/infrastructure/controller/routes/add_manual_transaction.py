@@ -1,33 +1,20 @@
-from datetime import datetime
-from uuid import UUID
-
-from dateutil.tz import tzlocal
 from domain.use_cases.add_manual_transaction import AddManualTransaction
 from quart import jsonify, request
 from infrastructure.controller.mappers.transaction_mapper import (
-    map_manual_transaction,
+    map_add_manual_transaction,
 )
-
-
-def _parse_datetime(value: str) -> datetime:
-    dt = datetime.fromisoformat(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=tzlocal())
-    return dt
 
 
 async def add_manual_transaction(add_manual_transaction_uc: AddManualTransaction):
     body = await request.get_json()
 
     try:
-        tx = map_manual_transaction(body)
-        raw_historic_id = body.get("historic_entry_id")
-        historic_entry_id = UUID(raw_historic_id) if raw_historic_id else None
+        add_request = map_add_manual_transaction(body)
     except Exception as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     try:
-        await add_manual_transaction_uc.execute(tx, historic_entry_id)
+        await add_manual_transaction_uc.execute(add_request)
     except ValueError as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 

@@ -19,6 +19,7 @@ async def status(get_status_uc: GetStatus):
         "server": {
             "version": result.server.version,
             "platform_type": result.server.platform_type,
+            "platform_version": result.server.platform_version,
             "options": {
                 "dataDir": result.server.options.data_dir,
                 "port": result.server.options.port,

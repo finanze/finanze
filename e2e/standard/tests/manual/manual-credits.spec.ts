@@ -190,7 +190,7 @@ test.describe('Manual Credits - Banking', () => {
         await page.waitForTimeout(500)
 
         const editDialog = page.locator('.fixed.inset-0').last()
-        await expect(editDialog.getByText('Edit manual credit')).toBeVisible({
+        await expect(editDialog.getByText('Edit credit line')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -262,7 +262,7 @@ test.describe('Manual Credits - Banking', () => {
         await page.waitForTimeout(500)
 
         const editDialog = page.locator('.fixed.inset-0').last()
-        await expect(editDialog.getByText('Edit manual credit')).toBeVisible({
+        await expect(editDialog.getByText('Edit credit line')).toBeVisible({
             timeout: 5_000,
         })
 

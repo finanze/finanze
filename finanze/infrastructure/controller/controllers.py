@@ -43,6 +43,7 @@ from domain.use_cases.get_euribor_rates import GetEuriborRates
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
+from domain.use_cases.get_gains_timeline import GetGainsTimeline
 from domain.use_cases.get_networth_timeline import GetNetworthTimeline
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
@@ -56,9 +57,14 @@ from domain.use_cases.unsettle_manual_investment import (
 )
 from domain.use_cases.delete_manual_historic_entry import DeleteManualHistoricEntry
 from domain.use_cases.query_pending_flows import QueryPendingFlows
+from domain.use_cases.get_market_forecast_closed_positions import (
+    GetMarketForecastClosedPositions,
+)
+from domain.use_cases.get_market_forecast_pnl import GetMarketForecastPnl
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
+from domain.use_cases.get_telemetry_consent import GetTelemetryConsent
 from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_template_fields import GetTemplateFields
 from domain.use_cases.get_templates import GetTemplates
@@ -84,6 +90,7 @@ from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
 from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
+from domain.use_cases.update_telemetry_consent import UpdateTelemetryConsent
 from domain.use_cases.update_template import UpdateTemplate
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
@@ -171,6 +178,9 @@ from infrastructure.controller.routes.get_money_events import get_money_events
 from infrastructure.controller.routes.get_pending_flows import get_pending_flows
 from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
+from infrastructure.controller.routes.get_telemetry_consent import (
+    get_telemetry_consent,
+)
 from infrastructure.controller.routes.get_status import status
 from infrastructure.controller.routes.get_template_fields_route import (
     get_template_fields,
@@ -178,6 +188,7 @@ from infrastructure.controller.routes.get_template_fields_route import (
 from infrastructure.controller.routes.get_templates import get_templates
 from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 from infrastructure.controller.routes.historic import get_historic
+from infrastructure.controller.routes.gains_timeline import gains_timeline
 from infrastructure.controller.routes.networth_timeline import networth_timeline
 from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.import_file import import_file_route
@@ -186,6 +197,10 @@ from infrastructure.controller.routes.instrument_details import instrument_detai
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
 from infrastructure.controller.routes.logout import logout
+from infrastructure.controller.routes.market_forecast_closed_positions import (
+    market_forecast_closed_positions,
+)
+from infrastructure.controller.routes.market_forecast_pnl import market_forecast_pnl
 from infrastructure.controller.routes.oauth_callback import oauth_callback
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
@@ -206,6 +221,9 @@ from infrastructure.controller.routes.update_periodic_flow import update_periodi
 from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.update_real_estate import update_real_estate
 from infrastructure.controller.routes.update_settings import update_settings
+from infrastructure.controller.routes.update_telemetry_consent import (
+    update_telemetry_consent,
+)
 from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.update_tracked_loans import update_tracked_loans
@@ -237,6 +255,7 @@ async def register_routes(
     get_position_uc: GetPosition,
     get_contributions_uc: GetContributions,
     get_historic_uc: GetHistoric,
+    get_gains_timeline_uc: GetGainsTimeline,
     get_networth_timeline_uc: GetNetworthTimeline,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
@@ -258,6 +277,8 @@ async def register_routes(
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
     get_periodic_flows_uc: GetPeriodicFlows,
+    get_market_forecast_pnl_uc: GetMarketForecastPnl,
+    get_market_forecast_closed_positions_uc: GetMarketForecastClosedPositions,
     save_pending_flow_uc: SavePendingFlow,
     update_pending_flow_uc: UpdatePendingFlow,
     delete_pending_flow_uc: DeletePendingFlow,
@@ -298,6 +319,8 @@ async def register_routes(
     get_backup_settings_uc: GetBackupSettings,
     save_backup_settings_uc: SaveBackupSettings,
     get_euribor_rates_uc: GetEuriborRates,
+    get_telemetry_consent_uc: GetTelemetryConsent,
+    update_telemetry_consent_uc: UpdateTelemetryConsent,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -404,6 +427,16 @@ async def register_routes(
     @app.route("/api/v1/transactions", methods=["GET"])
     async def transactions_route():
         return await transactions(get_transactions_uc)
+
+    @app.route("/api/v1/market-forecast/pnl", methods=["GET"])
+    async def market_forecast_pnl_route():
+        return await market_forecast_pnl(get_market_forecast_pnl_uc)
+
+    @app.route("/api/v1/market-forecast/closed-positions", methods=["GET"])
+    async def market_forecast_closed_positions_route():
+        return await market_forecast_closed_positions(
+            get_market_forecast_closed_positions_uc
+        )
 
     @app.route("/api/v1/exchange-rates", methods=["GET"])
     async def exchange_rates_route():
@@ -561,6 +594,10 @@ async def register_routes(
     async def networth_timeline_route():
         return await networth_timeline(get_networth_timeline_uc)
 
+    @app.route("/api/v1/gains-timeline", methods=["GET"])
+    async def gains_timeline_route():
+        return await gains_timeline(get_gains_timeline_uc)
+
     @app.route("/api/v1/assets/instruments", methods=["GET"])
     async def instruments_route():
         return await instruments(get_instruments_uc)
@@ -640,6 +677,14 @@ async def register_routes(
     @app.route("/api/v1/rates/euribor", methods=["GET"])
     async def get_euribor_rates_route():
         return await get_euribor_rates(get_euribor_rates_uc)
+
+    @app.route("/api/v1/telemetry/consent", methods=["GET"])
+    async def get_telemetry_consent_route():
+        return await get_telemetry_consent(get_telemetry_consent_uc)
+
+    @app.route("/api/v1/telemetry/consent", methods=["POST"])
+    async def update_telemetry_consent_route():
+        return await update_telemetry_consent(update_telemetry_consent_uc)
 
     @app.route("/oauth/callback", methods=["GET"])
     async def oauth_callback_route():

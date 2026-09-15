@@ -9,6 +9,7 @@ export interface FloatingLogo {
 export function generateFloatingLogos(
   count = 80,
   maxAttempts = 600,
+  packingMargin = 1.2,
 ): FloatingLogo[] {
   const items: FloatingLogo[] = []
   let seed = 42
@@ -17,7 +18,7 @@ export function generateFloatingLogos(
     return (seed - 1) / 2147483646
   }
   const tooClose = (x: number, y: number, size: number) => {
-    const margin = 1.2
+    const margin = packingMargin
     return items.some(item => {
       const minDist = ((size + item.size) / 2) * margin
       const dx = Math.abs(x - item.x) * 3.6

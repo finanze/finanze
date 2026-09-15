@@ -244,3 +244,9 @@ class InvalidToken(Exception):
 
 class PermissionDenied(Exception):
     pass
+
+
+class InstrumentProviderUnavailable(Exception):
+    """Raised when a price provider failed, so a missing quote proves nothing"""
+
+    pass

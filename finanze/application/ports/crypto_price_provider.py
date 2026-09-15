@@ -20,7 +20,9 @@ class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_price(self, symbol: str, fiat_iso: str, **kwargs) -> Dezimal:
+    async def get_price(
+        self, symbol: str, fiat_iso: str, **kwargs
+    ) -> Optional[Dezimal]:
         raise NotImplementedError
 
     @abc.abstractmethod

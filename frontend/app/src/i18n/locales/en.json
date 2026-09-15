@@ -1,11 +1,13 @@
 {
   "common": {
     "back": "Back",
+    "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
     "fetching": "Fetching...",
     "saving": "Saving...",
     "refresh": "Refresh",
+    "update": "Update",
     "export": "Export",
     "success": "Success",
     "error": "Error",
@@ -67,6 +69,7 @@
     "factoringInvestments": "Factoring",
     "realEstateCfInvestments": "Real Estate CF",
     "cryptoInvestments": "Crypto",
+    "marketForecast": "Market Forecast",
     "distributionByEntity": "Distribution by Entity",
     "distributionByAsset": "Distribution by Asset",
     "distribution": "Distribution",
@@ -225,6 +228,18 @@
       "viewModes": {
         "wallets": "By wallet",
         "network": "By source"
+      },
+      "defi": {
+        "title": "DeFi positions",
+        "unknownProtocol": "Other",
+        "chainLabel": "Chain",
+        "roles": {
+          "SUPPLIED": "Supplied",
+          "BORROWED": "Borrowed",
+          "STAKED": "Staked",
+          "LP": "Liquidity pool",
+          "REWARD": "Reward"
+        }
       }
     },
     "derivatives": {
@@ -338,6 +353,53 @@
       "sortInvested": "Amount"
     }
   },
+  "marketForecast": {
+    "untitledMarket": "Untitled market",
+    "chartPreviewUnavailable": "Chart preview is not available for this market forecast.",
+    "status": {
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "labels": {
+      "shares": "Shares",
+      "entry": "Entry",
+      "initialInvestment": "Initial investment",
+      "realizedPnl": "Realized P&L",
+      "tradingActivity": "Trading activity",
+      "mark": "Mark",
+      "resolves": "Resolves",
+      "closed": "Closed",
+      "value": "Value",
+      "bought": "Bought",
+      "sold": "Sold",
+      "viewMarket": "View market"
+    },
+    "summary": {
+      "openExposure": "Open exposure",
+      "costBasis": "Cost basis",
+      "openPositions": "Open positions",
+      "closedPositions": "positions",
+      "realizedPnl": "realized",
+      "pnlHistory": "PnL",
+      "unrealizedPnl": "Unrealized PnL",
+      "averageExposure": "Average exposure"
+    },
+    "empty": {
+      "connectionTitle": "Connect a market forecast platform",
+      "connectionDescription": "Market forecasts use connected data and cannot be entered manually.",
+      "openTitle": "No open market forecasts",
+      "openDescription": "Connected accounts have no active market forecasts right now.",
+      "pnlTitle": "No PnL history yet",
+      "pnlDescription": "PnL history will appear after market forecast activity is available."
+    },
+    "sections": {
+      "openTitle": "Open",
+      "openDescription": "Active markets with current mark-to-market performance.",
+      "closedTitle": "Closed",
+      "closedDescription": "Settled markets and realized profit or loss.",
+      "positions": "positions"
+    }
+  },
   "toast": {
     "success": "Success",
     "warning": "Warning",
@@ -360,13 +422,17 @@
     },
     "credentialFields": {
       "apiKey": "API Key",
-      "secretKey": "Secret Key"
+      "secretKey": "Secret Key",
+      "identifier": "Username or wallet address"
     },
     "entityNotes": {
-      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)"
+      "e0000000-0000-0000-0000-000000000003": "Include the international prefix in the phone number (e.g. +34612345678)",
+      "e0000000-0000-0000-0000-000000000016": "This is in beta and has not been properly tested. Create the API key in the Trading 212 app with account, portfolio, and history scopes (orders, dividends, and transactions)."
     },
     "addAccountName": "Name this account",
     "accountNamePlaceholder": "Account name (optional)",
+    "showCredential": "Show value",
+    "hideCredential": "Hide value",
     "credentialsSecurityTitle": "Your data is safe",
     "credentialsSecurityBody": "Your credentials and all data shown here are stored locally in encrypted storage. They will never be shared with anyone or anything unless you explicitly choose to do so. Never share your app password with anyone, as it would grant access to all this data. Also, this app is open source and you can check yourself how data is stored and handled.",
     "title": "Welcome to Finanze",
@@ -429,7 +495,7 @@
       "encryptionKeyLabel": "Encryption key",
       "encryptionKeyPlaceholder": "Your account encryption key",
       "encryptionKeyHint": "This is the encryption key you used in the app, not your Cloud account password.",
-      "restoreButton": "Restore data",
+      "restoreButton": "Restore",
       "importing": "Restoring data...",
       "dontCloseApp": "Please don't close the app during this process",
       "invalidEncryptionKey": "Invalid encryption key. Please check and try again.",
@@ -447,7 +513,8 @@
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
     "pendingRequests": "Other entities need a code",
-    "switchToEntity": "{entity}"
+    "switchToEntity": "{entity}",
+    "otpInputLabel": "Verification code"
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",
@@ -466,10 +533,31 @@
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
+    "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
     "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "The application ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "pageDescription": "This page ran into an unexpected error. Your data is safe. Restart if it keeps happening.",
+    "goToDashboard": "Go to dashboard",
+    "restart": "Restart"
+  },
+  "telemetryConsent": {
+    "title": "Report errors automatically",
+    "descriptionAfterError": "Error reporting is off, so nothing was sent about this failure. Turn it on and errors like this one are reported from now on, so they can be fixed.",
+    "descriptionManual": "Error reporting is off. Turn it on so any failure you run into is reported automatically and can be fixed.",
+    "enable": "Enable",
+    "notNow": "Not now",
+    "reportAction": "Enable error reporting",
+    "enabled": "Error reporting enabled",
+    "shortLabel": "Report errors",
+    "pointAnonymous": "Pseudonymous, identified only by an installation ID and never linked to you or your account",
+    "pointNoSensitiveData": "No amounts, balances, names or credentials are sent",
+    "pointChangeLater": "You can turn it on or off later in Settings"
   },
   "entities": {
     "title": "Integrations",
@@ -653,6 +741,13 @@
       "description": "Legal information and policies",
       "privacyPolicy": "Privacy Policy",
       "termsOfService": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Diagnostics",
+      "description": "Everything here is off by default and stays on this device unless you turn it on.",
+      "errorReportingLabel": "Send error reports",
+      "errorReportingDescription": "Share pseudonymous crash and error reports identified only by an installation ID so bugs can be fixed. Amounts, account details and personal data are never sent.",
+      "installId": "Installation ID"
     },
     "cloud": {
       "tabTitle": "Cloud",
@@ -1043,6 +1138,28 @@
             ]
           ]
         }
+      },
+      "ZERION": {
+        "description": "Configure your Zerion API to fetch DeFi and wallet positions across many EVM networks.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get a Zerion API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Sign up at the "
+            },
+            {
+              "type": "link",
+              "label": "Zerion developer portal",
+              "url": "https://developers.zerion.io"
+            },
+            {
+              "type": "text",
+              "value": " (a free tier is available), create an API key and paste it below."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
@@ -1160,18 +1277,55 @@
     "clear": "Clear",
     "productTypes": "Products",
     "options": "Options",
+    "area": "Area",
     "stacked": "Stacked",
     "lines": "Lines",
     "showTotal": "Total",
     "selectAll": "Select all",
     "clearAll": "Clear all",
     "ranges": {
+      "1D": "1D",
       "ALL": "All",
       "1Y": "1Y",
       "6M": "6M",
       "3M": "3M",
       "1M": "1M",
-      "1W": "1W"
+      "1W": "1W",
+      "YTD": "YTD"
+    }
+  },
+  "evolutionChart": {
+    "title": "Evolution",
+    "value": "Value",
+    "gain": "Gain",
+    "twr": "TWR",
+    "beta": "Beta feature",
+    "betaNotice": "Value evolution and gains are still in beta and may contain errors.",
+    "show": "Show evolution",
+    "hide": "Hide evolution",
+    "loading": "Loading evolution",
+    "fullRangeHint": "The full history can take a while the first time",
+    "noData": "No evolution history available yet",
+    "error": "Could not load evolution history",
+    "retry": "Retry",
+    "period": "Period",
+    "dateRange": "Date range",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear",
+    "ranges": {
+      "4Y": "4Y",
+      "1Y": "1Y",
+      "YTD": "YTD",
+      "1M": "1M"
+    },
+    "warningsTitle": "Accuracy notes",
+    "warnings": {
+      "UNRECONCILED_FLOWS": "Some movements could not be valued or matched, so the results may be incomplete.",
+      "REPLAYED_POSITIONS": "Some positions were rebuilt from transactions.",
+      "INFERRED_FLOWS": "Some movements were deduced from changes in quantity or cost, so contributions and returns are estimates.",
+      "ORPHAN_SELLS": "Some sales have no matching purchase and were left out of the gain, so the position history is incomplete.",
+      "PARTIAL_COST_BASIS": "Some positions have no recorded cost, so the gain only covers those that do."
     }
   },
   "export": {
@@ -1558,17 +1712,22 @@
     "symbol": "Symbol",
     "currencyAmount": "Currency Amount",
     "contractAddress": "Contract Address",
+    "size": "Size",
+    "direction": "Direction",
+    "contractType": "Contract Type",
+    "underlyingSymbol": "Underlying",
     "addManualTransaction": "Add",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
     "of": "of",
     "selectEntities": "Select entities...",
+    "selectAccounts": "Select accounts...",
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
     "form": {
-      "createTitle": "Add manual transaction",
-      "editTitle": "Edit manual transaction",
+      "createTitle": "Add transaction",
+      "editTitle": "Edit transaction",
       "entity": "Entity",
       "transactionType": "Transaction type",
       "pickDate": "Select a date",
@@ -1586,6 +1745,18 @@
       "netAmountFormulaIncoming": "amount - fees - retentions",
       "netAmountFormulaOutgoing": "amount + fees + retentions",
       "autoAmountHint": "Amount auto-fills from shares × price when both values are provided.",
+      "transfer": "Transfer",
+      "transferHint": "Use Transfer when an asset is moved or converted from one entity to another. In Spain, it is also used for tax-deferred exchanges between mutual funds.",
+      "swap": "Swap",
+      "swapRatio": "Ratio",
+      "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",
+      "origin": "Origin",
+      "destination": "Destination",
+      "createOrigin": "Create origin",
+      "createDestination": "Create destination",
+      "sameAsOrigin": "Same as origin",
+      "moreDetails": "More details",
+      "destEntityOptional": "Optional — uses origin entity if empty",
       "createSuccess": "Manual transaction created successfully",
       "updateSuccess": "Manual transaction updated successfully",
       "submitError": "Unable to save manual transaction",
@@ -1595,7 +1766,9 @@
         "required": "This field is required",
         "positive": "Enter a positive number",
         "nonNegative": "Enter zero or a positive number",
-        "invalidNumber": "Enter a valid number"
+        "invalidNumber": "Enter a valid number",
+        "needOneLeg": "Enable at least the origin or the destination",
+        "destEntityRequired": "Destination entity is required"
       }
     },
     "deleteManualTransactionTitle": "Delete manual transaction",
@@ -1659,8 +1832,8 @@
       "SUBSCRIPTION": "Subscription",
       "SWAP_FROM": "S. Swap From",
       "SWAP_TO": "S. Swap To",
-      "TRANSFER_IN": "F. Transfer In",
-      "TRANSFER_OUT": "F. Transfer Out",
+      "TRANSFER_IN": "Transfer In",
+      "TRANSFER_OUT": "Transfer Out",
       "SWITCH_FROM": "F. Switch From",
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
@@ -1685,7 +1858,8 @@
       "PENDING_FLOWS": "Pending",
       "BOND": "Bond",
       "DERIVATIVE": "Derivative",
-      "CREDIT": "Credit"
+      "CREDIT": "Credit",
+      "MARKET_FORECAST": "Market Forecast"
     },
     "assetType": {
       "EQUITY": "Equity",
@@ -1787,7 +1961,8 @@
       "addressDuplicate": "Duplicate address. Remove or edit it before continuing.",
       "maxAddresses": "You can add up to 10 addresses per wallet.",
       "allFailed": "We could not add any of the addresses. Review the errors below.",
-      "generic": "Unable to add the wallet. Please try again."
+      "generic": "Unable to add the wallet. Please try again.",
+      "integrationFieldRequired": "This field is required."
     },
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "This address is already connected.",
@@ -1800,6 +1975,14 @@
       "partialSuccessSingle": "1 address added successfully.",
       "partialSuccessMultiple": "{count} addresses added successfully.",
       "allFailed": "No addresses were added."
+    },
+    "includeWalletTokens": {
+      "label": "Also track wallet tokens",
+      "description": "Include loose wallet token balances in addition to DeFi positions. Leave off if you track those wallets elsewhere."
+    },
+    "integrationSetup": {
+      "heading": "{integration} setup required",
+      "helper": "Required to connect via this provider."
     },
     "submit": "Add wallet",
     "derived": {
@@ -2148,8 +2331,8 @@
     "manualContributions": {
       "unnamed": "Manual contribution",
       "add": "New",
-      "createTitle": "Add manual contribution",
-      "editTitle": "Edit manual contribution",
+      "createTitle": "Add contribution",
+      "editTitle": "Edit contribution",
       "entity": "Entity",
       "targetName": "Target name",
       "targetNameHelper": "Optional friendly name shown in the list",
@@ -2259,9 +2442,14 @@
         "cancelEntityCreation": "Cancel new entity",
         "newEntityPlaceholder": "Enter the new entity name",
         "trackPrice": "Track price",
+        "trackPriceShort": "Track",
         "trackPriceUnavailable": "Select an instrument to enable price tracking.",
         "createInvestmentTxs": "Create transactions",
+        "createInvestmentTxsShort": "Transactions",
         "createInvestmentTxsInfo": "When enabled, an initial investment transaction is created (plus a repayment transaction if the pending capital is lower than the invested amount).",
+        "termShortcut": "Term",
+        "monthsShort": "m",
+        "yearsShort": "y",
         "currencyConversionWarning": "Instrument currency differs from the selected currency. Conversion uses the latest rates and may vary.",
         "summary": {
           "shares": "Shares"
@@ -2297,7 +2485,7 @@
         "form": {
           "createTitle": "Add an account",
           "createDescription": "Fill in the account details to track it manually.",
-          "editTitle": "Edit manual bank account",
+          "editTitle": "Edit bank account",
           "editDescription": "Update the selected manual bank account."
         },
         "fields": {
@@ -2331,7 +2519,7 @@
         "form": {
           "createTitle": "Add a card",
           "createDescription": "Provide the card information to manage it manually.",
-          "editTitle": "Edit manual card",
+          "editTitle": "Edit card",
           "editDescription": "Update the selected manual card."
         },
         "fields": {
@@ -2358,7 +2546,7 @@
         "form": {
           "createTitle": "Add a loan",
           "createDescription": "Enter the loan details to manage it manually.",
-          "editTitle": "Edit manual loan",
+          "editTitle": "Edit loan",
           "editDescription": "Update the selected manual loan."
         },
         "fields": {
@@ -2409,7 +2597,7 @@
         "form": {
           "createTitle": "Add a credit line",
           "createDescription": "Enter the credit line details to manage it manually.",
-          "editTitle": "Edit manual credit",
+          "editTitle": "Edit credit line",
           "editDescription": "Update the selected manual credit line."
         },
         "fields": {
@@ -2432,9 +2620,9 @@
           "description": "Create a manual fund portfolio to group your investments."
         },
         "form": {
-          "createTitle": "Add manual fund portfolio",
+          "createTitle": "Add fund portfolio",
           "createDescription": "Set up a portfolio to group manually tracked funds.",
-          "editTitle": "Edit manual fund portfolio",
+          "editTitle": "Edit fund portfolio",
           "editDescription": "Update the selected manual fund portfolio."
         },
         "fields": {
@@ -2472,9 +2660,9 @@
           "description": "Add a manual fund position to include it in your portfolio."
         },
         "form": {
-          "createTitle": "Add manual fund",
+          "createTitle": "Add fund",
           "createDescription": "Fill in the fund details to track it manually.",
-          "editTitle": "Edit manual fund",
+          "editTitle": "Edit fund",
           "editDescription": "Update the selected manual fund."
         },
         "fields": {
@@ -2510,9 +2698,9 @@
           "description": "Add a manual stock or ETF position to your portfolio."
         },
         "form": {
-          "createTitle": "Add manual stock",
+          "createTitle": "Add stock",
           "createDescription": "Provide the stock details to track it manually.",
-          "editTitle": "Edit manual stock",
+          "editTitle": "Edit stock",
           "editDescription": "Update the selected manual stock."
         },
         "fields": {
@@ -2542,9 +2730,9 @@
           "description": "Add a manual crypto position to your portfolio."
         },
         "form": {
-          "createTitle": "Add manual crypto",
+          "createTitle": "Add crypto",
           "createDescription": "Provide the crypto details to track it manually.",
-          "editTitle": "Edit manual crypto",
+          "editTitle": "Edit crypto",
           "editDescription": "Update the selected manual crypto."
         },
         "fields": {
@@ -2583,9 +2771,9 @@
           "description": "Add a manual deposit to track its returns."
         },
         "form": {
-          "createTitle": "Add manual deposit",
+          "createTitle": "Add deposit",
           "createDescription": "Enter the deposit information to manage it manually.",
-          "editTitle": "Edit manual deposit",
+          "editTitle": "Edit deposit",
           "editDescription": "Update the selected manual deposit."
         },
         "fields": {
@@ -2605,9 +2793,9 @@
           "description": "Add a manual factoring position to include it in your investments."
         },
         "form": {
-          "createTitle": "Add manual factoring",
+          "createTitle": "Add factoring",
           "createDescription": "Provide the factoring details to track it manually.",
-          "editTitle": "Edit manual factoring",
+          "editTitle": "Edit factoring",
           "editDescription": "Update the selected manual factoring entry."
         },
         "fields": {
@@ -2630,9 +2818,9 @@
           "description": "Add a manual real estate CF position to monitor it."
         },
         "form": {
-          "createTitle": "Add manual real estate CF",
+          "createTitle": "Add real estate CF",
           "createDescription": "Enter the project details to track it manually.",
-          "editTitle": "Edit manual real estate CF",
+          "editTitle": "Edit real estate CF",
           "editDescription": "Update the selected manual real estate CF position."
         },
         "fields": {
@@ -2793,6 +2981,7 @@
       "price": "Purchase price",
       "expenses": "Purchase expenses",
       "addExpense": "Add",
+      "totalExpenses": "Total expenses",
       "totalCost": "Total cost",
       "purchaseConceptDescription": "Purchase expense concept",
       "suggestedConcepts": "Suggested concepts:",

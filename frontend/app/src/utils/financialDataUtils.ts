@@ -8,8 +8,11 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  CryptoPositionType,
   DerivativeDetail,
   DerivativePositions,
+  MarketForecastDetail,
+  MarketForecastPositions,
   Credits,
   Loan,
 } from "@/types/position"
@@ -24,6 +27,21 @@ import {
   LoanPayload,
 } from "@/types"
 
+const CURRENCY_ALIAS_MAP: Record<string, string> = {
+  BNFCR: "USD",
+  PUSD: "USD",
+}
+
+const normalizeCurrencyAlias = (
+  currency: string | null | undefined,
+): string | null => {
+  if (!currency) {
+    return null
+  }
+
+  return CURRENCY_ALIAS_MAP[currency.toUpperCase()] || currency
+}
+
 const getExchangeRateEntry = (
   exchangeRates: ExchangeRates | null | undefined,
   targetCurrency: string,
@@ -33,13 +51,26 @@ const getExchangeRateEntry = (
     return null
   }
 
-  const normalizedTarget = targetCurrency.toUpperCase()
+  const normalizedTarget = normalizeCurrencyAlias(targetCurrency)?.toUpperCase()
+  if (!normalizedTarget) {
+    return null
+  }
+
+  const normalizedKey = normalizeCurrencyAlias(key)
+  if (!normalizedKey) {
+    return null
+  }
+
   const targetCandidates = [
     exchangeRates[targetCurrency],
     exchangeRates[normalizedTarget],
   ]
 
-  const variants = [key, key.toUpperCase(), key.toLowerCase()]
+  const variants = [
+    normalizedKey,
+    normalizedKey.toUpperCase(),
+    normalizedKey.toLowerCase(),
+  ]
 
   for (const candidate of targetCandidates) {
     if (!candidate) {
@@ -56,14 +87,92 @@ const getExchangeRateEntry = (
   return null
 }
 
+export const tryConvertCurrency = (
+  amount: number,
+  fromCurrency: string,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates | null | undefined,
+): number | null => {
+  if (!Number.isFinite(amount)) {
+    return null
+  }
+
+  if (amount === 0) {
+    return 0
+  }
+
+  const normalizedFromCurrency = normalizeCurrencyAlias(fromCurrency)
+  const normalizedTargetCurrency = normalizeCurrencyAlias(targetCurrency)
+
+  if (
+    normalizedFromCurrency &&
+    normalizedTargetCurrency &&
+    normalizedFromCurrency.toUpperCase() ===
+      normalizedTargetCurrency.toUpperCase()
+  ) {
+    return amount
+  }
+
+  if (!exchangeRates) {
+    return null
+  }
+
+  const rate = getExchangeRateEntry(
+    exchangeRates,
+    normalizedTargetCurrency || targetCurrency,
+    normalizedFromCurrency || fromCurrency,
+  )
+
+  if (rate != null && rate !== 0 && Number.isFinite(rate)) {
+    return amount / rate
+  }
+
+  return null
+}
+
+export interface CurrencyDisplayValue {
+  value: number
+  currency: string
+}
+
+export const getCurrencyDisplayValue = (
+  amount: number,
+  fromCurrency: string | null | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates | null | undefined,
+): CurrencyDisplayValue | null => {
+  const normalizedFromCurrency = fromCurrency?.trim()
+  if (!normalizedFromCurrency || !Number.isFinite(amount)) {
+    return null
+  }
+
+  const converted = tryConvertCurrency(
+    amount,
+    normalizedFromCurrency,
+    targetCurrency,
+    exchangeRates,
+  )
+  if (converted != null) {
+    return { value: converted, currency: targetCurrency }
+  }
+
+  return { value: amount, currency: normalizedFromCurrency }
+}
+
 export const convertCurrency = (
   amount: number,
   fromCurrency: string,
   targetCurrency: string,
   exchangeRates: ExchangeRates | null,
 ): number => {
-  if (fromCurrency === targetCurrency) {
-    return amount
+  const converted = tryConvertCurrency(
+    amount,
+    fromCurrency,
+    targetCurrency,
+    exchangeRates,
+  )
+  if (converted != null) {
+    return converted
   }
 
   if (!exchangeRates) {
@@ -71,12 +180,6 @@ export const convertCurrency = (
       `Exchange rates not available when converting ${fromCurrency} -> ${targetCurrency}`,
     )
     return 0
-  }
-
-  const rate = getExchangeRateEntry(exchangeRates, targetCurrency, fromCurrency)
-
-  if (rate && rate !== 0) {
-    return amount / rate
   }
 
   console.warn(
@@ -92,6 +195,37 @@ export const getCryptoRateKey = (
     return asset.contract_address.toLowerCase()
   }
   return asset.symbol ? asset.symbol.toUpperCase() : null
+}
+
+/**
+ * Discriminator for how a crypto position should be grouped in the UI:
+ * - "defi": the position carries a non-HOLDING role (SUPPLIED/BORROWED/STAKED/LP/REWARD)
+ *   or a protocol, i.e. it isn't a plain wallet balance.
+ * - "token" / "native": falls back to the pre-existing wallet-balance classification
+ *   (contract address / TOKEN type vs. a chain's native coin).
+ */
+export type CryptoPositionKind = "native" | "token" | "defi"
+
+export const classifyCryptoPositionKind = (
+  asset: Pick<
+    CryptoCurrencyPosition,
+    "type" | "contract_address" | "position_type" | "protocol"
+  >,
+): CryptoPositionKind => {
+  const isDefiPosition =
+    (asset.position_type != null &&
+      asset.position_type !== CryptoPositionType.HOLDING) ||
+    Boolean(asset.protocol)
+
+  if (isDefiPosition) {
+    return "defi"
+  }
+
+  const isToken =
+    (asset.type ?? CryptoCurrencyType.NATIVE) === CryptoCurrencyType.TOKEN ||
+    Boolean(asset.contract_address)
+
+  return isToken ? "token" : "native"
 }
 
 export const calculateCryptoValue = (
@@ -137,7 +271,9 @@ export const getWalletAssets = (
       return false
     }
 
-    return hideUnknownTokens ? Boolean(asset.crypto_asset) : true
+    return hideUnknownTokens
+      ? Boolean(asset.crypto_asset) || asset.market_value != null
+      : true
   })
 }
 
@@ -162,7 +298,12 @@ export const calculateCryptoAssetValue = (
   const amount = asset.amount || 0
   const rateKey = getCryptoRateKey(asset)
 
-  if (amount > 0 && rateKey) {
+  // Fetcher-priced positions (no crypto_asset, e.g. Zerion) carry an
+  // authoritative market_value; prefer it over any symbol/contract rate that a
+  // colliding position may have populated.
+  const preferMarketValue = !asset.crypto_asset && asset.market_value != null
+
+  if (!preferMarketValue && amount > 0 && rateKey) {
     const computedValue = calculateCryptoValue(
       amount,
       rateKey,
@@ -342,7 +483,7 @@ export const convertCommodityAmountToDisplayUnit = (
   return convertWeight(amount, originalUnit, displayUnit)
 }
 
-const STABLECOIN_CURRENCY_MAP: Record<string, string> = { BNFCR: "USD" }
+const STABLECOIN_CURRENCY_MAP = CURRENCY_ALIAS_MAP
 
 const sumDerivativeValues = (
   entityPosition: { products: Record<string, any> },
@@ -373,7 +514,46 @@ const sumDerivativeValues = (
   }, 0)
 }
 
-export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
+const sumMarketForecastValues = (
+  entityPosition: { products: Record<string, any> },
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  const marketForecastProduct = entityPosition.products[
+    ProductType.MARKET_FORECAST
+  ] as MarketForecastPositions | undefined
+  if (
+    !marketForecastProduct ||
+    !("entries" in marketForecastProduct) ||
+    marketForecastProduct.entries.length === 0
+  )
+    return 0
+
+  return marketForecastProduct.entries.reduce(
+    (sum: number, marketForecast: MarketForecastDetail) => {
+      const mv = marketForecast.market_value || 0
+      const currency =
+        STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+        marketForecast.currency
+      return (
+        sum +
+        (targetCurrency && exchangeRates
+          ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+          : mv)
+      )
+    },
+    0,
+  )
+}
+
+export const getTransactionDisplayType = (
+  txType: TxType,
+  amount?: number,
+): "in" | "out" => {
+  if (amount != null && amount < 0) {
+    return "out"
+  }
+
   if (
     [
       TxType.BUY,
@@ -392,6 +572,30 @@ export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
   } else {
     return "in"
   }
+}
+
+export const getTransactionDisplayAmount = (
+  amount: number,
+  netAmount?: number | null,
+): number => {
+  const displayAmount = netAmount ?? amount
+  return amount < 0 ? -Math.abs(displayAmount) : displayAmount
+}
+
+export const getTransactionDisplaySign = (
+  txType: TxType,
+  amount: number,
+): "+" | "-" | "" => {
+  if (amount < 0) {
+    return "-"
+  }
+  if (getTransactionDisplayType(txType, amount) === "in") {
+    return "+"
+  }
+  if (txType === TxType.FEE) {
+    return "-"
+  }
+  return ""
 }
 
 export interface AssetDistributionItem {
@@ -507,6 +711,7 @@ export interface GroupedTransaction {
   type: TxType
   product_type: string
   displayType: "in" | "out"
+  displaySign: "+" | "-" | ""
   entity: string
 }
 
@@ -851,6 +1056,39 @@ export const getAssetDistribution = (
           totalValue += converted
         })
       }
+
+      const marketForecastProduct = entityPosition.products[
+        ProductType.MARKET_FORECAST
+      ] as MarketForecastPositions | undefined
+      if (
+        marketForecastProduct &&
+        "entries" in marketForecastProduct &&
+        marketForecastProduct.entries.length > 0
+      ) {
+        if (!assetTypes[ProductType.MARKET_FORECAST]) {
+          assetTypes[ProductType.MARKET_FORECAST] = {
+            type: ProductType.MARKET_FORECAST,
+            value: 0,
+            percentage: 0,
+            change: 0,
+          }
+        }
+
+        marketForecastProduct.entries.forEach(
+          (marketForecast: MarketForecastDetail) => {
+            const mv = marketForecast.market_value || 0
+            const currency =
+              STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+              marketForecast.currency
+            const converted =
+              targetCurrency && exchangeRates
+                ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+                : mv
+            assetTypes[ProductType.MARKET_FORECAST].value += converted
+            totalValue += converted
+          },
+        )
+      }
     })
 
   // Include Real Estate owned equity as its own asset category (market value - outstanding debt)
@@ -1155,6 +1393,11 @@ export const getEntityDistribution = (
       }
 
       entityTotal += sumDerivativeValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
+      entityTotal += sumMarketForecastValues(
         entityPosition,
         targetCurrency,
         exchangeRates,
@@ -1480,6 +1723,11 @@ export const getTotalAssets = (
         targetCurrency,
         exchangeRates,
       )
+      total += sumMarketForecastValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
     })
 
   // Add pending flows if provided
@@ -1716,6 +1964,55 @@ export const getTotalInvestedAmount = (
               : initialInvestment
           totalInvested += convertedInvestment
         })
+      }
+
+      const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+        DerivativePositions | undefined
+      if (
+        derivProduct &&
+        "entries" in derivProduct &&
+        derivProduct.entries.length > 0
+      ) {
+        derivProduct.entries.forEach((d: DerivativeDetail) => {
+          const amount = d.initial_investment || d.market_value || 0
+          const currency = STABLECOIN_CURRENCY_MAP[d.currency] || d.currency
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(amount, currency, targetCurrency, exchangeRates)
+              : amount
+          totalInvested += convertedAmount
+        })
+      }
+
+      const marketForecastProduct = entityPosition.products[
+        ProductType.MARKET_FORECAST
+      ] as MarketForecastPositions | undefined
+      if (
+        marketForecastProduct &&
+        "entries" in marketForecastProduct &&
+        marketForecastProduct.entries.length > 0
+      ) {
+        marketForecastProduct.entries.forEach(
+          (marketForecast: MarketForecastDetail) => {
+            const amount =
+              marketForecast.initial_investment ||
+              marketForecast.market_value ||
+              0
+            const currency =
+              STABLECOIN_CURRENCY_MAP[marketForecast.currency] ||
+              marketForecast.currency
+            const convertedAmount =
+              targetCurrency && exchangeRates
+                ? convertCurrency(
+                    amount,
+                    currency,
+                    targetCurrency,
+                    exchangeRates,
+                  )
+                : amount
+            totalInvested += convertedAmount
+          },
+        )
       }
     })
 
@@ -2192,7 +2489,9 @@ export const getCryptoPositions = (
           const assets = getWalletAssets(wallet)
 
           assets.forEach(asset => {
-            if (!asset.crypto_asset) {
+            // Same admission rule as getWalletAssets: registry-enriched or
+            // fetcher-priced (e.g. Zerion, which only carries market_value).
+            if (!asset.crypto_asset && asset.market_value == null) {
               return
             }
             const symbol = asset.symbol?.toUpperCase()
@@ -2222,7 +2521,9 @@ export const getCryptoPositions = (
               asset.type === CryptoCurrencyType.TOKEN ||
               Boolean(asset.contract_address)
             const tokenKey =
-              tokenAddress ?? asset.crypto_asset.id?.toLowerCase()
+              tokenAddress ??
+              asset.crypto_asset?.id?.toLowerCase() ??
+              symbol?.toLowerCase()
             if (isToken && !tokenKey) {
               return
             }
@@ -2559,22 +2860,30 @@ export const getRecentTransactions = (
     .filter(
       tx => tx.type !== TxType.SWITCH_FROM && tx.type !== TxType.SWITCH_TO,
     )
-    .map(tx => ({
-      date: tx.date,
-      description: tx.name,
-      amount: tx.amount,
-      currency: tx.currency,
-      formattedAmount: formatCurrency(
-        tx.net_amount ?? tx.amount,
-        locale,
-        defaultCurrency,
-        tx.currency,
-      ),
-      type: tx.type,
-      product_type: tx.product_type,
-      displayType: getTransactionDisplayType(tx.type),
-      entity: tx.entity.name,
-    }))
+    .map(tx => {
+      const displayAmount = getTransactionDisplayAmount(
+        tx.amount,
+        tx.net_amount,
+      )
+
+      return {
+        date: tx.date,
+        description: tx.name,
+        amount: tx.amount,
+        currency: tx.currency,
+        formattedAmount: formatCurrency(
+          Math.abs(displayAmount),
+          locale,
+          defaultCurrency,
+          tx.currency,
+        ),
+        type: tx.type,
+        product_type: tx.product_type,
+        displayType: getTransactionDisplayType(tx.type, displayAmount),
+        displaySign: getTransactionDisplaySign(tx.type, displayAmount),
+        entity: tx.entity.name,
+      }
+    })
     .forEach(tx => {
       const dateKey = formatDate(tx.date, locale)
       if (!groupedTxs[dateKey]) {
@@ -2761,6 +3070,11 @@ export const getTotalDisplayedAssets = (
         targetCurrency,
         exchangeRates,
         displayedUnderlyingTypes,
+      )
+      total += sumMarketForecastValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
       )
     })
 

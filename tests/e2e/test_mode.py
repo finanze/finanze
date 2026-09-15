@@ -18,6 +18,8 @@ def get_e2e_financial_fetchers() -> dict:
         native_entities.CAJAMAR,
         native_entities.DEGIRO,
         native_entities.IBKR,
+        native_entities.CRESCENTA,
+        native_entities.TRADING212,
     ]
 
     fetchers = {entity: MockFinancialEntityFetcher(entity) for entity in simple}
@@ -35,6 +37,9 @@ def get_e2e_financial_fetchers() -> dict:
     )
     fetchers[native_entities.BINANCE] = MockCryptoExchangeFetcher(
         native_entities.BINANCE
+    )
+    fetchers[native_entities.POLYMARKET] = MockFinancialEntityFetcher(
+        native_entities.POLYMARKET
     )
     fetchers[native_entities.MY_INVESTOR] = MockChallengeEntityFetcher(
         native_entities.MY_INVESTOR

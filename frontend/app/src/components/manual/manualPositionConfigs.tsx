@@ -114,7 +114,7 @@ const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
               props.clearError(field)
             }}
             className={cn(
-              "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all inline-flex items-center gap-1.5",
+              "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all select-none inline-flex items-center gap-1.5",
               isActive
                 ? "bg-foreground text-background border-foreground"
                 : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
@@ -162,7 +162,7 @@ const renderTextInputWithSuggestions = <
                 props.clearError(field)
               }}
               className={cn(
-                "px-2 py-0.5 text-xs font-medium rounded-full border transition-all",
+                "px-2 py-0.5 text-xs font-medium rounded-full border transition-all select-none",
                 isActive
                   ? "bg-foreground text-background border-foreground"
                   : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
@@ -429,26 +429,53 @@ const renderEntityField = <FormState extends ManualPositionFormBase>(
   )
 }
 
+type DateShortcutUnit = "months" | "years"
+
+interface DateShortcut {
+  amount: number
+  unit: DateShortcutUnit
+}
+
+interface DateInputOptions<FormState extends ManualPositionFormBase> {
+  yearShortcutsFrom?: keyof FormState
+  durationShortcutsFrom?: keyof FormState
+  durationShortcuts?: readonly DateShortcut[]
+}
+
 const renderDateInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
   label: string,
   props: ManualFormFieldRenderProps<FormState>,
-  options?: { yearShortcutsFrom?: keyof FormState },
+  options?: DateInputOptions<FormState>,
 ) => {
-  const baseField = options?.yearShortcutsFrom
+  const baseField = options?.yearShortcutsFrom ?? options?.durationShortcutsFrom
   const baseValue = baseField ? ((props.form[baseField] as string) ?? "") : ""
   const baseDate = baseField ? normalizeDateInput(baseValue) : ""
-  const applyYears = (years: number) => {
+  const applyDuration = (amount: number, unit: DateShortcutUnit) => {
     if (!baseDate) return
     const [y, m, d] = baseDate.split("-").map(Number)
     if (!y || !m || !d) return
-    const target = new Date(y + years, m - 1, d)
+    const target = new Date(y, m - 1, d)
+    if (unit === "years") {
+      target.setFullYear(target.getFullYear() + amount)
+    } else {
+      const originalDay = target.getDate()
+      target.setDate(1)
+      target.setMonth(target.getMonth() + amount)
+      const lastDay = new Date(
+        target.getFullYear(),
+        target.getMonth() + 1,
+        0,
+      ).getDate()
+      target.setDate(Math.min(originalDay, lastDay))
+    }
     const result = `${target.getFullYear()}-${String(
       target.getMonth() + 1,
     ).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`
     props.updateField(field, result)
     props.clearError(field)
   }
+  const applyYears = (years: number) => applyDuration(years, "years")
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
@@ -463,55 +490,78 @@ const renderDateInput = <FormState extends ManualPositionFormBase>(
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
           <span className="text-xs text-muted-foreground">
             {props.t(
-              "management.manualPositions.bankLoans.fields.termShortcut",
+              options?.durationShortcuts
+                ? "management.manualPositions.shared.termShortcut"
+                : "management.manualPositions.bankLoans.fields.termShortcut",
             )}
           </span>
-          {[20, 25, 30].map(years => (
-            <button
-              key={years}
-              type="button"
-              disabled={!baseDate}
-              onClick={() => applyYears(years)}
-              className="px-2 py-0.5 text-xs rounded-md border border-border hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {years}
-              {props.t(
-                "management.manualPositions.bankLoans.fields.yearsShort",
-              )}
-            </button>
-          ))}
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder={props.t(
-              "management.manualPositions.bankLoans.fields.customYearsPlaceholder",
-            )}
-            disabled={!baseDate}
-            onKeyDown={e => {
-              if (
-                !/[0-9]/.test(e.key) &&
-                e.key !== "Backspace" &&
-                e.key !== "Delete" &&
-                e.key !== "ArrowLeft" &&
-                e.key !== "ArrowRight" &&
-                e.key !== "Tab" &&
-                e.key !== "Enter"
-              ) {
-                e.preventDefault()
-                return
-              }
-              if (e.key === "Enter") {
-                e.preventDefault()
-                const n = parseInt(e.currentTarget.value, 10)
-                if (n > 0) applyYears(n)
-              }
-            }}
-            onBlur={e => {
-              const n = parseInt(e.target.value, 10)
-              if (n > 0) applyYears(n)
-            }}
-            className="w-20 px-2 py-0.5 text-xs rounded-md border border-border bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+          {options?.durationShortcuts ? (
+            options.durationShortcuts.map(shortcut => (
+              <button
+                key={`${shortcut.amount}-${shortcut.unit}`}
+                type="button"
+                disabled={!baseDate}
+                onClick={() => applyDuration(shortcut.amount, shortcut.unit)}
+                className="px-2 py-0.5 text-xs rounded-md border border-border select-none hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shortcut.amount}
+                {props.t(
+                  shortcut.unit === "months"
+                    ? "management.manualPositions.shared.monthsShort"
+                    : "management.manualPositions.shared.yearsShort",
+                )}
+              </button>
+            ))
+          ) : (
+            <>
+              {[20, 25, 30].map(years => (
+                <button
+                  key={years}
+                  type="button"
+                  disabled={!baseDate}
+                  onClick={() => applyYears(years)}
+                  className="px-2 py-0.5 text-xs rounded-md border border-border select-none hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {years}
+                  {props.t(
+                    "management.manualPositions.bankLoans.fields.yearsShort",
+                  )}
+                </button>
+              ))}
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder={props.t(
+                  "management.manualPositions.bankLoans.fields.customYearsPlaceholder",
+                )}
+                disabled={!baseDate}
+                onKeyDown={e => {
+                  if (
+                    !/[0-9]/.test(e.key) &&
+                    e.key !== "Backspace" &&
+                    e.key !== "Delete" &&
+                    e.key !== "ArrowLeft" &&
+                    e.key !== "ArrowRight" &&
+                    e.key !== "Tab" &&
+                    e.key !== "Enter"
+                  ) {
+                    e.preventDefault()
+                    return
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    const n = parseInt(e.currentTarget.value, 10)
+                    if (n > 0) applyYears(n)
+                  }
+                }}
+                onBlur={e => {
+                  const n = parseInt(e.target.value, 10)
+                  if (n > 0) applyYears(n)
+                }}
+                className="w-20 px-2 py-0.5 text-xs rounded-md border border-border bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </>
+          )}
         </div>
       )}
       {props.errors[field] && (
@@ -5475,7 +5525,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                       }
                     }}
                     className={cn(
-                      "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                      "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all select-none",
                       isActive
                         ? "bg-foreground text-background border-foreground"
                         : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
@@ -5895,6 +5945,16 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "maturity",
           props.t("management.manualPositions.deposits.fields.maturity"),
           props,
+          {
+            durationShortcutsFrom: "creation",
+            durationShortcuts: [
+              { amount: 1, unit: "months" },
+              { amount: 3, unit: "months" },
+              { amount: 6, unit: "months" },
+              { amount: 1, unit: "years" },
+              { amount: 2, unit: "years" },
+            ],
+          },
         )}
       </div>
     ),
@@ -6391,6 +6451,16 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "maturity",
           props.t("management.manualPositions.realEstateCf.fields.maturity"),
           props,
+          {
+            durationShortcutsFrom: "start",
+            durationShortcuts: [
+              { amount: 6, unit: "months" },
+              { amount: 9, unit: "months" },
+              { amount: 1, unit: "years" },
+              { amount: 2, unit: "years" },
+              { amount: 3, unit: "years" },
+            ],
+          },
         )}
         {renderTextInputWithSuggestions(
           "type",

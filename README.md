@@ -6,7 +6,7 @@
 <h1 align="center">Finanze — Self-hosted Personal Finance & Net Worth Tracker</h1>
 
 <p align="center">
-<a href="https://finanze.me">Finanze</a> is a private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
+<a href="https://finanze.me">Finanze</a> is an Open Source, private, self-hosted personal finance and portfolio manager that aggregates your assets and investments across banks, brokers, crowdfunding platforms, crypto exchanges & wallets and real estate into a unified application.
 It connects to real financial entities via public ways and open banking (PSD2), supports multiple asset types (real estate, crypto, funds, stocks, commodities...) and stores everything in a local encrypted database.
 </p>
 
@@ -74,22 +74,24 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 
 ### Supported Assets by Financial Entity & Crypto Exchanges
 
-| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
-| Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                     |
-| SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
-| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos              | ✅ (Smart Cash) | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    | Crowdlending        |
-| Freedom24           | ✅              | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
-| Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
-| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
-| DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
-| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
-| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                     |
+| Financial Entity    | Accounts        | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific                  |
+| ------------------- | --------------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------------- |
+| Urbanitae           | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments       |
+| MyInvestor          | ✅              | ✅    | ✅    | ✅             | ✅       | ✅         | Credits             | -      | -     |                           |
+| SEGO                | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring                 |
+| Trade Republic      | ✅              | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets           |
+| Unicaja             | ✅              | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                           |
+| Wecity              | ✅              | -     | -     | -              | -        | -          | -                   | -      | -     | Investments               |
+| Mintos              | ✅ (Smart Cash) | -     | -     | Single ETFs    | -        | -          | -                   | ❌     | ❌    | Crowdlending              |
+| Freedom24           | ✅              | -     | -     | ✅             | -        | -          | -                   | ❌     | -     | Old structured placements |
+| Indexa Capital      | ✅              | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                           |
+| ING                 | ✅              | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                           |
+| Grupo Cajamar       | ✅              | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                           |
+| DEGIRO              | ✅              | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                           |
+| Interactive Brokers | ✅              | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                           |
+| B100                | ✅              | ✅    | -     | -              | -        | -          | -                   | -      | -     |                           |
+| Crescenta           | -               | -     | ✅    | -              | -        | -          | -                   | -      | -     |                           |
+| Trading 212 (Beta)  | ✅              | -     | -     | ✅             | -        | -          | -                   | ❌     | -     |                           |
 
 | Crypto Exchange | Crypto            | Specific |
 | --------------- | ----------------- | -------- |
@@ -125,7 +127,7 @@ Not all entities support the same features, in general we can group data in the 
 | Trade Republic      | ✅              | ✅                        | ✅                             | -                      |
 | Unicaja             | ✅              | ✅                        | ❌                             | -                      |
 | Wecity              | ✅              | -                         | ✅                             | ✅                     |
-| Mintos              | ✅              | -                         | ❌                             | ❌                     |
+| Mintos              | ✅              | -                         | Single ETFs                    | ❌                     |
 | Freedom24           | ✅              | -                         | ✅                             | ❌                     |
 | Indexa Capital      | ✅              | -                         | ✅                             | -                      |
 | ING                 | ✅              | ✅                        | ✅                             | -                      |
@@ -133,6 +135,8 @@ Not all entities support the same features, in general we can group data in the 
 | DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
 | B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
+| Crescenta           | ✅              | -                         | ✅                             | -                      |
+| Trading 212 (Beta)  | ✅              | ❌                         | ✅                             | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
@@ -174,6 +178,14 @@ currently the following are supported:
 At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
 
 Some financial entities such as Trade Republic support crypto too.
+
+#### Zerion
+
+Zerion is also supported (by providing your free API key), which allows to multiple crypto asset tracking and DeFi.
+
+#### Other entity types
+
+This app also is capable of tracking market forecast platforms such as Polymarket, tracking transactions, PnL and current & historic positions (not manual data).
 
 ### Commodities
 
@@ -329,6 +341,12 @@ important ones are::
 - `USERNAME` and `PASSWORD` optional, to auto start session on load.
 - `MULTI_USER` optional, to allow multiple user sign up (only recommended for local development).
 - Other Selenium related ones.
+
+## License
+
+Finanze is open-source software licensed under the [AGPLv3](./LICENSE).
+
+If you are interested in using Finanze in a proprietary environment or need a commercial license that bypasses AGPLv3 obligations, please contact us at `contact@finanze.me`.
 
 ## Attributions & Credits
 

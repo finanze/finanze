@@ -16,6 +16,7 @@ class EntityType(str, Enum):
     FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION"
     CRYPTO_WALLET = "CRYPTO_WALLET"
     CRYPTO_EXCHANGE = "CRYPTO_EXCHANGE"
+    MARKET_FORECAST_PLATFORM = "MARKET_FORECAST_PLATFORM"
     COMMODITY = "COMMODITY"
 
 
@@ -40,3 +41,15 @@ class Entity:
 
     def __hash__(self):
         return hash(self.name)
+
+
+ACCOUNT_SCOPED_ENTITY_TYPES: frozenset[EntityType] = frozenset(
+    {
+        EntityType.CRYPTO_EXCHANGE,
+        EntityType.MARKET_FORECAST_PLATFORM,
+    }
+)
+
+
+def is_account_scoped_entity(entity: Entity) -> bool:
+    return entity.type in ACCOUNT_SCOPED_ENTITY_TYPES

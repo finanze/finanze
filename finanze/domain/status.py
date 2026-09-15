@@ -45,6 +45,7 @@ class BackendDetails:
     version: str
     platform_type: OS
     options: BackendOptions
+    platform_version: Optional[str] = None
 
 
 @dataclass

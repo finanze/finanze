@@ -13,7 +13,11 @@ from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
 from domain.commodity import COMMODITY_SYMBOLS
-from domain.constants import SUPPORTED_CURRENCIES
+from domain.constants import (
+    PUSD_CONTRACT_ADDRESS,
+    PUSD_SYMBOL,
+    SUPPORTED_CURRENCIES,
+)
 from domain.crypto import CryptoCurrencyType
 from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
@@ -29,6 +33,13 @@ def _to_decimal(value):
         return Decimal(str(value))
     except Exception:
         return None
+
+
+def _valid_rate(value) -> Dezimal | None:
+    dec = _to_decimal(value)
+    if dec is None or not dec.is_finite() or dec <= 0:
+        return None
+    return value if isinstance(value, Dezimal) else Dezimal(dec)
 
 
 def _now() -> int:
@@ -143,15 +154,29 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for base, quotes in matrix.items():
             invalid = []
             for quote, rate in quotes.items():
-                dec = _to_decimal(rate)
-                if dec is None:
-                    self._log.warning(f"Dropping non-numeric rate {base}->{quote}")
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(f"Dropping invalid rate {base}->{quote}: {rate}")
                     invalid.append(quote)
                 else:
-                    quotes[quote] = rate if isinstance(rate, Dezimal) else Dezimal(dec)
+                    quotes[quote] = valid
             for k in invalid:
                 del quotes[k]
         return matrix
+
+    def _merge_matrix(self, updates) -> None:
+        if self._fiat_matrix is None:
+            self._fiat_matrix = self._init_empty_matrix()
+        for base, quotes in updates.items():
+            target = self._fiat_matrix.setdefault(base, {})
+            for quote, rate in quotes.items():
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(
+                        f"Keeping previous rate for {base}->{quote}, got invalid value {rate}"
+                    )
+                    continue
+                target[quote] = valid
 
     def _init_empty_matrix(self):
         return {c: {} for c in SUPPORTED_CURRENCIES}
@@ -206,41 +231,25 @@ class GetExchangeRatesImpl(GetExchangeRates):
         error: BaseException | None,
         commodity_rates,
         crypto_rates,
-        refreshed_base,
     ):
         try:
             if error is not None:
                 raise error
 
-            if kind == "base":
-                if result is not None:
-                    refreshed_base = self._normalize_matrix(result)
-            elif kind == "commodity":
+            if kind == "commodity":
                 commodity, symbol = meta
                 if result is not None:
                     commodity_rates[commodity] = (result, symbol)
-            elif kind == "crypto":
-                symbol, base_currency = meta
-                crypto_rates.setdefault(base_currency, {})[symbol] = result
             elif kind == "crypto_batch":
                 for symbol, fiat_map in result.items():
                     for fiat_iso, price in fiat_map.items():
                         crypto_rates.setdefault(fiat_iso, {})[symbol] = price
         except Exception as e:
-            if kind == "base":
-                self._log.error(f"Failed base fiat matrix fetch: {e}")
-            elif kind == "commodity":
+            if kind == "commodity":
                 commodity, _ = meta
                 self._log.error(f"Failed commodity price for {commodity}: {e}")
-            elif kind == "crypto_batch":
-                self._log.error(f"Failed batched crypto prices fetch: {e}")
             else:
-                symbol, base_currency = meta
-                self._log.error(
-                    f"Failed crypto price for {symbol} in {base_currency}: {e}"
-                )
-
-        return refreshed_base
+                self._log.error(f"Failed batched crypto prices fetch: {e}")
 
     async def _get_initial_exchange_rates(self) -> ExchangeRates:
         stored = await self._exchange_rates_storage.get()
@@ -253,11 +262,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         if (_now() - self._last_base_refresh_ts) >= self.CACHE_TTL_SECONDS:
             base_rates = await self._exchange_rates_provider.get_matrix(timeout=2)
-            normalized_base = self._normalize_matrix(base_rates)
-            for base, quotes in normalized_base.items():
-                self._fiat_matrix.setdefault(base, {})
-                for quote, rate in quotes.items():
-                    self._fiat_matrix[base][quote] = rate
+            self._merge_matrix(self._normalize_matrix(base_rates))
 
         self._sync_base_fiat_rates_to_crypto_provider()
         return self._fiat_matrix
@@ -282,14 +287,15 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         self._sync_base_fiat_rates_to_crypto_provider()
 
+        if refresh_base:
+            await self._fetch_and_sync_base_matrix(timeout, initial_load)
+
         commodity_rates = {}
         crypto_rates = {}
-        refreshed_base = None
 
         try:
             jobs: list[JobDef] = []
             if refresh_base:
-                jobs.extend(self._schedule_base_matrix(timeout))
                 jobs.extend(self._schedule_commodity_rates(timeout))
 
             try:
@@ -308,31 +314,17 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
             outcomes = await self._job_scheduler(jobs, timeout)
             for kind, meta, result, error in outcomes:
-                refreshed_base = self._consume_outcome(
+                self._consume_outcome(
                     kind,
                     meta,
                     result,
                     error,
                     commodity_rates,
                     crypto_rates,
-                    refreshed_base,
                 )
 
         except Exception as e:
             self._log.exception(f"Unexpected error during parallel fetch: {e}")
-
-        if refreshed_base is not None:
-            for base, quotes in refreshed_base.items():
-                self._fiat_matrix.setdefault(base, {})
-                for quote, rate in quotes.items():
-                    self._fiat_matrix[base][quote] = (
-                        rate
-                        if isinstance(rate, Dezimal)
-                        else Dezimal(_to_decimal(rate))
-                    )
-            if not initial_load:
-                self._last_base_refresh_ts = _now()
-            self._sync_base_fiat_rates_to_crypto_provider()
 
         self._apply_rates(commodity_rates, crypto_rates)
         # Save to storage if not initial load (logged in) or not stored (new)
@@ -358,13 +350,22 @@ class GetExchangeRatesImpl(GetExchangeRates):
         except Exception as e:
             self._log.error(f"Failed to persist refreshed exchange rates: {e}")
 
-    def _schedule_base_matrix(self, timeout: int):
-        async def _run():
-            return await self._port_call_runner(
+    async def _fetch_and_sync_base_matrix(
+        self, timeout: int, initial_load: bool
+    ) -> None:
+        try:
+            base_rates = await self._port_call_runner(
                 self._exchange_rates_provider.get_matrix(timeout=timeout)
             )
-
-        return [(_run, ("base", None))]
+        except Exception as e:
+            self._log.error(f"Failed base fiat matrix fetch: {e}")
+            return
+        if not base_rates:
+            return
+        self._merge_matrix(self._normalize_matrix(base_rates))
+        if not initial_load:
+            self._last_base_refresh_ts = _now()
+        self._sync_base_fiat_rates_to_crypto_provider()
 
     def _schedule_commodity_rates(self, timeout: int):
         items = []
@@ -382,28 +383,40 @@ class GetExchangeRatesImpl(GetExchangeRates):
     async def _get_position_crypto_identifiers(
         self,
     ) -> tuple[set[str], set[str]]:
-        crypto_entity_positions = await self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(products=[ProductType.CRYPTO])
+        entity_positions = await self._position_port.get_last_grouped_by_entity(
+            PositionQueryRequest(products=[ProductType.CRYPTO, ProductType.ACCOUNT])
         )
         native_symbols: set[str] = set()
         token_addresses: set[str] = set()
-        for position in crypto_entity_positions.values():
-            if ProductType.CRYPTO not in position.products:
-                continue
-            for wallet in position.products[ProductType.CRYPTO].entries:
-                for asset in wallet.assets:
-                    if (
-                        asset.symbol
-                        and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
-                    ):
-                        continue
-                    if (
-                        asset.type == CryptoCurrencyType.TOKEN
-                        and asset.contract_address
-                    ):
-                        token_addresses.add(asset.contract_address.lower())
-                    elif asset.symbol:
-                        native_symbols.add(asset.symbol.upper())
+        for position in entity_positions.values():
+            if ProductType.CRYPTO in position.products:
+                for wallet in position.products[ProductType.CRYPTO].entries:
+                    for asset in wallet.assets:
+                        if (
+                            asset.market_value is not None
+                            and asset.crypto_asset is None
+                        ):
+                            # Fetcher-priced positions (e.g. Zerion) carry their own
+                            # market value and are not linked to a crypto asset from
+                            # the price provider, so skip them here to avoid wasted
+                            # CoinGecko requests (and 429s) for coins it cannot price.
+                            continue
+                        if (
+                            asset.symbol
+                            and asset.symbol.upper() in self.IGNORED_CRYPTO_SYMBOLS
+                        ):
+                            continue
+                        if (
+                            asset.type == CryptoCurrencyType.TOKEN
+                            and asset.contract_address
+                        ):
+                            token_addresses.add(asset.contract_address.lower())
+                        elif asset.symbol:
+                            native_symbols.add(asset.symbol.upper())
+            if ProductType.ACCOUNT in position.products:
+                for account in position.products[ProductType.ACCOUNT].entries:
+                    if account.currency and account.currency.upper() == PUSD_SYMBOL:
+                        token_addresses.add(PUSD_CONTRACT_ADDRESS)
         return native_symbols, token_addresses
 
     async def _get_crypto_price_map(
@@ -434,23 +447,26 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for addr, fiat_prices in address_prices.items():
                 price_map[addr.lower()] = fiat_prices
 
+        pusd_prices = price_map.get(PUSD_CONTRACT_ADDRESS)
+        if pusd_prices:
+            price_map[PUSD_SYMBOL] = pusd_prices
+
         return price_map
 
     async def _schedule_crypto_rates(self, timeout: int, initial_load: bool):
         # If initial load, fetch generic prices
         if initial_load:
             tasks = []
-            for base_currency in SUPPORTED_CURRENCIES:
-                for symbol in self.BASE_CRYPTO_SYMBOLS:
+            for symbol in self.BASE_CRYPTO_SYMBOLS:
 
-                    async def _run(sym=symbol, base=base_currency):
-                        return await self._port_call_runner(
-                            self._crypto_asset_info_provider.get_price(
-                                sym, base, timeout=timeout
-                            )
+                async def _run(sym=symbol):
+                    return await self._port_call_runner(
+                        self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                            [sym], SUPPORTED_CURRENCIES, timeout=timeout
                         )
+                    )
 
-                    tasks.append((_run, ("crypto", (symbol, base_currency))))
+                tasks.append((_run, ("crypto_batch", None)))
             return tasks
 
         # Otherwise, fetch user position-related crypto prices
@@ -469,6 +485,18 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for base_currency in SUPPORTED_CURRENCIES:
             self._apply_commodity_rates(base_currency, commodity_rates)
             self._apply_crypto_rates(base_currency, crypto_rates)
+            self._apply_pusd_fallback(base_currency)
+
+    def _apply_pusd_fallback(self, base_currency):
+        if self._fiat_matrix is None:
+            return
+        quotes = self._fiat_matrix.get(base_currency)
+        if quotes is None or PUSD_SYMBOL in quotes:
+            return
+        usdc_rate = quotes.get("USDC")
+        if usdc_rate is None:
+            return
+        quotes[PUSD_SYMBOL] = usdc_rate
 
     def _apply_commodity_rates(self, base_currency, commodity_rates):
         if self._fiat_matrix is None:
@@ -477,19 +505,26 @@ class GetExchangeRatesImpl(GetExchangeRates):
         for commodity, (rate_data, symbol) in commodity_rates.items():
             try:
                 price_dec = _to_decimal(rate_data.price)
-                if price_dec is None or price_dec == 0:
+                if price_dec is None or price_dec <= 0:
                     continue
                 if base_currency != rate_data.currency:
                     base_to_rate_currency = self._fiat_matrix[base_currency].get(
                         rate_data.currency
                     )
                     base_to_rate_currency = _to_decimal(base_to_rate_currency)
-                    if base_to_rate_currency is None or base_to_rate_currency == 0:
+                    if base_to_rate_currency is None or base_to_rate_currency <= 0:
                         continue
                     rate = base_to_rate_currency / price_dec
                 else:
                     rate = Decimal(1) / price_dec
-                self._fiat_matrix[base_currency][symbol.upper()] = Dezimal(rate)
+                valid = _valid_rate(rate)
+                if valid is None:
+                    self._log.warning(
+                        f"Keeping previous rate for {base_currency}->{symbol.upper()}, "
+                        f"computed invalid value {rate}"
+                    )
+                    continue
+                self._fiat_matrix[base_currency][symbol.upper()] = valid
             except Exception as e:
                 self._log.error(
                     f"Failed to apply commodity {commodity} for {base_currency}: {e}"
@@ -502,11 +537,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for key, rate in crypto_rates[base_currency].items():
                 try:
                     rate_dec = _to_decimal(rate)
-                    if rate_dec is None or rate_dec == 0:
+                    if rate_dec is None or rate_dec <= 0:
+                        self._log.warning(
+                            f"Keeping previous rate for {base_currency}->{key}, "
+                            f"got invalid price {rate}"
+                        )
                         continue
-                    self._fiat_matrix[base_currency][key] = Dezimal(
-                        Decimal(1) / rate_dec
-                    )
+                    valid = _valid_rate(Decimal(1) / rate_dec)
+                    if valid is None:
+                        continue
+                    self._fiat_matrix[base_currency][key] = valid
                 except Exception as e:
                     self._log.error(
                         f"Failed to apply crypto {key} for {base_currency}: {e}"

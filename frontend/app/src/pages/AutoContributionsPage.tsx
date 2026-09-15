@@ -2235,11 +2235,27 @@ export default function AutoContributionsPage() {
                       type="button"
                       variant="outline"
                       onClick={handleRequestCloseModal}
+                      aria-label={t.common.cancel}
+                      title={t.common.cancel}
+                      className="h-9 w-9 p-0"
                     >
-                      {t.common.cancel}
+                      <X className="h-4 w-4" />
                     </Button>
-                    <Button type="submit">
-                      {modalMode === "create" ? t.common.add : t.common.save}
+                    <Button
+                      type="submit"
+                      aria-label={
+                        modalMode === "create" ? t.common.add : t.common.save
+                      }
+                      title={
+                        modalMode === "create" ? t.common.add : t.common.save
+                      }
+                      className="h-9 w-9 p-0"
+                    >
+                      {modalMode === "create" ? (
+                        <Plus className="h-4 w-4" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
                     </Button>
                   </CardFooter>
                 </form>

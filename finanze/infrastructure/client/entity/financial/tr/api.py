@@ -37,7 +37,7 @@ from infrastructure.client.http.http_session import new_http_session
 
 class TradeRepublicApi:
     _default_headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606 Safari/537.36"
     }
     _host = "https://api.traderepublic.com"
     _weblogin = False
@@ -76,7 +76,7 @@ class TradeRepublicApi:
 
         self._websession = new_http_session()
         self._websession.headers["User-Agent"] = (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606 Safari/537.36"
         )
 
     async def resend_weblogin(self):
@@ -103,6 +103,12 @@ class TradeRepublicApi:
             self._web_session_token_expires_at = time.time() + 290
         return await self._websession.request(
             method=method, url=f"{self._host}{url_path}", data=payload
+        )
+
+    async def has_websocket_auth(self) -> bool:
+        return any(
+            cookie.name == "tr_session" and cookie.value
+            for cookie in self._websession.cookie_jar
         )
 
     async def _get_ws(self):
@@ -145,6 +151,18 @@ class TradeRepublicApi:
         self.log.info("Connected to websocket...")
 
         return self._ws
+
+    async def close(self):
+        ws = self._ws
+        self._ws = None
+        self.subscriptions.clear()
+        self._previous_responses.clear()
+        if ws is None:
+            return
+        try:
+            await ws.close()
+        except Exception:
+            self.log.debug("Error closing Trade Republic websocket", exc_info=True)
 
     async def _next_subscription_id(self):
         async with self._lock:
@@ -640,3 +658,4 @@ class TradeRepublicError(ValueError):
         self.subscription_id = subscription_id
         self.subscription = subscription
         self.error = error_message
+        super().__init__(subscription_id, subscription, error_message)

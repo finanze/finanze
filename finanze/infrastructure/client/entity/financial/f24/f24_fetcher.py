@@ -1,5 +1,6 @@
 import calendar
 import json
+import logging
 import re
 from datetime import date, datetime
 from hashlib import sha1
@@ -19,9 +20,13 @@ from domain.global_position import (
     AccountType,
     Deposit,
     Deposits,
+    EquityType,
     GlobalPosition,
     ProductType,
+    StockDetail,
+    StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import F24
 from domain.transactions import (
     AccountTx,
@@ -35,6 +40,13 @@ from infrastructure.client.entity.financial.f24.f24_client import F24APIClient
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 DATE_FORMAT = "%Y-%m-%d"
+
+_FX_IN_COMMENT = re.compile(
+    r"Currency exchange of trade \(([A-Z]{3})\) to a currency exchange of the service plan \(([A-Z]{3})\) is ([0-9]+(?:\.[0-9]+)?)"
+)
+_CCY_PAIR_TICKER = re.compile(r"^[A-Z]{3}/[A-Z]{3}(?:\.[A-Z]+)?$")
+
+_log = logging.getLogger(__name__)
 
 
 def _map_deposits(off_balance_entries: list) -> list[Deposit]:
@@ -79,6 +91,240 @@ def _get_balance(
     return round(
         Dezimal(money_entries[highest_currency]["avail_money"]), 2
     ), highest_currency
+
+
+def _map_brokerage_cash(position: dict) -> list[Account]:
+    money_entries = (position or {}).get("money_detailed") or {}
+    accounts = []
+    for currency, details in money_entries.items():
+        amount = round(Dezimal(details.get("Smoney") or 0), 2)
+        if amount == Dezimal(0):
+            continue
+        accounts.append(
+            Account(
+                id=uuid4(),
+                type=AccountType.BROKERAGE,
+                total=amount,
+                currency=currency,
+                retained=None,
+                interest=Dezimal(0),
+            )
+        )
+    return accounts
+
+
+def _position_market_value(pos: dict, shares: Dezimal) -> Dezimal:
+    market_value = Dezimal(pos.get("market_value") or 0)
+    mkt_price = Dezimal(pos.get("mkt_price") or 0)
+    if shares > Dezimal(1) and mkt_price > Dezimal(0):
+        per_share_gap = abs(market_value - mkt_price)
+        notional_gap = abs(market_value - shares * mkt_price)
+        if per_share_gap < notional_gap:
+            return market_value * shares
+    return market_value
+
+
+def _position_average_buy_price(pos: dict) -> Dezimal:
+    raw = pos.get("price_a")
+    if raw is None:
+        raw = pos.get("bal_price_a")
+    return Dezimal(0 if raw is None else raw)
+
+
+F24_KIND_STOCK = 1
+F24_KIND_ETF = 7
+
+
+def _parse_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _equity_type(kind) -> EquityType | None:
+    parsed = _parse_int(kind)
+    if parsed == F24_KIND_ETF:
+        return EquityType.ETF
+    if parsed == F24_KIND_STOCK:
+        return EquityType.STOCK
+    return None
+
+
+def _trade_fee(trade: dict) -> Dezimal:
+    fee = Dezimal(trade.get("commission") or 0)
+    if fee == Dezimal(0):
+        return Dezimal(0)
+
+    trade_ccy = trade.get("currency")
+    fee_ccy = trade.get("commission_currency") or trade_ccy
+    if not fee_ccy or fee_ccy == trade_ccy:
+        return round(fee, 2)
+
+    comment = trade.get("commission_comment") or ""
+    match = _FX_IN_COMMENT.search(comment)
+    if not match:
+        _log.warning(
+            "F24 trade %s: commission %s %s vs trade %s, no FX rate in comment",
+            trade.get("ticker"),
+            fee,
+            fee_ccy,
+            trade_ccy,
+        )
+        return round(fee, 2)
+
+    from_ccy, to_ccy, rate = match.group(1), match.group(2), Dezimal(match.group(3))
+    if rate <= Dezimal(0):
+        _log.warning(
+            "F24 trade %s: invalid FX rate %s in comment",
+            trade.get("ticker"),
+            rate,
+        )
+        return round(fee, 2)
+
+    if from_ccy == trade_ccy and to_ccy == fee_ccy:
+        return round(fee / rate, 2)
+    if from_ccy == fee_ccy and to_ccy == trade_ccy:
+        return round(fee * rate, 2)
+
+    _log.warning(
+        "F24 trade %s: FX comment %s->%s does not match commission %s vs trade %s",
+        trade.get("ticker"),
+        from_ccy,
+        to_ccy,
+        fee_ccy,
+        trade_ccy,
+    )
+    return round(fee, 2)
+
+
+def _currency_pair_tickers(raw) -> set[str]:
+    payload = raw
+    if isinstance(raw, dict):
+        tickers = raw.get("tickers")
+        if tickers is None:
+            for key in ("result", "data", "response"):
+                nested = raw.get(key)
+                if isinstance(nested, dict) and nested.get("tickers") is not None:
+                    payload = nested
+                    tickers = nested.get("tickers")
+                    break
+        else:
+            payload = raw
+    else:
+        tickers = None
+
+    pairs: set[str] = set()
+    if isinstance(tickers, dict):
+        for key, value in tickers.items():
+            if key:
+                pairs.add(str(key).strip())
+            if value:
+                pairs.add(str(value).strip())
+    elif isinstance(tickers, list):
+        for value in tickers:
+            if value:
+                pairs.add(str(value).strip())
+
+    if isinstance(payload, dict):
+        for fiat in payload.get("fiat") or []:
+            code = str(fiat).strip()
+            if code:
+                pairs.add(code)
+    return pairs
+
+
+def _is_currency_pair(ticker: str, pairs: set[str]) -> bool:
+    ticker = (ticker or "").strip()
+    if not ticker:
+        return False
+    if ticker in pairs:
+        return True
+    return bool(_CCY_PAIR_TICKER.fullmatch(ticker))
+
+
+def _as_ticker_info(ticker_info) -> dict:
+    if isinstance(ticker_info, list):
+        first = ticker_info[0] if ticker_info else None
+        return first if isinstance(first, dict) else {}
+    if not isinstance(ticker_info, dict):
+        return {}
+    if any(key in ticker_info for key in ("kind", "k", "isin", "nm", "mkt")):
+        return ticker_info
+    for value in ticker_info.values():
+        if isinstance(value, list) and value and isinstance(value[0], dict):
+            return value[0]
+    return ticker_info
+
+
+def _map_stocks(raw_positions: list | None) -> list[StockDetail]:
+    stocks = []
+    for pos in raw_positions or []:
+        ticker = pos.get("i") or pos.get("base_contract_code") or ""
+        name = pos.get("name") or pos.get("name2") or ticker or pos.get("instr_id")
+
+        if pos.get("t") not in (None, 1):
+            _log.warning(
+                "Skipping F24 position %s: unsupported type t=%s",
+                name,
+                pos.get("t"),
+            )
+            continue
+
+        equity_type = _equity_type(pos.get("k", pos.get("kind")))
+        if equity_type is None:
+            _log.warning(
+                "Skipping F24 position %s: unsupported kind k=%s",
+                name,
+                pos.get("k", pos.get("kind")),
+            )
+            continue
+
+        shares = Dezimal(pos.get("q") or 0)
+        if shares <= Dezimal(0):
+            _log.warning(
+                "Skipping F24 position %s: non-positive shares q=%s",
+                name,
+                pos.get("q"),
+            )
+            continue
+
+        currency = pos.get("curr") or pos.get("base_currency")
+        if not ticker or not currency:
+            _log.warning(
+                "Skipping F24 position %s: missing ticker or currency ticker=%s currency=%s",
+                name,
+                ticker,
+                currency,
+            )
+            continue
+
+        market_value = round(_position_market_value(pos, shares), 2)
+        market = ticker.rsplit(".", 1)[-1] if "." in ticker else ""
+        average_buy_price = _position_average_buy_price(pos)
+
+        stocks.append(
+            StockDetail(
+                id=uuid4(),
+                name=pos.get("name") or pos.get("name2") or ticker,
+                ticker=ticker,
+                isin=pos.get("issue_nb") or ticker,
+                shares=shares,
+                market_value=market_value,
+                currency=currency,
+                type=equity_type,
+                initial_investment=round(average_buy_price * shares, 2),
+                average_buy_price=average_buy_price,
+                market=market,
+                issuer=(
+                    resolve_issuer(None, name)
+                    if equity_type == EquityType.ETF
+                    else None
+                ),
+                source=DataSource.REAL,
+            )
+        )
+    return stocks
 
 
 def _parse_interests_from_desc(text: str) -> dict[str, Dezimal]:
@@ -197,12 +443,6 @@ class F24Fetcher(FinancialEntityFetcher):
         if savings_position:
             savings_balance, savings_currency = _get_balance(savings_position, "EUR")
 
-        brokerage_balance, brokerage_currency = None, None
-        if brokerage_position:
-            brokerage_balance, brokerage_currency = _get_balance(
-                brokerage_position, savings_currency
-            )
-
         accounts = []
         if savings_currency and savings_position:
             users = await self._client.get_connected_users_assets()
@@ -234,19 +474,15 @@ class F24Fetcher(FinancialEntityFetcher):
                     )
                 )
 
-        if brokerage_currency and brokerage_position:
-            accounts.append(
-                Account(
-                    id=uuid4(),
-                    type=AccountType.BROKERAGE,
-                    total=brokerage_balance,
-                    currency=brokerage_currency,
-                    retained=None,
-                    interest=Dezimal(0),
-                )
-            )
+        if brokerage_position:
+            accounts.extend(_map_brokerage_cash(brokerage_position))
 
         products = {ProductType.ACCOUNT: Accounts(accounts)}
+
+        if brokerage_position:
+            stocks = _map_stocks(brokerage_position.get("pos"))
+            if stocks:
+                products[ProductType.STOCK_ETF] = StockInvestments(stocks)
 
         if brokerage_position and brokerage_position["offbalance"]:
             off_balance_entries = await self._client.get_off_balance()
@@ -376,10 +612,17 @@ class F24Fetcher(FinancialEntityFetcher):
         return txs
 
     async def _map_investment_txs(self, raw_trades, registered_txs):
+        currency_pairs = _currency_pair_tickers(
+            await self._client.get_allowed_currency_pairs()
+        )
         investment_tx = []
         for trade in raw_trades:
             trade_id = str(trade["trade_id"])
             if trade_id in registered_txs:
+                continue
+
+            ticker = (trade.get("ticker") or "").strip()
+            if _is_currency_pair(ticker, currency_pairs):
                 continue
 
             trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(
@@ -397,11 +640,20 @@ class F24Fetcher(FinancialEntityFetcher):
             amount = round(Dezimal(trade["sum"]), 2)
             shares = Dezimal(trade["q"])
             price = Dezimal(trade["p"])
-            fee = Dezimal(trade.get("commission", 0))
+            fee = _trade_fee(trade)
 
-            ticker = trade["ticker"]
+            ticker_info = _as_ticker_info(await self._client.find_by_ticker(ticker))
+            instrument_type = _parse_int(ticker_info.get("type", ticker_info.get("t")))
+            equity_type = _equity_type(ticker_info.get("kind", ticker_info.get("k")))
+            if instrument_type not in (None, 1) or equity_type is None:
+                _log.warning(
+                    "Skipping F24 trade %s: unsupported type t=%s kind k=%s",
+                    ticker,
+                    instrument_type,
+                    ticker_info.get("kind", ticker_info.get("k")),
+                )
+                continue
 
-            ticker_info = await self._client.find_by_ticker(ticker)
             isin = ticker_info.get("isin")
             market = ticker_info.get("mkt")
             name = ticker_info.get("nm", ticker)
@@ -425,6 +677,7 @@ class F24Fetcher(FinancialEntityFetcher):
                 retentions=Dezimal(0),
                 order_date=None,
                 product_type=ProductType.STOCK_ETF,
+                equity_type=equity_type,
                 linked_tx=None,
                 source=DataSource.REAL,
             )

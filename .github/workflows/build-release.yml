@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, macos-15-intel, windows-latest, ubuntu-latest ]
+        os: [ macos-15, macos-15-intel, windows-latest, ubuntu-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -39,42 +39,42 @@ jobs:
         with:
           node-version-file: frontend/app/.nvmrc
 
-      - name: Setup python (non-macOS)
-        if: ${{ !startsWith(matrix.os, 'macos-') }}
-        uses: actions/setup-python@v6
+      - name: Setup python (non-Intel)
+        if: ${{ matrix.os != 'macos-15-intel' }}
+        uses: actions/setup-python@v7
         with:
           python-version: 3.14.5
 
-      - name: Setup python (macOS)
-        if: ${{ startsWith(matrix.os, 'macos-') }}
+      - name: Setup python (macOS Intel)
+        if: ${{ matrix.os == 'macos-15-intel' }}
         shell: bash
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
-          brew update && brew install pyenv pyenv-virtualenv
+          brew install pyenv pyenv-virtualenv || true
+          if ! command -v pyenv >/dev/null 2>&1; then
+            echo "pyenv missing after brew install" >&2
+            exit 1
+          fi
 
           export PYENV_ROOT="$HOME/.pyenv"
           export PATH="$PYENV_ROOT/bin:$PATH"
-          
-          # Initialize pyenv and pyenv-virtualenv for the current shell
-          eval "$(pyenv init --path)" # Ensures pyenv command is found via shims/bin
-          eval "$(pyenv init -)"      # Sets up shims and other integrations
-          eval "$(pyenv virtualenv-init -)" # Defines 'pyenv activate' and other venv functions
+
+          eval "$(pyenv init --path)"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
 
           pyenv install --skip-existing 3.14.5
-          
-          # Create virtualenv if it doesn't exist
+
           if ! pyenv virtualenvs --bare | grep -q "^finanze$"; then
             pyenv virtualenv 3.14.5 finanze
           else
             echo "Virtualenv 'finanze' already exists."
           fi
-          
-          # Activate for this script block (confirms setup)
+
           pyenv activate finanze
-          
-          # Set for pyenv to use this venv in the current directory context
           pyenv local finanze
-          
-          # Make pyenv and the virtualenv available to subsequent steps in the job
+
           echo "$PYENV_ROOT/bin" >> $GITHUB_PATH
           echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
           echo "$PYENV_ROOT/versions/finanze/bin" >> $GITHUB_PATH
@@ -96,6 +96,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_ELECTRON_MAIN_DSN: ${{ secrets.VITE_BS_ELECTRON_MAIN_DSN }}
+          VITE_BS_DESKTOP_BACKEND_DSN: ${{ secrets.VITE_BS_DESKTOP_BACKEND_DSN }}
+          VITE_BS_ENVIRONMENT: production
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ startsWith(matrix.os, 'macos-') && secrets.CSC_KEY_PASSWORD || '' }}
@@ -107,7 +115,7 @@ jobs:
           # Determine OS and arch parameters
           OS_PARAM=""
           
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          if [[ "${{ matrix.os }}" == "macos-15" ]]; then
             OS_PARAM="--os mac --arch arm64"
           elif [[ "${{ matrix.os }}" == "macos-15-intel" ]]; then
             OS_PARAM="--os mac --arch x64"
@@ -161,7 +169,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.14.5
 
@@ -175,7 +183,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
 
       - name: Install gomobile
         run: |
@@ -211,6 +219,12 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_MOBILE_BACKEND_DSN: ${{ secrets.VITE_BS_MOBILE_BACKEND_DSN }}
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
         run: |
           pnpm build:mobile
           pnpm exec cap sync android
@@ -230,6 +244,12 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+          VITE_BS_FRONTEND_DSN: ${{ secrets.VITE_BS_FRONTEND_DSN }}
+          VITE_BS_MOBILE_BACKEND_DSN: ${{ secrets.VITE_BS_MOBILE_BACKEND_DSN }}
+          BETTER_STACK_API_TOKEN: ${{ secrets.BETTER_STACK_API_TOKEN }}
+          BETTER_STACK_SOURCEMAP_ORG: ${{ secrets.BETTER_STACK_SOURCEMAP_ORG }}
+          BETTER_STACK_SOURCEMAP_PROJECT: ${{ secrets.BETTER_STACK_SOURCEMAP_PROJECT }}
+          BETTER_STACK_SOURCEMAP_URL: ${{ secrets.BETTER_STACK_SOURCEMAP_URL }}
         run: |
           pnpm build:mobile:store
           pnpm exec cap sync android
@@ -286,7 +306,7 @@ jobs:
           default_branch: main
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
-          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }},VITE_BS_FRONTEND_DSN=${{ secrets.VITE_BS_FRONTEND_DSN }}
           tags: |
             ${{ env.RELEASE_TAG }},latest
 

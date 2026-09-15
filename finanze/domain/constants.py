@@ -3,3 +3,6 @@ from domain.dezimal import Dezimal
 CAPITAL_GAINS_BASE_TAX = Dezimal(0.19)
 
 SUPPORTED_CURRENCIES = ["EUR", "USD"]
+
+PUSD_SYMBOL = "PUSD"
+PUSD_CONTRACT_ADDRESS = "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb"

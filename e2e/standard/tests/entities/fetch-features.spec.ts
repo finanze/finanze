@@ -87,8 +87,8 @@ test.describe('Feature Selection Verification', () => {
             .getByRole('heading', { name: 'Summary' })
             .waitFor({ timeout: 10_000 })
 
-        // Open Data dropdown and refresh MyInvestor (sends ALL features)
-        await page.getByRole('button', { name: 'Data' }).click()
+        // Open Update dropdown and refresh MyInvestor (sends ALL features)
+        await page.getByRole('button', { name: 'Update' }).click()
         await page
             .locator('button[aria-label="Refresh MyInvestor"]')
             .waitFor({ timeout: 5_000 })

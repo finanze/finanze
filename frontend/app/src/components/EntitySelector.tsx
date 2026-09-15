@@ -5,7 +5,14 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react"
-import { Check, Landmark, Wallet, ArrowLeftRight, Package } from "lucide-react"
+import {
+  Check,
+  Landmark,
+  Wallet,
+  ArrowLeftRight,
+  Package,
+  ChartNoAxesColumn,
+} from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import {
@@ -23,6 +30,7 @@ const ENTITY_TYPE_ICONS: Record<string, typeof Landmark> = {
   [EntityType.FINANCIAL_INSTITUTION]: Landmark,
   [EntityType.CRYPTO_WALLET]: Wallet,
   [EntityType.CRYPTO_EXCHANGE]: ArrowLeftRight,
+  [EntityType.MARKET_FORECAST_PLATFORM]: ChartNoAxesColumn,
   [EntityType.COMMODITY]: Package,
 }
 
@@ -39,6 +47,7 @@ interface EntitySelectorProps {
   emptyMessage?: string
   emptySelectionBadge?: string
   className?: string
+  id?: string
   entityImageOverride?: (entity: Entity) => string | null | undefined
 }
 
@@ -129,6 +138,7 @@ export function EntitySelector({
   emptyMessage,
   emptySelectionBadge,
   className,
+  id,
   entityImageOverride,
 }: EntitySelectorProps) {
   const { t } = useI18n()
@@ -200,6 +210,7 @@ export function EntitySelector({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}

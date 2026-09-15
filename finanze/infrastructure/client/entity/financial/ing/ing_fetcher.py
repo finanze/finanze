@@ -62,6 +62,10 @@ def _map_op_type(raw: str | None, stock_type: str | None) -> TxType | None:
         return TxType.SWAP_TO
     if raw == "BC":
         return TxType.SWAP_FROM
+    if raw == "TE":
+        return TxType.TRANSFER_IN
+    if raw == "TS":
+        return TxType.TRANSFER_OUT
     return None
 
 

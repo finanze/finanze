@@ -157,6 +157,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
         self.register = RegisterUserImpl(
             core.db_manager,
@@ -164,6 +165,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
         self.get_settings = GetSettingsImpl(self.config_loader)
 
@@ -175,6 +177,7 @@ class DeferredComponents:
             self.config_loader,
             self.sheets_initiator,
             self.cloud_register,
+            core.error_reporter,
         )
 
         if INCLUDE_CONNECTIONS:
@@ -194,7 +197,10 @@ class DeferredComponents:
                     domain.native_entities.UNICAJA,
                     domain.native_entities.IBKR,
                     domain.native_entities.B100,
+                    domain.native_entities.CRESCENTA,
+                    domain.native_entities.TRADING212,
                     domain.native_entities.BINANCE,
+                    domain.native_entities.POLYMARKET,
                 ]
             }
             crypto_entity_fetcher_stubs = {
@@ -205,6 +211,7 @@ class DeferredComponents:
                     domain.native_entities.LITECOIN,
                     domain.native_entities.TRON,
                     domain.native_entities.BSC,
+                    domain.native_entities.ZERION,
                 ]
             }
             external_entity_fetcher_stubs = {
@@ -220,6 +227,7 @@ class DeferredComponents:
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True
+            external_integrations[ExternalIntegrationId.ZERION] = True
 
         self.position_repo = PositionRepository(client=db_client)
         self.manual_repo = ManualPositionDataSQLRepository(client=db_client)
@@ -244,7 +252,10 @@ class DeferredComponents:
         )
         self.metal_client = MetalPriceClient()
         self.inst_provider = InstrumentProviderAdapter(
-            enabled_clients=["ft", "yf", "finect", "tv", "ee", "le"]
+            enabled_clients=(
+                (["ft"] if INCLUDE_CONNECTIONS else [])
+                + ["yf", "finect", "tv", "ee", "le"]
+            )
         )
 
         self.tx_handler = TransactionHandler(client=db_client)

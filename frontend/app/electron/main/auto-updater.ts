@@ -4,6 +4,7 @@ import ElectronUpdater, {
   type UpdateInfo,
 } from "electron-updater"
 import { AppConfig, OS } from "../types"
+import { captureException } from "./telemetry"
 
 const { autoUpdater } = ElectronUpdater
 
@@ -98,6 +99,7 @@ export function initializeAutoUpdater(): void {
   })
 
   autoUpdater.on("error", (error: unknown) => {
+    captureException(error, { phase: "auto_update" })
     sendToAllWindows(AUTO_UPDATE_CHANNELS.error, serializeError(error))
   })
 }

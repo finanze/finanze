@@ -217,6 +217,13 @@ async def handle_request(router, method, path, body, headers):
             data = {"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}
 
         router.logger.exception(f"Error handling {method} {path}")
+
+        reporter = getattr(router, "error_reporter", None)
+        if reporter is not None:
+            reporter.capture_exception(
+                original, tags={"http_method": method, "route": clean_path}
+            )
+
         return {
             "status": status,
             "data": _to_jsonable(data),

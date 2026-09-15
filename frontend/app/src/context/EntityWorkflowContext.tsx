@@ -9,7 +9,7 @@ import {
 } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
-import { useI18n } from "@/i18n"
+import { useI18n, type Translations } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
   CredentialType,
@@ -22,6 +22,7 @@ import {
   EntityStatus,
   EntityType,
   EntityOrigin,
+  PinChannel,
 } from "@/types"
 import {
   loginEntity,
@@ -41,6 +42,8 @@ import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
 import { getExternalLoginAPI } from "@/lib/externalLogin"
 import { getChallengeWindowAPI } from "@/lib/challengeWindow"
+import { getConnectedAccountIds } from "@/utils/entityUtils"
+import { startSmsOtpListening, stopSmsOtpListening } from "@/lib/mobile/smsOtp"
 
 export interface FetchOptions {
   deep?: boolean
@@ -142,6 +145,70 @@ const DEFAULT_FETCH_OPTIONS: FetchOptions = {
   deep: false,
 }
 
+const formatEntityError = (
+  message: string | undefined,
+  entityName: string,
+  fallback: string,
+): string => (message || fallback).replace("{entity}", entityName)
+
+const formatPartialFetchMessage = (
+  t: Translations,
+  entityName: string,
+  failedFeatures?: Feature[],
+): string => {
+  if (failedFeatures && failedFeatures.length > 0) {
+    const labels = failedFeatures
+      .map(feature => t.features[feature] || feature)
+      .join(", ")
+    return t.errors.PARTIALLY_COMPLETED_FEATURES.replace(
+      "{entity}",
+      entityName,
+    ).replace("{features}", labels)
+  }
+  return t.errors.PARTIALLY_COMPLETED.replace("{entity}", entityName)
+}
+
+const featuresToStampLastFetch = (
+  completedFeatures: Feature[] | undefined,
+  requestedFeatures: Feature[],
+): Feature[] => completedFeatures ?? requestedFeatures
+
+const getDefaultAccountName = (
+  entity: Entity,
+  credentials: Record<string, string>,
+  accountName?: string,
+): string | undefined => {
+  const explicitName = accountName?.trim()
+  if (explicitName) return explicitName
+
+  for (const [credentialName, credentialType] of Object.entries(
+    entity.credentials_template ?? {},
+  )) {
+    if (
+      credentialType !== CredentialType.USER &&
+      credentialType !== CredentialType.EMAIL
+    ) {
+      continue
+    }
+    const credentialValue = credentials[credentialName]?.trim()
+    if (credentialValue) return credentialValue
+  }
+
+  return undefined
+}
+
+const getNewAccountName = (
+  entity: Entity,
+  accountId: string,
+  accountName?: string,
+): string | undefined =>
+  entity.accounts?.some(account => account.id === accountId)
+    ? undefined
+    : accountName
+
+const entityHasSmsPin = (entity: Entity | null | undefined): boolean =>
+  entity?.pin?.channel === PinChannel.SMS
+
 export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
@@ -177,6 +244,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     string,
     string
   > | null>(null)
+  const pendingAccountNameRef = useRef<string | undefined>(undefined)
   const [view, setView] = useState<
     "entities" | "login" | "features" | "external-login"
   >("entities")
@@ -245,6 +313,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
+    void stopSmsOtpListening()
     setPinRequired(false)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
@@ -260,6 +329,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
     setCurrentAction(null)
     setStoredCredentials(null)
+    pendingAccountNameRef.current = undefined
     setPinError(false)
     scrapeManualLogin.current = {
       active: false,
@@ -362,7 +432,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       const loginAPI = getExternalLoginAPI()
       if (!loginAPI) {
         console.error("External login API not available")
-        showToast(t.common.incompatibleLoginPlatform, "error")
+        showToast(t.common.incompatibleLoginPlatform, "error", {
+          reportable: false,
+        })
         return
       }
 
@@ -375,7 +447,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         })
 
         if (!result.success) {
-          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error", {
+            reportable: false,
+          })
           resetState()
           setView("entities")
         }
@@ -434,6 +508,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setIsLoggingIn(true)
         setPinError(false)
+        if (pin === undefined) {
+          pendingAccountNameRef.current = getDefaultAccountName(
+            selectedEntity,
+            credentials,
+            accountName,
+          )
+        }
 
         if (!storedCredentials) {
           setStoredCredentials(credentials)
@@ -444,18 +525,23 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        if (entityHasSmsPin(selectedEntity) && pin === undefined) {
+          await startSmsOtpListening()
+        }
+
         const response = await loginEntity({
           entity: selectedEntity.id,
           credentials: credentials,
           code: pin,
           processId: processId || undefined,
-          accountName,
+          accountName: pendingAccountNameRef.current,
         })
 
         if (response.code === "CODE_REQUESTED") {
           setProcessId(response.processId || null)
           setCurrentAction("login")
           if (response.confirmationType === LoginConfirmationType.IN_APP) {
+            void stopSmsOtpListening()
             setInAppConfirmation(true)
             setIsLoggingIn(true)
             try {
@@ -463,6 +549,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 entity: selectedEntity.id,
                 credentials: credentials,
                 processId: response.processId || undefined,
+                accountName: pendingAccountNameRef.current,
               })
               if (
                 confirmResponse.code === "CREATED" ||
@@ -473,6 +560,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   updateEntityAccount(
                     selectedEntity.id,
                     confirmResponse.entityAccountId,
+                    getNewAccountName(
+                      selectedEntity,
+                      confirmResponse.entityAccountId,
+                      pendingAccountNameRef.current,
+                    ),
                   )
                 }
                 showToast(
@@ -496,12 +588,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 resetState()
                 setView("entities")
               } else {
-                const errorMessage =
-                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
-                  t.common.loginErrorEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  )
+                const errorMessage = formatEntityError(
+                  t.errors[confirmResponse.code as keyof typeof t.errors],
+                  selectedEntity.name,
+                  t.common.loginErrorEntity,
+                )
                 showToast(errorMessage, "error")
                 resetState()
                 setView("entities")
@@ -522,6 +613,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            void stopSmsOtpListening()
             if (
               response.challengeType === ChallengeType.RECAPTCHA &&
               response.processId
@@ -532,7 +624,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setChallengeType(ChallengeType.RECAPTCHA)
                 setChallengeRequired(true)
               } else {
-                showToast(t.common.incompatibleLoginPlatform, "error")
+                showToast(t.common.incompatibleLoginPlatform, "error", {
+                  reportable: false,
+                })
                 resetState()
                 setView("entities")
               }
@@ -544,7 +638,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
           if (response.entityAccountId) {
-            updateEntityAccount(selectedEntity.id, response.entityAccountId)
+            updateEntityAccount(
+              selectedEntity.id,
+              response.entityAccountId,
+              getNewAccountName(
+                selectedEntity,
+                response.entityAccountId,
+                pendingAccountNameRef.current,
+              ),
+            )
           }
 
           if (scrapeManualLogin.current.active) {
@@ -595,26 +697,31 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginErrorEntity.replace(
-                "{entity}",
-                selectedEntity.name,
-              ),
+            formatEntityError(
+              t.errors[response.code as keyof typeof t.errors],
+              selectedEntity.name,
+              t.common.loginErrorEntity,
+            ),
             "error",
+            { reportable: false },
+          )
+        } else if (response.code === "INVALID_CREDENTIALS") {
+          showToast(
+            formatEntityError(
+              t.errors[response.code as keyof typeof t.errors],
+              selectedEntity.name,
+              t.common.loginErrorEntity,
+            ),
+            "error",
+            { reportable: false },
           )
         } else {
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
-          let finalMessage: string
-          if (errorMessage?.includes("{entity}")) {
-            finalMessage = errorMessage.replace("{entity}", selectedEntity.name)
-          } else if (errorMessage) {
-            finalMessage = errorMessage
-          } else {
-            finalMessage = t.common.loginErrorEntity.replace(
-              "{entity}",
-              selectedEntity.name,
-            )
-          }
+          const finalMessage = formatEntityError(
+            errorMessage,
+            selectedEntity.name,
+            t.common.loginErrorEntity,
+          )
           showToast(finalMessage, "error")
           resetState()
           setView("entities")
@@ -640,6 +747,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       showToast,
       storedCredentials,
       t,
+      updateEntityAccount,
       updateEntityStatus,
     ],
   )
@@ -657,20 +765,50 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       const notify = (
         message: string,
         type: "success" | "error" | "warning",
+        options?: { reportable?: boolean },
       ) => {
         if (!silent) {
-          showToast(message, type)
+          showToast(message, type, options)
         }
       }
 
       try {
         setPinError(false)
 
+        if (entity && !entityAccountId) {
+          const accountIds = getConnectedAccountIds(entity)
+          if (accountIds.length > 0) {
+            for (const [index, accountId] of accountIds.entries()) {
+              await scrapeRef.current(
+                entity,
+                features,
+                {
+                  ...options,
+                  silent: index < accountIds.length - 1 || silent,
+                },
+                accountId,
+                externalCredentials,
+              )
+              if (
+                pendingScrapeParamsRef.current.has(entity.id) ||
+                scrapeManualLogin.current.active
+              ) {
+                return
+              }
+            }
+            return
+          }
+        }
+
         if (entity) {
           setFetchingEntityState(prev => ({
             ...prev,
             fetchingEntityIds: [...prev.fetchingEntityIds, entity.id],
           }))
+        }
+
+        if (entity && !silent && !options.code && entityHasSmsPin(entity)) {
+          await startSmsOtpListening()
         }
 
         let response
@@ -699,9 +837,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
           } else if (
             entity.type === EntityType.FINANCIAL_INSTITUTION ||
-            entity.type === EntityType.CRYPTO_EXCHANGE
+            entity.type === EntityType.CRYPTO_EXCHANGE ||
+            entity.type === EntityType.MARKET_FORECAST_PLATFORM
           ) {
-            const accountId = entityAccountId || entity.accounts?.[0]?.id
+            const accountId =
+              entityAccountId ||
+              entity.accounts?.find(
+                account => account.status === EntityStatus.CONNECTED,
+              )?.id
             response = await fetchFinancialEntity({
               entity: entity.id,
               features: features,
@@ -740,11 +883,24 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            void stopSmsOtpListening()
             const processIdValue = response.details?.processId || null
             const challengeTypeValue = response.details?.challengeType || null
             const challengeDomainValue =
               response.details?.challengeDomain || null
             if (processIdValue && entity) {
+              pendingScrapeParamsRef.current.set(entity.id, {
+                entity,
+                features,
+                options: {
+                  deep: options.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                },
+                processId: processIdValue,
+                pinLength: entity.pin?.positions || 4,
+                currentAction: "scrape",
+                entityAccountId,
+              })
               const opened =
                 challengeDomainValue &&
                 openChallengeWindow(processIdValue, challengeDomainValue)
@@ -761,7 +917,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setChallengeType(challengeTypeValue)
                 setChallengeRequired(true)
               } else {
-                showToast(t.common.incompatibleLoginPlatform, "error")
+                showToast(t.common.incompatibleLoginPlatform, "error", {
+                  reportable: false,
+                })
                 resetState()
                 setView("entities")
               }
@@ -770,12 +928,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             response.confirmationType === LoginConfirmationType.IN_APP &&
             entity
           ) {
+            void stopSmsOtpListening()
             const processIdValue = response.details?.processId || null
             if (processIdValue) {
               setSelectedEntity(entity)
               setInAppConfirmation(true)
               try {
-                const accountId = entityAccountId || entity.accounts?.[0]?.id
+                const accountId =
+                  entityAccountId ||
+                  entity.accounts?.find(
+                    account => account.status === EntityStatus.CONNECTED,
+                  )?.id
                 const confirmResponse = await fetchFinancialEntity({
                   entity: entity.id,
                   features: features,
@@ -791,9 +954,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   const isPartial =
                     confirmResponse.code === FetchResultCode.PARTIALLY_COMPLETED
                   const successMessage = isPartial
-                    ? t.errors.PARTIALLY_COMPLETED.replace(
-                        "{entity}",
+                    ? formatPartialFetchMessage(
+                        t,
                         entity.name,
+                        confirmResponse.details?.failedFeatures,
                       )
                     : t.common.fetchSuccessEntity.replace(
                         "{entity}",
@@ -803,7 +967,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   if (!isPartial) {
                     recordAutoRefreshSuccess(entity.id)
                   }
-                  updateEntityLastFetch(entity.id, features)
+                  updateEntityLastFetch(
+                    entity.id,
+                    featuresToStampLastFetch(
+                      confirmResponse.details?.completedFeatures,
+                      features,
+                    ),
+                  )
                   pendingScrapeParamsRef.current.delete(entity.id)
                   if (activePinEntityId === entity.id) {
                     setActivePinEntityId(null)
@@ -847,11 +1017,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 } else {
                   const errorKey = confirmResponse.code as keyof typeof t.errors
                   notify(
-                    t.errors[errorKey] ||
-                      t.common.fetchErrorEntity.replace(
-                        "{entity}",
-                        entity.name,
-                      ),
+                    formatEntityError(
+                      t.errors[errorKey],
+                      entity.name,
+                      t.common.fetchErrorEntity,
+                    ),
                     "error",
                   )
                   resetState({ preserveSelectedFeatures: true })
@@ -946,16 +1116,23 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
           const entityName = entity?.name || t.common.crypto
-          const warningMessage = t.errors.PARTIALLY_COMPLETED.replace(
-            "{entity}",
+          const warningMessage = formatPartialFetchMessage(
+            t,
             entityName,
+            response.details?.failedFeatures,
           )
           notify(warningMessage, "warning")
 
           let advancedToNext = false
 
           if (entity) {
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)
@@ -1001,7 +1178,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entity.name,
             )
             recordAutoRefreshSuccess(entity.id)
-            updateEntityLastFetch(entity.id, features)
+            updateEntityLastFetch(
+              entity.id,
+              featuresToStampLastFetch(
+                response.details?.completedFeatures,
+                features,
+              ),
+            )
             pendingScrapeParamsRef.current.delete(entity.id)
             if (activePinEntityId === entity.id) {
               setActivePinEntityId(null)
@@ -1045,25 +1228,36 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
-          const errorMessage =
-            t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity.replace("{entity}", entityName)
-          notify(errorMessage, "error")
+          const errorMessage = formatEntityError(
+            t.errors[response.code as keyof typeof t.errors],
+            entityName,
+            t.common.fetchErrorEntity,
+          )
+          notify(errorMessage, "error", { reportable: false })
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
             navigate("/entities")
           }
           const entityName = entity?.name || t.common.crypto
-          const errorMessage = (
-            t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity
-          )?.replace("{entity}", entityName)
-          notify(errorMessage, "error")
+          const errorMessage = formatEntityError(
+            t.errors[response.code as keyof typeof t.errors],
+            entityName,
+            t.common.fetchErrorEntity,
+          )
+          notify(errorMessage, "error", { reportable: false })
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
           }
         } else if (response.code === FetchResultCode.LINK_EXPIRED) {
-          notify(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
+          const entityName = entity?.name || t.common.crypto
+          notify(
+            formatEntityError(
+              t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED,
+              entityName,
+              t.errors.LOGIN_REQUIRED,
+            ),
+            "warning",
+          )
           if (entity) {
             updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
             if (silent) {
@@ -1084,17 +1278,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else {
           const entityName = entity?.name || t.common.crypto
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
-          let finalMessage: string
-          if (errorMessage?.includes("{entity}")) {
-            finalMessage = errorMessage.replace("{entity}", entityName)
-          } else if (errorMessage) {
-            finalMessage = errorMessage
-          } else {
-            finalMessage = t.common.fetchErrorEntity.replace(
-              "{entity}",
-              entityName,
-            )
-          }
+          const finalMessage = formatEntityError(
+            errorMessage,
+            entityName,
+            t.common.fetchErrorEntity,
+          )
           notify(finalMessage, "error")
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
@@ -1167,12 +1355,21 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           entity: selectedEntity.id,
           credentials: storedCredentials,
           token: token,
+          accountName: pendingAccountNameRef.current,
         })
           .then(response => {
             if (response.code === "CREATED" || response.code === "RESUMED") {
               updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
               if (response.entityAccountId) {
-                updateEntityAccount(selectedEntity.id, response.entityAccountId)
+                updateEntityAccount(
+                  selectedEntity.id,
+                  response.entityAccountId,
+                  getNewAccountName(
+                    selectedEntity,
+                    response.entityAccountId,
+                    pendingAccountNameRef.current,
+                  ),
+                )
               }
               showToast(
                 t.common.loginSuccessEntity.replace(
@@ -1222,10 +1419,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             setIsLoggingIn(false)
           })
       } else {
-        scrape(selectedEntity, selectedFeatures, {
-          ...fetchOptions,
-          token: token,
-        })
+        const pendingParams = pendingScrapeParamsRef.current.get(
+          selectedEntity.id,
+        )
+        scrape(
+          selectedEntity,
+          selectedFeatures,
+          {
+            ...fetchOptions,
+            token: token,
+          },
+          pendingParams?.entityAccountId,
+        )
       }
     },
     [
@@ -1240,6 +1445,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       setView,
       showToast,
       t,
+      updateEntityAccount,
       updateEntityStatus,
     ],
   )
@@ -1253,9 +1459,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setIsLoggingIn(true)
 
+        const accountName = scrapeManualLogin.current.entityAccountId
+          ? undefined
+          : getDefaultAccountName(selectedEntity, credentials)
+
+        if (entityHasSmsPin(selectedEntity)) {
+          await startSmsOtpListening()
+        }
+
         const loginResponse = await loginEntity({
           entity: selectedEntity.id,
           credentials,
+          accountName,
         })
 
         if (
@@ -1266,6 +1481,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             updateEntityAccount(
               selectedEntity.id,
               loginResponse.entityAccountId,
+              getNewAccountName(
+                selectedEntity,
+                loginResponse.entityAccountId,
+                accountName,
+              ),
             )
           }
           const features = scrapeManualLogin.current.features
@@ -1301,12 +1521,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setCurrentAction("login")
           setStoredCredentials(credentials)
           if (loginResponse.confirmationType === LoginConfirmationType.IN_APP) {
+            void stopSmsOtpListening()
             setInAppConfirmation(true)
             try {
               const confirmResponse = await loginEntity({
                 entity: selectedEntity.id,
                 credentials,
                 processId: loginResponse.processId || undefined,
+                accountName,
               })
               if (
                 confirmResponse.code === LoginResultCode.CREATED ||
@@ -1316,6 +1538,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   updateEntityAccount(
                     selectedEntity.id,
                     confirmResponse.entityAccountId,
+                    getNewAccountName(
+                      selectedEntity,
+                      confirmResponse.entityAccountId,
+                      accountName,
+                    ),
                   )
                 }
                 const features = scrapeManualLogin.current.features
@@ -1353,8 +1580,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setView("entities")
               } else {
                 showToast(
-                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
+                  formatEntityError(
+                    t.errors[confirmResponse.code as keyof typeof t.errors],
+                    selectedEntity.name,
                     t.common.loginError,
+                  ),
                   "error",
                 )
                 resetState()
@@ -1371,6 +1601,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             loginResponse.challengeType === ChallengeType.RECAPTCHA &&
             loginResponse.processId
           ) {
+            void stopSmsOtpListening()
             const domain = loginResponse.details?.challengeDomain
             if (
               domain &&
@@ -1380,7 +1611,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setChallengeType(ChallengeType.RECAPTCHA)
               setChallengeRequired(true)
             } else {
-              showToast(t.common.incompatibleLoginPlatform, "error")
+              showToast(t.common.incompatibleLoginPlatform, "error", {
+                reportable: false,
+              })
               resetState()
               setView("entities")
             }
@@ -1395,8 +1628,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             "-> resetting to entities",
           )
           showToast(
-            t.errors[loginResponse.code as keyof typeof t.errors] ||
+            formatEntityError(
+              t.errors[loginResponse.code as keyof typeof t.errors],
+              selectedEntity.name,
               t.common.loginError,
+            ),
             "error",
           )
           resetState()
@@ -1508,7 +1744,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               }
             }
           } else {
-            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error", {
+              reportable: false,
+            })
             resetState()
             setView("entities")
           }

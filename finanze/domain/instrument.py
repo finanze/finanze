@@ -17,6 +17,7 @@ class InstrumentDataRequest:
     isin: Optional[str] = None
     name: Optional[str] = None
     ticker: Optional[str] = None
+    currency: Optional[str] = None
 
 
 @dataclass

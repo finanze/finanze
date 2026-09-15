@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from dateutil.tz import tzlocal
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
+from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
 from application.ports.tracked_updates_port import TrackedUpdatesPort
@@ -41,6 +42,7 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
         snapshot_writer: ManualPositionSnapshotWriter,
         throttle_port: TrackedUpdatesPort,
         transaction_handler_port: TransactionHandlerPort,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
         self._manual_position_data_port = manual_position_data_port
@@ -48,6 +50,7 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
         self._snapshot_writer = snapshot_writer
         self._throttle_port = throttle_port
         self._transaction_handler_port = transaction_handler_port
+        self._error_reporter = error_reporter
 
         self._lock = Lock()
         self._log = logging.getLogger(__name__)
@@ -91,11 +94,15 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
                         entity_id, entry_count = result
                         changed_entities.add(entity_id)
                         changed_entries += entry_count
-                except Exception:
+                except Exception as e:
                     self._log.exception(
                         "Failed updating tracked loans for position %s",
                         global_position_id,
                     )
+                    if self._error_reporter:
+                        self._error_reporter.capture_exception(
+                            e, tags={"use_case": "update_tracked_loans"}
+                        )
                     continue
 
             self._log.info(

@@ -235,6 +235,7 @@ async def app(tmp_path):
     position_port.get_account_iban_index = AsyncMock(return_value={})
     position_port.get_portfolio_name_index = AsyncMock(return_value={})
     position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+    position_port.get_last_by_entity_broken_down = AsyncMock(return_value={})
     position_port.get_by_id = AsyncMock(
         return_value=SimpleNamespace(entity=SimpleNamespace(id=uuid4()))
     )
@@ -270,6 +271,7 @@ async def app(tmp_path):
     loan_calculator = AsyncMock(spec=LoanCalculatorPort)
 
     crypto_wallet_port = AsyncMock(spec=CryptoWalletPort)
+    crypto_wallet_port.get_by_id = AsyncMock(return_value=None)
     crypto_entity_fetchers: dict[Entity, CryptoEntityFetcher] = {}
     external_integration_port = AsyncMock(spec=ExternalIntegrationPort)
     external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
@@ -366,7 +368,11 @@ async def app(tmp_path):
         transaction_handler_port,
     )
     update_crypto_wallet_uc = UpdateCryptoWalletConnectionImpl(crypto_wallet_port)
-    delete_crypto_wallet_uc = DeleteCryptoWalletConnectionImpl(crypto_wallet_port)
+    delete_crypto_wallet_uc = DeleteCryptoWalletConnectionImpl(
+        crypto_wallet_port,
+        position_port,
+        transaction_handler_port,
+    )
     get_crypto_wallet_addresses_uc = GetCryptoWalletAddressesImpl(crypto_wallet_port)
     fetch_crypto_data_uc = FetchCryptoDataImpl(
         position_port,

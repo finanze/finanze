@@ -226,7 +226,7 @@ async function searchAndSelectCryptoAsset(page: Page) {
 
 async function addManualCryptoPosition(page: Page) {
     await page.getByRole('button', { name: 'Add' }).click()
-    await expect(page.getByText('Add manual crypto')).toBeVisible({
+    await expect(page.getByText('Add crypto')).toBeVisible({
         timeout: 5_000,
     })
 
@@ -301,7 +301,7 @@ test.describe('Manual Crypto Positions', () => {
         await editBtn.last().click()
         await page.waitForTimeout(300)
 
-        await expect(page.getByText('Edit manual crypto')).toBeVisible({
+        await expect(page.getByText('Edit crypto')).toBeVisible({
             timeout: 5_000,
         })
 

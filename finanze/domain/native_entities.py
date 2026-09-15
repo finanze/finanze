@@ -10,6 +10,7 @@ from domain.entity import (
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
 from domain.native_entity import (
+    PinChannel,
     PinDetails,
     CredentialType,
     EntitySetupLoginType,
@@ -37,7 +38,7 @@ MY_INVESTOR = NativeFinancialEntity(
     ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
@@ -78,7 +79,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     ],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.SHORT,
-    pin=PinDetails(positions=4),
+    pin=PinDetails(positions=4, channel=PinChannel.SMS),
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
@@ -114,7 +115,7 @@ WECITY = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.REAL_ESTATE_CF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -132,7 +133,7 @@ SEGO = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.FACTORING],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.EMAIL),
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -146,8 +147,8 @@ MINTOS = NativeFinancialEntity(
     natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION],
-    products=[ProductType.ACCOUNT, ProductType.CROWDLENDING],
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.CROWDLENDING, ProductType.STOCK_ETF],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.NONE,
     credentials_template={
@@ -165,7 +166,7 @@ F24 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
-    products=[ProductType.ACCOUNT, ProductType.DEPOSIT],
+    products=[ProductType.ACCOUNT, ProductType.DEPOSIT, ProductType.STOCK_ETF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
@@ -221,7 +222,12 @@ CAJAMAR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
-    products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.CARD,
+        ProductType.LOAN,
+        ProductType.CREDIT,
+    ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
@@ -283,10 +289,47 @@ B100 = NativeFinancialEntity(
     products=[ProductType.ACCOUNT, ProductType.CARD],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
-    pin=PinDetails(positions=6),
+    pin=PinDetails(positions=6, channel=PinChannel.SMS),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PIN,
+    },
+    icon_url=None,
+)
+
+CRESCENTA = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000015"),
+    name="Crescenta",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.FUND],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "user": CredentialType.EMAIL,
+        "password": CredentialType.PASSWORD,
+    },
+    icon_url=None,
+)
+
+TRADING212 = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000016"),
+    name="Trading 212",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+    ],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "apiKey": CredentialType.API_TOKEN,
+        "secretKey": CredentialType.API_TOKEN,
     },
     icon_url=None,
 )
@@ -320,6 +363,9 @@ BSC = _create_crypto_entity(
     5,
     "Binance Smart Chain",
 )
+ZERION = _create_crypto_entity(
+    6, "Zerion", required_external_integrations=[ExternalIntegrationId.ZERION]
+)
 
 BINANCE = NativeCryptoExchangeEntity(
     id=UUID("ce000000-0000-0000-0000-000000000001"),
@@ -334,6 +380,22 @@ BINANCE = NativeCryptoExchangeEntity(
     credentials_template={
         "apiKey": CredentialType.API_TOKEN,
         "secretKey": CredentialType.API_TOKEN,
+    },
+    icon_url=None,
+)
+
+POLYMARKET = NativeFinancialEntity(
+    id=UUID("fe000000-0000-0000-0000-000000000001"),
+    name="Polymarket",
+    natural_id=None,
+    type=EntityType.MARKET_FORECAST_PLATFORM,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.MARKET_FORECAST],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "identifier": CredentialType.USER,
     },
     icon_url=None,
 )
@@ -362,12 +424,16 @@ NATIVE_ENTITIES = [
     DEGIRO,
     IBKR,
     B100,
+    CRESCENTA,
+    TRADING212,
     BITCOIN,
     ETHEREUM,
     LITECOIN,
     TRON,
     BSC,
+    ZERION,
     BINANCE,
+    POLYMARKET,
     COMMODITIES,
 ]
 

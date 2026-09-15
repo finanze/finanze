@@ -1,8 +1,12 @@
+from datetime import date
 from enum import Enum
 from typing import Optional
 
 from domain.dezimal import Dezimal
 from pydantic.dataclasses import dataclass
+
+
+COMMODITY_HISTORIC_CUTOFF = date(2026, 6, 12)
 
 
 class CommodityType(str, Enum):

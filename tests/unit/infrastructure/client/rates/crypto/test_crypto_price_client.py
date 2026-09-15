@@ -226,6 +226,52 @@ class TestDiaSingleSymbolPath:
         client._dia_client.get_price.assert_not_awaited()
         client._coingecko_client.get_prices.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_dia_non_positive_price_falls_back_to_coingecko(self):
+        client = _build_client()
+        client._dia_client.get_price.side_effect = None
+        client._dia_client.get_price.return_value = Dezimal("0")
+        client._coingecko_client.get_prices.return_value = {
+            "DIA5": {"USD": Dezimal("99")}
+        }
+
+        result = await client.get_multiple_prices_by_symbol(["DIA5"], ["USD"])
+
+        assert result == {"DIA5": {"USD": Dezimal("99")}}
+        client._coingecko_client.get_prices.assert_awaited_once()
+
+
+class TestGetPrice:
+    @pytest.mark.asyncio
+    async def test_returns_price_when_available(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.return_value = {
+            "SNGL1": {"USD": Dezimal("42")}
+        }
+
+        assert await client.get_price("SNGL1", "USD") == Dezimal("42")
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_every_provider_fails(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.side_effect = RuntimeError("blocked")
+
+        assert await client.get_price("SNGL2", "USD") is None
+
+    @pytest.mark.asyncio
+    async def test_failed_lookup_is_not_cached(self):
+        client = _build_client()
+        client._coingecko_client.get_prices.side_effect = RuntimeError("blocked")
+
+        assert await client.get_price("SNGL3", "USD") is None
+
+        client._coingecko_client.get_prices.side_effect = None
+        client._coingecko_client.get_prices.return_value = {
+            "SNGL3": {"USD": Dezimal("7")}
+        }
+
+        assert await client.get_price("SNGL3", "USD") == Dezimal("7")
+
 
 class TestGetPricesByAddresses:
     @pytest.mark.asyncio

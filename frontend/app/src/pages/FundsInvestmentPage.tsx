@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getColorForName, getCurrencySymbol, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
 import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
@@ -68,6 +69,7 @@ import {
   type ManualDisplayItem,
 } from "@/components/manual/manualDisplayUtils"
 import { DataSource } from "@/types"
+import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import { SourceBadge } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
 import { saveManualPositions } from "@/services/api"
@@ -156,6 +158,21 @@ function FundsInvestmentPageContent({
   const [selectedPortfolios, setSelectedPortfolios] = useState<string[]>([])
   const [fundsChartView, setFundsChartView] = useState<"asset" | "type">(
     "asset",
+  )
+  const gainsQuery = useMemo<GainsTimelineQuery>(
+    () => ({
+      assets: [
+        {
+          product_type: ProductType.FUND,
+          portfolio_names:
+            selectedPortfolios.length > 0 ? selectedPortfolios : undefined,
+        },
+      ],
+      base_currency: settings.general.defaultCurrency,
+      calculation_mode: "HYBRID",
+      entities: selectedEntities.length > 0 ? selectedEntities : undefined,
+    }),
+    [settings.general.defaultCurrency, selectedEntities, selectedPortfolios],
   )
 
   // Get all fund positions
@@ -781,85 +798,94 @@ function FundsInvestmentPageContent({
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
               <CardContent className="pt-6">
-                <InvestmentDistributionChart
-                  data={
-                    fundsChartView === "asset" ? chartData : assetTypeChartData
-                  }
-                  title={t.common.distribution}
-                  locale={locale}
-                  currency={settings.general.defaultCurrency}
-                  hideLegend
-                  containerClassName="overflow-visible w-full"
-                  variant="bare"
-                  onSliceClick={
-                    fundsChartView === "asset" ? handleSliceClick : undefined
-                  }
-                  toggleConfig={{
-                    activeView: fundsChartView,
-                    onViewChange: v => setFundsChartView(v as "asset" | "type"),
-                    options: [
-                      { value: "asset", label: t.investments.byAsset },
-                      { value: "type", label: t.investments.byType },
-                    ],
-                  }}
-                  centerContent={{
-                    rawValue: totalValue,
-                    gainPercentage:
-                      totalInitialInvestment > 0
-                        ? ((totalValue - totalInitialInvestment) /
-                            totalInitialInvestment) *
-                          100
-                        : undefined,
-                    badgeText:
-                      fundsChartView === "type" &&
-                      assetTypeSplitPercentages.equity +
-                        assetTypeSplitPercentages.fixed >
-                        0
-                        ? `${Math.round(assetTypeSplitPercentages.equity)} / ${Math.round(assetTypeSplitPercentages.fixed)}`
-                        : undefined,
-                    infoRows: [
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+                  <InvestmentDistributionChart
+                    data={
+                      fundsChartView === "asset"
+                        ? chartData
+                        : assetTypeChartData
+                    }
+                    title={t.common.distribution}
+                    locale={locale}
+                    currency={settings.general.defaultCurrency}
+                    hideLegend
+                    containerClassName="overflow-visible w-full"
+                    variant="bare"
+                    onSliceClick={
+                      fundsChartView === "asset" ? handleSliceClick : undefined
+                    }
+                    toggleConfig={{
+                      activeView: fundsChartView,
+                      onViewChange: v =>
+                        setFundsChartView(v as "asset" | "type"),
+                      options: [
+                        { value: "asset", label: t.investments.byAsset },
+                        { value: "type", label: t.investments.byType },
+                      ],
+                    }}
+                    centerContent={{
+                      rawValue: totalValue,
+                      gainPercentage:
+                        totalInitialInvestment > 0
+                          ? ((totalValue - totalInitialInvestment) /
+                              totalInitialInvestment) *
+                            100
+                          : undefined,
+                      badgeText:
+                        fundsChartView === "type" &&
+                        assetTypeSplitPercentages.equity +
+                          assetTypeSplitPercentages.fixed >
+                          0
+                          ? `${Math.round(assetTypeSplitPercentages.equity)} / ${Math.round(assetTypeSplitPercentages.fixed)}`
+                          : undefined,
+                      infoRows: [
+                        {
+                          label: t.dashboard.totalValue,
+                          value: formatCurrency(
+                            totalValue,
+                            locale,
+                            settings.general.defaultCurrency,
+                          ),
+                        },
+                        ...(totalInitialInvestment > 0
+                          ? [
+                              {
+                                label: t.dashboard.investedAmount,
+                                value: formatCurrency(
+                                  totalInitialInvestment,
+                                  locale,
+                                  settings.general.defaultCurrency,
+                                ),
+                              },
+                              {
+                                label: t.investments.sortAbsoluteGain,
+                                value: `${totalValue - totalInitialInvestment >= 0 ? "+" : ""}${formatCurrency(
+                                  totalValue - totalInitialInvestment,
+                                  locale,
+                                  settings.general.defaultCurrency,
+                                )}`,
+                                valueClassName:
+                                  totalValue - totalInitialInvestment >= 0
+                                    ? "text-green-500"
+                                    : "text-red-500",
+                              },
+                            ]
+                          : []),
+                      ],
+                    }}
+                    badges={[
                       {
-                        label: t.dashboard.totalValue,
-                        value: formatCurrency(
-                          totalValue,
-                          locale,
-                          settings.general.defaultCurrency,
-                        ),
+                        icon: <Layers className="h-3 w-3" />,
+                        value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
                       },
-                      ...(totalInitialInvestment > 0
-                        ? [
-                            {
-                              label: t.dashboard.investedAmount,
-                              value: formatCurrency(
-                                totalInitialInvestment,
-                                locale,
-                                settings.general.defaultCurrency,
-                              ),
-                            },
-                            {
-                              label: t.investments.sortAbsoluteGain,
-                              value: `${totalValue - totalInitialInvestment >= 0 ? "+" : ""}${formatCurrency(
-                                totalValue - totalInitialInvestment,
-                                locale,
-                                settings.general.defaultCurrency,
-                              )}`,
-                              valueClassName:
-                                totalValue - totalInitialInvestment >= 0
-                                  ? "text-green-500"
-                                  : "text-red-500",
-                            },
-                          ]
-                        : []),
-                    ],
-                  }}
-                  badges={[
-                    {
-                      icon: <Layers className="h-3 w-3" />,
-                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
-                    },
-                  ]}
-                  orbitBubbles={orbitBubbleData}
-                />
+                    ]}
+                    orbitBubbles={orbitBubbleData}
+                  />
+                  <InvestmentEvolutionTimeline
+                    query={gainsQuery}
+                    currency={settings.general.defaultCurrency}
+                  />
+                </div>
               </CardContent>
             </Card>
 

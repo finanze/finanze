@@ -116,6 +116,9 @@ class CryptoDataset:
     def _first_priced(
         coins: list[CryptoDatasetCoin],
     ) -> Optional[CryptoDatasetCoin]:
+        # Datasets are published sorted by market cap, so for the tickers shared by
+        # several coins the first match is the dominant one. That ordering is part
+        # of the dataset contract.
         for coin in coins:
             if coin.prices:
                 return coin

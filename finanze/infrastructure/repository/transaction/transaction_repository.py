@@ -8,7 +8,11 @@ from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
-from domain.global_position import EquityType, FundType, ProductType
+from domain.global_position import (
+    EquityType,
+    FundType,
+    ProductType,
+)
 from domain.transactions import (
     AccountTx,
     BaseInvestmentTx,
@@ -18,6 +22,7 @@ from domain.transactions import (
     FactoringTx,
     FundPortfolioTx,
     FundTx,
+    MarketForecastTx,
     RealEstateCFTx,
     StockTx,
     TransactionQueryRequest,
@@ -97,7 +102,7 @@ def _map_investment_row(
             **common,
             isin=row["isin"] if row["isin"] else None,
             ticker=row["ticker"],
-            market=row["market"],
+            market=row["market"] if row["market"] else None,
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
@@ -125,11 +130,24 @@ def _map_investment_row(
             ),
             contract_address=row["asset_contract_address"],
         )
+    elif row["product_type"] == ProductType.MARKET_FORECAST.value:
+        return MarketForecastTx(
+            **common,
+            symbol=row["ticker"] or row["name"],
+            size=Dezimal(row["shares"]),
+            price=Dezimal(row["price"]),
+            net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
+            fees=Dezimal(row["fees"]),
+            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
+            order_date=(
+                datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
+            ),
+        )
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
             **common,
             isin=row["isin"] if row["isin"] else None,
-            market=row["market"],
+            market=row["market"] if row["market"] else None,
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
@@ -225,7 +243,7 @@ class TransactionSQLRepository(TransactionPort):
                         {
                             "isin": tx.isin,
                             "ticker": tx.ticker,
-                            "market": tx.market,
+                            "market": tx.market if tx.market else None,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
@@ -259,11 +277,27 @@ class TransactionSQLRepository(TransactionPort):
                             "asset_contract_address": tx.contract_address,
                         }
                     )
+                elif isinstance(tx, MarketForecastTx):
+                    entry.update(
+                        {
+                            "ticker": tx.symbol,
+                            "shares": str(tx.size),
+                            "price": str(tx.price),
+                            "net_amount": str(tx.net_amount)
+                            if tx.net_amount is not None
+                            else None,
+                            "fees": str(tx.fees),
+                            "retentions": str(tx.retentions) if tx.retentions else None,
+                            "order_date": (
+                                tx.order_date.isoformat() if tx.order_date else None
+                            ),
+                        }
+                    )
                 elif isinstance(tx, FundTx):
                     entry.update(
                         {
                             "isin": tx.isin,
-                            "market": tx.market,
+                            "market": tx.market if tx.market else None,
                             "shares": str(tx.shares),
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)

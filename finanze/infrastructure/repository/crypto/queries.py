@@ -24,6 +24,7 @@ class CryptoWalletQueries(str, Enum):
               cw.name,
               cw.address_source,
               cw.created_at,
+              cw.include_wallet_tokens,
               hdw.xpub,
               hdw.script_type,
               hdw.coin,
@@ -35,7 +36,7 @@ class CryptoWalletQueries(str, Enum):
                 LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
        WHERE cw.entity_id = ?
        GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
-                hdw.xpub, hdw.script_type, hdw.coin
+                cw.include_wallet_tokens, hdw.xpub, hdw.script_type, hdw.coin
     """
 
     GET_BY_ENTITY_IDS = """
@@ -44,6 +45,7 @@ class CryptoWalletQueries(str, Enum):
               cw.name,
               cw.address_source,
               cw.created_at,
+              cw.include_wallet_tokens,
               hdw.xpub,
               hdw.script_type,
               hdw.coin,
@@ -55,7 +57,7 @@ class CryptoWalletQueries(str, Enum):
                 LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
        WHERE cw.entity_id IN ({placeholders})
        GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
-                hdw.xpub, hdw.script_type, hdw.coin
+                cw.include_wallet_tokens, hdw.xpub, hdw.script_type, hdw.coin
     """
 
     GET_BY_ID = """
@@ -64,6 +66,7 @@ class CryptoWalletQueries(str, Enum):
               cw.name,
               cw.address_source,
               cw.created_at,
+              cw.include_wallet_tokens,
               hdw.xpub,
               hdw.script_type,
               hdw.coin,
@@ -75,7 +78,7 @@ class CryptoWalletQueries(str, Enum):
                 LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
        WHERE cw.id = ?
        GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
-                hdw.xpub, hdw.script_type, hdw.coin
+                cw.include_wallet_tokens, hdw.xpub, hdw.script_type, hdw.coin
     """
 
     GET_HD_ADDRESSES_BY_WALLET_ID = """
@@ -112,8 +115,8 @@ class CryptoWalletQueries(str, Enum):
     GET_CONNECTED_ENTITIES = "SELECT DISTINCT(entity_id) FROM crypto_wallets"
 
     INSERT = """
-        INSERT INTO crypto_wallets (id, entity_id, name, address_source, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO crypto_wallets (id, entity_id, name, address_source, created_at, include_wallet_tokens)
+        VALUES (?, ?, ?, ?, ?, ?)
     """
 
     INSERT_ADDRESS = """

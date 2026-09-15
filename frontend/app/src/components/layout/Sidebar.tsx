@@ -144,6 +144,13 @@ export function Sidebar() {
         hasData: hasProductEntries(ProductType.CRYPTO),
       },
       {
+        path: "/investments/market-forecast",
+        label: t.common.marketForecast,
+        productType: ProductType.MARKET_FORECAST,
+        key: "market-forecast",
+        hasData: hasProductEntries(ProductType.MARKET_FORECAST),
+      },
+      {
         path: "/investments/commodities",
         label: t.common.commodities,
         productType: ProductType.COMMODITY,
@@ -158,7 +165,10 @@ export function Sidebar() {
         hasData: (realEstateList?.length || 0) > 0,
       },
     ]
-    return routes
+    return routes.filter(
+      route =>
+        __CONNECTIONS__ || route.productType !== ProductType.MARKET_FORECAST,
+    )
   }, [t, positionsData, realEstateList])
 
   type ManagementRoute = {

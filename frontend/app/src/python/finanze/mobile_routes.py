@@ -33,6 +33,20 @@ def _setup_routes(router: "Router", routes: list[tuple]):
 def setup_core_routes(router: "Router", core: "MobileAppCore") -> None:
     routes = [
         ("GET", "/api/v1/status", "get_status", "status", core.status),
+        (
+            "GET",
+            "/api/v1/telemetry/consent",
+            "get_telemetry_consent",
+            "get_telemetry_consent",
+            core.get_telemetry_consent,
+        ),
+        (
+            "POST",
+            "/api/v1/telemetry/consent",
+            "update_telemetry_consent",
+            "update_telemetry_consent",
+            core.update_telemetry_consent,
+        ),
     ]
     _setup_routes(router, routes)
 
@@ -210,6 +224,20 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
                 "fetch_external_financial_data",
                 "fetch_external_financial_data",
                 lz.fetch_external,
+            ),
+            (
+                "GET",
+                "/api/v1/market-forecast/pnl",
+                "market_forecast_pnl",
+                "market_forecast_pnl",
+                lz.get_market_forecast_pnl,
+            ),
+            (
+                "GET",
+                "/api/v1/market-forecast/closed-positions",
+                "market_forecast_closed_positions",
+                "market_forecast_closed_positions",
+                lz.get_market_forecast_closed_positions,
             ),
         ]
 

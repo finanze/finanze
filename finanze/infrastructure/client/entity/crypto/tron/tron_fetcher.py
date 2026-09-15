@@ -15,6 +15,8 @@ from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from infrastructure.client.http.backoff import http_get_with_backoff
 
+CHAIN = "tron"
+
 
 class TronFetcher(CryptoEntityFetcher):
     TTL = 60
@@ -49,6 +51,7 @@ class TronFetcher(CryptoEntityFetcher):
                     symbol="TRX",
                     balance=trx_balance,
                     type=CryptoCurrencyType.NATIVE,
+                    chain=CHAIN,
                 )
             ]
             assets += self._parse_tokens(data)
@@ -83,6 +86,7 @@ class TronFetcher(CryptoEntityFetcher):
                     symbol=symbol,
                     balance=amount,
                     type=CryptoCurrencyType.TOKEN,
+                    chain=CHAIN,
                 )
             )
         return tokens

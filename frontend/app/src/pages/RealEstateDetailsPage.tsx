@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useParams, useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
@@ -32,6 +33,7 @@ import {
   Home,
   Calculator,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react"
 import { Icon } from "@/components/ui/icon-picker"
 import RealEstateStats from "@/components/real-estate/RealEstateStats"
@@ -55,9 +57,14 @@ export default function RealEstateDetailsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [property, setProperty] = useState<RealEstate | null>(null)
+  const [isExpensesExpanded, setIsExpensesExpanded] = useState(false)
 
   useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
   useModalBackHandler(isEditModalOpen, () => setIsEditModalOpen(false))
+
+  useEffect(() => {
+    setIsExpensesExpanded(false)
+  }, [id])
 
   const frequencyLabel = (freq?: FlowFrequency | string) => {
     if (!freq) return ""
@@ -217,6 +224,17 @@ export default function RealEstateDetailsPage() {
       </div>
     )
   }
+
+  const sortedPurchaseExpenses = property.purchase_info.expenses
+    .slice()
+    .sort((a, b) => b.amount - a.amount)
+  const visiblePurchaseExpenses = isExpensesExpanded
+    ? sortedPurchaseExpenses
+    : sortedPurchaseExpenses.slice(0, 3)
+  const totalPurchaseExpenses = sortedPurchaseExpenses.reduce(
+    (sum, expense) => sum + expense.amount,
+    0,
+  )
 
   return (
     <div className="space-y-6">
@@ -395,93 +413,95 @@ export default function RealEstateDetailsPage() {
                   <div className="mb-2 text-gray-600 dark:text-gray-400">
                     {t.realEstate.purchase.expenses}
                   </div>
-                  <div className="space-y-1">
-                    {property.purchase_info.expenses
-                      .slice()
-                      .sort((a, b) => b.amount - a.amount)
-                      .slice(0, 3)
-                      .map((exp, idx) => (
-                        <div
+                  <div id="purchase-expenses-list" className="space-y-1">
+                    <AnimatePresence initial={false}>
+                      {visiblePurchaseExpenses.map((exp, idx) => (
+                        <motion.div
                           key={idx}
-                          className="flex items-center justify-between"
+                          initial={idx < 3 ? false : { opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
                         >
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {exp.concept || "—"}
-                          </span>
-                          <span className="font-medium">
-                            <Sensitive>
-                              {formatCurrency(
-                                exp.amount,
-                                locale,
-                                property.currency,
-                              )}
-                            </Sensitive>
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                  {property.purchase_info.expenses.length > 3 && (
-                    <div className="mt-2 text-right">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7 px-2"
-                          >
-                            {`${t.dashboard.viewAll} (${property.purchase_info.expenses.length})`}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                          <div className="text-sm font-medium mb-2">
-                            {t.realEstate.purchase.expenses}
-                          </div>
-                          <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
-                            {property.purchase_info.expenses
-                              .slice()
-                              .sort((a, b) => b.amount - a.amount)
-                              .map((exp, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center justify-between py-1 border-b last:border-b-0 border-gray-100 dark:border-gray-800"
-                                >
-                                  <span className="text-gray-700 dark:text-gray-300">
-                                    {exp.concept || "—"}
-                                  </span>
-                                  <span className="font-medium">
-                                    <Sensitive>
-                                      {formatCurrency(
-                                        exp.amount,
-                                        locale,
-                                        property.currency,
-                                      )}
-                                    </Sensitive>
-                                  </span>
-                                </div>
-                              ))}
-                          </div>
-                          <div className="mt-3 pt-3 border-t flex items-center justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {t.realEstate.purchase.totalCost}
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-700 dark:text-gray-300">
+                              {exp.concept || "—"}
                             </span>
-                            <span className="font-semibold">
+                            <span className="font-medium">
                               <Sensitive>
                                 {formatCurrency(
-                                  property.purchase_info.price +
-                                    property.purchase_info.expenses.reduce(
-                                      (s, e) => s + e.amount,
-                                      0,
-                                    ),
+                                  exp.amount,
                                   locale,
                                   property.currency,
                                 )}
                               </Sensitive>
                             </span>
                           </div>
-                        </PopoverContent>
-                      </Popover>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                  {sortedPurchaseExpenses.length > 3 && (
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          setIsExpensesExpanded(isExpanded => !isExpanded)
+                        }
+                        aria-expanded={isExpensesExpanded}
+                        aria-controls="purchase-expenses-list"
+                        aria-label={
+                          isExpensesExpanded
+                            ? t.netWorthTimeline.collapse
+                            : t.netWorthTimeline.expand
+                        }
+                        title={
+                          isExpensesExpanded
+                            ? t.netWorthTimeline.collapse
+                            : t.netWorthTimeline.expand
+                        }
+                        className="h-7 w-7 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform duration-200 ${isExpensesExpanded ? "rotate-180" : ""}`}
+                        />
+                      </Button>
                     </div>
                   )}
+                  <div className="mt-3 space-y-2 border-t pt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {t.realEstate.purchase.totalExpenses}
+                      </span>
+                      <span className="font-medium">
+                        <Sensitive>
+                          {formatCurrency(
+                            totalPurchaseExpenses,
+                            locale,
+                            property.currency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {t.realEstate.purchase.totalCost}
+                      </span>
+                      <span className="font-semibold">
+                        <Sensitive>
+                          {formatCurrency(
+                            property.purchase_info.price +
+                              totalPurchaseExpenses,
+                            locale,
+                            property.currency,
+                          )}
+                        </Sensitive>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>

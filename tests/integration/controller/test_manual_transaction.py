@@ -20,6 +20,7 @@ from domain.transactions import (
 ADD_TX_URL = "/api/v1/data/manual/transactions"
 GET_TX_URL = "/api/v1/transactions"
 ENTITY_ID = "e0000000-0000-0000-0000-000000000001"
+ENTITY_ID_2 = "e0000000-0000-0000-0000-000000000002"
 REAL_ENTITY_ID = "e0000000-0000-0000-0000-000000000099"
 
 
@@ -62,6 +63,25 @@ def _stock_tx_payload(**overrides):
         "shares": "10",
         "price": "100.00",
         "fees": "5.00",
+    }
+    base.update(overrides)
+    return base
+
+
+def _fund_tx_payload(**overrides):
+    base = {
+        "product_type": "FUND",
+        "entity_id": ENTITY_ID,
+        "date": "2025-03-01T12:00:00",
+        "ref": "TX-FUND",
+        "name": "Buy Fund",
+        "amount": "5000.00",
+        "currency": "EUR",
+        "type": "BUY",
+        "isin": "LU0000000001",
+        "shares": "50",
+        "price": "100",
+        "fees": "10",
     }
     base.update(overrides)
     return base
@@ -743,3 +763,118 @@ class TestAddCryptoTransaction:
         assert tx.symbol == "ETH"
         assert tx.currency_amount == Dezimal("1.5")
         assert tx.price == Dezimal("3500.00")
+
+
+class TestAddManualTransactionBatch:
+    @pytest.mark.asyncio
+    async def test_add_list_of_two_fund_transfers(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = [
+            _fund_tx_payload(
+                ref="TX-FUND-OUT",
+                name="Origin Fund",
+                type="TRANSFER_OUT",
+            ),
+            _fund_tx_payload(
+                ref="TX-FUND-IN",
+                name="Dest Fund",
+                type="TRANSFER_IN",
+            ),
+        ]
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 204
+
+        transaction_port.save.assert_awaited_once()
+        saved_txs = transaction_port.save.await_args[0][0]
+        assert isinstance(saved_txs, Transactions)
+        assert len(saved_txs.investment) == 2
+        assert saved_txs.investment[0].type == TxType.TRANSFER_OUT
+        assert saved_txs.investment[0].name == "Origin Fund"
+        assert saved_txs.investment[1].type == TxType.TRANSFER_IN
+        assert saved_txs.investment[1].name == "Dest Fund"
+
+    @pytest.mark.asyncio
+    async def test_add_list_of_two_stock_swaps(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = [
+            _stock_tx_payload(
+                ref="TX-SWAP-FROM",
+                name="Origin Stock",
+                type="SWAP_FROM",
+                isin="US0000000111",
+            ),
+            _stock_tx_payload(
+                ref="TX-SWAP-TO",
+                name="Dest Stock",
+                type="SWAP_TO",
+                isin="US0000000222",
+            ),
+        ]
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 204
+
+        transaction_port.save.assert_awaited_once()
+        saved_txs = transaction_port.save.await_args[0][0]
+        assert isinstance(saved_txs, Transactions)
+        assert len(saved_txs.investment) == 2
+        assert saved_txs.investment[0].type == TxType.SWAP_FROM
+        assert saved_txs.investment[0].name == "Origin Stock"
+        assert saved_txs.investment[1].type == TxType.SWAP_TO
+        assert saved_txs.investment[1].name == "Dest Stock"
+
+    @pytest.mark.asyncio
+    async def test_add_one_item_list(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(ADD_TX_URL, json=[_fund_tx_payload()])
+        assert response.status_code == 204
+
+        transaction_port.save.assert_awaited_once()
+        saved_txs = transaction_port.save.await_args[0][0]
+        assert len(saved_txs.investment) == 1
+        assert saved_txs.investment[0].name == "Buy Fund"
+
+    @pytest.mark.asyncio
+    async def test_empty_list_returns_400(self, client, transaction_port):
+        response = await client.post(ADD_TX_URL, json=[])
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+        transaction_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_second_entity_missing_saves_nothing(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        async def get_by_id(entity_id):
+            if str(entity_id) == ENTITY_ID:
+                return _make_entity()
+            return None
+
+        entity_port.get_by_id = AsyncMock(side_effect=get_by_id)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = [
+            _fund_tx_payload(ref="TX-FUND-OUT", type="TRANSFER_OUT"),
+            _fund_tx_payload(
+                ref="TX-FUND-IN",
+                type="TRANSFER_IN",
+                entity_id=ENTITY_ID_2,
+            ),
+        ]
+        response = await client.post(ADD_TX_URL, json=payload)
+        assert response.status_code == 404
+        body = await response.get_json()
+        assert body["code"] == "ENTITY_NOT_FOUND"
+        transaction_port.save.assert_not_awaited()

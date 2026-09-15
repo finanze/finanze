@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 ARG SELENIUM_SUPPORT=true
 RUN if [ "$SELENIUM_SUPPORT" = "true" ]; then \
-        pip install --no-cache-dir -r requirements-selenium.txt; \
+    pip install --no-cache-dir -r requirements-selenium.txt; \
     fi
 
 # Stage 2: Final Runtime Image
@@ -31,10 +31,10 @@ ARG SELENIUM_SUPPORT=true
 
 # Install runtime system dependencies conditionally
 RUN if [ "$SELENIUM_SUPPORT" = "true" ]; then \
-        apt-get update && \
-        apt-get install --no-install-recommends -y ffmpeg flac && \
-        apt-get clean && \
-        rm -rf /var/lib/apt/lists/*; \
+    apt-get update && \
+    apt-get install --no-install-recommends -y ffmpeg flac && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*; \
     fi
 
 # Copy virtual environment from builder
@@ -42,6 +42,8 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Activate virtual environment
 ENV PATH="/opt/venv/bin:$PATH"
+
+ENV FINANZE_DISTRIBUTION=docker
 
 # Copy application code
 COPY finanze /finanze

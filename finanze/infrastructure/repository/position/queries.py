@@ -72,8 +72,9 @@ class PositionWriteQueries(str, Enum):
 
     INSERT_CRYPTO_CURRENCY_POSITION = """
         INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
-                                               market_value, currency, contract_address, crypto_asset_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               market_value, currency, contract_address, crypto_asset_id,
+                                               chain, protocol, position_type, icon_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_CRYPTO_CURRENCY_INITIAL_INVESTMENT = """
@@ -131,6 +132,16 @@ class PositionWriteQueries(str, Enum):
                                           underlying_symbol, underlying_isin, expiry, name,
                                           initial_investment)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    INSERT_MARKET_FORECAST_POSITION = """
+        INSERT INTO market_forecast_positions (
+            id, global_position_id, size, entry_price, currency,
+            mark_price, market_value, unrealized_pnl, expiry, name,
+            initial_investment, market_key, event_key, outcome_key,
+            market_url, icon_url, outcome
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_CREDIT_POSITION = """
@@ -288,6 +299,10 @@ class PositionQueries(str, Enum):
                p.market_value AS market_value,
                p.currency  AS currency,
                p.contract_address AS contract_address,
+               p.chain     AS chain,
+               p.protocol  AS protocol,
+               p.position_type AS position_type,
+               p.icon_url  AS icon_url,
                a.id        AS asset_id,
                a.name      AS asset_name,
                a.symbol    AS asset_symbol,
@@ -313,6 +328,8 @@ class PositionQueries(str, Enum):
     )
 
     GET_DERIVATIVES_BY_GLOBAL_POSITION_IDS = "SELECT * FROM derivative_positions WHERE global_position_id IN ({placeholders})"
+
+    GET_MARKET_FORECASTS_BY_GLOBAL_POSITION_IDS = "SELECT * FROM market_forecast_positions WHERE global_position_id IN ({placeholders})"
 
     GET_CREDITS_BY_GLOBAL_POSITION_IDS = (
         "SELECT * FROM credit_positions WHERE global_position_id IN ({placeholders})"

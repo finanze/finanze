@@ -1,5 +1,7 @@
 from domain.dezimal import Dezimal
 from domain.global_position import (
+    Accounts,
+    Cards,
     Credits,
     Crowdlending,
     CryptoCurrencies,
@@ -9,12 +11,11 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolios,
     GlobalPosition,
+    Loans,
+    MarketForecastPositions,
     ProductPositions,
     RealEstateCFInvestments,
     StockInvestments,
-    Accounts,
-    Cards,
-    Loans,
 )
 
 
@@ -118,6 +119,14 @@ def _add_derivatives(
     )
 
 
+def _add_market_forecasts(
+    self: MarketForecastPositions, other: MarketForecastPositions
+) -> MarketForecastPositions:
+    return MarketForecastPositions(
+        entries=self.entries + other.entries,
+    )
+
+
 def _add_credits(self: Credits, other: Credits) -> Credits:
     return Credits(
         entries=self.entries + other.entries,
@@ -167,5 +176,6 @@ def add_extensions():
     Cards.__add__ = _add_cards
     Loans.__add__ = _add_loans
     DerivativePositions.__add__ = _add_derivatives
+    MarketForecastPositions.__add__ = _add_market_forecasts
     Credits.__add__ = _add_credits
     GlobalPosition.__add__ = _add_position

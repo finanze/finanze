@@ -3,8 +3,10 @@ from finanze.app_background import MobileBackgroundApp
 app = MobileBackgroundApp()
 
 
-async def initialize(operative_system: str | None = None):
-    await app.initialize(operative_system=operative_system)
+async def initialize(
+    operative_system: str | None = None, os_version: str | None = None
+):
+    await app.initialize(operative_system=operative_system, os_version=os_version)
 
 
 async def connect(username: str | None = None):
@@ -39,3 +41,7 @@ async def get_networth_timeline(
         to_date=to_date,
         no_calculation=no_calculation,
     )
+
+
+async def get_gains_timeline(query: dict | None = None) -> dict:
+    return await app.get_gains_timeline(query)

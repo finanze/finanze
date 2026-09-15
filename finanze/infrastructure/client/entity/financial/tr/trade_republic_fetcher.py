@@ -129,10 +129,22 @@ def parse_float(value: str, fallback_locale: str) -> Dezimal:
 
 
 def get_section(d, title):
+    if not d:
+        return None
     for section in d:
         if title.lower() in section.get("title", "").lower():
             return section
     return None
+
+
+def _as_dezimal(value) -> Optional[Dezimal]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, dict):
+        value = value.get("value")
+        if value is None or value == "":
+            return None
+    return Dezimal(value)
 
 
 DATE_FORMAT = "%Y-%m-%d"
@@ -147,13 +159,36 @@ CONTRIBUTION_FREQUENCY = {
 
 class TradeRepublicFetcher(FinancialEntityFetcher):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
+    SUPPORTED_INSTRUMENT_TYPES = {
+        "FUND",
+        "STOCK",
+        "CRYPTO",
+        "MUTUALFUND",
+        "PRIVATEFUND",
+    }
+    UNSUPPORTED_INSTRUMENT_TYPES = {"BOND", "DERIVATIVE"}
 
     def __init__(self):
         self._client = TradeRepublicClient()
         self._log = logging.getLogger(__name__)
 
+    async def _safe_await(self, awaitable, context: str, identifier: str | None = None):
+        try:
+            return await awaitable
+        except Exception:
+            self._log.warning(
+                "Skipping Trade Republic %s %s due to mapping error",
+                context,
+                identifier or "",
+                exc_info=True,
+            )
+            return None
+
     def cancel_login(self) -> None:
         self._client.cancel_login()
+
+    async def close(self) -> None:
+        await self._client.close()
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
@@ -190,24 +225,28 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             return None
 
         self._log.info(position)
-        details = await self._client.get_instrument_details(isin)
+        details = await self._client.get_instrument_details(isin) or {}
 
-        raw_average_buy = position.get("averageBuyIn", {}).get("value", 0)
-        average_buy = round(Dezimal(raw_average_buy), 4)
-        shares = Dezimal(position.get("netSize") or 0)
-        # available_shares = position.get("availableSize") # Don't know what is this
+        average_buy = round(_as_dezimal(position.get("averageBuyIn")) or Dezimal(0), 4)
+        shares = _as_dezimal(position.get("netSize")) or Dezimal(0)
         initial_investment = round(average_buy * shares, 4)
-        raw_pending_amounts = position.get("pendingAmounts", [])
+        raw_pending_amounts = position.get("pendingAmounts") or []
         total_pending_amount = Dezimal(0)
         for pending in raw_pending_amounts:
-            amount_value = pending.get("amount", {}).get("value", 0)
-            total_pending_amount += Dezimal(amount_value)
+            amount_value = _as_dezimal((pending or {}).get("amount")) or Dezimal(0)
+            total_pending_amount += amount_value
 
         initial_investment += total_pending_amount
         market_value = initial_investment
 
         name = details.get("name") or position.get("instrumentName")
+        if not name:
+            self._log.warning("No name found for private equity instrument %s", isin)
+            return None
         kid_url = details.get("kidLink")
+
+        raw_issuer = details.get("issuer")
+        issuer = resolve_issuer(raw_issuer, name)
 
         return FundDetail(
             id=uuid4(),
@@ -222,60 +261,94 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             type=FundType.PRIVATE_EQUITY,
             asset_type=AssetType.OTHER,
             currency=currency,
+            issuer=issuer,
         )
 
     async def _instrument_mapper(
         self, instrument: dict, currency: str
     ) -> Optional[StockDetail | FundDetail | CryptoCurrencyPosition]:
         isin = instrument.get("instrumentId") or instrument.get("isin")
-        instrument_type = instrument.get("instrumentType", "").upper()
-        if instrument_type not in ["FUND", "STOCK", "CRYPTO", "MUTUALFUND"]:
+        instrument_type = (instrument.get("instrumentType") or "").upper()
+        if instrument_type in self.UNSUPPORTED_INSTRUMENT_TYPES:
             self._log.warning(
-                f"Unknown instrument type: {instrument_type} for ISIN {isin}"
+                "Skipping unsupported instrument type: %s for ISIN %s",
+                instrument_type,
+                isin,
+            )
+            return None
+        if instrument_type not in self.SUPPORTED_INSTRUMENT_TYPES:
+            self._log.warning(
+                "Unknown instrument type: %s for ISIN %s",
+                instrument_type,
+                isin,
             )
             return None
 
-        issuer = None
-        average_buy = round(Dezimal(instrument["averageBuyIn"]), 4)
-        shares = Dezimal(instrument["netSize"])
-        net_value = instrument.get("netValue")
+        if instrument_type == "PRIVATEFUND":
+            return await self._map_private_equity(instrument, currency)
+
+        average_buy = _as_dezimal(instrument.get("averageBuyIn"))
+        shares = _as_dezimal(instrument.get("netSize"))
+        if average_buy is None or shares is None:
+            self._log.warning(
+                "Incomplete position data for ISIN %s type %s", isin, instrument_type
+            )
+            return None
+        average_buy = round(average_buy, 4)
+        net_value = _as_dezimal(instrument.get("netValue"))
         initial_investment = round(average_buy * shares, 4)
-        market_value = None
 
         detail_topics = ["instrument"]
         if instrument_type == "MUTUALFUND":
             detail_topics.append("mutualFundDetails")
-
         elif instrument_type == "FUND":
             detail_topics.append("etfDetails")
-
         elif instrument_type == "STOCK":
             detail_topics.append("stockDetails")
 
         details = await self._client.get_details(isin, detail_topics)
+        instrument_details = (details.instrument or {}) if details else {}
+        if not instrument_details:
+            self._log.warning("No instrument details for ISIN %s", isin)
+            return None
+
         if net_value is None:
-            exchange_ids = details.instrument["exchangeIds"]
-            if len(exchange_ids) > 0:
-                ticker = await self._client.ticker(isin, exchange=exchange_ids[0])
-                net_value = Dezimal(ticker["last"]["price"]) * shares
+            exchange_ids = instrument_details.get("exchangeIds") or []
+            if exchange_ids:
+                ticker_data = await self._client.ticker(isin, exchange=exchange_ids[0])
+                last_price = _as_dezimal(
+                    ((ticker_data or {}).get("last") or {}).get("price")
+                )
+                net_value = (
+                    last_price * shares
+                    if last_price is not None
+                    else initial_investment
+                )
             else:
                 net_value = initial_investment
 
-            market_value = round(Dezimal(net_value), 4) if net_value else None
+        market_value = (
+            round(net_value, 4) if net_value is not None else initial_investment
+        )
 
-        name = details.instrument["name"]
-        ticker = details.instrument["homeSymbol"]
+        name = instrument_details.get("name")
+        ticker = instrument_details.get("homeSymbol")
         subtype = ""
         type_id = instrument_type
+        issuer = None
+        exchange_ids = instrument_details.get("exchangeIds") or []
+        market = ", ".join(exchange_ids)
 
         if instrument_type == "FUND":
             type_id = "ETF"
             if details.etf_details:
-                etf_details = details.etf_details
-                raw_issuer = etf_details.get("issuer")
+                raw_issuer = details.etf_details.get("issuer")
                 issuer = resolve_issuer(raw_issuer, name)
 
         elif instrument_type == "CRYPTO":
+            if not ticker:
+                self._log.warning("Crypto symbol not found for ISIN %s", isin)
+                return None
             return CryptoCurrencyPosition(
                 id=uuid4(),
                 name=name,
@@ -290,14 +363,21 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
 
         elif instrument_type == "STOCK":
-            name = details.stock_details["company"]["name"]
-            ticker = details.stock_details["company"]["tickerSymbol"]
+            company = (details.stock_details or {}).get("company") or {}
+            name = company.get("name") or name
+            ticker = company.get("tickerSymbol") or ticker
 
         elif instrument_type == "MUTUALFUND":
             fund_details = details.fund_details
-            name = fund_details.get("name")
+            if not fund_details or not fund_details.get("fundType"):
+                self._log.warning("Incomplete mutual fund details for ISIN %s", isin)
+                return None
+            name = fund_details.get("name") or name
+            if not name:
+                self._log.warning("No name for mutual fund ISIN %s", isin)
+                return None
             fund_type = fund_details["fundType"].lower()
-            kid_url = details.instrument.get("kidLink")
+            kid_url = instrument_details.get("kidLink")
             asset_type = AssetType.OTHER
             if "equity" in fund_type:
                 asset_type = AssetType.EQUITY
@@ -313,7 +393,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 id=uuid4(),
                 name=name,
                 isin=isin,
-                market=", ".join(details.instrument["exchangeIds"]),
+                market=market or None,
                 shares=shares,
                 initial_investment=initial_investment,
                 average_buy_price=average_buy,
@@ -325,11 +405,13 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 issuer=issuer,
             )
 
-        # elif type_id == "BOND":
-        # name = ""
-        # subtype = details.instrument["bondInfo"]["issuerClassification"]
-        # interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
-        # maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
+        if not name or not ticker:
+            self._log.warning(
+                "Incomplete instrument identity for ISIN %s type %s",
+                isin,
+                instrument_type,
+            )
+            return None
 
         if not subtype:
             subtype = instrument_type
@@ -341,7 +423,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             name=name,
             ticker=ticker,
             isin=isin,
-            market=", ".join(details.instrument["exchangeIds"]),
+            market=market,
             shares=shares,
             initial_investment=initial_investment,
             average_buy_price=average_buy,
@@ -362,7 +444,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         raw_portfolio = await self._client.get_portfolio()
 
         try:
-            # This doesn't work anymore, throws 401 :(, wrong param?, or is this only available in mobile app?
+            # This works sometimes, throws 401 :(, wrong param?, or is this only available in mobile app?
             cash_acc_num = raw_portfolio.cash[0].get("accountNumber")
             active_interest = round(
                 Dezimal(
@@ -379,9 +461,12 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         accounts = []
         currency = None
-        for account in raw_portfolio.cash:
-            currency = account["currencyId"]
-            cash_total = Dezimal(account["amount"])
+        for account in raw_portfolio.cash or []:
+            currency = account.get("currencyId")
+            if not currency:
+                self._log.warning("Skipping cash account without currency")
+                continue
+            cash_total = Dezimal(account.get("amount") or 0)
             accounts.append(
                 Account(
                     id=uuid4(),
@@ -394,40 +479,75 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
 
         investments = []
-        for position in raw_portfolio.portfolio:
-            investment = await self._instrument_mapper(position, currency)
+        for position in raw_portfolio.portfolio or []:
+            identifier = position.get("instrumentId") or position.get("isin")
+            investment = await self._safe_await(
+                self._instrument_mapper(position, currency),
+                "position",
+                identifier,
+            )
             if investment:
                 investments.append(investment)
 
         securities_account_number = user_info.get("securitiesAccountNumber")
         if securities_account_number:
-            securities_portfolio = await self._client.get_portfolio_by_type(
-                securities_account_number
-            )
-            for category in securities_portfolio["categories"]:
+            try:
+                securities_portfolio = await self._client.get_portfolio_by_type(
+                    securities_account_number
+                )
+            except Exception:
+                self._log.warning(
+                    "Could not fetch Trade Republic securities portfolio",
+                    exc_info=True,
+                )
+                securities_portfolio = None
+
+            for category in (securities_portfolio or {}).get("categories", []):
                 for position in category.get("positions", []):
-                    investment = await self._instrument_mapper(position, currency)
+                    identifier = position.get("instrumentId") or position.get("isin")
+                    investment = await self._safe_await(
+                        self._instrument_mapper(position, currency),
+                        "position",
+                        identifier,
+                    )
                     if investment:
                         investments.append(investment)
 
-            pm_status = await self._client.get_private_markets_portfolio_status()
+            try:
+                pm_status = await self._client.get_private_markets_portfolio_status()
+            except Exception:
+                self._log.warning(
+                    "Could not fetch Trade Republic private markets status",
+                    exc_info=True,
+                )
+                pm_status = None
             if (
                 pm_status
                 and pm_status.get("hasInvested")
                 and pm_status.get("status") == "ACTIVE"
             ):
-                private_markets_portfolio = (
-                    await self._client.get_private_markets_portfolio(
-                        securities_account_number
+                try:
+                    private_markets_portfolio = (
+                        await self._client.get_private_markets_portfolio(
+                            securities_account_number
+                        )
                     )
-                )
-                pm_positions = private_markets_portfolio.get("positions", [])
+                except Exception:
+                    self._log.warning(
+                        "Could not fetch Trade Republic private markets portfolio",
+                        exc_info=True,
+                    )
+                    private_markets_portfolio = None
+                pm_positions = (private_markets_portfolio or {}).get("positions", [])
                 for position in pm_positions:
-                    investment = await self._map_private_equity(position, currency)
+                    identifier = position.get("instrumentId")
+                    investment = await self._safe_await(
+                        self._map_private_equity(position, currency),
+                        "private equity position",
+                        identifier,
+                    )
                     if investment:
                         investments.append(investment)
-
-        await self._client.close()
 
         stocks = [i for i in investments if isinstance(i, StockDetail)]
         funds = [i for i in investments if isinstance(i, FundDetail)]
@@ -452,7 +572,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "TRADING_TRADE_EXECUTED",
         "MUTUAL_FUND_TRADE_EXECUTED",
         "SAVINGS_PLAN_EXECUTED",
-        "TRADING_SAVGINSPLAN_EXECUTED",
+        "TRADING_SAVINGSPLAN_EXECUTED",
         "PRIVATE_MARKETS_ORDER_CREATED",
         "TRADE_CORRECTED",
     ]
@@ -468,12 +588,20 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "SSP_CORPORATE_ACTION_CASH",
     ]
 
+    CORPORATE_ACTION_TX_TYPES = [
+        "SSP_CORPORATE_ACTION_INVOICE_SHARES",
+    ]
+
     OTHER_TX_TYPES = [
         "TIMELINE_LEGACY_MIGRATED_EVENTS",
     ]
 
     HANDLED_TX_TYPES = (
-        ACCOUNT_INTEREST_TX_TYPES + TRADE_TX_TYPES + DIVIDEND_TX_TYPES + OTHER_TX_TYPES
+        ACCOUNT_INTEREST_TX_TYPES
+        + TRADE_TX_TYPES
+        + DIVIDEND_TX_TYPES
+        + CORPORATE_ACTION_TX_TYPES
+        + OTHER_TX_TYPES
     )
 
     async def transactions(
@@ -482,12 +610,12 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         raw_txs = await self._client.get_transactions(
             already_registered_ids=registered_txs
         )
-        await self._client.close()
 
         investment_txs = []
         account_txs = []
-        for raw_tx in raw_txs:
-            if raw_tx["id"] in registered_txs:
+        for raw_tx in raw_txs or []:
+            tx_id = raw_tx.get("id")
+            if tx_id in registered_txs:
                 continue
 
             status = raw_tx.get("status", None)
@@ -499,18 +627,52 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 continue
 
             title = raw_tx.get("title", None)
-            date = datetime.strptime(raw_tx["timestamp"], self.DATETIME_FORMAT)
+            date = self._parse_tx_date(raw_tx)
+            if date is None:
+                continue
 
-            if event_type in self.ACCOUNT_INTEREST_TX_TYPES or title in ["Interest"]:
-                mapped_tx = self.map_account_tx(raw_tx, date)
-                if mapped_tx:
-                    account_txs.append(mapped_tx)
-            else:
-                mapped_tx = await self.map_investment_tx(raw_tx, date)
-                if mapped_tx:
-                    investment_txs.append(mapped_tx)
+            try:
+                if event_type in self.ACCOUNT_INTEREST_TX_TYPES or title in [
+                    "Interest"
+                ]:
+                    mapped_tx = self.map_account_tx(raw_tx, date)
+                    if mapped_tx:
+                        account_txs.append(mapped_tx)
+                else:
+                    mapped_tx = await self.map_investment_tx(raw_tx, date)
+                    if mapped_tx:
+                        if isinstance(mapped_tx, list):
+                            investment_txs.extend(mapped_tx)
+                        else:
+                            investment_txs.append(mapped_tx)
+            except Exception:
+                self._log.warning(
+                    "Skipping Trade Republic transaction %s due to mapping error",
+                    tx_id,
+                    exc_info=True,
+                )
 
         return Transactions(investment=investment_txs, account=account_txs)
+
+    def _parse_tx_date(self, raw_tx: dict) -> Optional[datetime]:
+        timestamp = raw_tx.get("timestamp")
+        if not timestamp:
+            self._log.warning(
+                "No timestamp for Trade Republic transaction %s", raw_tx.get("id")
+            )
+            return None
+        try:
+            return datetime.strptime(timestamp, self.DATETIME_FORMAT)
+        except ValueError:
+            try:
+                return datetime.fromisoformat(timestamp)
+            except ValueError:
+                self._log.warning(
+                    "Could not parse Trade Republic transaction timestamp %s for %s",
+                    timestamp,
+                    raw_tx.get("id"),
+                )
+                return None
 
     async def _map_saving_plan(
         self, saving_plan: dict, currency: str
@@ -567,12 +729,15 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning(f"Unknown start date type: {start_date_type}")
             return None
 
-        isin_details = await self._client.get_instrument_details(isin)
+        isin_details = await self._client.get_instrument_details(isin) or {}
         instrument_name = (
             isin_details.get("name")
             if raw_target_type == "privateFund"
             else isin_details.get("shortName")
         )
+        if not instrument_name:
+            self._log.warning("No name for saving plan instrument %s", isin)
+            return None
 
         return PeriodicContribution(
             id=uuid4(),
@@ -593,17 +758,22 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
     async def auto_contributions(self) -> AutoContributions:
         portfolio_details = await self._client.get_portfolio()
         saving_plans_response = await self._client.get_saving_plans()
-        await self._client.close()
 
-        user_currency = portfolio_details.cash[0].get("currencyId")
+        cash = getattr(portfolio_details, "cash", None) or []
+        user_currency = cash[0].get("currencyId") if cash else None
 
-        saving_plans = saving_plans_response.get("savingsPlans")
+        saving_plans = (saving_plans_response or {}).get("savingsPlans") or []
 
         contributions = []
         for saving_plan in saving_plans:
             if not saving_plan:
                 continue
-            contribution = await self._map_saving_plan(saving_plan, user_currency)
+            identifier = saving_plan.get("instrumentId")
+            contribution = await self._safe_await(
+                self._map_saving_plan(saving_plan, user_currency),
+                "saving plan",
+                identifier,
+            )
             if contribution:
                 contributions.append(contribution)
 
@@ -611,15 +781,26 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def map_investment_tx(
         self, raw_tx: dict, date: datetime
-    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx]:
-        name = raw_tx.get("title", "").strip()
+    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx | list[StockTx | FundTx]]:
+        name = (raw_tx.get("title") or "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().lower()
-        amount_obj = raw_tx.get("amount", {})
-        currency = amount_obj.get("currency")
+        amount_obj = raw_tx.get("amount") or {}
+        currency = amount_obj.get("currency") or "EUR"
         raw_amount_value = amount_obj.get("value")
-        event_type = raw_tx.get("eventType", "").strip().upper()
-        if not amount_obj or not currency or not raw_amount_value:
-            self._log.warning(f"Incomplete transaction data: {raw_tx['id']}")
+        event_type = (raw_tx.get("eventType") or "").strip().upper()
+        detail_sections = (raw_tx.get("details") or {}).get("sections") or []
+
+        if event_type in self.CORPORATE_ACTION_TX_TYPES:
+            return await self._map_corporate_action_tx(
+                raw_tx=raw_tx,
+                name=name,
+                currency=currency,
+                date=date,
+                detail_sections=detail_sections,
+            )
+
+        if not amount_obj or not raw_amount_value:
+            self._log.warning("Incomplete transaction data: %s", raw_tx.get("id"))
             return None
 
         net_amount_val = round(Dezimal(raw_amount_value), 2)
@@ -637,7 +818,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning(f"Unknown transaction type: {subtitle}")
             return None
 
-        detail_sections = raw_tx.get("details", {}).get("sections", [{}])
+        detail_sections = (raw_tx.get("details") or {}).get("sections") or []
 
         isin = self._get_tx_isin(raw_tx, detail_sections)
         if not isin:
@@ -645,8 +826,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.debug(detail_sections)
             return None
 
-        instrument_details = await self._client.get_instrument_details(isin)
-        raw_type = instrument_details.get("typeId", "").upper()
+        instrument_details = await self._client.get_instrument_details(isin) or {}
+        raw_type = (instrument_details.get("typeId") or "").upper()
         product_subtype: FundType | EquityType | None = None
         product_type: ProductType
 
@@ -668,13 +849,17 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         elif raw_type == "PRIVATEFUND":
             product_type = ProductType.FUND
             product_subtype = FundType.PRIVATE_EQUITY
-            name += " - " + instrument_details.get("name", "")
+            extra_name = instrument_details.get("name", "")
+            if extra_name:
+                name += " - " + extra_name
 
-        elif raw_type == "BOND":
-            product_type = ProductType.BOND
-
-        elif raw_type == "DERIVATIVE":
-            product_type = ProductType.DERIVATIVE
+        elif raw_type in self.UNSUPPORTED_INSTRUMENT_TYPES:
+            self._log.warning(
+                "Skipping unsupported product type: %s for ISIN %s",
+                raw_type,
+                isin,
+            )
+            return None
 
         else:
             self._log.warning(f"Unknown product type: {raw_type} for ISIN {isin}")
@@ -683,6 +868,11 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         parent_tx_section = get_section(detail_sections, "Transaction")
         if not parent_tx_section:
             parent_tx_section = get_section(detail_sections, "Overview")
+        if not parent_tx_section or "data" not in parent_tx_section:
+            self._log.warning(
+                "No transaction/overview section for transaction %s", raw_tx.get("id")
+            )
+            return None
         tx_section = parent_tx_section["data"]
         inferred_locale = infer_locale_from_section(
             get_section(tx_section, "Total")
@@ -811,6 +1001,135 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 source=DataSource.REAL,
             )
 
+    async def _map_corporate_action_tx(
+        self,
+        raw_tx: dict,
+        name: str,
+        currency: str,
+        date: datetime,
+        detail_sections: list[dict],
+    ) -> Optional[list[StockTx | FundTx] | StockTx | FundTx]:
+        isin = self._get_tx_isin(raw_tx, detail_sections)
+        if not isin:
+            self._log.warning(
+                f"No ISIN found for corporate action transaction: {raw_tx.get('id')}"
+            )
+            return None
+
+        instrument_details = await self._client.get_instrument_details(isin) or {}
+        raw_type = (instrument_details.get("typeId") or "").upper()
+        product_subtype: FundType | EquityType | None = None
+        product_type: ProductType
+
+        if raw_type == "STOCK":
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.STOCK
+        elif raw_type == "FUND":
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.ETF
+        elif raw_type == "MUTUALFUND":
+            product_type = ProductType.FUND
+            product_subtype = FundType.MUTUAL_FUND
+        elif raw_type in self.UNSUPPORTED_INSTRUMENT_TYPES:
+            self._log.warning(
+                "Skipping unsupported product type: %s for ISIN %s",
+                raw_type,
+                isin,
+            )
+            return None
+        else:
+            product_type = ProductType.STOCK_ETF
+            product_subtype = EquityType.STOCK
+
+        parent_section = get_section(detail_sections, "Transaction")
+        if not parent_section:
+            parent_section = get_section(detail_sections, "Overview")
+        section_data = parent_section.get("data", []) if parent_section else []
+
+        inferred_locale = infer_locale_from_section(
+            get_section(section_data, "Total")
+        ) or infer_locale_from_section(get_section(section_data, "Fee"))
+
+        shares_removed = parse_sub_section_float(
+            get_section(section_data, "Shares removed"), inferred_locale
+        )
+        shares_added = parse_sub_section_float(
+            get_section(section_data, "Shares added"), inferred_locale
+        )
+
+        if shares_removed is None and shares_added is None:
+            shares = parse_sub_section_float(
+                get_section(section_data, "Shares"), inferred_locale
+            )
+            if shares is not None:
+                shares_added = shares
+
+        if not shares_removed and not shares_added:
+            self._log.warning(
+                "No shares found for corporate action %s on ISIN %s",
+                raw_tx.get("id"),
+                isin,
+            )
+            return None
+
+        txs: list[StockTx | FundTx] = []
+
+        def _build_tx(tx_type: TxType, qty: Dezimal) -> StockTx | FundTx:
+            tx_id = uuid4()
+            if product_type == ProductType.FUND:
+                return FundTx(
+                    id=tx_id,
+                    ref=raw_tx["id"],
+                    name=name,
+                    amount=Dezimal(0),
+                    currency=currency,
+                    type=tx_type,
+                    date=date,
+                    entity=TRADE_REPUBLIC,
+                    net_amount=Dezimal(0),
+                    isin=isin,
+                    shares=qty,
+                    price=Dezimal(0),
+                    market=None,
+                    fees=Dezimal(0),
+                    retentions=Dezimal(0),
+                    order_date=None,
+                    product_type=product_type,
+                    fund_type=product_subtype,
+                    source=DataSource.REAL,
+                )
+            return StockTx(
+                id=tx_id,
+                ref=raw_tx["id"],
+                name=name,
+                amount=Dezimal(0),
+                currency=currency,
+                type=tx_type,
+                date=date,
+                entity=TRADE_REPUBLIC,
+                net_amount=Dezimal(0),
+                isin=isin,
+                ticker=None,
+                shares=qty,
+                price=Dezimal(0),
+                market=None,
+                fees=Dezimal(0),
+                retentions=Dezimal(0),
+                order_date=None,
+                product_type=product_type,
+                equity_type=product_subtype,
+                linked_tx=None,
+                source=DataSource.REAL,
+            )
+
+        if shares_removed and shares_removed > 0:
+            txs.append(_build_tx(TxType.SWAP_FROM, abs(shares_removed)))
+
+        if shares_added and shares_added > 0:
+            txs.append(_build_tx(TxType.SWAP_TO, abs(shares_added)))
+
+        return txs
+
     @staticmethod
     def _extract_isin_from_asset(asset: str | dict) -> Optional[str]:
         if isinstance(asset, dict):
@@ -839,14 +1158,25 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         return isin2 if isin2 else isin
 
     def map_account_tx(self, raw_tx: dict, date: datetime) -> Optional[AccountTx]:
-        title = raw_tx["title"].strip()
+        title = (raw_tx.get("title") or "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().replace("\xa0", "")
-        amount_obj = raw_tx["amount"]
-        currency = amount_obj["currency"]
+        amount_obj = raw_tx.get("amount") or {}
+        currency = amount_obj.get("currency")
+        if not currency:
+            self._log.warning(
+                "Incomplete account transaction data: %s", raw_tx.get("id")
+            )
+            return None
 
-        detail_sections = raw_tx["details"]["sections"]
+        detail_sections = (raw_tx.get("details") or {}).get("sections") or []
 
-        ov_section = get_section(detail_sections, "Overview")["data"]
+        overview = get_section(detail_sections, "Overview")
+        if not overview or "data" not in overview:
+            self._log.warning(
+                "No overview section for account transaction %s", raw_tx.get("id")
+            )
+            return None
+        ov_section = overview["data"]
         inferred_locale = infer_locale_from_section(
             get_section(ov_section, "Average balance")
         )
@@ -869,11 +1199,11 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             else:
                 self._log.warning(f"No interest rate found in tx: {raw_tx['id']}")
 
-        event_type = raw_tx.get("eventType", "").strip().upper()
+        event_type = (raw_tx.get("eventType") or "").strip().upper()
         if title in ["Interest"] or event_type == "INTEREST_PAYOUT":
             tx_section_parent = get_section(detail_sections, "Transaction")
-            if tx_section_parent:
-                tx_section = get_section(detail_sections, "Transaction")["data"]
+            if tx_section_parent and "data" in tx_section_parent:
+                tx_section = tx_section_parent["data"]
                 inferred_locale = infer_locale_from_section(
                     get_section(ov_section, "Total")
                 ) or infer_locale_from_section(get_section(ov_section, "Accrued"))
@@ -889,13 +1219,19 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 if not taxes or taxes == 0:
                     taxes = 0
                 if not accrued or accrued == 0:
-                    accrued = amount_obj["value"]
+                    accrued = amount_obj.get("value")
         else:
             if not taxes or taxes == 0:
                 taxes = 0
             if not accrued or accrued == 0:
-                accrued = amount_obj["value"]
+                accrued = amount_obj.get("value")
 
+        if accrued is None:
+            self._log.warning(
+                "Could not determine accrued amount for account transaction %s",
+                raw_tx.get("id"),
+            )
+            return None
         accrued = Dezimal(round(accrued, 2))
         if avg_balance is None and annual_rate is not None and annual_rate != 0:
             avg_balance = accrued / annual_rate * 12 * 100
@@ -914,7 +1250,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         )
         name = f"{title} - {(subtitle or fallback_subtitle)}"
 
-        taxes = Dezimal(round(taxes, 2))
+        taxes = Dezimal(round(taxes or 0, 2))
         net_amount = accrued - taxes
         return AccountTx(
             id=uuid4(),

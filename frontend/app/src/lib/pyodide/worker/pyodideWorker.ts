@@ -1,6 +1,6 @@
 import { loadPyodide, type PyodideInterface } from "pyodide"
 
-const CACHE_NAME = "pyodide-cache-v314.0.2"
+const CACHE_NAME = "pyodide-cache-v314.0.6"
 
 function shouldInterceptUrl(url: string): boolean {
   const lowerUrl = url.toLowerCase()
@@ -543,9 +543,24 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.yahooFinance.lookup", args),
     getInstrumentInfo: (...args: any[]) =>
       requestMain("jsBridge.yahooFinance.getInstrumentInfo", args),
+    getHistory: (...args: any[]) =>
+      requestMain("jsBridge.yahooFinance.getHistory", args),
+    getSplits: (...args: any[]) =>
+      requestMain("jsBridge.yahooFinance.getSplits", args),
   }
 
-  ;(self as any).jsBridge = { sqlite, preferences, filesystem, yahooFinance }
+  const telemetry = {
+    capture: (...args: any[]) =>
+      requestMain("jsBridge.telemetry.capture", args),
+  }
+
+  ;(self as any).jsBridge = {
+    sqlite,
+    preferences,
+    filesystem,
+    yahooFinance,
+    telemetry,
+  }
   ;(self as any).FileTransfer = createMainProxy("FileTransfer")
   ;(self as any).BackupProcessor = createMainProxy("BackupProcessor")
   ;(self as any).NativeCookies = createMainProxy("NativeCookies")

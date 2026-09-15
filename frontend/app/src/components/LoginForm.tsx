@@ -5,6 +5,7 @@ import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { SecretInput } from "@/components/ui/SecretInput"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
@@ -66,8 +67,6 @@ export function LoginForm() {
     setView("entities")
   }
 
-  // Get credential fields and sort them (password/PIN types last)
-  // Filter out INTERNAL and INTERNAL_TEMP credential types
   const credentialFields = Object.entries(
     selectedEntity.credentials_template || {},
   ).filter(
@@ -75,15 +74,17 @@ export function LoginForm() {
       type !== CredentialType.INTERNAL && type !== CredentialType.INTERNAL_TEMP,
   )
 
-  // Sort fields to put password and PIN fields last
+  const isSecureCredentialType = (type: string) =>
+    type === CredentialType.PASSWORD ||
+    type === CredentialType.PIN ||
+    type === CredentialType.API_TOKEN
+
   const sortedFields = [...credentialFields].sort((a, b) => {
     const [, typeA] = a
     const [, typeB] = b
 
-    const isSecureA =
-      typeA === CredentialType.PASSWORD || typeA === CredentialType.PIN
-    const isSecureB =
-      typeB === CredentialType.PASSWORD || typeB === CredentialType.PIN
+    const isSecureA = isSecureCredentialType(typeA)
+    const isSecureB = isSecureCredentialType(typeB)
 
     if (isSecureA && !isSecureB) return 1
     if (!isSecureA && isSecureB) return -1
@@ -120,30 +121,31 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {sortedFields.map(([key, type]) => {
-            const inputType =
-              type === CredentialType.PASSWORD || type === CredentialType.PIN
-                ? "password"
-                : type === CredentialType.EMAIL
-                  ? "email"
-                  : "text"
-
-            // Get localized placeholder: prefer field-specific name, then generic type name
+            const isSecure = isSecureCredentialType(type)
             const placeholder =
               (t.login as any).credentialFields?.[key] ||
               t.login.credentials[type as keyof typeof t.login.credentials] ||
               key
+            const fieldProps = {
+              id: key,
+              placeholder,
+              value: credentials[key] || "",
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                handleInputChange(key, e.target.value),
+              required: true,
+            }
 
             return (
               <div key={key} className="space-y-2">
                 <Label htmlFor={key}>{placeholder}</Label>
-                <Input
-                  id={key}
-                  type={inputType}
-                  placeholder={placeholder}
-                  value={credentials[key] || ""}
-                  onChange={e => handleInputChange(key, e.target.value)}
-                  required
-                />
+                {isSecure ? (
+                  <SecretInput {...fieldProps} />
+                ) : (
+                  <Input
+                    {...fieldProps}
+                    type={type === CredentialType.EMAIL ? "email" : "text"}
+                  />
+                )}
               </div>
             )
           })}

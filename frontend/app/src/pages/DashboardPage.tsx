@@ -2234,15 +2234,17 @@ export default function DashboardPage() {
                                         </span>
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                            {item.amount?.toLocaleString(
-                                              locale,
-                                              {
-                                                minimumFractionDigits:
-                                                  item.amount < 1 ? 6 : 2,
-                                                maximumFractionDigits:
-                                                  item.amount < 1 ? 6 : 2,
-                                              },
-                                            )}{" "}
+                                            <Sensitive>
+                                              {item.amount?.toLocaleString(
+                                                locale,
+                                                {
+                                                  minimumFractionDigits:
+                                                    item.amount < 1 ? 6 : 2,
+                                                  maximumFractionDigits:
+                                                    item.amount < 1 ? 6 : 2,
+                                                },
+                                              )}
+                                            </Sensitive>{" "}
                                             {item.symbol}
                                           </span>
                                           <span className="font-semibold whitespace-nowrap text-sm">
@@ -2794,15 +2796,21 @@ export default function DashboardPage() {
                                                   Amount:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {item.amount?.toLocaleString(
-                                                    locale,
-                                                    {
-                                                      minimumFractionDigits:
-                                                        item.amount < 1 ? 6 : 2,
-                                                      maximumFractionDigits:
-                                                        item.amount < 1 ? 6 : 2,
-                                                    },
-                                                  )}{" "}
+                                                  <Sensitive>
+                                                    {item.amount?.toLocaleString(
+                                                      locale,
+                                                      {
+                                                        minimumFractionDigits:
+                                                          item.amount < 1
+                                                            ? 6
+                                                            : 2,
+                                                        maximumFractionDigits:
+                                                          item.amount < 1
+                                                            ? 6
+                                                            : 2,
+                                                      },
+                                                    )}
+                                                  </Sensitive>{" "}
                                                   {item.symbol}
                                                 </div>
                                               </div>
@@ -3195,11 +3203,7 @@ export default function DashboardPage() {
                                             }`}
                                           >
                                             <Sensitive>
-                                              {tx.displayType === "in"
-                                                ? "+"
-                                                : tx.type === TxType.FEE
-                                                  ? "-"
-                                                  : ""}
+                                              {tx.displaySign}
                                               {tx.formattedAmount}
                                             </Sensitive>
                                           </p>

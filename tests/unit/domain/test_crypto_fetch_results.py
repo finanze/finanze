@@ -5,6 +5,7 @@ from domain.crypto import (
     CryptoFetchedPosition,
     CryptoFetchResult,
     CryptoFetchResults,
+    CryptoPositionType,
 )
 from domain.dezimal import Dezimal
 
@@ -41,7 +42,13 @@ class TestAssetKey:
     def test_native_uses_type_and_symbol(self):
         asset = _native("BTC", "1")
         key = CryptoFetchResults._asset_key(asset)
-        assert key == (CryptoCurrencyType.NATIVE, "BTC")
+        assert key == (
+            CryptoCurrencyType.NATIVE,
+            "BTC",
+            CryptoPositionType.HOLDING,
+            None,
+            None,
+        )
 
     def test_token_uses_type_and_contract(self):
         asset = _token("USDT", "100", "0xdac17f958d2ee523a2206206994597c13d831ec7")
@@ -49,6 +56,9 @@ class TestAssetKey:
         assert key == (
             CryptoCurrencyType.TOKEN,
             "0xdac17f958d2ee523a2206206994597c13d831ec7",
+            CryptoPositionType.HOLDING,
+            None,
+            None,
         )
 
     def test_token_without_contract_falls_back_to_symbol(self):
@@ -60,7 +70,13 @@ class TestAssetKey:
             contract_address=None,
         )
         key = CryptoFetchResults._asset_key(asset)
-        assert key == (CryptoCurrencyType.TOKEN, "USDT")
+        assert key == (
+            CryptoCurrencyType.TOKEN,
+            "USDT",
+            CryptoPositionType.HOLDING,
+            None,
+            None,
+        )
 
     def test_same_symbol_different_contracts_produce_different_keys(self):
         a = _token("USDT", "50", "0xaaa")
@@ -261,6 +277,12 @@ class TestAdd:
         assets = combined.results["addr1"].assets
         assert len(assets) == 3
         by_key = {CryptoFetchResults._asset_key(a): a for a in assets}
-        assert by_key[(CryptoCurrencyType.NATIVE, "ETH")].balance == Dezimal("5")
-        assert by_key[(CryptoCurrencyType.TOKEN, "0xdac")].balance == Dezimal("150")
-        assert by_key[(CryptoCurrencyType.TOKEN, "0x514")].balance == Dezimal("10")
+        assert by_key[
+            (CryptoCurrencyType.NATIVE, "ETH", CryptoPositionType.HOLDING, None, None)
+        ].balance == Dezimal("5")
+        assert by_key[
+            (CryptoCurrencyType.TOKEN, "0xdac", CryptoPositionType.HOLDING, None, None)
+        ].balance == Dezimal("150")
+        assert by_key[
+            (CryptoCurrencyType.TOKEN, "0x514", CryptoPositionType.HOLDING, None, None)
+        ].balance == Dezimal("10")

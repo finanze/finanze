@@ -1,6 +1,10 @@
 from quart import jsonify, request
 
-from domain.data_init import AlreadyUnlockedError, DecryptionError
+from domain.data_init import (
+    AlreadyUnlockedError,
+    DecryptionError,
+    MigrationAheadOfTime,
+)
 from domain.exception.exceptions import (
     InvalidPassword,
     InvalidUsername,
@@ -43,6 +47,9 @@ async def register_user(register_user_uc: RegisterUser):
 
     except UserAlreadyExists as e:
         return jsonify({"message": str(e)}), 409
+
+    except MigrationAheadOfTime as e:
+        return jsonify({"message": str(e)}), 503
 
     except AlreadyUnlockedError:
         return "", 204

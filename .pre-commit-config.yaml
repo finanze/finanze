@@ -13,3 +13,4 @@ repos:
         language: system
         entry: sh -c "cd frontend/app && pnpm run lint-staged"
         files: ^frontend/
+        pass_filenames: false

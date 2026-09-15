@@ -91,7 +91,8 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             self._log.warning("No details found for project %s", project_id)
             return None
 
-        months = int(details["investmentPeriod"])
+        # investmentPeriod may be a single value or a range like "48-54"
+        months = max(int(p) for p in str(details["investmentPeriod"]).split("-"))
         interest_rate = Dezimal(
             fund_details.get("apreciationProfitability")
             or fund_details.get("totalNetProfitability")

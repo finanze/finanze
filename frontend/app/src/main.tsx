@@ -14,7 +14,9 @@ import { DataDisplayModeProvider } from "@/context/DataDisplayModeContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
 import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
 import { initE2eMockChallengeWindow } from "@/lib/dev/initE2eMockChallengeWindow"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import * as mobile from "@/lib/mobile"
+import { initTelemetry } from "@/lib/telemetry"
 
 async function bootstrap(): Promise<void> {
   await mobile.preinit()
@@ -24,22 +26,26 @@ async function bootstrap(): Promise<void> {
   initE2eMockChallengeWindow()
   mobile.init()
 
+  await initTelemetry().catch(console.error)
+
   createRoot(document.getElementById("root")!).render(
     <HashRouter>
       <ThemeProvider>
         <DataDisplayModeProvider>
           <I18nProvider>
-            <ModalRegistryProvider>
-              <AuthProvider>
-                <AppProvider>
-                  <CloudProvider>
-                    <BackupAlertProvider>
-                      <App />
-                    </BackupAlertProvider>
-                  </CloudProvider>
-                </AppProvider>
-              </AuthProvider>
-            </ModalRegistryProvider>
+            <ErrorBoundary scope="app">
+              <ModalRegistryProvider>
+                <AuthProvider>
+                  <AppProvider>
+                    <CloudProvider>
+                      <BackupAlertProvider>
+                        <App />
+                      </BackupAlertProvider>
+                    </CloudProvider>
+                  </AppProvider>
+                </AuthProvider>
+              </ModalRegistryProvider>
+            </ErrorBoundary>
           </I18nProvider>
         </DataDisplayModeProvider>
       </ThemeProvider>

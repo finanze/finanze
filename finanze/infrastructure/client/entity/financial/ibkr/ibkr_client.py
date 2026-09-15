@@ -19,6 +19,12 @@ from domain.native_entity import EntityCredentials
 BASE_URL = "https://www.interactivebrokers.ie"
 SESSION_LIFETIME = 50 * 60  # 50 minutes (IBKR sessions expire at ~54 min)
 
+DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+# Account Management pages are noticeably slower than the portal API
+AM_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+# Statements are generated on demand by IBKR and can take minutes to build
+STATEMENT_TIMEOUT = httpx.Timeout(180.0, connect=10.0)
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) "
     "Gecko/20100101 Firefox/148.0"
@@ -43,6 +49,10 @@ _SERVER_MANAGED_COOKIES = {
 }
 
 
+class IBKRStatementError(Exception):
+    """Raised when an activity statement cannot be retrieved from IBKR."""
+
+
 def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
     cookies = {}
     for pair in cookie_str.split("; "):
@@ -52,6 +62,20 @@ def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
             if name and name not in cookies and name not in _SERVER_MANAGED_COOKIES:
                 cookies[name] = value.strip()
     return cookies
+
+
+def _is_json(resp: httpx.Response) -> bool:
+    return "json" in resp.headers.get("content-type", "")
+
+
+def _statement_error(resp: httpx.Response) -> Optional[str]:
+    # IBKR's own error for a period it cannot produce a statement for
+    if not _is_json(resp):
+        return None
+    try:
+        return resp.json().get("errors", {}).get("stmtError")
+    except ValueError:
+        return None
 
 
 class IBKRClient:
@@ -136,7 +160,15 @@ class IBKRClient:
         self._http = httpx.AsyncClient(
             cookies=cookies,
             headers=DEFAULT_HEADERS,
+            timeout=DEFAULT_TIMEOUT,
+            follow_redirects=True,
         )
+        self._am_headers = None
+
+    async def close(self) -> None:
+        if self._http:
+            await self._http.aclose()
+            self._http = None
         self._am_headers = None
 
     @staticmethod
@@ -214,6 +246,7 @@ class IBKRClient:
             "GET",
             "/AccountManagement/AmAuthentication",
             params={"action": "Statements"},
+            timeout=AM_TIMEOUT,
         )
         if not resp.is_success:
             self._log.warning("AM auth failed with status %d", resp.status_code)
@@ -225,39 +258,55 @@ class IBKRClient:
             self._log.error("Could not find AM_SESSION_ID in AmAuthentication HTML")
             return False
 
-        am_session_id = match.group(1)
-        am_uuid = str(uuid.uuid4())
-        self._am_headers = {
-            "SessionId": am_session_id,
-            "AM_UUID": am_uuid,
+        am_headers = {
+            "SessionId": match.group(1),
+            "AM_UUID": str(uuid.uuid4()),
             "ACTIVE_CONTEXT": "AM_DEPENDENCY",
+            "Accept": "application/json, text/plain, */*",
         }
 
         resp = await self._request(
             "POST",
             "/AccountManagement/Statements/PageInfo",
             json={"action": "Statements"},
-            headers=self._am_headers,
+            headers=am_headers,
+            timeout=AM_TIMEOUT,
         )
         if not resp.is_success:
             self._log.warning("AM PageInfo failed with status %d", resp.status_code)
             return False
 
+        # Statements are run against the account picked in the AM session, which
+        # is identified by a hash. Without it IBKR answers 200 with an empty body
+        account_hash = self._account_hash_from_page_info(resp)
+        if account_hash is None:
+            self._log.error("No account selection found in Statements PageInfo")
+            return False
+        am_headers["AccountHash"] = str(account_hash)
+
+        self._am_headers = am_headers
         return True
 
-    async def download_activity_statement(self, from_date: date, to_date: date) -> str:
-        am_ready = await self._init_am_session()
-        if not am_ready:
-            self._log.error("Could not initialize AM session for statements")
-            return ""
+    def _account_hash_from_page_info(self, resp: httpx.Response) -> Optional[int]:
+        try:
+            selections = resp.json().get("picker", {}).get("activeSelections", [])
+        except ValueError:
+            return None
 
-        from_str = from_date.strftime("%Y%m%d")
-        to_str = to_date.strftime("%Y%m%d")
+        for selection in selections:
+            if selection.get("accountId") == self._account_id:
+                return selection.get("id")
+        return selections[0].get("id") if selections else None
 
-        resp = await self._request(
+    async def _run_statement(self, from_str: str, to_str: str) -> httpx.Response:
+        if not await self._init_am_session():
+            raise IBKRStatementError("Could not initialize AM session for statements")
+
+        return await self._request(
             "GET",
             "/AccountManagement/Statements/Run",
             headers=self._am_headers,
+            timeout=STATEMENT_TIMEOUT,
             params={
                 "cashReportDetail": "TOTALS_WITH_SEGMENT_BREAKDOWN",
                 "format": "13",
@@ -272,13 +321,42 @@ class IBKRClient:
                 "v2Modal": "true",
             },
         )
-        if not resp.is_success:
-            self._log.error(
-                "Failed to download activity statement: %d", resp.status_code
+
+    async def download_activity_statement(self, from_date: date, to_date: date) -> str:
+        from_str = from_date.strftime("%Y%m%d")
+        to_str = to_date.strftime("%Y%m%d")
+
+        resp = await self._run_statement(from_str, to_str)
+        if not _is_json(resp):
+            # Both the statement and IBKR's own errors come back as JSON, so
+            # anything else means the AM session went stale: rebuild and retry
+            self._log.warning(
+                "Unexpected statement response (%d, %s), retrying with a new AM session",
+                resp.status_code,
+                resp.headers.get("content-type", ""),
             )
+            self._am_headers = None
+            resp = await self._run_statement(from_str, to_str)
+
+        error = _statement_error(resp)
+        if error:
+            # No activity in that period, or a range the account cannot report on
+            self._log.info("No statement for %s-%s: %s", from_str, to_str, error)
             return ""
-        data = resp.json()
-        file_content = data.get("fileContent", "")
+
+        if not resp.is_success:
+            raise IBKRStatementError(
+                f"Statement request failed with status {resp.status_code}"
+            )
+
+        if not _is_json(resp):
+            self._log.error("Unexpected statement response body: %s", resp.text[:500])
+            raise IBKRStatementError("Statement request returned a non-JSON response")
+
+        file_content = resp.json().get("fileContent", "")
         if not file_content:
+            self._log.warning(
+                "Empty statement returned for range %s-%s", from_str, to_str
+            )
             return ""
         return base64.b64decode(file_content).decode("utf-8-sig")

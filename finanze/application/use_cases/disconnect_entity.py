@@ -9,7 +9,7 @@ from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from domain import native_entities
-from domain.entity import EntityType
+from domain.entity import EntityType, is_account_scoped_entity
 from domain.entity_login import EntityDisconnectRequest
 from domain.exception.exceptions import EntityNotFound
 from domain.use_cases.disconnect_entity import DisconnectEntity
@@ -47,20 +47,23 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         entity_id = entity_account.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
+            entity_id,
+            EntityType.FINANCIAL_INSTITUTION,
+            EntityType.CRYPTO_EXCHANGE,
+            EntityType.MARKET_FORECAST_PLATFORM,
         )
         if not entity:
             raise EntityNotFound(entity_id)
 
-        is_crypto_exchange = entity.type == EntityType.CRYPTO_EXCHANGE
+        is_account_scoped = is_account_scoped_entity(entity)
 
-        if is_crypto_exchange:
-            # Disconnect single crypto exchange account
+        if is_account_scoped:
+            # Disconnect single account-scoped entity account
             await self._credentials_port.delete(entity_account_id)
             await self._sessions_port.delete(entity_account_id)
             await self._entity_account_port.soft_delete(entity_account_id)
         else:
-            # Disconnect all accounts for the entity (FI only has one)
+            # Disconnect all accounts for the entity (single-account entities)
             await self._credentials_port.delete_by_entity_id(entity_id)
             await self._sessions_port.delete_by_entity_id(entity_id)
             await self._entity_account_port.soft_delete_by_entity_id(entity_id)

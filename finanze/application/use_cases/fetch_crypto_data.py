@@ -13,6 +13,7 @@ from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.crypto_wallet_port import CryptoWalletPort
+from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
@@ -79,6 +80,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         external_integration_port: ExternalIntegrationPort,
         transaction_handler_port: TransactionHandlerPort,
         public_key_derivation: PublicKeyDerivation,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
         self._entity_fetchers = entity_fetchers
@@ -89,6 +91,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         self._external_integration_port = external_integration_port
         self._transaction_handler_port = transaction_handler_port
         self._public_key_derivation = public_key_derivation
+        self._error_reporter = error_reporter
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -132,6 +135,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
 
         fetched_data = []
         exception = None
+        failures: List[tuple[Entity, Exception]] = []
         for entity in entities:
             lock = self._get_lock(entity.id)
 
@@ -153,14 +157,26 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 except Exception as e:
                     self._log.exception(e)
                     exception = e
+                    failures.append((entity, e))
 
         code = (
             FetchResultCode.COMPLETED
             if not exception
             else FetchResultCode.PARTIALLY_COMPLETED
         )
+        # Surfaced as an unexpected error response, which is reported there.
         if exception and len(entities) == 1:
             raise exception
+
+        if self._error_reporter:
+            for entity, error in failures:
+                self._error_reporter.capture_exception(
+                    error,
+                    tags={
+                        "use_case": "fetch_crypto_data",
+                        "entity": entity.name,
+                    },
+                )
 
         return FetchResult(code, data=fetched_data)
 
@@ -182,18 +198,20 @@ class FetchCryptoDataImpl(FetchCryptoData):
             w for w in entity_wallets if w.address_source == AddressSource.DERIVED
         ]
 
-        manual_addresses, address_wallet_id = self._collect_manual_addresses(
-            manual_wallets
-        )
+        _, address_wallet_id = self._collect_manual_addresses(manual_wallets)
         known_derived_addresses = self._collect_known_derived_addresses(derived_wallets)
 
-        all_known_addresses = manual_addresses + list(known_derived_addresses)
+        address_groups = self._group_addresses_by_include_wallet_tokens(
+            manual_wallets, known_derived_addresses
+        )
         data_by_address: dict[str, CryptoFetchResult | None] = {}
-        if all_known_addresses:
-            initial_results = await self._fetch_addresses(
-                all_known_addresses, specific_fetcher, integrations
+        for include_wallet_tokens, addresses in address_groups.items():
+            if not addresses:
+                continue
+            group_results = await self._fetch_addresses(
+                addresses, specific_fetcher, integrations, include_wallet_tokens
             )
-            data_by_address.update(initial_results)
+            data_by_address.update(group_results)
 
         known_results_by_wallet = self._split_results_by_wallet(
             data_by_address, derived_wallets
@@ -283,6 +301,8 @@ class FetchCryptoDataImpl(FetchCryptoData):
         native_symbols = set()
         for wallet in wallets:
             for asset in wallet.assets:
+                if asset.market_value is not None:
+                    continue
                 if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
                     contract_addresses.add(asset.contract_address.lower())
                 elif asset.type == CryptoCurrencyType.NATIVE:
@@ -310,6 +330,26 @@ class FetchCryptoDataImpl(FetchCryptoData):
             if w.hd_wallet:
                 addresses.extend(a.address for a in w.hd_wallet.addresses)
         return addresses
+
+    @staticmethod
+    def _group_addresses_by_include_wallet_tokens(
+        manual_wallets: list[CryptoWallet],
+        known_derived_addresses: list[str],
+    ) -> dict[bool, list[str]]:
+        groups: dict[bool, list[str]] = {}
+        for w in manual_wallets:
+            group = groups.setdefault(w.include_wallet_tokens, [])
+            group.extend(w.addresses)
+
+        # Derived/HD addresses are not (yet) subject to this flag; they stay
+        # on the default group, merging into it to keep the common case
+        # (a single flag value across an entity's manual wallets) as one
+        # request instead of needlessly splitting it.
+        if known_derived_addresses:
+            group = groups.setdefault(False, [])
+            group.extend(known_derived_addresses)
+
+        return groups
 
     @staticmethod
     def _split_results_by_wallet(
@@ -450,11 +490,13 @@ class FetchCryptoDataImpl(FetchCryptoData):
         addresses: list[str],
         fetcher: CryptoEntityFetcher,
         integrations: EnabledExternalIntegrations,
+        include_wallet_tokens: bool = False,
     ) -> dict[str, CryptoFetchResult | None]:
         request = CryptoFetchRequest(
             addresses=addresses,
             integrations=integrations,
             txs=True,
+            include_wallet_tokens=include_wallet_tokens,
         )
         return (await fetcher.fetch(request)).results
 
@@ -536,16 +578,28 @@ class FetchCryptoDataImpl(FetchCryptoData):
         return balances
 
     @staticmethod
-    def _asset_merge_key(asset: CryptoFetchedPosition) -> str:
+    def _asset_merge_key(asset: CryptoFetchedPosition) -> tuple:
         if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
-            return asset.contract_address.lower()
-        return asset.symbol
+            base = (asset.type, asset.contract_address.lower())
+        else:
+            base = (asset.type, asset.symbol)
+        return base + (asset.position_type, asset.chain, asset.protocol)
+
+    @staticmethod
+    def _sum_optional(a: Optional[Dezimal], b: Optional[Dezimal]) -> Optional[Dezimal]:
+        if a is None and b is None:
+            return None
+        if a is None:
+            return b
+        if b is None:
+            return a
+        return a + b
 
     @staticmethod
     def _merge_address_assets(
         addresses_data: list[CryptoFetchResult],
     ) -> list[CryptoCurrencyPosition]:
-        merged: dict[str, CryptoCurrencyPosition] = {}
+        merged: dict[tuple, CryptoCurrencyPosition] = {}
 
         for result in addresses_data:
             for asset in result.assets:
@@ -553,6 +607,9 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 existing = merged.get(key)
                 if existing:
                     existing.amount += asset.balance
+                    existing.market_value = FetchCryptoDataImpl._sum_optional(
+                        existing.market_value, asset.market_value
+                    )
                 else:
                     merged[key] = CryptoCurrencyPosition(
                         id=asset.id,
@@ -561,6 +618,12 @@ class FetchCryptoDataImpl(FetchCryptoData):
                         type=asset.type,
                         name=asset.name,
                         contract_address=asset.contract_address,
+                        chain=asset.chain,
+                        protocol=asset.protocol,
+                        position_type=asset.position_type,
+                        market_value=asset.market_value,
+                        currency=asset.currency,
+                        icon_url=asset.icon_url,
                     )
 
         return list(merged.values())
@@ -572,27 +635,37 @@ class FetchCryptoDataImpl(FetchCryptoData):
         if wallet.assets:
             for asset in wallet.assets:
                 asset_dict = asdict(asset)
-                market_value = self._get_market_value(price_map, asset)
                 asset_info = None
+
+                if asset.market_value is not None:
+                    market_value = asset.market_value
+                    fetcher_priced = True
+                else:
+                    market_value = self._get_market_value(price_map, asset)
+                    fetcher_priced = False
+
                 if market_value is not None:
                     asset_dict["market_value"] = market_value
-                    asset_dict["currency"] = TARGET_FIAT
-                    asset_info = await self._crypto_asset_registry_port.get_by_symbol(
-                        asset.symbol
-                    )
-                    if asset.amount > 0 and not asset_info:
-                        candidate_assets = (
-                            await self._crypto_asset_info_provider.get_by_symbol(
+                    asset_dict["currency"] = asset.currency or TARGET_FIAT
+                    if not fetcher_priced:
+                        asset_info = (
+                            await self._crypto_asset_registry_port.get_by_symbol(
                                 asset.symbol
                             )
                         )
-                        if candidate_assets:
-                            asset_info = candidate_assets[0]
-                            asset_info.id = uuid4()
-                            await self._crypto_asset_registry_port.save(asset_info)
+                        if asset.amount > 0 and not asset_info:
+                            candidate_assets = (
+                                await self._crypto_asset_info_provider.get_by_symbol(
+                                    asset.symbol
+                                )
+                            )
+                            if candidate_assets:
+                                asset_info = candidate_assets[0]
+                                asset_info.id = uuid4()
+                                await self._crypto_asset_registry_port.save(asset_info)
 
-                    if asset_info:
-                        asset_dict["name"] = asset_info.name
+                        if asset_info:
+                            asset_dict["name"] = asset_info.name
 
                 asset_dict["crypto_asset"] = asset_info
                 position = CryptoCurrencyPosition(**asset_dict)

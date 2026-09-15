@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { SecretInput } from "@/components/ui/SecretInput"
 import { Label } from "@/components/ui/Label"
 import {
   Card,
@@ -335,7 +336,7 @@ export function IntegrationsTab() {
           1500,
         )
       } else {
-        showToast(t.common.error, "error")
+        showToast(t.common.error, "error", { reportable: false })
       }
     },
     [showToast, t],
@@ -407,7 +408,7 @@ export function IntegrationsTab() {
             ...missingFields,
           },
         }))
-        showToast(t.settings.validationError, "error")
+        showToast(t.settings.validationError, "error", { reportable: false })
         return
       }
 
@@ -774,7 +775,9 @@ export function IntegrationsTab() {
                 <img
                   src={iconSrc}
                   alt={title}
-                  className="h-12 w-12 object-contain flex-shrink-0"
+                  className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
+                  draggable={false}
+                  style={{ WebkitUserSelect: "none" }}
                 />
                 <div className="min-w-0">
                   <CardTitle className="text-lg break-words">{title}</CardTitle>
@@ -820,9 +823,7 @@ export function IntegrationsTab() {
               schemaEntries.map(([field, label], index) => {
                 const value = payload[field] ?? ""
                 const hasError = !!errors[field]
-                const inputType = /secret|password|token|key/i.test(field)
-                  ? "password"
-                  : "text"
+                const isSecure = /secret|password|token|key/i.test(field)
                 const showHintInline = Boolean(hintContent) && index === 0
 
                 return (
@@ -885,10 +886,25 @@ export function IntegrationsTab() {
                           )
                         }
                       />
+                    ) : isSecure ? (
+                      <SecretInput
+                        id={`${integration.id}-${field}`}
+                        value={value}
+                        onChange={event =>
+                          handleIntegrationFieldChange(
+                            integration.id,
+                            field,
+                            event.target.value,
+                          )
+                        }
+                        placeholder={String(label)}
+                        disabled={isUnavailable || disabledForPlatform}
+                        className={cn(hasError ? "border-red-500" : undefined)}
+                      />
                     ) : (
                       <Input
                         id={`${integration.id}-${field}`}
-                        type={inputType}
+                        type="text"
                         value={value}
                         onChange={event =>
                           handleIntegrationFieldChange(

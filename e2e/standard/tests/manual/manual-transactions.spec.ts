@@ -96,11 +96,13 @@ async function selectCustomDropdown(
     labelFor: string,
     optionText: string,
 ) {
-    const dialog = page.locator('.fixed.inset-0').last()
-    const section = dialog.locator(`label[for="${labelFor}"]`).locator('..')
-    await section.locator('.cursor-pointer').first().click()
+    await page.locator(`#${labelFor}`).click()
     await page.waitForTimeout(200)
-    await section.getByText(optionText, { exact: true }).click()
+    await page
+        .locator('[data-radix-popper-content-wrapper]')
+        .last()
+        .getByRole('option', { name: optionText, exact: true })
+        .click()
     await page.waitForTimeout(200)
 }
 
@@ -116,13 +118,14 @@ async function createManualTransaction(
     amount: string,
 ) {
     await page.getByRole('button', { name: 'Add' }).click()
-    await expect(page.getByText('Add manual transaction')).toBeVisible({
+    await expect(page.getByText('Add transaction')).toBeVisible({
         timeout: 5_000,
     })
 
     await selectEntity(page, 'Urbanitae', { inDialog: true })
     await page.locator('#transaction-name').fill(name)
     // Keep the default date (today) — no need to pick a specific day
+    await selectCustomDropdown(page, 'transaction-product', 'Account')
     await selectCustomDropdown(page, 'transaction-type', 'Interest')
     await page.locator('#transaction-amount').fill(amount)
     await page.locator('#transaction-currency').selectOption('EUR')
@@ -183,7 +186,7 @@ test.describe('Manual Transactions', () => {
         // Wait for Edit button to be visible, then click using accessible name
         await page.getByRole('button', { name: 'Edit' }).click()
 
-        await expect(page.getByText('Edit manual transaction')).toBeVisible({
+        await expect(page.getByText('Edit transaction')).toBeVisible({
             timeout: 5_000,
         })
 
@@ -197,7 +200,7 @@ test.describe('Manual Transactions', () => {
         // The success toast auto-dismisses and is racy to assert on. Verify the
         // edit succeeded by confirming the dialog closed and the updated amount
         // is reflected in the list.
-        await expect(page.getByText('Edit manual transaction')).toBeHidden({
+        await expect(page.getByText('Edit transaction')).toBeHidden({
             timeout: 10_000,
         })
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
@@ -280,13 +283,14 @@ test.describe('Manual Transactions', () => {
         await navigateToTransactions(page)
 
         await page.getByRole('button', { name: 'Add' }).click()
-        await expect(page.getByText('Add manual transaction')).toBeVisible({
+        await expect(page.getByText('Add transaction')).toBeVisible({
             timeout: 5_000,
         })
 
         await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#transaction-name').fill('Decimal Test Tx')
         // Keep the default date (today)
+        await selectCustomDropdown(page, 'transaction-product', 'Account')
         await selectCustomDropdown(page, 'transaction-type', 'Interest')
         await page.locator('#transaction-amount').fill('1234.56')
         await page.locator('#transaction-currency').selectOption('EUR')
@@ -318,5 +322,133 @@ test.describe('Manual Transactions', () => {
         await expect(
             page.getByText('Manual transaction deleted successfully'),
         ).toBeVisible({ timeout: 10_000 })
+    })
+
+    test('create a fund transfer with both legs', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        await page.getByRole('button', { name: 'Add' }).click()
+        await expect(page.getByText('Add transaction')).toBeVisible({
+            timeout: 5_000,
+        })
+
+        await selectCustomDropdown(page, 'transaction-product', 'Fund')
+        await selectCustomDropdown(page, 'transaction-type', 'Transfer')
+
+        await page.locator('#origin-entity').click()
+        await page
+            .locator('[data-radix-popper-content-wrapper]')
+            .last()
+            .getByRole('button', { name: 'Urbanitae' })
+            .click()
+        await page.locator('#origin-name').fill('E2E Fund Transfer Origin')
+        await page.locator('#origin-isin').fill('LU0000000999')
+        await page.locator('#origin-shares').fill('10')
+        await page.locator('#origin-price').fill('50')
+        await page.locator('#dest-name').fill('E2E Fund Transfer Dest')
+        await page.locator('#dest-isin').fill('LU0000000888')
+        await page.locator('#dest-shares').fill('10')
+        await page.locator('#dest-price').fill('50')
+
+        const dialog = page.locator('.fixed.inset-0').last()
+        await dialog.getByRole('button', { name: 'Save' }).click()
+
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.getByText('E2E Fund Transfer Origin').first(),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.getByText('E2E Fund Transfer Dest').first(),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('Transfer Out').first()).toBeVisible()
+        await expect(page.getByText('Transfer In').first()).toBeVisible()
+    })
+
+    test('create a fund transfer origin only', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        await page.getByRole('button', { name: 'Add' }).click()
+        await expect(page.getByText('Add transaction')).toBeVisible({
+            timeout: 5_000,
+        })
+
+        await selectCustomDropdown(page, 'transaction-product', 'Fund')
+        await selectCustomDropdown(page, 'transaction-type', 'Transfer')
+
+        await page.locator('#dest-enabled').click()
+        await page.locator('#origin-entity').click()
+        await page
+            .locator('[data-radix-popper-content-wrapper]')
+            .last()
+            .getByRole('button', { name: 'Urbanitae' })
+            .click()
+        await page.locator('#origin-name').fill('E2E Fund Origin Only')
+        await page.locator('#origin-isin').fill('LU0000000777')
+        await page.locator('#origin-shares').fill('8')
+        await page.locator('#origin-price').fill('25')
+
+        const dialog = page.locator('.fixed.inset-0').last()
+        await dialog.getByRole('button', { name: 'Save' }).click()
+
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.getByText('E2E Fund Origin Only').first(),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('Transfer Out').first()).toBeVisible()
+    })
+
+    test('create a stock swap', async ({ authenticatedPage: page }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        await page.getByRole('button', { name: 'Add' }).click()
+        await expect(page.getByText('Add transaction')).toBeVisible({
+            timeout: 5_000,
+        })
+
+        await selectCustomDropdown(page, 'transaction-product', 'Stock/ETF')
+        await selectCustomDropdown(page, 'transaction-type', 'Swap')
+
+        await page.locator('#transaction-entity').click()
+        await page
+            .locator('[data-radix-popper-content-wrapper]')
+            .last()
+            .getByRole('button', { name: 'Urbanitae' })
+            .click()
+        await page.locator('#origin-name').fill('E2E Swap Origin')
+        await page.locator('#origin-ticker').fill('ORIG')
+        await page.locator('#origin-isin').fill('US0000000111')
+        await page.locator('#origin-shares').fill('10')
+        await page.locator('#origin-price').fill('50')
+        await page.locator('#dest-name').fill('E2E Swap Dest')
+        await page.locator('#dest-ticker').fill('DEST')
+        await page.locator('#dest-isin').fill('US0000000222')
+        await page.locator('#dest-shares').fill('25')
+        await page.locator('#dest-price').fill('20')
+
+        const dialog = page.locator('.fixed.inset-0').last()
+        await dialog.getByRole('button', { name: 'Save' }).click()
+
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('E2E Swap Origin').first()).toBeVisible({
+            timeout: 10_000,
+        })
+        await expect(page.getByText('E2E Swap Dest').first()).toBeVisible({
+            timeout: 10_000,
+        })
+        await expect(page.getByText('S. Swap From').first()).toBeVisible()
+        await expect(page.getByText('S. Swap To').first()).toBeVisible()
     })
 })

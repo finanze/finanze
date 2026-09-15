@@ -1,6 +1,6 @@
 from quart import jsonify, request
 
-from domain.data_init import DecryptionError
+from domain.data_init import DecryptionError, MigrationAheadOfTime
 from domain.exception.exceptions import (
     InvalidPassword,
     UserAlreadyLoggedIn,
@@ -42,6 +42,9 @@ async def change_user_password(change_user_password_uc: ChangeUserPassword):
 
     except InvalidPassword:
         return jsonify({"message": "Invalid password"}), 400
+
+    except MigrationAheadOfTime as e:
+        return jsonify({"message": str(e)}), 503
 
     except ValueError as e:
         return jsonify({"message": str(e)}), 400
