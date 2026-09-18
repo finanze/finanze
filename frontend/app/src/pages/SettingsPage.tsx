@@ -22,6 +22,12 @@ import {
   Moon,
   SunMoon,
   EyeOff,
+  Settings2,
+  SlidersHorizontal,
+  Bug,
+  Languages,
+  Palette,
+  Fingerprint,
 } from "lucide-react"
 import { useAppContext } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
@@ -165,8 +171,9 @@ export default function SettingsPage() {
           >
             <TabsTrigger
               value="general"
-              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
             >
+              <Settings2 className="h-4 w-4 shrink-0" />
               {t.settings.general}
             </TabsTrigger>
             {isCloudEnabled && (
@@ -200,8 +207,9 @@ export default function SettingsPage() {
             )}
             <TabsTrigger
               value="application"
-              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
             >
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
               {t.settings.application}
             </TabsTrigger>
             <TabsTrigger
@@ -229,7 +237,10 @@ export default function SettingsPage() {
               </p>
               <Card>
                 <CardHeader>
-                  <CardTitle>{t.settings.applicationLanguageTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Languages className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.applicationLanguageTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.applicationLanguageDescription}
                   </CardDescription>
@@ -263,7 +274,10 @@ export default function SettingsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>{t.settings.themeTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.themeTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.themeDescription}
                   </CardDescription>
@@ -330,7 +344,10 @@ export default function SettingsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>{t.settings.dataDisplayModeTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <EyeOff className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.dataDisplayModeTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.dataDisplayModeDescription}
                   </CardDescription>
@@ -369,9 +386,12 @@ export default function SettingsPage() {
               {isNativeMobile() && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>
-                      {t.settings.biometricCredentialsTitle}
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Fingerprint className="h-5 w-5 text-primary" />
+                      <CardTitle>
+                        {t.settings.biometricCredentialsTitle}
+                      </CardTitle>
+                    </div>
                     <CardDescription>
                       {t.settings.biometricCredentialsDescription}
                     </CardDescription>
@@ -427,11 +447,14 @@ export default function SettingsPage() {
                     onClick={() => toggleSection("advancedSettings")}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>{t.advancedSettings.title}</CardTitle>
-                        <CardDescription>
-                          {t.advancedSettings.subtitle}
-                        </CardDescription>
+                      <div className="flex items-center gap-2">
+                        <Bug className="h-5 w-5 text-primary" />
+                        <div>
+                          <CardTitle>{t.advancedSettings.title}</CardTitle>
+                          <CardDescription>
+                            {t.advancedSettings.subtitle}
+                          </CardDescription>
+                        </div>
                       </div>
                       {expandedSections.advancedSettings ? (
                         <ChevronUp className="h-5 w-5 text-muted-foreground" />

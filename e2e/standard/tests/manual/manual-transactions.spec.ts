@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { ensureEditMode } from '../../helpers/edit-mode'
 import { selectEntity } from '../../helpers/entity-selector'
 
 const CREDENTIALS = {
@@ -139,6 +140,10 @@ async function createManualTransaction(
 }
 
 test.describe('Manual Transactions', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('add a manual transaction', async ({ authenticatedPage: page }) => {
         await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
         await navigateToTransactions(page)

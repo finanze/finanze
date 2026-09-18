@@ -39,6 +39,7 @@ import {
   Filter,
   FilterX,
   Pencil,
+  Check,
   Trash2,
   Plus,
   Save,
@@ -1458,6 +1459,8 @@ function useFundsCombinedActions(
   const { showToast, fetchEntities } = useAppContext()
   const combinedIsEditMode =
     fundsContext.isEditMode || portfolioContext.isEditMode
+  const combinedIsQuickMode =
+    fundsContext.isQuickMode && portfolioContext.isQuickMode
   const combinedHasChanges =
     fundsContext.hasLocalChanges || portfolioContext.hasLocalChanges
   const combinedIsSaving = fundsContext.isSaving || portfolioContext.isSaving
@@ -1718,6 +1721,7 @@ function useFundsCombinedActions(
 
   return {
     combinedIsEditMode,
+    combinedIsQuickMode,
     combinedHasChanges,
     combinedIsSaving,
     handleEnterEdit,
@@ -1761,6 +1765,21 @@ function FundsCombinedControls({
           <span className="hidden sm:inline">{fundsContext.editLabel}</span>
         </Button>
       )}
+      {combinedIsEditMode && fundsContext.isQuickMode && (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => {
+            fundsContext.requestCancel()
+            portfolioContext.requestCancel()
+          }}
+          disabled={fundsContext.isSaving || portfolioContext.isSaving}
+          className="flex items-center gap-2"
+        >
+          <Check className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{fundsContext.doneLabel}</span>
+        </Button>
+      )}
     </div>
   )
 }
@@ -1774,13 +1793,14 @@ function FundsCombinedEditBanner({
 }) {
   const {
     combinedIsEditMode,
+    combinedIsQuickMode,
     combinedHasChanges,
     combinedIsSaving,
     handleCancel,
     handleSave,
   } = useFundsCombinedActions(fundsContext, portfolioContext)
 
-  if (!combinedIsEditMode) {
+  if (!combinedIsEditMode || combinedIsQuickMode) {
     return null
   }
 
@@ -1793,7 +1813,7 @@ function FundsCombinedEditBanner({
         <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
           {fundsContext.translate("common.editing")}
         </span>
-        {combinedHasChanges && (
+        {!combinedIsQuickMode && combinedHasChanges && (
           <>
             <span className="text-blue-300 dark:text-blue-600">·</span>
             <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
@@ -1807,34 +1827,51 @@ function FundsCombinedEditBanner({
         )}
       </div>
       <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCancel}
-          disabled={combinedIsSaving}
-          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
-        >
-          <X className="h-3 w-3" />
-          <span className="hidden sm:inline ml-1">
-            {fundsContext.cancelLabel}
-          </span>
-        </Button>
-        <Button
-          data-testid="save-positions"
-          size="sm"
-          onClick={handleSave}
-          disabled={combinedIsSaving || !combinedHasChanges}
-          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
-        >
-          {combinedIsSaving ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Save className="h-3 w-3" />
-          )}
-          <span className="hidden sm:inline ml-1">
-            {fundsContext.saveLabel}
-          </span>
-        </Button>
+        {combinedIsQuickMode ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            disabled={combinedIsSaving}
+            className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+          >
+            <Check className="h-3 w-3" />
+            <span className="hidden sm:inline ml-1">
+              {fundsContext.doneLabel}
+            </span>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={combinedIsSaving}
+              className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+            >
+              <X className="h-3 w-3" />
+              <span className="hidden sm:inline ml-1">
+                {fundsContext.cancelLabel}
+              </span>
+            </Button>
+            <Button
+              data-testid="save-positions"
+              size="sm"
+              onClick={handleSave}
+              disabled={combinedIsSaving || !combinedHasChanges}
+              className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+            >
+              {combinedIsSaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
+              <span className="hidden sm:inline ml-1">
+                {fundsContext.saveLabel}
+              </span>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

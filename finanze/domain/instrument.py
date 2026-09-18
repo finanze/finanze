@@ -38,3 +38,4 @@ class InstrumentInfo:
     type: InstrumentType
     price: Dezimal
     symbol: Optional[str] = None
+    issuer: Optional[str] = None

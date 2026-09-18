@@ -69,6 +69,7 @@
     "save": "Guardar",
     "delete": "Eliminar",
     "discard": "Descartar",
+    "done": "Listo",
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
@@ -685,6 +686,12 @@
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
+    "editMode": "Modo de edición manual",
+    "editModeDescription": "Elige si los cambios manuales se guardan inmediatamente o como borradores.",
+    "editModeOptions": {
+      "QUICK": "Rápido (guardar inmediatamente)",
+      "DRAFT": "Borrador (guardar cambios juntos)"
+    },
     "assets": {
       "title": "Activos",
       "description": "Ajustes específicos del funcionamiento de los activos",

@@ -25,7 +25,5 @@ async def fetch_crypto_data(fetch_crypto_data_uc: FetchCryptoData):
     response = {"code": result.code}
     if result.details:
         response["details"] = result.details
-    if result.data:
-        response["data"] = result.data
 
     return jsonify(response), 200

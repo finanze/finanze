@@ -39,6 +39,7 @@
     "save": "Salva",
     "delete": "Elimina",
     "discard": "Scarta",
+    "done": "Fatto",
     "notAvailable": "N/D",
     "add": "Aggiungi",
     "edit": "Modifica",
@@ -685,6 +686,12 @@
     },
     "defaultCurrency": "Valuta Principale",
     "defaultCommodityWeightUnit": "Unità di peso predefinita per le materie prime",
+    "editMode": "Modalità di modifica manuale",
+    "editModeDescription": "Scegli se salvare subito le modifiche manuali o conservarle come bozze.",
+    "editModeOptions": {
+      "QUICK": "Rapida (salva subito)",
+      "DRAFT": "Bozza (salva le modifiche insieme)"
+    },
     "assets": {
       "title": "Beni",
       "description": "Impostazioni specifiche relative ai beni",

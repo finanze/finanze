@@ -356,6 +356,7 @@ class TestSuccessfulFetch:
         assert response.status_code == 200
         body = await response.get_json()
         assert body["code"] == "COMPLETED"
+        assert "data" not in body
 
     @pytest.mark.asyncio
     async def test_position_saved(

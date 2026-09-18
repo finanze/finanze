@@ -23,6 +23,8 @@ import {
   Check,
   AlertTriangle,
   Database,
+  Settings2,
+  WalletCards,
   User,
   LogOut,
   KeyRound,
@@ -32,7 +34,7 @@ import {
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
-import { AutoRefreshMaxOutdatedTime, AutoRefreshMode } from "@/types"
+import { AutoRefreshMaxOutdatedTime, AutoRefreshMode, EditMode } from "@/types"
 import { EntitySelector } from "@/components/EntitySelector"
 import {
   getAutoRefreshCompatibleEntities,
@@ -424,6 +426,16 @@ export function GeneralTab() {
     }))
   }
 
+  const handleEditModeChange = (editMode: EditMode) => {
+    setSettings(prev => ({
+      ...prev,
+      general: {
+        ...prev.general,
+        editMode,
+      },
+    }))
+  }
+
   return (
     <>
       <motion.div
@@ -433,7 +445,10 @@ export function GeneralTab() {
       >
         <Card>
           <CardHeader>
-            <CardTitle>{t.settings.general}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.general}</CardTitle>
+            </div>
             <CardDescription>{t.settings.generalDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -480,6 +495,30 @@ export function GeneralTab() {
                   </select>
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-mode">{t.settings.editMode}</Label>
+                <p className="text-xs text-muted-foreground">
+                  {t.settings.editModeDescription}
+                </p>
+                <div className="relative">
+                  <select
+                    id="edit-mode"
+                    data-testid="edit-mode"
+                    value={settings.general?.editMode ?? EditMode.QUICK}
+                    onChange={e =>
+                      handleEditModeChange(e.target.value as EditMode)
+                    }
+                    className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                  >
+                    <option value={EditMode.QUICK}>
+                      {t.settings.editModeOptions.QUICK}
+                    </option>
+                    <option value={EditMode.DRAFT}>
+                      {t.settings.editModeOptions.DRAFT}
+                    </option>
+                  </select>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -492,7 +531,10 @@ export function GeneralTab() {
         >
           <Card>
             <CardHeader>
-              <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-primary" />
+                <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+              </div>
               <CardDescription>
                 {t.settings.dataSettings.description}
               </CardDescription>
@@ -661,7 +703,10 @@ export function GeneralTab() {
       >
         <Card>
           <CardHeader onClick={() => toggleSection("assets")}>
-            <CardTitle>{t.settings.assets.title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <WalletCards className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.assets.title}</CardTitle>
+            </div>
             <CardDescription>{t.settings.assets.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

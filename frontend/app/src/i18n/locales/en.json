@@ -39,6 +39,7 @@
     "save": "Save",
     "delete": "Delete",
     "discard": "Discard",
+    "done": "Done",
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
@@ -686,6 +687,12 @@
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "editMode": "Manual edit mode",
+    "editModeDescription": "Choose whether manual changes are saved immediately or kept as drafts.",
+    "editModeOptions": {
+      "QUICK": "Quick (save immediately)",
+      "DRAFT": "Draft (save changes together)"
+    },
     "assets": {
       "title": "Assets",
       "description": "Specific asset related settings",

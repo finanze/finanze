@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { selectEntity } from '../../helpers/entity-selector'
+import { ensureEditMode } from '../../helpers/edit-mode'
 
 const BINANCE_CREDENTIALS = {
     apiKey: 'mock-api-key',
@@ -248,6 +249,10 @@ async function addManualCryptoPosition(page: Page) {
 }
 
 test.describe('Manual Crypto Positions', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create a manual crypto position', async ({
         authenticatedPage: page,
     }) => {

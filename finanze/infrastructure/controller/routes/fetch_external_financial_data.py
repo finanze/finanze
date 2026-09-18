@@ -22,7 +22,5 @@ async def fetch_external_financial_data(
     response = {"code": result.code}
     if result.details:
         response["details"] = result.details
-    if result.data:
-        response["data"] = result.data
 
     return jsonify(response), 200
