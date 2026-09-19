@@ -452,6 +452,26 @@ test.describe('Manual Positions - QUICK mode', () => {
             timeout: 10_000,
         })
 
+        const depositCardHeader = page
+            .getByText(depositName)
+            .first()
+            .locator('xpath=ancestor::div[@role="button"][1]')
+        const sourceBadge = depositCardHeader.locator('[data-source-badge]')
+        await expect(depositCardHeader).toHaveAttribute(
+            'aria-expanded',
+            'false',
+        )
+        await sourceBadge.click()
+        await expect(depositCardHeader).toHaveAttribute('aria-expanded', 'true')
+        await sourceBadge.click()
+        await expect(depositCardHeader).toHaveAttribute('aria-expanded', 'true')
+        await page.getByRole('button', { name: 'Done' }).click()
+        await depositCardHeader.click()
+        await expect(depositCardHeader).toHaveAttribute(
+            'aria-expanded',
+            'false',
+        )
+
         await page.getByRole('button', { name: 'Edit' }).click()
         await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
         await page.getByText(depositName).first().click()

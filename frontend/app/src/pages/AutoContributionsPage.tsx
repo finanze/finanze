@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { getCurrencySymbol, cn } from "@/lib/utils"
@@ -1283,7 +1284,14 @@ export default function AutoContributionsPage() {
                 <div className="flex flex-col items-end gap-1">
                   <div className="text-2xl font-semibold tracking-tight leading-none">
                     <Sensitive>
-                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          convertedAmount,
+                          locale,
+                          defaultCurrency,
+                        )}
+                        locale={locale}
+                      />
                     </Sensitive>
                   </div>
                   {showOriginalCurrency && (

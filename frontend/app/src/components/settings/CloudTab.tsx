@@ -26,6 +26,7 @@ import { isNativeMobile } from "@/lib/platform"
 import { isIOS } from "@/lib/platform"
 import { useBackupStatus } from "@/hooks/useBackupStatus"
 import { BackupStatusContent } from "@/components/backup/BackupStatusContent"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import {
   Popover,
   PopoverContent,
@@ -93,6 +94,8 @@ export function CloudTab() {
   const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn")
   const [newPassword, setNewPassword] = useState("")
   const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] =
+    useState(false)
   const [activeAction, setActiveAction] = useState<
     | null
     | "emailSignIn"
@@ -125,6 +128,19 @@ export function CloudTab() {
       window.open(url, "_blank")
     } catch {
       // ignore
+    }
+  }
+
+  const handleSignOut = async () => {
+    setError(null)
+    setSuccess(null)
+    clearOAuthError()
+    setActiveAction("signOut")
+    try {
+      await signOut()
+      setIsLogoutConfirmationOpen(false)
+    } finally {
+      setActiveAction(null)
     }
   }
 
@@ -361,7 +377,13 @@ export function CloudTab() {
       transition={{ duration: 0.3 }}
       className="space-y-4"
     >
-      <Card>
+      <Card
+        className={
+          role === CloudRole.PLUS
+            ? "-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x border-amber-400/60 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
+            : "-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x"
+        }
+      >
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -454,21 +476,15 @@ export function CloudTab() {
             </div>
           ) : isSignedIn ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div
-                  className={`relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/20 p-4 dark:bg-muted/10 flex-1 ${
-                    role === CloudRole.PLUS
-                      ? "border-amber-400/60 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
-                      : "border-border/50"
-                  }`}
-                >
+              <div className="-mx-6">
+                <div className="flex w-full flex-col gap-4 border-y border-border/50 bg-muted/20 p-4 dark:bg-muted/10 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">
                       {t.settings.cloud.signedInAs}
                     </p>
                     <p className="font-medium">{user.email}</p>
                   </div>
-                  <div className="absolute top-2 right-2 sm:static">
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -499,32 +515,21 @@ export function CloudTab() {
                         </button>
                       </PopoverContent>
                     </Popover>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsLogoutConfirmationOpen(true)}
+                      disabled={isLoading}
+                      aria-label={t.settings.cloud.logout}
+                    >
+                      {isLoading && activeAction === "signOut" ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <LogOut className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    setError(null)
-                    setSuccess(null)
-                    clearOAuthError()
-                    setActiveAction("signOut")
-                    try {
-                      await signOut()
-                    } finally {
-                      setActiveAction(null)
-                    }
-                  }}
-                  disabled={isLoading}
-                  aria-label={t.settings.cloud.logout}
-                  className="self-center sm:self-auto mx-auto sm:mx-0"
-                >
-                  {isLoading && activeAction === "signOut" ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <LogOut className="h-4 w-4" />
-                  )}
-                </Button>
               </div>
             </div>
           ) : (
@@ -785,7 +790,7 @@ export function CloudTab() {
       </Card>
 
       {isSignedIn && canSeeBackup && (
-        <Card>
+        <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
           <CardHeader>
             <div className="flex items-center gap-2">
               <HardDrive className="h-5 w-5 text-primary" />
@@ -826,6 +831,17 @@ export function CloudTab() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmationDialog
+        isOpen={isSignedIn && isLogoutConfirmationOpen}
+        title={t.settings.cloud.logoutConfirmationTitle}
+        message={t.settings.cloud.logoutConfirmationMessage}
+        confirmText={t.settings.cloud.logout}
+        cancelText={t.common.cancel}
+        onConfirm={handleSignOut}
+        onCancel={() => setIsLogoutConfirmationOpen(false)}
+        isLoading={isLoading && activeAction === "signOut"}
+      />
     </motion.div>
   )
 }

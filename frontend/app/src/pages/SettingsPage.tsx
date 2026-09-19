@@ -235,7 +235,7 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 {t.settings.applicationDisclaimerDescription}
               </p>
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Languages className="h-5 w-5 text-primary" />
@@ -272,7 +272,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Palette className="h-5 w-5 text-primary" />
@@ -342,7 +342,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <EyeOff className="h-5 w-5 text-primary" />
@@ -384,7 +384,7 @@ export default function SettingsPage() {
               </Card>
 
               {isNativeMobile() && (
-                <Card>
+                <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Fingerprint className="h-5 w-5 text-primary" />
@@ -441,25 +441,25 @@ export default function SettingsPage() {
 
               {/* Advanced Settings Section (Desktop only) */}
               {isDesktopApp && (
-                <Card>
+                <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   <CardHeader
                     className="cursor-pointer select-none"
                     onClick={() => toggleSection("advancedSettings")}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Bug className="h-5 w-5 text-primary" />
-                        <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <Bug className="h-5 w-5 shrink-0 text-primary" />
                           <CardTitle>{t.advancedSettings.title}</CardTitle>
-                          <CardDescription>
-                            {t.advancedSettings.subtitle}
-                          </CardDescription>
                         </div>
+                        <CardDescription>
+                          {t.advancedSettings.subtitle}
+                        </CardDescription>
                       </div>
                       {expandedSections.advancedSettings ? (
-                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                        <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
                       ) : (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
                       )}
                     </div>
                   </CardHeader>

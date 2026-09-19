@@ -9,6 +9,7 @@ import {
 } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import {
   Popover,
   PopoverContent,
@@ -769,9 +770,14 @@ export function PortfolioDonutChart({
                 }
               >
                 <Sensitive>
-                  {dashboardOptions.compactNumbers && !isPrivate
-                    ? formatCompactCurrency(totalValue, locale, currency)
-                    : formatCurrency(totalValue, locale, currency)}
+                  {dashboardOptions.compactNumbers && !isPrivate ? (
+                    formatCompactCurrency(totalValue, locale, currency)
+                  ) : (
+                    <FormattedMarketValue
+                      value={formatCurrency(totalValue, locale, currency)}
+                      locale={locale}
+                    />
+                  )}
                 </Sensitive>
               </span>
               {gainPercentage !== 0 && (

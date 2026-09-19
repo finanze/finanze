@@ -211,7 +211,11 @@ test.describe('Manual Transactions', () => {
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
             timeout: 5_000,
         })
-        await expect(page.getByText('+€750.50').first()).toBeVisible({
+        const updatedTxRow = page
+            .getByText('E2E Edit Tx')
+            .first()
+            .locator('../..')
+        await expect(updatedTxRow).toContainText(/\+€750\s*50/, {
             timeout: 5_000,
         })
     })

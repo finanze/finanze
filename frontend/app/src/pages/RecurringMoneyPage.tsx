@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/Popover"
 import { cn, getColorForName, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -1069,13 +1070,16 @@ export default function RecurringMoneyPage() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="text-right space-y-0.5">
-                            <div className="text-base sm:text-lg font-semibold leading-tight font-mono">
+                            <div className="text-base sm:text-lg font-semibold leading-tight">
                               <Sensitive>
-                                {formatCurrency(
-                                  convertedAmount,
-                                  locale,
-                                  defaultCurrency,
-                                )}
+                                <FormattedMarketValue
+                                  value={formatCurrency(
+                                    convertedAmount,
+                                    locale,
+                                    defaultCurrency,
+                                  )}
+                                  locale={locale}
+                                />
                               </Sensitive>
                             </div>
                             {showOriginalCurrency && (
@@ -1384,11 +1388,14 @@ export default function RecurringMoneyPage() {
             </div>
             <div className="text-2xl font-bold text-green-600">
               <Sensitive>
-                {formatCurrency(
-                  monthlyAmounts.monthlyEarnings,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                )}
+                <FormattedMarketValue
+                  value={formatCurrency(
+                    monthlyAmounts.monthlyEarnings,
+                    locale,
+                    settings?.general?.defaultCurrency,
+                  )}
+                  locale={locale}
+                />
               </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
@@ -1409,11 +1416,14 @@ export default function RecurringMoneyPage() {
             <div className="flex items-center gap-2">
               <div className="text-2xl font-bold text-red-600">
                 <Sensitive>
-                  {formatCurrency(
-                    monthlyAmounts.monthlyExpenses,
-                    locale,
-                    settings?.general?.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      monthlyAmounts.monthlyExpenses,
+                      locale,
+                      settings?.general?.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               {monthlyAmounts.monthlyEarnings > 0 &&
@@ -1472,11 +1482,14 @@ export default function RecurringMoneyPage() {
                       )}
                     >
                       <Sensitive>
-                        {formatCurrency(
-                          savingsSummary.totalSavable,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
+                        <FormattedMarketValue
+                          value={formatCurrency(
+                            savingsSummary.totalSavable,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                          locale={locale}
+                        />
                       </Sensitive>
                     </div>
                     <div
@@ -1525,11 +1538,14 @@ export default function RecurringMoneyPage() {
                   <div className="flex items-baseline gap-2 sm:justify-end">
                     <span className="text-lg font-semibold text-cyan-600 dark:text-cyan-300">
                       <Sensitive>
-                        {formatCurrency(
-                          savingsSummary.investedAmount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
+                        <FormattedMarketValue
+                          value={formatCurrency(
+                            savingsSummary.investedAmount,
+                            locale,
+                            settings?.general?.defaultCurrency,
+                          )}
+                          locale={locale}
+                        />
                       </Sensitive>
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-md font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
@@ -1858,13 +1874,16 @@ export default function RecurringMoneyPage() {
                         <span className="font-medium truncate min-w-0 flex-1">
                           {earning.category}
                         </span>
-                        <span className="font-mono text-green-600 shrink-0">
+                        <span className="text-green-600 shrink-0">
                           <Sensitive>
-                            {formatCurrency(
-                              earning.amount,
-                              locale,
-                              settings?.general?.defaultCurrency,
-                            )}
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                earning.amount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                              locale={locale}
+                            />
                           </Sensitive>
                         </span>
                       </div>
@@ -1897,13 +1916,16 @@ export default function RecurringMoneyPage() {
                         <span className="font-medium truncate min-w-0 flex-1">
                           {expense.category}
                         </span>
-                        <span className="font-mono text-red-600 shrink-0">
+                        <span className="text-red-600 shrink-0">
                           <Sensitive>
-                            {formatCurrency(
-                              expense.amount,
-                              locale,
-                              settings?.general?.defaultCurrency,
-                            )}
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                expense.amount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                              locale={locale}
+                            />
                           </Sensitive>
                         </span>
                       </div>
@@ -2074,13 +2096,16 @@ export default function RecurringMoneyPage() {
                       </div>
 
                       <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-2 sm:shrink-0">
-                        <span className="font-mono font-semibold">
+                        <span className="font-semibold">
                           <Sensitive>
-                            {formatCurrency(
-                              suggestion.amount,
-                              locale,
-                              suggestion.currency,
-                            )}
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                suggestion.amount,
+                                locale,
+                                suggestion.currency,
+                              )}
+                              locale={locale}
+                            />
                           </Sensitive>
                         </span>
                         <div className="flex items-center gap-2">

@@ -35,6 +35,7 @@ import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { cn } from "@/lib/utils"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -1894,13 +1895,16 @@ export default function TransactionsPage() {
                                                     tx.type,
                                                     displayAmount,
                                                   )}
-                                                  {formatCurrency(
-                                                    Math.abs(displayAmount),
-                                                    locale,
-                                                    settings.general
-                                                      .defaultCurrency,
-                                                    tx.currency,
-                                                  )}
+                                                  <FormattedMarketValue
+                                                    value={formatCurrency(
+                                                      Math.abs(displayAmount),
+                                                      locale,
+                                                      settings.general
+                                                        .defaultCurrency,
+                                                      tx.currency,
+                                                    )}
+                                                    locale={locale}
+                                                  />
                                                 </Sensitive>
                                               </div>
                                             </div>
@@ -2162,13 +2166,16 @@ export default function TransactionsPage() {
                                               displayAmount,
                                             )}
                                             <Sensitive>
-                                              {formatCurrency(
-                                                Math.abs(displayAmount),
-                                                locale,
-                                                settings.general
-                                                  .defaultCurrency,
-                                                tx.currency,
-                                              )}
+                                              <FormattedMarketValue
+                                                value={formatCurrency(
+                                                  Math.abs(displayAmount),
+                                                  locale,
+                                                  settings.general
+                                                    .defaultCurrency,
+                                                  tx.currency,
+                                                )}
+                                                locale={locale}
+                                              />
                                             </Sensitive>
                                           </div>
                                         </div>

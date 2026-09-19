@@ -41,7 +41,7 @@ export function PrivacyCard() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <Card>
+      <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
         <CardHeader>
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
@@ -63,6 +63,7 @@ export function PrivacyCard() {
               data-testid="telemetry-error-reporting"
               checked={consent.errorReporting}
               onCheckedChange={checked => apply(checked)}
+              className="data-[state=checked]:bg-emerald-600 data-[state=unchecked]:bg-amber-500 dark:data-[state=checked]:bg-emerald-400 dark:data-[state=unchecked]:bg-amber-400"
             />
           </div>
 

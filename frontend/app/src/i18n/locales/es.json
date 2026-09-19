@@ -687,10 +687,16 @@
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
     "editMode": "Modo de edición manual",
-    "editModeDescription": "Elige si los cambios manuales se guardan inmediatamente o como borradores.",
+    "editModeDescription": "Elige cómo actualizas tus posiciones y aportaciones.",
     "editModeOptions": {
-      "QUICK": "Rápido (guardar inmediatamente)",
-      "DRAFT": "Borrador (guardar cambios juntos)"
+      "QUICK": {
+        "label": "Rápido",
+        "description": "Guarda cada cambio manual inmediatamente al hacerlo."
+      },
+      "DRAFT": {
+        "label": "Borrador",
+        "description": "Revisa tus cambios y guárdalos juntos cuando estés listo."
+      }
     },
     "assets": {
       "title": "Activos",
@@ -789,6 +795,8 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Cerrar sesión",
+      "logoutConfirmationTitle": "¿Cerrar sesión?",
+      "logoutConfirmationMessage": "¿Seguro que quieres cerrar sesión de tu cuenta?",
       "deleteAccount": "Eliminar cuenta",
       "requestAccountDeletion": "Solicitar eliminación de cuenta",
       "deleteAccountEmailSubject": "Solicitud de eliminación de cuenta",

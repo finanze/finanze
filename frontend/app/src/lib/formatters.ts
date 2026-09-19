@@ -6,14 +6,19 @@ export const formatCurrency = (
   locale: string,
   defaultCurrency: string,
   currencyCode?: string,
-  options?: { narrowSymbol?: boolean },
+  options?: {
+    narrowSymbol?: boolean
+    minimumFractionDigits?: number
+    maximumFractionDigits?: number
+  },
 ): string => {
   const displayCurrency = (currencyCode || defaultCurrency)?.toUpperCase()
   const formatCurrencyValue = (currency: string) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
-      minimumFractionDigits: 2,
+      minimumFractionDigits: options?.minimumFractionDigits ?? 2,
+      maximumFractionDigits: options?.maximumFractionDigits ?? 2,
       ...(options?.narrowSymbol && { currencyDisplay: "narrowSymbol" }),
     }).format(value)
 
@@ -28,8 +33,8 @@ export const formatCurrency = (
   }
 
   const formattedNumber = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: options?.minimumFractionDigits ?? 2,
+    maximumFractionDigits: options?.maximumFractionDigits ?? 2,
   }).format(value)
 
   return displayCurrency

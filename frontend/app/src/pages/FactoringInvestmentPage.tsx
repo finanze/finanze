@@ -7,6 +7,7 @@ import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Badge } from "@/components/ui/Badge"
 import { SourceBadge } from "@/components/ui/SourceBadge"
 import {
@@ -1000,7 +1001,7 @@ function FactoringViewContent({
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-[200px]">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <Filter size={16} />
-              <span>{t.transactions.filters}</span>
+              <span className="hidden sm:inline">{t.transactions.filters}</span>
             </div>
             <div className="w-full sm:max-w-xs">
               <EntitySelector
@@ -1252,15 +1253,22 @@ function FactoringViewContent({
                     <div
                       className="flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
                       onClick={e => {
-                        if (
-                          (e.target as HTMLElement).closest("[data-no-expand]")
-                        )
+                        const target = e.target as HTMLElement
+                        if (target.closest("[data-no-expand]")) return
+                        if (isExpanded && target.closest("[data-source-badge]"))
                           return
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
+                          if (
+                            isExpanded &&
+                            (e.target as HTMLElement).closest(
+                              "[data-source-badge]",
+                            )
+                          )
+                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -1318,7 +1326,7 @@ function FactoringViewContent({
                           <span>{translateProjectType(position.type)}</span>
                           <span>•</span>
                           <Percent size={12} />
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          <span className="text-green-500 font-medium">
                             <Sensitive>{compactInterestRate}%</Sensitive>
                           </span>
                           {isLate && hasLateInterestRate && (
@@ -1334,7 +1342,12 @@ function FactoringViewContent({
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            <Sensitive>{position.formattedAmount}</Sensitive>
+                            <Sensitive>
+                              <FormattedMarketValue
+                                value={position.formattedAmount}
+                                locale={locale}
+                              />
+                            </Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
@@ -1344,7 +1357,7 @@ function FactoringViewContent({
                             </div>
                           )}
                           {position.formattedProfit && (
-                            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            <div className="text-xs font-medium text-green-500 mt-0.5">
                               <Sensitive>{position.formattedProfit}</Sensitive>
                             </div>
                           )}
@@ -1446,12 +1459,12 @@ function FactoringViewContent({
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.expectedProfit}
                                     </div>
-                                    <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                                    <div className="font-medium text-green-500">
                                       <Sensitive>
                                         {position.formattedProfit}
                                       </Sensitive>
                                       {position.profitabilityPct !== null && (
-                                        <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                        <span className="ml-1 text-xs text-green-500">
                                           <Sensitive>
                                             (
                                             {position.profitabilityPct.toFixed(
@@ -1752,10 +1765,10 @@ function FactoringViewContent({
                     return "text-gray-500 dark:text-gray-400"
                   }
                   if (value > 0) {
-                    return "text-emerald-600 dark:text-emerald-400"
+                    return "text-green-500"
                   }
                   if (value < 0) {
-                    return "text-red-500 dark:text-red-400"
+                    return "text-red-500"
                   }
                   return "text-gray-500 dark:text-gray-400"
                 }
@@ -1841,7 +1854,7 @@ function FactoringViewContent({
                       size={14}
                       className="text-gray-400 dark:text-gray-500"
                     />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                    <span className="text-green-500 font-medium">
                       <Sensitive>{item.interestRateFormatted}</Sensitive>
                     </span>
                     {historicShowGrossRate && (
@@ -1911,7 +1924,14 @@ function FactoringViewContent({
                         <div className="flex flex-col items-end gap-1 text-right">
                           <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
                             <Sensitive>
-                              {item.invested.formatted ?? notAvailableLabel}
+                              {item.invested.formatted != null ? (
+                                <FormattedMarketValue
+                                  value={item.invested.formatted}
+                                  locale={locale}
+                                />
+                              ) : (
+                                notAvailableLabel
+                              )}
                             </Sensitive>
                           </span>
                           {item.invested.original && (
@@ -2013,9 +2033,9 @@ function FactoringViewContent({
                                                 tx.type === "INTEREST")
                                             const amountColor =
                                               direction === "in"
-                                                ? "text-emerald-600 dark:text-emerald-400"
+                                                ? "text-green-500"
                                                 : isCharge
-                                                  ? "text-red-500 dark:text-red-400"
+                                                  ? "text-red-500"
                                                   : "text-gray-600 dark:text-gray-300"
                                             const sign =
                                               direction === "in" ? "+" : "-"

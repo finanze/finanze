@@ -26,6 +26,7 @@ import type {
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 import { cn } from "@/lib/utils"
@@ -1104,11 +1105,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalAccountBalance,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalAccountBalance,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               {accountsSummary.weightedInterest > 0 && (
@@ -1136,11 +1140,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalCardUsed,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalCardUsed,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -1160,11 +1167,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalLoanDebt,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalLoanDebt,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               {combinedWeightedInterest > 0 && (
@@ -1189,11 +1199,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalMonthlyPayments,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalMonthlyPayments,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -1923,11 +1936,14 @@ function BankAccountsSection({
                               <div className="space-y-1">
                                 <div className="text-2xl font-bold">
                                   <Sensitive>
-                                    {formatCurrency(
-                                      position.convertedTotal,
-                                      locale,
-                                      defaultCurrency,
-                                    )}
+                                    <FormattedMarketValue
+                                      value={formatCurrency(
+                                        position.convertedTotal,
+                                        locale,
+                                        defaultCurrency,
+                                      )}
+                                      locale={locale}
+                                    />
                                   </Sensitive>
                                 </div>
                                 <div className="text-xs text-muted-foreground">
