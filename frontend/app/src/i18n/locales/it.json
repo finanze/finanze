@@ -39,6 +39,7 @@
     "save": "Salva",
     "delete": "Elimina",
     "discard": "Scarta",
+    "done": "Fatto",
     "notAvailable": "N/D",
     "add": "Aggiungi",
     "edit": "Modifica",
@@ -685,6 +686,18 @@
     },
     "defaultCurrency": "Valuta Principale",
     "defaultCommodityWeightUnit": "Unità di peso predefinita per le materie prime",
+    "editMode": "Modalità di modifica manuale",
+    "editModeDescription": "Scegli come aggiornare le tue posizioni e i tuoi contributi.",
+    "editModeOptions": {
+      "QUICK": {
+        "label": "Rapida",
+        "description": "Salva ogni modifica manuale appena la fai."
+      },
+      "DRAFT": {
+        "label": "Bozza",
+        "description": "Rivedi le modifiche e salvale insieme quando sei pronto."
+      }
+    },
     "assets": {
       "title": "Beni",
       "description": "Impostazioni specifiche relative ai beni",
@@ -782,6 +795,8 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Esci",
+      "logoutConfirmationTitle": "Vuoi uscire?",
+      "logoutConfirmationMessage": "Sei sicuro di voler uscire dal tuo account?",
       "deleteAccount": "Elimina account",
       "requestAccountDeletion": "Richiedi eliminazione account",
       "deleteAccountEmailSubject": "Richiesta di Eliminazione Account",
@@ -2275,7 +2290,7 @@
     "monthlyRecurringEarnings": "Entrate ricorrenti mensili",
     "monthlyRecurringExpenses": "Uscite ricorrenti mensili",
     "savableAmount": "Importo risparmiabile",
-    "monthlyInvestedAmount": "Importo investito mensile",
+    "monthlyInvestedAmount": "Investito mensile",
     "savingsRate": "Tasso di risparmio",
     "investedRate": "Tasso investito",
     "ofEarnings": "delle entrate",

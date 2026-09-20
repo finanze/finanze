@@ -7,6 +7,7 @@ import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
@@ -525,6 +526,7 @@ function DepositsViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          hideLabelOnMobile
         />
       </motion.div>
 
@@ -728,15 +730,22 @@ function DepositsViewContent({
                       tabIndex={0}
                       aria-expanded={isExpanded}
                       onClick={e => {
-                        if (
-                          (e.target as HTMLElement).closest("[data-no-expand]")
-                        )
+                        const target = e.target as HTMLElement
+                        if (target.closest("[data-no-expand]")) return
+                        if (isExpanded && target.closest("[data-source-badge]"))
                           return
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
+                          if (
+                            isExpanded &&
+                            (e.target as HTMLElement).closest(
+                              "[data-source-badge]",
+                            )
+                          )
+                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -788,7 +797,7 @@ function DepositsViewContent({
                             size={12}
                             className="text-gray-400 dark:text-gray-500"
                           />
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          <span className="text-green-500 font-medium">
                             <Sensitive>
                               {(position.interest_rate * 100).toFixed(2)}%
                             </Sensitive>
@@ -807,7 +816,12 @@ function DepositsViewContent({
                       <div className="flex items-start gap-2 flex-shrink-0">
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
-                            <Sensitive>{position.formattedAmount}</Sensitive>
+                            <Sensitive>
+                              <FormattedMarketValue
+                                value={position.formattedAmount}
+                                locale={locale}
+                              />
+                            </Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
                             <div className="text-xs text-muted-foreground">
@@ -817,7 +831,7 @@ function DepositsViewContent({
                             </div>
                           )}
                           {position.formattedExpectedAmount && (
-                            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            <div className="text-xs font-medium text-green-500 mt-0.5">
                               <Sensitive>
                                 {position.formattedExpectedAmount}
                               </Sensitive>
@@ -876,12 +890,12 @@ function DepositsViewContent({
                                 <span className="text-gray-500 dark:text-gray-400">
                                   {t.investments.expected}
                                 </span>
-                                <span className="font-medium text-green-600 dark:text-green-400">
+                                <span className="font-medium text-green-500">
                                   <Sensitive>
                                     {position.formattedExpectedAmount}
                                   </Sensitive>
                                   {expectedReturnPct !== null && (
-                                    <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                    <span className="ml-1 text-xs text-green-500">
                                       <Sensitive>
                                         ({expectedReturnPct.toFixed(2)}%)
                                       </Sensitive>

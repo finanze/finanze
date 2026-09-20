@@ -18,6 +18,7 @@ import {
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getTransactionDisplayAmount,
@@ -1161,12 +1162,15 @@ function DayDetailModal({
                         >
                           <Sensitive>
                             {getTransactionDisplaySign(tx.type, displayAmount)}
-                            {formatCurrency(
-                              Math.abs(displayAmount),
-                              locale,
-                              settings.general.defaultCurrency,
-                              tx.currency,
-                            )}
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                Math.abs(displayAmount),
+                                locale,
+                                settings.general.defaultCurrency,
+                                tx.currency,
+                              )}
+                              locale={locale}
+                            />
                           </Sensitive>
                         </span>
                       </div>

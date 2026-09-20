@@ -34,6 +34,15 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
+const formatEstimatedMarketValue = (
+  value: number,
+  locale: string,
+  currency: string,
+) =>
+  formatCurrency(value, locale, currency, undefined, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  })
+
 export default function RealEstatePage() {
   const { t, locale } = useI18n()
   const { showToast } = useAppContext()
@@ -432,7 +441,7 @@ export default function RealEstatePage() {
                         </span>
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
                           <Sensitive>
-                            {formatCurrency(
+                            {formatEstimatedMarketValue(
                               property.valuation_info.estimated_market_value,
                               locale,
                               property.currency,

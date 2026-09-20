@@ -36,7 +36,7 @@ import {
   ExternalEntityConnectionResult,
   AuthResultCode,
   InstrumentDataRequest,
-  InstrumentOverview,
+  InstrumentInfo,
   InstrumentsResponse,
   CryptoWalletConnectionResult,
   DerivedAddressesResult,
@@ -854,7 +854,7 @@ export async function getInstruments(
 
 export async function getInstrumentDetails(
   request: InstrumentDataRequest,
-): Promise<InstrumentOverview> {
+): Promise<InstrumentInfo> {
   const params = new URLSearchParams()
 
   params.append("type", request.type)

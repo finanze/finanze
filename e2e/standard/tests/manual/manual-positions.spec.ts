@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { selectEntity } from '../../helpers/entity-selector'
+import { ensureEditMode } from '../../helpers/edit-mode'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -211,6 +212,10 @@ async function deleteManualPosition(page: Page, positionName: string) {
 // ── Deposits CRUD ───────────────────────────────────────────────────
 
 test.describe('Manual Positions - Deposits', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create a manual deposit', async ({ authenticatedPage: page }) => {
         await connectAndFetchEntity(page, 'Urbanitae', CREDENTIALS)
         await navigateTo(page, 'Deposits')
@@ -321,6 +326,10 @@ test.describe('Manual Positions - Deposits', () => {
 // ── Real Estate CF CRUD + coexistence ───────────────────────────────
 
 test.describe('Manual Positions - Real Estate CF', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create a manual real estate CF position', async ({
         authenticatedPage: page,
     }) => {
@@ -398,9 +407,127 @@ test.describe('Manual Positions - Real Estate CF', () => {
     })
 })
 
+test.describe('Manual Positions - QUICK mode', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'QUICK')
+    })
+
+    test('persists manual deposit changes immediately', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectAndFetchEntity(page, 'Urbanitae', CREDENTIALS)
+        await navigateTo(page, 'Deposits')
+
+        const depositName = 'E2E Quick Deposit'
+        await page.getByRole('button', { name: 'Add' }).click()
+        await expect(page.getByText('Add deposit')).toBeVisible({
+            timeout: 5_000,
+        })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
+        await page.locator('#name').fill(depositName)
+        await page.locator('#amount').fill('12000')
+        await page.locator('#interest_rate').fill('3.5')
+        await selectDatePicker(page, 'Start date', 10)
+        await selectDatePicker(page, 'Maturity', 15)
+
+        await page
+            .locator('.fixed.inset-0')
+            .last()
+            .getByRole('button', { name: 'Save' })
+            .click()
+        await expect(
+            page.getByText('Manual positions saved successfully.'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.getByText('You have unsaved changes'),
+        ).not.toBeVisible()
+
+        // Leave through the visible UI and return to verify persistence.
+        await page.locator('button[aria-label="Settings"]').first().click()
+        await expect(
+            page.getByRole('heading', { name: 'Settings' }).first(),
+        ).toBeVisible({ timeout: 10_000 })
+        await navigateTo(page, 'Deposits')
+        await expect(page.getByText(depositName)).toBeVisible({
+            timeout: 10_000,
+        })
+
+        const depositCardHeader = page
+            .getByText(depositName)
+            .first()
+            .locator('xpath=ancestor::div[@role="button"][1]')
+        const sourceBadge = depositCardHeader.locator('[data-source-badge]')
+        await expect(depositCardHeader).toHaveAttribute(
+            'aria-expanded',
+            'false',
+        )
+        await sourceBadge.click()
+        await expect(depositCardHeader).toHaveAttribute('aria-expanded', 'true')
+        await sourceBadge.click()
+        await expect(depositCardHeader).toHaveAttribute('aria-expanded', 'true')
+        await page.getByRole('button', { name: 'Done' }).click()
+        await depositCardHeader.click()
+        await expect(depositCardHeader).toHaveAttribute(
+            'aria-expanded',
+            'false',
+        )
+
+        await page.getByRole('button', { name: 'Edit' }).click()
+        await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+        await page.getByText(depositName).first().click()
+        await page.waitForTimeout(300)
+        await page
+            .locator('button')
+            .filter({ has: page.locator('.lucide-pencil') })
+            .click()
+        await expect(page.getByText('Edit deposit')).toBeVisible({
+            timeout: 5_000,
+        })
+        await page.locator('#amount').fill('15000')
+        await page
+            .locator('.fixed.inset-0')
+            .last()
+            .getByRole('button', { name: 'Save' })
+            .click()
+        await expect(
+            page.getByText('Manual positions saved successfully.'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(
+            page.getByText('You have unsaved changes'),
+        ).not.toBeVisible()
+
+        await page.getByRole('button', { name: 'Done' }).click()
+        await page.getByRole('button', { name: 'Edit' }).click()
+        await page.getByText(depositName).first().click()
+        await page.waitForTimeout(300)
+        await page
+            .locator('button.text-red-500')
+            .filter({ has: page.locator('.lucide-trash-2') })
+            .click()
+        await expect(page.getByText('Delete manual position')).toBeVisible({
+            timeout: 3_000,
+        })
+        await page
+            .locator('.fixed.inset-0')
+            .last()
+            .getByRole('button', { name: 'Delete' })
+            .click()
+        await expect(
+            page.getByText('Manual positions saved successfully.'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText(depositName)).not.toBeVisible({
+            timeout: 5_000,
+        })
+    })
+})
+
 // ── Factoring CRUD ─────────────────────────────────────────────────
 
 test.describe('Manual Positions - Factoring', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create and verify a manual factoring position', async ({
         authenticatedPage: page,
     }) => {

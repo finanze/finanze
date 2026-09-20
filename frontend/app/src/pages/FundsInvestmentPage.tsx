@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
+import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
 import { getColorForName, getCurrencySymbol, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
@@ -34,11 +36,10 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpDown,
-  TrendingUp,
-  TrendingDown,
   Filter,
   FilterX,
   Pencil,
+  Check,
   Trash2,
   Plus,
   Save,
@@ -726,7 +727,7 @@ function FundsInvestmentPageContent({
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
             <Filter size={16} />
-            <span>{t.transactions.filters}:</span>
+            <span className="hidden sm:inline">{t.transactions.filters}:</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
             <div className="w-full sm:max-w-xs">
@@ -1037,15 +1038,22 @@ function FundsInvestmentPageContent({
                     <div
                       className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
                       onClick={e => {
-                        if (
-                          (e.target as HTMLElement).closest("[data-no-expand]")
-                        )
+                        const target = e.target as HTMLElement
+                        if (target.closest("[data-no-expand]")) return
+                        if (isExpanded && target.closest("[data-source-badge]"))
                           return
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
+                          if (
+                            isExpanded &&
+                            (e.target as HTMLElement).closest(
+                              "[data-source-badge]",
+                            )
+                          )
+                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -1177,12 +1185,14 @@ function FundsInvestmentPageContent({
                         {(formattedShares || formattedMarketPrice) && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             {formattedShares && (
-                              <span>
+                              <span className="font-semibold">
                                 <Sensitive>{formattedShares}</Sensitive>
                               </span>
                             )}
                             {formattedShares && formattedMarketPrice && (
-                              <span>×</span>
+                              <span className="text-muted-foreground/50">
+                                ×
+                              </span>
                             )}
                             {formattedMarketPrice && (
                               <span>{formattedMarketPrice}</span>
@@ -1194,8 +1204,13 @@ function FundsInvestmentPageContent({
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
                             <Sensitive>
-                              {position.formattedOriginalValue ||
-                                position.formattedValue}
+                              <FormattedMarketValue
+                                value={
+                                  position.formattedOriginalValue ||
+                                  position.formattedValue
+                                }
+                                locale={locale}
+                              />
                             </Sensitive>
                           </div>
                           {position.currency !==
@@ -1204,22 +1219,12 @@ function FundsInvestmentPageContent({
                               <Sensitive>{position.formattedValue}</Sensitive>
                             </div>
                           )}
-                          <div
-                            className={cn(
-                              "flex items-center gap-1 text-sm justify-end mt-1",
-                              position.change >= 0
-                                ? "text-green-500"
-                                : "text-red-500",
-                            )}
-                          >
-                            <Sensitive>
-                              {position.change >= 0 ? (
-                                <TrendingUp size={14} />
-                              ) : (
-                                <TrendingDown size={14} />
-                              )}
-                              <span>{position.change.toFixed(2)}%</span>
-                            </Sensitive>
+                          <div className="mt-1">
+                            <InvestmentPerformanceIndicator
+                              value={position.change}
+                              locale={locale}
+                              className="justify-end"
+                            />
                           </div>
                         </div>
                         <ChevronDown
@@ -1289,9 +1294,11 @@ function FundsInvestmentPageContent({
                                     {formattedAvgBuyPrice && (
                                       <div className="text-xs text-muted-foreground mt-0.5">
                                         {t.investments.averageBuyPrice}:{" "}
-                                        <Sensitive>
-                                          {formattedAvgBuyPrice}
-                                        </Sensitive>
+                                        <span className="text-foreground">
+                                          <Sensitive>
+                                            {formattedAvgBuyPrice}
+                                          </Sensitive>
+                                        </span>
                                       </div>
                                     )}
                                   </div>
@@ -1458,6 +1465,8 @@ function useFundsCombinedActions(
   const { showToast, fetchEntities } = useAppContext()
   const combinedIsEditMode =
     fundsContext.isEditMode || portfolioContext.isEditMode
+  const combinedIsQuickMode =
+    fundsContext.isQuickMode && portfolioContext.isQuickMode
   const combinedHasChanges =
     fundsContext.hasLocalChanges || portfolioContext.hasLocalChanges
   const combinedIsSaving = fundsContext.isSaving || portfolioContext.isSaving
@@ -1718,6 +1727,7 @@ function useFundsCombinedActions(
 
   return {
     combinedIsEditMode,
+    combinedIsQuickMode,
     combinedHasChanges,
     combinedIsSaving,
     handleEnterEdit,
@@ -1761,6 +1771,21 @@ function FundsCombinedControls({
           <span className="hidden sm:inline">{fundsContext.editLabel}</span>
         </Button>
       )}
+      {combinedIsEditMode && fundsContext.isQuickMode && (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => {
+            fundsContext.requestCancel()
+            portfolioContext.requestCancel()
+          }}
+          disabled={fundsContext.isSaving || portfolioContext.isSaving}
+          className="flex items-center gap-2"
+        >
+          <Check className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{fundsContext.doneLabel}</span>
+        </Button>
+      )}
     </div>
   )
 }
@@ -1774,13 +1799,14 @@ function FundsCombinedEditBanner({
 }) {
   const {
     combinedIsEditMode,
+    combinedIsQuickMode,
     combinedHasChanges,
     combinedIsSaving,
     handleCancel,
     handleSave,
   } = useFundsCombinedActions(fundsContext, portfolioContext)
 
-  if (!combinedIsEditMode) {
+  if (!combinedIsEditMode || combinedIsQuickMode) {
     return null
   }
 
@@ -1793,7 +1819,7 @@ function FundsCombinedEditBanner({
         <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
           {fundsContext.translate("common.editing")}
         </span>
-        {combinedHasChanges && (
+        {!combinedIsQuickMode && combinedHasChanges && (
           <>
             <span className="text-blue-300 dark:text-blue-600">·</span>
             <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
@@ -1807,34 +1833,51 @@ function FundsCombinedEditBanner({
         )}
       </div>
       <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCancel}
-          disabled={combinedIsSaving}
-          className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
-        >
-          <X className="h-3 w-3" />
-          <span className="hidden sm:inline ml-1">
-            {fundsContext.cancelLabel}
-          </span>
-        </Button>
-        <Button
-          data-testid="save-positions"
-          size="sm"
-          onClick={handleSave}
-          disabled={combinedIsSaving || !combinedHasChanges}
-          className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
-        >
-          {combinedIsSaving ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Save className="h-3 w-3" />
-          )}
-          <span className="hidden sm:inline ml-1">
-            {fundsContext.saveLabel}
-          </span>
-        </Button>
+        {combinedIsQuickMode ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            disabled={combinedIsSaving}
+            className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+          >
+            <Check className="h-3 w-3" />
+            <span className="hidden sm:inline ml-1">
+              {fundsContext.doneLabel}
+            </span>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={combinedIsSaving}
+              className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+            >
+              <X className="h-3 w-3" />
+              <span className="hidden sm:inline ml-1">
+                {fundsContext.cancelLabel}
+              </span>
+            </Button>
+            <Button
+              data-testid="save-positions"
+              size="sm"
+              onClick={handleSave}
+              disabled={combinedIsSaving || !combinedHasChanges}
+              className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+            >
+              {combinedIsSaving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
+              <span className="hidden sm:inline ml-1">
+                {fundsContext.saveLabel}
+              </span>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

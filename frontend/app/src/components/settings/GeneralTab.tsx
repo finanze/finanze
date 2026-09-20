@@ -23,22 +23,26 @@ import {
   Check,
   AlertTriangle,
   Database,
+  Settings2,
+  WalletCards,
   User,
   LogOut,
   KeyRound,
   Scale,
   ExternalLink,
+  Zap,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
-import { AutoRefreshMaxOutdatedTime, AutoRefreshMode } from "@/types"
+import { AutoRefreshMaxOutdatedTime, AutoRefreshMode, EditMode } from "@/types"
 import { EntitySelector } from "@/components/EntitySelector"
 import {
   getAutoRefreshCompatibleEntities,
   entityHasPin,
 } from "@/utils/autoRefreshUtils"
 import { copyToClipboard } from "@/lib/clipboard"
+import { cn } from "@/lib/utils"
 import { PrivacyCard } from "@/components/settings/PrivacyCard"
 
 const cleanObject = (obj: any): any => {
@@ -117,6 +121,7 @@ export function GeneralTab() {
   const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
+  const editMode = settings.general?.editMode ?? EditMode.QUICK
 
   const autoRefreshEnabled =
     settings.data?.autoRefresh?.mode === AutoRefreshMode.NO_2FA
@@ -424,6 +429,16 @@ export function GeneralTab() {
     }))
   }
 
+  const handleEditModeChange = (editMode: EditMode) => {
+    setSettings(prev => ({
+      ...prev,
+      general: {
+        ...prev.general,
+        editMode,
+      },
+    }))
+  }
+
   return (
     <>
       <motion.div
@@ -431,9 +446,12 @@ export function GeneralTab() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <Card>
+        <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
           <CardHeader>
-            <CardTitle>{t.settings.general}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.general}</CardTitle>
+            </div>
             <CardDescription>{t.settings.generalDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -480,6 +498,94 @@ export function GeneralTab() {
                   </select>
                 </div>
               </div>
+              <fieldset data-testid="edit-mode" className="space-y-3">
+                <legend className="text-sm font-medium leading-none">
+                  {t.settings.editMode}
+                </legend>
+                <p className="text-xs text-muted-foreground">
+                  {t.settings.editModeDescription}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label
+                    data-testid={`edit-mode-${EditMode.QUICK}`}
+                    className="block cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="edit-mode"
+                      value={EditMode.QUICK}
+                      checked={editMode === EditMode.QUICK}
+                      onChange={() => handleEditModeChange(EditMode.QUICK)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className={cn(
+                        "flex h-full flex-col gap-2 rounded-lg border border-input bg-background p-3 transition-colors hover:border-primary/50 hover:bg-muted/30",
+                        "peer-checked:border-primary peer-checked:bg-primary/5",
+                        "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
+                      )}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="flex items-center gap-2">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Zap className="h-5 w-5" />
+                          </span>
+                          <span className="font-medium">
+                            {t.settings.editModeOptions.QUICK.label}
+                          </span>
+                        </span>
+                        {editMode === EditMode.QUICK && (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs leading-snug text-muted-foreground">
+                        {t.settings.editModeOptions.QUICK.description}
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    data-testid={`edit-mode-${EditMode.DRAFT}`}
+                    className="block cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="edit-mode"
+                      value={EditMode.DRAFT}
+                      checked={editMode === EditMode.DRAFT}
+                      onChange={() => handleEditModeChange(EditMode.DRAFT)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className={cn(
+                        "flex h-full flex-col gap-2 rounded-lg border border-input bg-background p-3 transition-colors hover:border-primary/50 hover:bg-muted/30",
+                        "peer-checked:border-primary peer-checked:bg-primary/5",
+                        "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
+                      )}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="flex items-center gap-2">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                            <Edit2 className="h-5 w-5" />
+                          </span>
+                          <span className="font-medium">
+                            {t.settings.editModeOptions.DRAFT.label}
+                          </span>
+                        </span>
+                        {editMode === EditMode.DRAFT && (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs leading-snug text-muted-foreground">
+                        {t.settings.editModeOptions.DRAFT.description}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
             </div>
           </CardContent>
         </Card>
@@ -490,9 +596,12 @@ export function GeneralTab() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.05 }}
         >
-          <Card>
+          <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
             <CardHeader>
-              <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-primary" />
+                <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+              </div>
               <CardDescription>
                 {t.settings.dataSettings.description}
               </CardDescription>
@@ -659,9 +768,12 @@ export function GeneralTab() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Card>
+        <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
           <CardHeader onClick={() => toggleSection("assets")}>
-            <CardTitle>{t.settings.assets.title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <WalletCards className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.assets.title}</CardTitle>
+            </div>
             <CardDescription>{t.settings.assets.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -874,7 +986,7 @@ export function GeneralTab() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.15 }}
       >
-        <Card>
+        <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
           <CardHeader>
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
@@ -915,7 +1027,7 @@ export function GeneralTab() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <Card>
+        <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-primary" />

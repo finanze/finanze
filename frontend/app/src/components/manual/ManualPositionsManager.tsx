@@ -29,6 +29,7 @@ import type {
 } from "./manualPositionTypes"
 import {
   DataSource,
+  EditMode,
   EntityOrigin,
   EntityType,
   type Entity,
@@ -121,6 +122,7 @@ interface ManualPositionsManagerProps {
 interface ManualPositionsContextValue {
   asset: ManualPositionAsset
   isEditMode: boolean
+  isQuickMode: boolean
   hasLocalChanges: boolean
   isSaving: boolean
   manualEntities: Entity[]
@@ -129,6 +131,7 @@ interface ManualPositionsContextValue {
   addLabel: string
   editLabel: string
   cancelLabel: string
+  doneLabel: string
   saveLabel: string
   translate: (path: string, params?: Record<string, any>) => string
   drafts: ManualPositionDraft<any>[]
@@ -218,6 +221,7 @@ export function ManualPositionsManager({
   )
 
   const config = manualPositionConfigs[asset]
+  const isQuickMode = settings.general.editMode === EditMode.QUICK
 
   const translate = useCallback(
     (path: string, params?: Record<string, any>) => {
@@ -537,6 +541,13 @@ export function ManualPositionsManager({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showDiscardFormConfirm, setShowDiscardFormConfirm] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [quickSaveRequest, setQuickSaveRequest] = useState(0)
+  const quickSavePendingRef = useRef(false)
+
+  const queueQuickSave = useCallback(() => {
+    quickSavePendingRef.current = true
+    setQuickSaveRequest(request => request + 1)
+  }, [])
 
   const [formState, setFormState] = useState<Record<string, string> | null>(
     null,
@@ -634,7 +645,11 @@ export function ManualPositionsManager({
         }
         return prev
       })
-      setHasLocalChanges(true)
+      if (isQuickMode) {
+        queueQuickSave()
+      } else {
+        setHasLocalChanges(true)
+      }
     }
 
     if (asset === "bankCards" && affectedCardIds.size > 0) {
@@ -660,7 +675,11 @@ export function ManualPositionsManager({
           setActiveDraft(updatedActive)
         }
       }
-      setHasLocalChanges(true)
+      if (isQuickMode) {
+        queueQuickSave()
+      } else {
+        setHasLocalChanges(true)
+      }
     }
   }, [
     activeDraft,
@@ -668,6 +687,8 @@ export function ManualPositionsManager({
     assetRegistryDrafts,
     drafts,
     localDraftSignature,
+    isQuickMode,
+    queueQuickSave,
     registryDraftSignature,
   ])
 
@@ -678,10 +699,15 @@ export function ManualPositionsManager({
   }, [asset])
 
   useEffect(() => {
-    if (!hasLocalChanges && !formState) {
+    if (
+      !hasLocalChanges &&
+      !formState &&
+      !quickSavePendingRef.current &&
+      !isSaving
+    ) {
       setDrafts(initialDrafts)
     }
-  }, [hasLocalChanges, initialDrafts, formState])
+  }, [hasLocalChanges, initialDrafts, formState, isSaving])
 
   useEffect(() => {
     if (!isEditMode && !formState) {
@@ -796,22 +822,24 @@ export function ManualPositionsManager({
 
   const upsertDraft = useCallback(
     (draft: ManualPositionDraft<any>) => {
+      const nextDrafts = drafts.some(item => item.localId === draft.localId)
+        ? drafts.map(item => (item.localId === draft.localId ? draft : item))
+        : [...drafts, draft]
+
+      if (isQuickMode) {
+        setDrafts(nextDrafts)
+        queueQuickSave()
+        return
+      }
+
       if (!isEditMode) {
         setIsEditMode(true)
       }
-      setDrafts(prev => {
-        const index = prev.findIndex(item => item.localId === draft.localId)
-        if (index >= 0) {
-          const next = [...prev]
-          next[index] = draft
-          return next
-        }
-        return [...prev, draft]
-      })
+      setDrafts(nextDrafts)
       setHasLocalChanges(true)
       closeForm()
     },
-    [closeForm, isEditMode],
+    [closeForm, drafts, isEditMode, isQuickMode, queueQuickSave],
   )
 
   const handleSubmitForm = useCallback(() => {
@@ -1267,18 +1295,27 @@ export function ManualPositionsManager({
       unlinkPortfoliosForAccount(targetDraft)
     }
     setDrafts(prev => prev.filter(item => item.localId !== deleteTarget))
-    setHasLocalChanges(true)
+    if (isQuickMode) {
+      queueQuickSave()
+    } else {
+      setHasLocalChanges(true)
+    }
     setDeleteTarget(null)
   }, [
     asset,
     deleteTarget,
     drafts,
+    isQuickMode,
+    queueQuickSave,
     unlinkPortfoliosForAccount,
     unlinkCardsForAccount,
     unlinkFundsForPortfolio,
   ])
 
   const handleCancelEdit = useCallback(() => {
+    if (isQuickMode && (quickSavePendingRef.current || isSaving)) {
+      return
+    }
     if (hasLocalChanges) {
       setShowCancelConfirm(true)
       return
@@ -1286,7 +1323,7 @@ export function ManualPositionsManager({
     closeForm()
     setIsEditMode(false)
     setDrafts(initialDrafts)
-  }, [hasLocalChanges, initialDrafts, closeForm])
+  }, [closeForm, hasLocalChanges, initialDrafts, isQuickMode, isSaving])
 
   useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
   useModalBackHandler(showDiscardFormConfirm, () =>
@@ -1410,179 +1447,227 @@ export function ManualPositionsManager({
     [refreshEntity],
   )
 
-  const handleSaveChanges = useCallback(async () => {
-    if (isSaving) {
-      return
-    }
+  const handleSaveChanges = useCallback(
+    async (options?: {
+      preserveEditMode?: boolean
+      closeFormOnSuccess?: boolean
+    }) => {
+      const preserveEditMode = options?.preserveEditMode ?? false
+      const closeFormOnSuccess = options?.closeFormOnSuccess ?? false
 
-    setIsSaving(true)
-    try {
-      const payloadsByEntity = buildSavePayloadByEntity()
-      if (payloadsByEntity.size === 0) {
-        setIsEditMode(false)
-        setHasLocalChanges(false)
+      if (isSaving) {
         return
       }
 
-      const requestPromises: Promise<void>[] = []
-      let createdNewEntity = false
-      let missingNewEntityName = false
-
-      payloadsByEntity.forEach(
-        (
-          {
-            productType,
-            entries,
-            isNewEntity,
-            newEntityName,
-            newEntityIconUrl,
-            netCryptoEntityDetails,
-          },
-          entityId,
-        ) => {
-          const payloadEntries = entries.map(({ payload, draft }) => {
-            const entry = { ...payload }
-            if (!draft.originalId) {
-              const nextId =
-                typeof entry.id === "string" && entry.id.trim() !== ""
-                  ? entry.id
-                  : null
-              return { ...entry, id: nextId }
-            }
-            return entry
-          })
-
-          if (isNewEntity && payloadEntries.length === 0) {
-            return
+      setIsSaving(true)
+      try {
+        const payloadsByEntity = buildSavePayloadByEntity()
+        if (payloadsByEntity.size === 0) {
+          if (closeFormOnSuccess) {
+            closeForm()
           }
+          if (!preserveEditMode) {
+            setIsEditMode(false)
+          }
+          setHasLocalChanges(false)
+          return
+        }
 
-          const newDrafts = entries.filter(entry => entry.draft.isNewEntity)
-          const isPlaceholderEntity =
-            typeof entityId === "string" && entityId.startsWith("new-")
-          const treatAsNewEntity =
-            Boolean(isNewEntity) || isPlaceholderEntity || newDrafts.length > 0
+        const requestPromises: Promise<void>[] = []
+        let createdNewEntity = false
+        let missingNewEntityName = false
 
-          const productPayload =
-            productType === ProductType.CRYPTO
-              ? {
-                  entries:
-                    payloadEntries.length > 0
-                      ? [
-                          {
-                            id: null,
-                            address: null,
-                            name: null,
-                            assets: payloadEntries,
-                          },
-                        ]
-                      : [],
-                }
-              : {
-                  entries: payloadEntries,
-                }
-
-          const requestPayload: UpdatePositionRequest = {
-            products: {
-              [productType]: productPayload as any,
+        payloadsByEntity.forEach(
+          (
+            {
+              productType,
+              entries,
+              isNewEntity,
+              newEntityName,
+              newEntityIconUrl,
+              netCryptoEntityDetails,
             },
-          }
+            entityId,
+          ) => {
+            const payloadEntries = entries.map(({ payload, draft }) => {
+              const entry = { ...payload }
+              if (!draft.originalId) {
+                const nextId =
+                  typeof entry.id === "string" && entry.id.trim() !== ""
+                    ? entry.id
+                    : null
+                return { ...entry, id: nextId }
+              }
+              return entry
+            })
 
-          if (
-            productType === ProductType.FACTORING ||
-            productType === ProductType.REAL_ESTATE_CF
-          ) {
-            const newInvestmentDrafts = entries.filter(
-              ({ draft }) => !draft.originalId,
-            )
-            requestPayload.create_investment_txs =
-              newInvestmentDrafts.length === 0
-                ? true
-                : newInvestmentDrafts.every(
-                    ({ draft }) =>
-                      (draft as any)._createInvestmentTxs !== false,
-                  )
-          }
-
-          if (treatAsNewEntity) {
-            const trimmedName =
-              newEntityName?.trim() ||
-              newDrafts
-                .map(entry => entry.draft.newEntityName?.trim())
-                .find(Boolean) ||
-              newDrafts
-                .map(entry => entry.draft.entityName?.trim())
-                .find(Boolean) ||
-              null
-
-            if (!trimmedName) {
-              console.warn(
-                "Skipping manual position payload without new entity name",
-                { entityId },
-              )
-              missingNewEntityName = true
+            if (isNewEntity && payloadEntries.length === 0) {
               return
             }
 
-            requestPayload.new_entity_name = trimmedName
-            if (newEntityIconUrl) {
-              requestPayload.new_entity_icon_url = newEntityIconUrl
-            }
-            if (netCryptoEntityDetails) {
-              requestPayload.net_crypto_entity_details = netCryptoEntityDetails
-            }
-            if ("entity_id" in requestPayload) {
-              delete requestPayload.entity_id
-            }
-            createdNewEntity = true
-          } else {
-            requestPayload.entity_id = entityId
-          }
+            const newDrafts = entries.filter(entry => entry.draft.isNewEntity)
+            const isPlaceholderEntity =
+              typeof entityId === "string" && entityId.startsWith("new-")
+            const treatAsNewEntity =
+              Boolean(isNewEntity) ||
+              isPlaceholderEntity ||
+              newDrafts.length > 0
 
-          requestPromises.push(saveManualUpdates(requestPayload))
-        },
-      )
+            const productPayload =
+              productType === ProductType.CRYPTO
+                ? {
+                    entries:
+                      payloadEntries.length > 0
+                        ? [
+                            {
+                              id: null,
+                              address: null,
+                              name: null,
+                              assets: payloadEntries,
+                            },
+                          ]
+                        : [],
+                  }
+                : {
+                    entries: payloadEntries,
+                  }
 
-      if (missingNewEntityName) {
+            const requestPayload: UpdatePositionRequest = {
+              products: {
+                [productType]: productPayload as any,
+              },
+            }
+
+            if (
+              productType === ProductType.FACTORING ||
+              productType === ProductType.REAL_ESTATE_CF
+            ) {
+              const newInvestmentDrafts = entries.filter(
+                ({ draft }) => !draft.originalId,
+              )
+              requestPayload.create_investment_txs =
+                newInvestmentDrafts.length === 0
+                  ? true
+                  : newInvestmentDrafts.every(
+                      ({ draft }) =>
+                        (draft as any)._createInvestmentTxs !== false,
+                    )
+            }
+
+            if (treatAsNewEntity) {
+              const trimmedName =
+                newEntityName?.trim() ||
+                newDrafts
+                  .map(entry => entry.draft.newEntityName?.trim())
+                  .find(Boolean) ||
+                newDrafts
+                  .map(entry => entry.draft.entityName?.trim())
+                  .find(Boolean) ||
+                null
+
+              if (!trimmedName) {
+                console.warn(
+                  "Skipping manual position payload without new entity name",
+                  { entityId },
+                )
+                missingNewEntityName = true
+                return
+              }
+
+              requestPayload.new_entity_name = trimmedName
+              if (newEntityIconUrl) {
+                requestPayload.new_entity_icon_url = newEntityIconUrl
+              }
+              if (netCryptoEntityDetails) {
+                requestPayload.net_crypto_entity_details =
+                  netCryptoEntityDetails
+              }
+              if ("entity_id" in requestPayload) {
+                delete requestPayload.entity_id
+              }
+              createdNewEntity = true
+            } else {
+              requestPayload.entity_id = entityId
+            }
+
+            requestPromises.push(saveManualUpdates(requestPayload))
+          },
+        )
+
+        if (missingNewEntityName) {
+          showToast(
+            translate("management.manualPositions.toasts.saveError"),
+            "error",
+          )
+          setIsSaving(false)
+          return
+        }
+
+        if (requestPromises.length > 0) {
+          await Promise.all(requestPromises)
+        }
+
+        if (createdNewEntity) {
+          await fetchEntities()
+          await refreshData()
+        }
+        showToast(
+          translate("management.manualPositions.toasts.saveSuccess"),
+          "success",
+        )
+        if (closeFormOnSuccess) {
+          closeForm()
+        }
+        if (!preserveEditMode) {
+          setIsEditMode(false)
+        }
+        setHasLocalChanges(false)
+      } catch (error) {
+        console.error("Error saving manual positions", error)
+        if (preserveEditMode) {
+          setDrafts(initialDrafts)
+          setHasLocalChanges(false)
+        }
         showToast(
           translate("management.manualPositions.toasts.saveError"),
           "error",
         )
+      } finally {
         setIsSaving(false)
-        return
       }
+    },
+    [
+      buildSavePayloadByEntity,
+      isSaving,
+      saveManualUpdates,
+      fetchEntities,
+      refreshData,
+      showToast,
+      translate,
+      closeForm,
+      initialDrafts,
+    ],
+  )
 
-      if (requestPromises.length > 0) {
-        await Promise.all(requestPromises)
-      }
-
-      if (createdNewEntity) {
-        await fetchEntities()
-        await refreshData()
-      }
-      showToast(
-        translate("management.manualPositions.toasts.saveSuccess"),
-        "success",
-      )
-      setIsEditMode(false)
-      setHasLocalChanges(false)
-    } catch (error) {
-      console.error("Error saving manual positions", error)
-      showToast(
-        translate("management.manualPositions.toasts.saveError"),
-        "error",
-      )
-    } finally {
-      setIsSaving(false)
+  useEffect(() => {
+    if (
+      !isQuickMode ||
+      quickSaveRequest === 0 ||
+      !quickSavePendingRef.current
+    ) {
+      return
     }
-  }, [
-    buildSavePayloadByEntity,
-    isSaving,
-    saveManualUpdates,
-    fetchEntities,
-    refreshData,
-    showToast,
-    translate,
-  ])
+
+    if (isSaving) {
+      return
+    }
+
+    quickSavePendingRef.current = false
+    void handleSaveChanges({
+      preserveEditMode: true,
+      closeFormOnSuccess: true,
+    })
+  }, [handleSaveChanges, isQuickMode, isSaving, quickSaveRequest])
 
   const collectSavePayload = useCallback((): ManualSavePayloadByEntity => {
     const payloads = buildSavePayloadByEntity()
@@ -1616,6 +1701,7 @@ export function ManualPositionsManager({
 
   const editLabel = translate("common.edit")
   const cancelLabel = translate("common.cancel")
+  const doneLabel = translate("common.done")
   const saveLabel = translate("common.save")
 
   const discardTitle = translate(
@@ -1802,6 +1888,7 @@ export function ManualPositionsManager({
     () => ({
       asset,
       isEditMode,
+      isQuickMode,
       hasLocalChanges,
       isSaving,
       manualEntities,
@@ -1810,6 +1897,7 @@ export function ManualPositionsManager({
       addLabel,
       editLabel,
       cancelLabel,
+      doneLabel,
       saveLabel,
       translate,
       drafts,
@@ -1834,6 +1922,7 @@ export function ManualPositionsManager({
     [
       asset,
       isEditMode,
+      isQuickMode,
       hasLocalChanges,
       isSaving,
       manualEntities,
@@ -1842,6 +1931,7 @@ export function ManualPositionsManager({
       addLabel,
       editLabel,
       cancelLabel,
+      doneLabel,
       saveLabel,
       translate,
       drafts,
@@ -2249,6 +2339,7 @@ export function ManualPositionsManager({
                           onClick={handleSubmitForm}
                           aria-label={translate("common.save")}
                           title={translate("common.save")}
+                          disabled={isSaving}
                           className="h-9 w-9 p-0"
                         >
                           <Save className="h-4 w-4" />
@@ -2269,11 +2360,15 @@ export function ManualPositionsManager({
 export function ManualPositionsControls({ className }: { className?: string }) {
   const {
     isEditMode,
+    isQuickMode,
+    isSaving,
     manualEntities,
     addLabel,
     editLabel,
     beginCreate,
     enterEditMode,
+    requestCancel,
+    doneLabel,
   } = useManualPositions()
 
   return (
@@ -2304,6 +2399,18 @@ export function ManualPositionsControls({ className }: { className?: string }) {
           <span className="hidden sm:inline">{editLabel}</span>
         </Button>
       )}
+      {isEditMode && isQuickMode && (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={requestCancel}
+          disabled={isSaving}
+          className="flex items-center gap-1.5 h-7 px-2 min-[400px]:h-9 min-[400px]:gap-2 min-[400px]:px-3"
+        >
+          <Check className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{doneLabel}</span>
+        </Button>
+      )}
     </div>
   )
 }
@@ -2315,6 +2422,7 @@ export function ManualPositionsEditBanner({
 }) {
   const {
     isEditMode,
+    isQuickMode,
     hasLocalChanges,
     isSaving,
     cancelLabel,
@@ -2324,7 +2432,7 @@ export function ManualPositionsEditBanner({
     requestSave,
   } = useManualPositions()
 
-  if (!isEditMode) {
+  if (!isEditMode || isQuickMode) {
     return null
   }
 

@@ -39,6 +39,7 @@
     "save": "Save",
     "delete": "Delete",
     "discard": "Discard",
+    "done": "Done",
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
@@ -686,6 +687,18 @@
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "editMode": "Manual edit mode",
+    "editModeDescription": "Choose how you update your positions and contributions.",
+    "editModeOptions": {
+      "QUICK": {
+        "label": "Quick",
+        "description": "Save each manual change immediately as you make it."
+      },
+      "DRAFT": {
+        "label": "Draft",
+        "description": "Review your changes and save them together when you are ready."
+      }
+    },
     "assets": {
       "title": "Assets",
       "description": "Specific asset related settings",
@@ -783,6 +796,8 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Sign out",
+      "logoutConfirmationTitle": "Sign out?",
+      "logoutConfirmationMessage": "Are you sure you want to sign out of your account?",
       "deleteAccount": "Delete account",
       "requestAccountDeletion": "Request account deletion",
       "deleteAccountEmailSubject": "Account Deletion Request",
@@ -2280,7 +2295,7 @@
     "monthlyRecurringEarnings": "Monthly recurring earnings",
     "monthlyRecurringExpenses": "Monthly recurring expenses",
     "savableAmount": "Savable amount",
-    "monthlyInvestedAmount": "Monthly invested amount",
+    "monthlyInvestedAmount": "Monthly invested",
     "savingsRate": "Savings rate",
     "investedRate": "Invested rate",
     "ofEarnings": "of earnings",

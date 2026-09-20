@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { ensureEditMode } from '../../helpers/edit-mode'
 import { selectEntity } from '../../helpers/entity-selector'
 
 const CREDENTIALS = {
@@ -139,6 +140,10 @@ async function createManualTransaction(
 }
 
 test.describe('Manual Transactions', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('add a manual transaction', async ({ authenticatedPage: page }) => {
         await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
         await navigateToTransactions(page)
@@ -206,7 +211,11 @@ test.describe('Manual Transactions', () => {
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
             timeout: 5_000,
         })
-        await expect(page.getByText('+€750.50').first()).toBeVisible({
+        const updatedTxRow = page
+            .getByText('E2E Edit Tx')
+            .first()
+            .locator('../..')
+        await expect(updatedTxRow).toContainText(/\+€750\s*50/, {
             timeout: 5_000,
         })
     })

@@ -38,6 +38,7 @@ import {
 } from "recharts"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { calculateSavings } from "@/services/api"
 import {
@@ -575,11 +576,14 @@ export function SavingsCalculator() {
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <span className="text-base sm:text-lg font-semibold">
                 <Sensitive>
-                  {formatCurrency(
-                    scenario.final_balance,
-                    locale,
-                    defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      scenario.final_balance,
+                      locale,
+                      defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </span>
               {expandedScenario === scenario.scenario_id ? (

@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
+import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
 import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
@@ -28,8 +30,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpDown,
-  TrendingUp,
-  TrendingDown,
   Pencil,
   Trash2,
   Layers,
@@ -677,8 +677,12 @@ function StocksViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          hideLabelOnMobile
           extraFilters={
-            <>
+            <div
+              className="inline-flex items-stretch overflow-hidden rounded-full border border-border"
+              role="group"
+            >
               {(
                 [
                   { value: "STOCK" as const, label: t.enums.equityType.STOCK },
@@ -689,19 +693,22 @@ function StocksViewContent({
                 return (
                   <button
                     key={option.value}
+                    type="button"
                     onClick={() => handleEquityTypeToggle(option.value)}
+                    aria-pressed={isActive}
                     className={cn(
-                      "px-2.5 py-1 text-xs font-semibold rounded-full border transition-all",
+                      "px-2.5 py-1 text-xs font-semibold transition-colors",
+                      option.value === "ETF" && "border-l border-border",
                       isActive
-                        ? "bg-foreground text-background border-foreground"
-                        : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                        ? "bg-foreground text-background"
+                        : "bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     )}
                   >
                     {option.label}
                   </button>
                 )
               })}
-            </>
+            </div>
           }
         />
       </motion.div>
@@ -959,15 +966,22 @@ function StocksViewContent({
                     <div
                       className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
                       onClick={e => {
-                        if (
-                          (e.target as HTMLElement).closest("[data-no-expand]")
-                        )
+                        const target = e.target as HTMLElement
+                        if (target.closest("[data-no-expand]")) return
+                        if (isExpanded && target.closest("[data-source-badge]"))
                           return
                         toggleCardExpanded(item.key)
                       }}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault()
+                          if (
+                            isExpanded &&
+                            (e.target as HTMLElement).closest(
+                              "[data-source-badge]",
+                            )
+                          )
+                            return
                           toggleCardExpanded(item.key)
                         }
                       }}
@@ -1054,12 +1068,14 @@ function StocksViewContent({
                         {(formattedShares || formattedMarketPrice) && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             {formattedShares && (
-                              <span>
+                              <span className="font-semibold">
                                 <Sensitive>{formattedShares}</Sensitive>
                               </span>
                             )}
                             {formattedShares && formattedMarketPrice && (
-                              <span>×</span>
+                              <span className="text-muted-foreground/50">
+                                ×
+                              </span>
                             )}
                             {formattedMarketPrice && (
                               <span>{formattedMarketPrice}</span>
@@ -1071,8 +1087,13 @@ function StocksViewContent({
                         <div className="text-right space-y-0.5">
                           <div className="text-base sm:text-lg font-semibold leading-tight">
                             <Sensitive>
-                              {position.formattedOriginalValue ||
-                                position.formattedValue}
+                              <FormattedMarketValue
+                                value={
+                                  position.formattedOriginalValue ||
+                                  position.formattedValue
+                                }
+                                locale={locale}
+                              />
                             </Sensitive>
                           </div>
                           {position.currency !== defaultCurrency && (
@@ -1080,22 +1101,12 @@ function StocksViewContent({
                               <Sensitive>{position.formattedValue}</Sensitive>
                             </div>
                           )}
-                          <div
-                            className={cn(
-                              "flex items-center gap-1 text-sm justify-end mt-1",
-                              position.change >= 0
-                                ? "text-green-500"
-                                : "text-red-500",
-                            )}
-                          >
-                            <Sensitive>
-                              {position.change >= 0 ? (
-                                <TrendingUp size={14} />
-                              ) : (
-                                <TrendingDown size={14} />
-                              )}
-                              <span>{position.change.toFixed(2)}%</span>
-                            </Sensitive>
+                          <div className="mt-1">
+                            <InvestmentPerformanceIndicator
+                              value={position.change}
+                              locale={locale}
+                              className="justify-end"
+                            />
                           </div>
                         </div>
                         <ChevronDown
@@ -1165,9 +1176,11 @@ function StocksViewContent({
                                     {formattedAvgBuyPrice && (
                                       <div className="text-xs text-muted-foreground mt-0.5">
                                         {t.investments.averageBuyPrice}:{" "}
-                                        <Sensitive>
-                                          {formattedAvgBuyPrice}
-                                        </Sensitive>
+                                        <span className="text-foreground">
+                                          <Sensitive>
+                                            {formattedAvgBuyPrice}
+                                          </Sensitive>
+                                        </span>
                                       </div>
                                     )}
                                   </div>

@@ -9,6 +9,7 @@ from infrastructure.config.versions import (
     migrate_v4_to_v5,
     migrate_v5_to_v6,
     migrate_v6_to_v7,
+    migrate_v7_to_v8,
 )
 
 
@@ -22,6 +23,7 @@ class ConfigMigrator:
             4: migrate_v4_to_v5,
             5: migrate_v5_to_v6,
             6: migrate_v6_to_v7,
+            7: migrate_v7_to_v8,
         }
 
     def migrate(self, data: dict) -> tuple[dict, bool]:

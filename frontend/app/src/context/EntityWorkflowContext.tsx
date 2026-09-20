@@ -1737,6 +1737,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               ).every(key => result.credentials[key])
 
               if (allCredentialsProvided) {
+                setView("entities")
                 await login(result.credentials)
               } else {
                 setStoredCredentials(result.credentials)

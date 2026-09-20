@@ -11,8 +11,6 @@ import {
   X,
   Layers,
   Scale,
-  TrendingUp,
-  TrendingDown,
   MoreVertical,
   ChevronDown,
   Pencil,
@@ -52,6 +50,8 @@ import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
+import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Popover,
@@ -1053,7 +1053,14 @@ export default function CommoditiesInvestmentPage() {
                   {groupTotal > 0 && (
                     <span className="text-xl font-bold">
                       <Sensitive>
-                        {formatCurrency(groupTotal, locale, defaultCurrency)}
+                        <FormattedMarketValue
+                          value={formatCurrency(
+                            groupTotal,
+                            locale,
+                            defaultCurrency,
+                          )}
+                          locale={locale}
+                        />
                       </Sensitive>
                     </span>
                   )}
@@ -1143,23 +1150,20 @@ export default function CommoditiesInvestmentPage() {
                               <div className="text-right">
                                 {formattedEntryValue && (
                                   <p className="font-semibold text-gray-900 dark:text-gray-100">
-                                    <Sensitive>{formattedEntryValue}</Sensitive>
+                                    <Sensitive>
+                                      <FormattedMarketValue
+                                        value={formattedEntryValue}
+                                        locale={locale}
+                                      />
+                                    </Sensitive>
                                   </p>
                                 )}
                                 {roiPercent !== null && (
-                                  <p
-                                    className={cn(
-                                      "text-xs font-medium",
-                                      roiPercent >= 0
-                                        ? "text-green-500"
-                                        : "text-red-500",
-                                    )}
-                                  >
-                                    <Sensitive>
-                                      {roiPercent >= 0 ? "+" : ""}
-                                      {roiPercent.toFixed(2)}%
-                                    </Sensitive>
-                                  </p>
+                                  <InvestmentPerformanceIndicator
+                                    value={roiPercent}
+                                    locale={locale}
+                                    className="justify-end text-xs"
+                                  />
                                 )}
                               </div>
                               <div className="flex flex-col items-center">
@@ -1245,11 +1249,6 @@ export default function CommoditiesInvestmentPage() {
                                       )}
                                     >
                                       <Sensitive>
-                                        {roiAmount >= 0 ? (
-                                          <TrendingUp size={14} />
-                                        ) : (
-                                          <TrendingDown size={14} />
-                                        )}
                                         <span>
                                           {roiAmount >= 0 ? "+" : ""}
                                           {formatCurrency(
@@ -1258,11 +1257,12 @@ export default function CommoditiesInvestmentPage() {
                                             defaultCurrency,
                                           )}
                                         </span>
-                                        <span className="text-xs opacity-80">
-                                          ({roiPercent >= 0 ? "+" : ""}
-                                          {roiPercent.toFixed(2)}%)
-                                        </span>
                                       </Sensitive>
+                                      <InvestmentPerformanceIndicator
+                                        value={roiPercent}
+                                        locale={locale}
+                                        className="text-xs"
+                                      />
                                     </div>
                                   </div>
                                 )}

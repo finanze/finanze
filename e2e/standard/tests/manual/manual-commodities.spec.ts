@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { ensureEditMode } from '../../helpers/edit-mode'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -114,6 +115,10 @@ async function createCommodity(page: Page, name: string) {
 }
 
 test.describe('Manual Commodities', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create a commodity', async ({ authenticatedPage: page }) => {
         await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
         await navigateToCommodities(page)

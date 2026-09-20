@@ -32,10 +32,7 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     avoid_new_login = body.get("avoidNewLogin", False)
     deep = body.get("deep", False)
     credentials = body.get("credentials", None)
-    # if not process_id:
-    #    return '{"code": "CODE_REQUESTED", "processId": "aaaa"}'
-    # else:
-    # return '{"code": "MANUAL_LOGIN"}'
+
     fetch_request = FetchRequest(
         entity_account_id=entity_account_id,
         features=features,
@@ -49,8 +46,6 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     response = {"code": result.code}
     if result.details:
         response["details"] = result.details
-    if result.data:
-        response["data"] = result.data
     if result.confirmation_type:
         response["confirmationType"] = result.confirmation_type
 

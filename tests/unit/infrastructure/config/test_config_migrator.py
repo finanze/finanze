@@ -59,6 +59,32 @@ class TestMigrationToV7:
         assert result["assets"]["crypto"]["stablecoins"] == ["PUSD", "USDC"]
 
 
+class TestMigrationToV8:
+    def test_adds_quick_edit_mode_to_existing_config(self):
+        migrator = ConfigMigrator()
+        data = {
+            "version": 7,
+            "general": {"defaultCurrency": "EUR"},
+        }
+
+        result, was_migrated = migrator.migrate(data)
+
+        assert was_migrated is True
+        assert result["version"] == CURRENT_VERSION
+        assert result["general"]["editMode"] == "QUICK"
+
+    def test_preserves_existing_edit_mode(self):
+        migrator = ConfigMigrator()
+        data = {
+            "version": 7,
+            "general": {"editMode": "DRAFT"},
+        }
+
+        result, _ = migrator.migrate(data)
+
+        assert result["general"]["editMode"] == "DRAFT"
+
+
 class TestMigrationFromMissingVersion:
     def test_assumes_version_1_and_applies_all_migrations(self):
         migrator = ConfigMigrator()

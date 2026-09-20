@@ -131,6 +131,7 @@ class TestFetchCryptoManualWallet:
         assert response.status_code == 200
         body = await response.get_json()
         assert body["code"] == "COMPLETED"
+        assert "data" not in body
         position_port.save.assert_awaited_once()
         last_fetches_port.save.assert_awaited_once()
 
