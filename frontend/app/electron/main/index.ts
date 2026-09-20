@@ -130,12 +130,8 @@ setupOAuthDeepLinking({
 
 if (!app.requestSingleInstanceLock()) {
   console.warn("Failed to acquire single instance lock")
-  if (!appConfig.isDev) {
-    app.quit()
-    process.exit(0)
-  } else {
-    console.warn("Continuing despite lock failure (Dev mode)")
-  }
+  app.quit()
+  process.exit(0)
 }
 
 function getSuitableTitleBarOverlay() {
