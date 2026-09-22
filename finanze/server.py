@@ -263,6 +263,9 @@ from infrastructure.repository.external_integration.external_integration_reposit
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
+from infrastructure.repository.fetch.fetch_pointers_repository import (
+    FetchPointersRepository,
+)
 from infrastructure.repository.keychain.public_keychain_repository import (
     PublicKeychainRepository,
 )
@@ -457,6 +460,7 @@ class FinanzeServer:
         crypto_wallet_repository = CryptoWalletRepository(client=db_client)
         crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repository = LastFetchesRepository(client=db_client)
+        fetch_pointers_repository = FetchPointersRepository(client=db_client)
         tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=db_client
@@ -572,7 +576,8 @@ class FinanzeServer:
             loan_calculator,
             real_estate_repository,
             feature_flag_port,
-            self._error_reporter,
+            fetch_pointers_port=fetch_pointers_repository,
+            error_reporter=self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -658,6 +663,7 @@ class FinanzeServer:
             transaction_repository,
             auto_contrib_repository,
             historic_repository,
+            fetch_pointers_repository,
         )
         get_settings = GetSettingsImpl(config_loader)
         update_settings = UpdateSettingsImpl(config_loader)
