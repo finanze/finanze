@@ -128,6 +128,7 @@ from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.public_key_derivation import PublicKeyDerivation
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.fetch_pointers_port import FetchPointersPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
@@ -243,6 +244,7 @@ async def app(tmp_path):
     auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
     transaction_port = AsyncMock(spec=TransactionPort)
     historic_port = AsyncMock(spec=HistoricPort)
+    fetch_pointers_port = AsyncMock(spec=FetchPointersPort)
     historic_port.get_by_manual_key.return_value = None
     historic_port.get_manual_by_entity.return_value = []
     last_fetches_port = AsyncMock(spec=LastFetchesPort)
@@ -337,6 +339,7 @@ async def app(tmp_path):
         loan_calculator,
         real_estate_repo,
         feature_flag_port,
+        fetch_pointers_port=fetch_pointers_port,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,

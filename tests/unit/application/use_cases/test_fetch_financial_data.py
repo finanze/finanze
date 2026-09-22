@@ -12,6 +12,7 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.entity_account import EntityAccount
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
+from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_result import FetchOptions, FetchRequest, FetchResultCode
 from domain.global_position import (
@@ -29,7 +30,7 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
-from domain.native_entities import TRADE_REPUBLIC, URBANITAE
+from domain.native_entities import MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
 from domain.public_keychain import PublicKeychain
 from domain.transactions import AccountTx, Transactions, TxType
 
@@ -70,6 +71,7 @@ def _build_use_case(error_reporter=None):
         real_estate_port=real_estate_port,
         feature_flag_port=MagicMock(get_all=MagicMock(return_value={})),
         error_reporter=error_reporter,
+        fetch_pointers_port=AsyncMock(),
     )
     return uc, position_port, loan_calculator, real_estate_port
 
@@ -888,7 +890,9 @@ class TestFetcherCloseAfterFeatures:
         fetcher.close.assert_awaited_once()
 
 
-async def _prepare_logged_in_execute(uc, entity, account_id, last_fetches=None):
+async def _prepare_logged_in_execute(
+    uc, entity, account_id, last_fetches=None, credentials=None
+):
     account = EntityAccount(
         id=account_id,
         entity_id=entity.id,
@@ -898,7 +902,7 @@ async def _prepare_logged_in_execute(uc, entity, account_id, last_fetches=None):
     fetcher.login.return_value = EntityLoginResult(LoginResultCode.RESUMED)
     uc._entity_account_port.get_by_id.return_value = account
     uc._last_fetches_port.get_by_entity_account_id.return_value = last_fetches or []
-    uc._credentials_port.get.return_value = {
+    uc._credentials_port.get.return_value = credentials or {
         "phone": "+49123456789",
         "password": "1234",
     }
@@ -906,6 +910,107 @@ async def _prepare_logged_in_execute(uc, entity, account_id, last_fetches=None):
     uc._keychain_loader.load.return_value = PublicKeychain({})
     uc._entity_fetchers[entity] = fetcher
     return fetcher
+
+
+class TestFetchPointers:
+    @pytest.mark.asyncio
+    async def test_execute_loads_account_pointers_for_transaction_fetch(self):
+        uc, _, _, _ = _build_use_case()
+        uc._fetch_pointers_port = AsyncMock()
+        account_id = uuid4()
+        pointer = FetchPointer(
+            entity_id=MY_INVESTOR.id,
+            entity_account_id=account_id,
+            key="fund_orders:security-account",
+            threshold=date(2025, 1, 1),
+        )
+        uc._fetch_pointers_port.get_by_entity_account_id.return_value = [pointer]
+        fetcher = await _prepare_logged_in_execute(
+            uc,
+            MY_INVESTOR,
+            account_id,
+            credentials={"user": "test-user", "password": "1234"},
+        )
+        fetcher.transactions = AsyncMock(
+            return_value=Transactions(investment=[], account=[])
+        )
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        uc._fetch_pointers_port.get_by_entity_account_id.assert_awaited_once_with(
+            account_id
+        )
+        options = fetcher.transactions.await_args.args[1]
+        assert options.pointer_context.pointers[pointer.key] == pointer
+
+    @pytest.mark.asyncio
+    async def test_deep_transaction_fetch_resets_and_saves_pointers(self):
+        uc, _, _, _ = _build_use_case()
+        uc._fetch_pointers_port = AsyncMock()
+        entity = TRADE_REPUBLIC
+        account_id = uuid4()
+        pointer = FetchPointer(
+            entity_id=entity.id,
+            entity_account_id=account_id,
+            key="stock_orders:security-account",
+            threshold=date(2025, 1, 1),
+        )
+        options = FetchOptions(
+            deep=True,
+            pointer_context=FetchPointerContext(
+                entity_id=entity.id,
+                entity_account_id=account_id,
+                pointers={pointer.key: pointer},
+            ),
+        )
+        fetcher = AsyncMock()
+        fetcher.transactions = AsyncMock(
+            return_value=Transactions(investment=[], account=[])
+        )
+
+        result = await uc.get_data(
+            entity, [Feature.TRANSACTIONS], fetcher, options, account_id
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        uc._transaction_port.delete_by_entity_account_id.assert_awaited_once_with(
+            account_id
+        )
+        uc._fetch_pointers_port.delete_by_entity_account_id.assert_awaited_once_with(
+            account_id
+        )
+        uc._fetch_pointers_port.save.assert_awaited_once_with([pointer])
+
+    @pytest.mark.asyncio
+    async def test_failed_transaction_fetch_does_not_reset_pointers(self):
+        uc, _, _, _ = _build_use_case()
+        uc._fetch_pointers_port = AsyncMock()
+        entity = TRADE_REPUBLIC
+        account_id = uuid4()
+        options = FetchOptions(
+            deep=True,
+            pointer_context=FetchPointerContext(
+                entity_id=entity.id,
+                entity_account_id=account_id,
+            ),
+        )
+        fetcher = AsyncMock()
+        fetcher.transactions = AsyncMock(side_effect=RuntimeError("fetch failed"))
+
+        with pytest.raises(RuntimeError, match="fetch failed"):
+            await uc.get_data(
+                entity, [Feature.TRANSACTIONS], fetcher, options, account_id
+            )
+
+        uc._transaction_port.delete_by_entity_account_id.assert_not_awaited()
+        uc._fetch_pointers_port.delete_by_entity_account_id.assert_not_awaited()
+        uc._fetch_pointers_port.save.assert_not_awaited()
 
 
 class TestPerFeatureCooldown:
