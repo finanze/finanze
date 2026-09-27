@@ -445,16 +445,40 @@ async function exportDatabaseToStaging(
     "exportDatabaseToStaging is not supported on web. Use mobile.",
   )
 
+  const deleteResult = await BackupProcessor.deleteFile({
+    fileName: stagingFileName,
+  })
+  if (!deleteResult.success) {
+    throw new Error(`Failed to clear staging file: ${stagingFileName}`)
+  }
+
   const stagingPathRes = await BackupProcessor.getFilePath({
     fileName: stagingFileName,
   })
   const stagingPath = stagingPathRes?.path
   if (!stagingPath) throw new Error("Failed to get staging file path")
+  if (stagingPathRes.exists) {
+    throw new Error(
+      `Staging file still exists after cleanup: ${stagingFileName}`,
+    )
+  }
 
   const attachSql = `ATTACH DATABASE '${stagingPath.replace(/'/g, "''")}' AS plaintext KEY '';`
   await currentDb.execute(attachSql, false)
   // CapacitorSQLite on Android requires SELECT statements to go through query().
-  await currentDb.query("SELECT sqlcipher_export('plaintext');", [])
+  try {
+    await currentDb.query("SELECT sqlcipher_export('plaintext');", [])
+  } catch (error) {
+    try {
+      await currentDb.execute("DETACH DATABASE plaintext;", false)
+    } catch (detachError) {
+      appConsole.warn(
+        "[Bridge][sqlite] Failed to detach staging database after export error",
+        { stagingFileName, error: detachError },
+      )
+    }
+    throw error
+  }
   await currentDb.execute("DETACH DATABASE plaintext;", false)
 
   appConsole.debug("[Bridge][sqlite] Exported database to staging", {
