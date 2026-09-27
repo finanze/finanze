@@ -34,6 +34,7 @@ from domain.gains_timeline import (
     GainsCalculationMode,
     GainsFlow,
     GainsFlowProvenance,
+    GainsSplit,
     GainsMethod,
     GainsMetrics,
     GainsNotApplicableReason,
@@ -189,13 +190,16 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     query, snapshots, rates, historic, yesterday
                 )
             else:
-                snapshots, flows, settlements = await asyncio.gather(
+                snapshots, flows, settlements, split_ratios = await asyncio.gather(
                     self._port.get_asset_snapshots(
                         query.assets, entity_ids, from_date=query.from_date
                     ),
                     self._port.get_flows(query.assets, entity_ids),
                     self._port.get_settlements(query.assets, entity_ids),
+                    self._port.get_split_ratios(query.assets),
                 )
+                if not isinstance(split_ratios, list):
+                    split_ratios = []
                 historic = await self._resolve_historic_rates(
                     snapshots, query, yesterday
                 )
@@ -207,6 +211,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     flows,
                     yesterday,
                     query.from_date,
+                    split_ratios,
                 )
                 unvalued_in_ids, unvalued_out_ids = self._value_unmatched_transfers(
                     flows, history_by_key
@@ -341,7 +346,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     flow.related_portfolios,
                 )
             ),
-            key=lambda flow: flow.moment,
+            key=lambda flow: (
+                flow.moment.date(),
+                flow.transaction_type != TxType.SPLIT,
+                flow.moment,
+            ),
         )
 
         seed_snapshots: dict[str, AssetSnapshot] = {}
@@ -400,6 +409,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         )
 
         current: dict[str, dict[_AssetIdentity, AssetValuation]] = {}
+        last_snapshot_days: dict[_AssetIdentity, date] = {}
         deleted_at: dict[str, date] = {}
         replay_positions: dict[_AssetIdentity, _ReplayPosition] = {}
         replay_ended: set[_AssetIdentity] = set()
@@ -431,6 +441,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         continue
                     identity = self._valuation_identity(holder, valuation)
                     holder_assets[identity] = valuation
+                    last_snapshot_days[identity] = snapshot.moment.date()
                 current[holder] = holder_assets
                 if snapshot.holder_deleted_at is not None:
                     deleted_at[holder] = snapshot.holder_deleted_at
@@ -533,6 +544,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         rates,
                         query.base_currency,
                     )
+            for identity in previous_assets:
+                last_snapshot_days.setdefault(identity, range_from)
         daily_net_flows: list[tuple[date, Dezimal]] = []
         unreconciled_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
         pending_market_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
@@ -558,6 +571,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             changed_holders: set[str] = set()
             replay_handover: set[_AssetIdentity] = set()
             replay_touched_today = False
+            observed_snapshot_days_today: dict[_AssetIdentity, date] = {}
             for snapshot in sorted(
                 snapshots_by_day.get(day, []), key=lambda snapshot: snapshot.moment
             ):
@@ -574,6 +588,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     ):
                         continue
                     identity = self._valuation_identity(snapshot.holder, valuation)
+                    observed_snapshot_days_today[identity] = snapshot.moment.date()
                     replay_identity = replay_identity_by_key.get(
                         self._identity_key(identity)
                     )
@@ -621,7 +636,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     <= replay_windows[replay_identity][1]
                 )
                 if replay_active:
-                    if id(flow) not in unvalued_transfer_in_ids:
+                    if flow.transaction_type == TxType.SPLIT:
+                        self._apply_split_cash_in_lieu(
+                            replay_positions, flow, replay_identity
+                        )
+                    elif id(flow) not in unvalued_transfer_in_ids:
                         removed = self._carry_replay_transfer_book(
                             replay_positions,
                             replay_identity_by_key,
@@ -1049,6 +1068,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     has_settlement=identity in settlement_identities,
                     target_currency=query.base_currency,
                     rates=rates,
+                    previous_day=last_snapshot_days.get(identity),
+                    current_day=day,
                 )
                 if inferred is not None:
                     period_flows[identity] += inferred
@@ -1090,6 +1111,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     and not has_unobserved_inflow
                 )
             )
+            last_snapshot_days.update(observed_snapshot_days_today)
             if not should_emit:
                 previous_assets = current_assets
                 previous_asset_values = current_values
@@ -1581,6 +1603,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         has_settlement: bool,
         target_currency: str,
         rates,
+        previous_day: Optional[date] = None,
+        current_day: Optional[date] = None,
     ) -> tuple[Optional[Dezimal], Optional[GainsFlowProvenance]]:
         if previous is None and current is None:
             return None, None
@@ -1606,23 +1630,57 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             )
 
         if previous.quantity is not None and current.quantity is not None:
-            transaction_quantity = Dezimal(0)
+            expected_quantity = previous.quantity
             has_unquantified_trade = False
+            split_ratios = {
+                split_day: ratio
+                for split_day, ratio in self._splits_by_key.get(identity[2], {}).items()
+                if previous_day is not None
+                and current_day is not None
+                and previous_day < split_day <= current_day
+            }
+            split_flows_by_day: dict[date, list[GainsFlow]] = defaultdict(list)
+            quantity_flows_by_day: dict[date, list[GainsFlow]] = defaultdict(list)
             for flow in flows:
-                if flow.transaction_type not in _POSITION_CHANGING_TYPES:
+                flow_day = flow.moment.date()
+                if previous_day is not None and flow_day < previous_day:
                     continue
-                if flow.quantity is None:
-                    has_unquantified_trade = True
+                if current_day is not None and flow_day > current_day:
                     continue
-                if flow.transaction_type in _INFLOW_TYPES:
-                    transaction_quantity += flow.quantity
-                else:
-                    transaction_quantity -= flow.quantity
+                if flow.transaction_type == TxType.SPLIT:
+                    if flow.split_ratio is None:
+                        if flow_day not in split_ratios:
+                            has_unquantified_trade = True
+                    else:
+                        split_ratios.setdefault(flow_day, flow.split_ratio)
+                    split_flows_by_day[flow_day].append(flow)
+                elif flow.transaction_type in _POSITION_CHANGING_TYPES:
+                    quantity_flows_by_day[flow_day].append(flow)
+
+            event_days = (
+                set(split_ratios) | set(split_flows_by_day) | set(quantity_flows_by_day)
+            )
+            for event_day in sorted(event_days):
+                split_ratio = split_ratios.get(event_day)
+                if split_ratio is not None:
+                    expected_quantity *= split_ratio
+                for flow in split_flows_by_day.get(event_day, []):
+                    if flow.amount <= 0:
+                        continue
+                    if flow.price is None or flow.price <= 0:
+                        has_unquantified_trade = True
+                    else:
+                        expected_quantity -= flow.amount / flow.price
+                for flow in quantity_flows_by_day.get(event_day, []):
+                    if flow.quantity is None:
+                        has_unquantified_trade = True
+                    elif flow.transaction_type in _INFLOW_TYPES:
+                        expected_quantity += flow.quantity
+                    else:
+                        expected_quantity -= flow.quantity
             if has_unquantified_trade:
                 return None, None
-            residual_quantity = (
-                current.quantity - previous.quantity - transaction_quantity
-            )
+            residual_quantity = current.quantity - expected_quantity
             if residual_quantity == 0:
                 return None, None
             unit_value = self._unit_value(
@@ -1723,6 +1781,32 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             if existing is None or (not existing[4] and identity[4]):
                 identities_by_key[key] = identity
 
+        for flow in flows:
+            if (
+                flow.transaction_type != TxType.SPLIT
+                or flow.amount <= 0
+                or flow.product_type not in _REPLAY_PRODUCT_TYPES
+                or not self._matches(
+                    flow.product_type,
+                    flow.asset_key,
+                    query.assets,
+                    flow.portfolio_name,
+                    flow.equity_type,
+                    flow.wallet_id,
+                    flow.related_portfolios,
+                )
+            ):
+                continue
+            key = GetGainsTimelineImpl._identity_key(
+                GetGainsTimelineImpl._flow_identity(flow)
+            )
+            entry = bounds.get(key)
+            flow_day = flow.moment.date()
+            if entry is None or flow_day < entry[0]:
+                continue
+            entry[1] = max(entry[1], flow_day)
+            flow_days[key].add(flow_day)
+
         windows: dict[_AssetIdentity, tuple[date, date, date]] = {}
         days: set[date] = set()
         for key, (first_day, last_day) in bounds.items():
@@ -1766,17 +1850,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         return windows, days
 
     def _split_adjusted_quantity(self, flow: GainsFlow) -> Optional[Dezimal]:
-        if flow.quantity is None:
+        return self._adjusted_quantity(flow, flow.quantity)
+
+    def _adjusted_quantity(
+        self, flow: GainsFlow, quantity: Optional[Dezimal]
+    ) -> Optional[Dezimal]:
+        if quantity is None:
             return None
         splits = self._splits_by_key.get(flow.asset_key)
         if not splits:
-            return flow.quantity
+            return quantity
         ratio = Dezimal(1)
         flow_day = flow.moment.date()
         for split_day, split_ratio in splits.items():
             if flow_day < split_day:
                 ratio *= split_ratio
-        return flow.quantity * ratio
+        return quantity * ratio
 
     def _value_unmatched_transfers(
         self,
@@ -1864,6 +1953,28 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             position.book_value = Dezimal(0)
         return removed - position.book_value
 
+    def _apply_split_cash_in_lieu(
+        self,
+        positions: dict[_AssetIdentity, _ReplayPosition],
+        flow: GainsFlow,
+        identity: _AssetIdentity,
+    ) -> None:
+        if flow.amount <= 0 or flow.price is None or flow.price <= 0:
+            return
+        position = positions.get(identity)
+        if position is None or position.quantity is None or position.quantity <= 0:
+            return
+        cash_quantity = self._adjusted_quantity(flow, flow.amount / flow.price)
+        if cash_quantity is None or cash_quantity <= 0:
+            return
+        removed_quantity = min(cash_quantity, position.quantity)
+        removed_ratio = removed_quantity / position.quantity
+        position.quantity -= removed_quantity
+        position.book_value *= 1 - removed_ratio
+        if position.quantity <= 0:
+            position.quantity = Dezimal(0)
+            position.book_value = Dezimal(0)
+
     def _carry_replay_transfer_book(
         self,
         positions: dict[_AssetIdentity, _ReplayPosition],
@@ -1928,7 +2039,40 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         flows: list[GainsFlow],
         yesterday: date,
         range_from: Optional[date],
+        explicit_splits: Optional[list[GainsSplit]] = None,
     ) -> dict[str, dict[date, Dezimal]]:
+        self._splits_by_key = {}
+
+        def matches_split(product_type: ProductType, asset_key: str) -> bool:
+            return any(
+                asset_filter.product_type == product_type
+                and (
+                    not asset_filter.asset_keys or asset_key in asset_filter.asset_keys
+                )
+                for asset_filter in query.assets
+            )
+
+        def add_explicit_split(asset_key: str, split_day: date, ratio: Dezimal):
+            if ratio <= 0:
+                return
+            ratios = self._splits_by_key.setdefault(asset_key, {})
+            existing = ratios.get(split_day)
+            if existing is not None and existing != ratio:
+                raise ValueError(
+                    f"Conflicting manual split ratios for {asset_key} on {split_day}."
+                )
+            ratios[split_day] = ratio
+
+        for split in explicit_splits or []:
+            if matches_split(split.product_type, split.asset_key):
+                add_explicit_split(split.asset_key, split.day, split.ratio)
+        for flow in flows:
+            if (
+                flow.transaction_type == TxType.SPLIT
+                and flow.split_ratio is not None
+                and matches_split(flow.product_type, flow.asset_key)
+            ):
+                add_explicit_split(flow.asset_key, flow.moment.date(), flow.split_ratio)
         if self._instrument_history_provider is None:
             return {}
         upper = min(query.to_date or yesterday, yesterday)
@@ -2128,9 +2272,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             ):
                 await self._instrument_price_history.mark_no_result(key)
         if history_points:
-            self._splits_by_key.update(
-                await self._load_splits(requests, windows_by_key)
-            )
+            provider_splits = await self._load_splits(requests, windows_by_key)
+            for key, splits in provider_splits.items():
+                explicit_splits = self._splits_by_key.setdefault(key, {})
+                for split_day, ratio in splits.items():
+                    explicit_splits.setdefault(split_day, ratio)
         prices = {
             key: {point.date: point.price for point in points}
             for key, points in history_points.items()
@@ -3229,6 +3375,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         flow: GainsFlow,
         accrual_mode: FixedIncomeAccrual = FixedIncomeAccrual.NONE,
     ) -> Optional[Dezimal]:
+        if flow.transaction_type == TxType.SPLIT:
+            return -(flow.amount - flow.fees - flow.retentions)
         if flow.transaction_type in _INFLOW_TYPES:
             return flow.amount + flow.fees + flow.retentions
         if flow.transaction_type in _OUTFLOW_TYPES:

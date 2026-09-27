@@ -1759,6 +1759,17 @@
       "transferHint": "Usa Trasferimento quando un asset viene spostato o convertito da un'entità a un'altra. In Spagna si usa anche per i trasferimenti tra fondi comuni con differimento fiscale.",
       "swap": "Swap",
       "swapRatio": "Rapporto",
+      "splitRatio": "Rapporto di split",
+      "splitRatioHint": "Quote dopo lo split divise per le quote prima. Valori superiori a 1 aumentano le quote; inferiori a 1 le riducono.",
+      "splitRatioForward": "Split diretto (aumenta le quote)",
+      "splitRatioReverse": "Split inverso (riduce le quote)",
+      "splitRatioOneToOneDirection": "Split 1:1 (nessuna variazione del numero di quote)",
+      "splitRatioExample": "Con questo rapporto, 1 quota prima dello split diventa {shares} quote dopo lo split.",
+      "splitRatioOneToOne": "Con questo rapporto, 1 quota resta 1 quota.",
+      "cashInLieuAmount": "Importo in contanti per quote frazionarie",
+      "cashInLieuAmountHint": "Importo lordo ricevuto in contanti al posto delle quote frazionarie. Lascia 0 se non è previsto alcun pagamento in contanti.",
+      "cashInLieuUnitPrice": "Prezzo unitario delle quote frazionarie",
+      "cashInLieuUnitPriceHint": "Serve a calcolare le quote frazionarie dall'importo in contanti; è obbligatorio solo se l'importo per quote frazionarie è maggiore di zero.",
       "swapRatioHint": "Quote di destinazione per ogni quota di origine. Compila quote e prezzo di destinazione a partire dall'origine.",
       "origin": "Origine",
       "destination": "Destinazione",
@@ -1847,7 +1858,8 @@
       "SWITCH_FROM": "Switch F. Origine",
       "SWITCH_TO": "Switch F. Destinazione",
       "INVESTMENT": "Investimento",
-      "FEE": "Commissione"
+      "FEE": "Commissione",
+      "SPLIT": "Frazionamento"
     },
     "productType": {
       "ACCOUNT": "Conto",

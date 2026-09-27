@@ -15,6 +15,7 @@ export enum TxType {
   TRANSFER_OUT = "TRANSFER_OUT",
   SWITCH_FROM = "SWITCH_FROM",
   SWITCH_TO = "SWITCH_TO",
+  SPLIT = "SPLIT",
 
   INVESTMENT = "INVESTMENT",
   REPAYMENT = "REPAYMENT",
@@ -57,8 +58,9 @@ export interface AccountTx extends BaseTx {
 export interface StockTx extends BaseInvestmentTx {
   net_amount: number
   isin?: string
-  shares: number
+  shares: number | null
   price: number
+  split_ratio?: number | null
   fees: number
   ticker?: string
   market?: string
@@ -93,8 +95,9 @@ export interface MarketForecastTx extends BaseInvestmentTx {
 export interface FundTx extends BaseInvestmentTx {
   net_amount: number
   isin: string
-  shares: number
+  shares: number | null
   price: number
+  split_ratio?: number | null
   market: string
   fees: number
   retentions?: number
@@ -154,8 +157,9 @@ export interface ManualStockTransactionPayload extends ManualTransactionBasePayl
   product_type: ProductType.STOCK_ETF
   ticker?: string
   isin?: string
-  shares: number
+  shares: number | null
   price: number
+  split_ratio?: number
   fees?: number
   retentions?: number
   market?: string
@@ -165,8 +169,9 @@ export interface ManualStockTransactionPayload extends ManualTransactionBasePayl
 export interface ManualFundTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.FUND
   isin: string
-  shares: number
+  shares: number | null
   price: number
+  split_ratio?: number
   fees?: number
   retentions?: number
   market?: string

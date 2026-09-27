@@ -100,6 +100,7 @@ const OUTGOING_TX_TYPES = new Set<TxType>([
 const NO_ORDER_DATE_TX_TYPES = new Set<TxType>([
   TxType.SWAP_FROM,
   TxType.SWAP_TO,
+  TxType.SPLIT,
   TxType.FEE,
   TxType.DIVIDEND,
 ])
@@ -190,10 +191,17 @@ const TX_TYPES_BY_PRODUCT: Record<
   [ProductType.STOCK_ETF]: [
     TxType.BUY,
     TxType.SELL,
+    TxType.SPLIT,
     TxType.DIVIDEND,
     TxType.FEE,
   ],
-  [ProductType.FUND]: [TxType.BUY, TxType.SELL, TxType.DIVIDEND, TxType.FEE],
+  [ProductType.FUND]: [
+    TxType.BUY,
+    TxType.SELL,
+    TxType.SPLIT,
+    TxType.DIVIDEND,
+    TxType.FEE,
+  ],
   [ProductType.FUND_PORTFOLIO]: [TxType.FEE],
   [ProductType.FACTORING]: INVESTMENT_FLOW_TX_TYPES,
   [ProductType.REAL_ESTATE_CF]: INVESTMENT_FLOW_TX_TYPES,
@@ -433,6 +441,7 @@ const createExtraDefaults = (
         isin: "",
         shares: "",
         price: "",
+        split_ratio: "",
         fees: "0",
         retentions: "0",
         market: "",
@@ -443,6 +452,7 @@ const createExtraDefaults = (
         isin: "",
         shares: "",
         price: "",
+        split_ratio: "",
         fees: "0",
         retentions: "0",
         market: "",
@@ -490,7 +500,9 @@ const createTransferLeg = (
 const getFieldConfigs = (
   productType: SupportedManualProductType,
   t: ReturnType<typeof useI18n>["t"],
+  txType: ManualTxTypeOption,
 ): FieldConfig[] => {
+  const isSplit = txType === TxType.SPLIT
   switch (productType) {
     case ProductType.ACCOUNT:
       return [
@@ -527,25 +539,35 @@ const getFieldConfigs = (
           name: "ticker",
           labelKey: t.transactions.ticker,
           type: "text",
-          required: true,
+          required: !isSplit,
         },
         {
           name: "isin",
           labelKey: t.transactions.isin,
           type: "text",
-          required: true,
+          required: !isSplit,
         },
         {
           name: "shares",
           labelKey: t.transactions.shares,
           type: "number",
-          required: true,
-          numericType: "positive",
+          required: !isSplit,
+          numericType: isSplit ? "nonNegative" : "positive",
           step: "0.0001",
         },
         {
           name: "price",
-          labelKey: t.transactions.price,
+          labelKey: isSplit
+            ? t.transactions.form.cashInLieuUnitPrice
+            : t.transactions.price,
+          type: "number",
+          required: !isSplit,
+          numericType: isSplit ? "nonNegative" : "positive",
+          step: "0.0001",
+        },
+        {
+          name: "split_ratio",
+          labelKey: t.transactions.form.splitRatio,
           type: "number",
           required: true,
           numericType: "positive",
@@ -584,13 +606,23 @@ const getFieldConfigs = (
           name: "shares",
           labelKey: t.transactions.shares,
           type: "number",
-          required: true,
-          numericType: "positive",
+          required: !isSplit,
+          numericType: isSplit ? "nonNegative" : "positive",
           step: "0.0001",
         },
         {
           name: "price",
-          labelKey: t.transactions.price,
+          labelKey: isSplit
+            ? t.transactions.form.cashInLieuUnitPrice
+            : t.transactions.price,
+          type: "number",
+          required: !isSplit,
+          numericType: isSplit ? "nonNegative" : "positive",
+          step: "0.0001",
+        },
+        {
+          name: "split_ratio",
+          labelKey: t.transactions.form.splitRatio,
           type: "number",
           required: true,
           numericType: "positive",
@@ -743,6 +775,8 @@ function ExtraFieldsGrid({
   t,
   isSubmitting,
   showAutoAmountHint = true,
+  isSplit = false,
+  locale = "en",
 }: {
   fields: FieldConfig[]
   extra: Record<string, string>
@@ -767,6 +801,8 @@ function ExtraFieldsGrid({
   t: ReturnType<typeof useI18n>["t"]
   isSubmitting: boolean
   showAutoAmountHint?: boolean
+  isSplit?: boolean
+  locale?: string
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -775,6 +811,33 @@ function ExtraFieldsGrid({
         const error = errors[errorKey]
         const fieldDisabled = disabled || lockedFields?.has(field.name)
         const fieldId = `${idPrefix}-${field.name}`
+        const splitRatioValue =
+          isSplit && field.name === "split_ratio"
+            ? parseOptionalNumber(extra.split_ratio ?? "")
+            : undefined
+        const splitRatioDirection =
+          splitRatioValue != null &&
+          Number.isFinite(splitRatioValue) &&
+          splitRatioValue > 0
+            ? splitRatioValue > 1
+              ? t.transactions.form.splitRatioForward
+              : splitRatioValue < 1
+                ? t.transactions.form.splitRatioReverse
+                : t.transactions.form.splitRatioOneToOneDirection
+            : null
+        const splitRatioExample =
+          splitRatioValue != null &&
+          Number.isFinite(splitRatioValue) &&
+          splitRatioValue > 0
+            ? splitRatioValue === 1
+              ? t.transactions.form.splitRatioOneToOne
+              : t.transactions.form.splitRatioExample.replace(
+                  "{shares}",
+                  splitRatioValue.toLocaleString(locale, {
+                    maximumFractionDigits: 6,
+                  }),
+                )
+            : null
         if (field.type === "date") {
           return (
             <div key={field.name} className="space-y-1.5">
@@ -801,7 +864,8 @@ function ExtraFieldsGrid({
         if (
           (productType === ProductType.STOCK_ETF ||
             productType === ProductType.FUND) &&
-          field.name === "shares"
+          field.name === "shares" &&
+          !isSplit
         ) {
           const priceField = fields.find(option => option.name === "price")
           const priceError = errors[`${errorPrefix}.price`]
@@ -936,7 +1000,8 @@ function ExtraFieldsGrid({
           (productType === ProductType.STOCK_ETF ||
             productType === ProductType.FUND ||
             productType === ProductType.CRYPTO) &&
-          field.name === "price"
+          field.name === "price" &&
+          !isSplit
         ) {
           return null
         }
@@ -949,9 +1014,11 @@ function ExtraFieldsGrid({
         const fieldSuffix =
           field.name === "interest_rate"
             ? "%"
-            : ["fees", "retentions", "avg_balance"].includes(field.name)
+            : field.name === "price" && isSplit
               ? currencySymbol
-              : null
+              : ["fees", "retentions", "avg_balance"].includes(field.name)
+                ? currencySymbol
+                : null
         const popoverKey = `${idPrefix}-${field.name}`
 
         return (
@@ -1071,6 +1138,32 @@ function ExtraFieldsGrid({
             </div>
             {error && (
               <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            )}
+            {isSplit && field.name === "price" && (
+              <p className="text-xs text-muted-foreground">
+                {t.transactions.form.cashInLieuUnitPriceHint}
+              </p>
+            )}
+            {isSplit && field.name === "split_ratio" && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  {t.transactions.form.splitRatioHint}
+                </p>
+                {(splitRatioDirection || splitRatioExample) && (
+                  <div aria-live="polite" className="space-y-1">
+                    {splitRatioDirection && (
+                      <p className="text-xs font-semibold text-foreground">
+                        {splitRatioDirection}
+                      </p>
+                    )}
+                    {splitRatioExample && (
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {splitRatioExample}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )
@@ -1329,6 +1422,7 @@ export function ManualTransactionDialog({
   }, [formState.type])
 
   const isFeeType = formState.type === TxType.FEE
+  const isSplitType = formState.type === TxType.SPLIT
 
   const netAmount = useMemo(() => {
     if (!supportsNetAmount) {
@@ -1401,6 +1495,10 @@ export function ManualTransactionDialog({
   const [productTypeDropdownOpen, setProductTypeDropdownOpen] = useState(false)
 
   useEffect(() => {
+    if (formState.type === TxType.SPLIT) {
+      return
+    }
+
     if (
       formState.productType !== ProductType.STOCK_ETF &&
       formState.productType !== ProductType.FUND &&
@@ -1457,6 +1555,7 @@ export function ManualTransactionDialog({
       }
     })
   }, [
+    formState.type,
     formState.extra?.shares,
     formState.extra?.price,
     formState.extra?.currency_amount,
@@ -1643,6 +1742,10 @@ export function ManualTransactionDialog({
             isin: transaction.isin ?? "",
             shares: transaction.shares ? `${transaction.shares}` : "",
             price: transaction.price ? `${transaction.price}` : "",
+            split_ratio:
+              transaction.split_ratio == null
+                ? ""
+                : `${transaction.split_ratio}`,
             fees: `${transaction.fees ?? 0}`,
             retentions: transaction.retentions
               ? `${transaction.retentions}`
@@ -1657,6 +1760,10 @@ export function ManualTransactionDialog({
             isin: transaction.isin ?? "",
             shares: transaction.shares ? `${transaction.shares}` : "",
             price: transaction.price ? `${transaction.price}` : "",
+            split_ratio:
+              transaction.split_ratio == null
+                ? ""
+                : `${transaction.split_ratio}`,
             fees: `${transaction.fees ?? 0}`,
             retentions: transaction.retentions
               ? `${transaction.retentions}`
@@ -1716,7 +1823,7 @@ export function ManualTransactionDialog({
   }, [isOpen, mode, transaction, defaultCurrency, resetForm])
 
   const fieldConfigs = useMemo(() => {
-    const configs = getFieldConfigs(formState.productType, t)
+    const configs = getFieldConfigs(formState.productType, t, formState.type)
     const type = formState.type
     const hideOrderDate =
       isTransferCreate ||
@@ -1729,11 +1836,18 @@ export function ManualTransactionDialog({
       if (hideOrderDate && field.name === "order_date") {
         return false
       }
+      if (isSplitType && field.name === "shares") {
+        return false
+      }
+      if (field.name === "split_ratio" && !isSplitType) {
+        return false
+      }
       return true
     })
   }, [
     formState.productType,
     formState.type,
+    isSplitType,
     isFeeType,
     isTransferCreate,
     isSwapCreate,
@@ -2014,9 +2128,17 @@ export function ManualTransactionDialog({
   const validate = () => {
     const newErrors: Record<string, string> = {}
 
-    const amountValue = Number.parseFloat(formState.amount.replace(",", "."))
-    if (!formState.amount || Number.isNaN(amountValue) || amountValue <= 0) {
-      newErrors.amount = t.transactions.form.errors.positive
+    const amountRaw = formState.amount.trim()
+    const amountValue = Number.parseFloat(amountRaw.replace(",", "."))
+    const splitAmount = amountRaw ? amountValue : 0
+    if (
+      isSplitType
+        ? !Number.isFinite(splitAmount) || splitAmount < 0
+        : !amountRaw || !Number.isFinite(amountValue) || amountValue <= 0
+    ) {
+      newErrors.amount = isSplitType
+        ? t.transactions.form.errors.nonNegative
+        : t.transactions.form.errors.positive
     }
 
     if (!formState.currency) {
@@ -2124,6 +2246,22 @@ export function ManualTransactionDialog({
       }
 
       validateExtraFields(formState.extra, "extra", fieldConfigs, newErrors)
+      if (
+        isSplitType &&
+        formState.productType === ProductType.STOCK_ETF &&
+        !formState.extra.ticker.trim() &&
+        !formState.extra.isin.trim()
+      ) {
+        newErrors["extra.isin"] = t.transactions.form.errors.required
+      }
+      if (isSplitType && Number.isFinite(splitAmount) && splitAmount > 0) {
+        const splitPrice = Number.parseFloat(
+          (formState.extra.price ?? "").replace(",", "."),
+        )
+        if (!Number.isFinite(splitPrice) || splitPrice <= 0) {
+          newErrors["extra.price"] = t.transactions.form.errors.positive
+        }
+      }
     }
 
     setErrors(newErrors)
@@ -2156,8 +2294,12 @@ export function ManualTransactionDialog({
         product_type: ProductType.STOCK_ETF,
         ticker: extra.ticker.trim().toUpperCase() || undefined,
         isin: extra.isin.trim().toUpperCase() || undefined,
-        shares: parseNumberValue(extra.shares),
+        shares:
+          txType === TxType.SPLIT
+            ? (parseOptionalNumber(extra.shares) ?? null)
+            : parseNumberValue(extra.shares),
         price: parseNumberValue(extra.price),
+        split_ratio: parseOptionalNumber(extra.split_ratio),
         fees,
         retentions,
         market: extra.market.trim() || undefined,
@@ -2177,8 +2319,12 @@ export function ManualTransactionDialog({
       source: DataSource.MANUAL,
       product_type: ProductType.FUND,
       isin: extra.isin.trim().toUpperCase(),
-      shares: parseNumberValue(extra.shares),
+      shares:
+        txType === TxType.SPLIT
+          ? (parseOptionalNumber(extra.shares) ?? null)
+          : parseNumberValue(extra.shares),
       price: parseNumberValue(extra.price),
+      split_ratio: parseOptionalNumber(extra.split_ratio),
       fees,
       retentions,
       market: extra.market.trim() || undefined,
@@ -2286,8 +2432,12 @@ export function ManualTransactionDialog({
           product_type: ProductType.STOCK_ETF,
           ticker: formState.extra.ticker.trim().toUpperCase() || undefined,
           isin: formState.extra.isin.trim().toUpperCase() || undefined,
-          shares: parseNumberValue(formState.extra.shares),
+          shares:
+            formState.type === TxType.SPLIT
+              ? (parseOptionalNumber(formState.extra.shares) ?? null)
+              : parseNumberValue(formState.extra.shares),
           price: parseNumberValue(formState.extra.price),
+          split_ratio: parseOptionalNumber(formState.extra.split_ratio),
           fees: resolvedFees,
           retentions: parseNumberValue(formState.extra.retentions, 0),
           market: formState.extra.market.trim() || undefined,
@@ -2300,8 +2450,12 @@ export function ManualTransactionDialog({
           ...base,
           product_type: ProductType.FUND,
           isin: formState.extra.isin.trim().toUpperCase(),
-          shares: parseNumberValue(formState.extra.shares),
+          shares:
+            formState.type === TxType.SPLIT
+              ? (parseOptionalNumber(formState.extra.shares) ?? null)
+              : parseNumberValue(formState.extra.shares),
           price: parseNumberValue(formState.extra.price),
+          split_ratio: parseOptionalNumber(formState.extra.split_ratio),
           fees: resolvedFees,
           retentions: parseNumberValue(formState.extra.retentions, 0),
           market: formState.extra.market.trim() || undefined,
@@ -2736,7 +2890,9 @@ export function ManualTransactionDialog({
 
                     <div className="space-y-1.5">
                       <Label htmlFor="transaction-amount">
-                        {t.transactions.amount}
+                        {isSplitType
+                          ? t.transactions.form.cashInLieuAmount
+                          : t.transactions.amount}
                       </Label>
                       <div className="relative">
                         <DecimalInput
@@ -2754,6 +2910,11 @@ export function ManualTransactionDialog({
                           {currencySymbol}
                         </span>
                       </div>
+                      {isSplitType && (
+                        <p className="text-xs text-muted-foreground">
+                          {t.transactions.form.cashInLieuAmountHint}
+                        </p>
+                      )}
                       {errors.amount && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.amount}
@@ -3211,6 +3372,8 @@ export function ManualTransactionDialog({
                           onSuggestionApply={handleSuggestionApply}
                           t={t}
                           isSubmitting={isSubmitting}
+                          locale={locale}
+                          isSplit={isSplitType}
                         />
                         {moreDetailsFieldConfigs.length > 0 && (
                           <div>

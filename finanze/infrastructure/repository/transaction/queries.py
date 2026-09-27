@@ -8,13 +8,13 @@ class TransactionQueries(str, Enum):
                                              isin, ticker, market, shares, price, net_amount,
                                              fees, retentions, order_date, linked_tx, interests,
                                              iban, portfolio_name, product_subtype, asset_contract_address,
-                                             entity_account_id)
+                                             entity_account_id, split_ratio)
         VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
                 :entity_id, :is_real, :source, :product_type, :created_at,
                 :isin, :ticker, :market, :shares, :price, :net_amount,
                 :fees, :retentions, :order_date, :linked_tx, :interests,
                 :iban, :portfolio_name, :product_subtype, :asset_contract_address,
-                :entity_account_id)
+                :entity_account_id, :split_ratio)
     """
 
     INSERT_ACCOUNT = """
@@ -161,7 +161,8 @@ class TransactionQueries(str, Enum):
                    iban,
                    portfolio_name,
                    product_subtype,
-                   entity_account_id
+                   entity_account_id,
+                   split_ratio
             FROM investment_transactions
             UNION ALL
             SELECT id,
@@ -192,7 +193,8 @@ class TransactionQueries(str, Enum):
                    NULL      AS iban,
                    NULL      AS portfolio_name,
                    NULL      AS product_subtype,
-                   entity_account_id
+                   entity_account_id,
+                   NULL      AS split_ratio
             FROM account_transactions
         ) tx
             JOIN entities e ON tx.entity_id = e.id

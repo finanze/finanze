@@ -41,7 +41,9 @@ class ManualTransactionVirtualImportHelper:
         fees = getattr(tx, "fees", None) or Dezimal(0)
         retentions = getattr(tx, "retentions", None) or Dezimal(0)
 
-        if tx.type in incoming_types:
+        if tx.type == TxType.SPLIT:
+            tx.net_amount = tx.amount - fees - retentions
+        elif tx.type in incoming_types:
             tx.net_amount = tx.amount - fees - retentions
         elif tx.type in outgoing_types:
             tx.net_amount = tx.amount + fees + retentions

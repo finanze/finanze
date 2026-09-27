@@ -43,6 +43,23 @@ def test_map_object_body():
     assert str(tx.entity.id) == ENTITY_ID
 
 
+def test_map_fund_split_defaults_cash_fields_and_allows_null_shares():
+    body = _fund_body(type="SPLIT", split_ratio="2")
+    for field in ("amount", "shares", "price", "fees"):
+        body.pop(field)
+
+    request = map_add_manual_transaction(body)
+
+    tx = request.txs[0]
+    assert isinstance(tx, FundTx)
+    assert tx.type == TxType.SPLIT
+    assert tx.amount == 0
+    assert tx.shares is None
+    assert tx.price == 0
+    assert tx.fees == 0
+    assert str(tx.split_ratio) == "2"
+
+
 def test_map_object_body_with_historic_entry_id():
     request = map_add_manual_transaction(_fund_body(historic_entry_id=HISTORIC_ID))
     assert request.historic_entry_id == UUID(HISTORIC_ID)
