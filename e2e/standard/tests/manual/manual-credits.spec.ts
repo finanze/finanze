@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { selectEntity } from '../../helpers/entity-selector'
+import { ensureEditMode } from '../../helpers/edit-mode'
 
 async function navigateToBanking(page: Page) {
     const sidebarBtn = page.getByRole('button', {
@@ -112,6 +113,10 @@ async function deleteCredit(page: Page, name: string) {
 }
 
 test.describe('Manual Credits - Banking', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('create a manual credit with a new entity, verify draft and saved state, then delete', async ({
         authenticatedPage: page,
     }) => {

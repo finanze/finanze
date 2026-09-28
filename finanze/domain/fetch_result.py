@@ -5,6 +5,7 @@ from uuid import UUID
 
 from domain.auto_contributions import AutoContributions
 from domain.entity import Feature
+from domain.fetch_pointer import FetchPointerContext
 from domain.entity_login import (
     LoginConfirmationType,
     LoginOptions,
@@ -48,6 +49,7 @@ class FetchResultCode(str, Enum):
 @dataclass
 class FetchOptions:
     deep: bool = False
+    pointer_context: Optional[FetchPointerContext] = None
 
 
 @dataclass

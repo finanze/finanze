@@ -39,6 +39,7 @@
     "save": "Save",
     "delete": "Delete",
     "discard": "Discard",
+    "done": "Done",
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
@@ -686,6 +687,18 @@
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "editMode": "Manual edit mode",
+    "editModeDescription": "Choose how you update your positions and contributions.",
+    "editModeOptions": {
+      "QUICK": {
+        "label": "Quick",
+        "description": "Save each manual change immediately as you make it."
+      },
+      "DRAFT": {
+        "label": "Draft",
+        "description": "Review your changes and save them together when you are ready."
+      }
+    },
     "assets": {
       "title": "Assets",
       "description": "Specific asset related settings",
@@ -783,6 +796,8 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Sign out",
+      "logoutConfirmationTitle": "Sign out?",
+      "logoutConfirmationMessage": "Are you sure you want to sign out of your account?",
       "deleteAccount": "Delete account",
       "requestAccountDeletion": "Request account deletion",
       "deleteAccountEmailSubject": "Account Deletion Request",
@@ -1749,6 +1764,17 @@
       "transferHint": "Use Transfer when an asset is moved or converted from one entity to another. In Spain, it is also used for tax-deferred exchanges between mutual funds.",
       "swap": "Swap",
       "swapRatio": "Ratio",
+      "splitRatio": "Split ratio",
+      "splitRatioHint": "Post-split shares divided by pre-split shares. Values above 1 increase the number of shares; values below 1 reduce it.",
+      "splitRatioForward": "Forward split (increases shares)",
+      "splitRatioReverse": "Reverse split (reduces shares)",
+      "splitRatioOneToOneDirection": "1:1 split (no share-count change)",
+      "splitRatioExample": "At this ratio, 1 pre-split share becomes {shares} post-split shares.",
+      "splitRatioOneToOne": "At this ratio, 1 share remains 1 share.",
+      "cashInLieuAmount": "Cash-in-lieu amount",
+      "cashInLieuAmountHint": "Gross cash proceeds received instead of fractional shares. Leave at 0 if no cash payout is due.",
+      "cashInLieuUnitPrice": "Cash-in-lieu unit price",
+      "cashInLieuUnitPriceHint": "Used to calculate fractional shares from the cash proceeds; required only when the cash-in-lieu amount is greater than zero.",
       "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",
       "origin": "Origin",
       "destination": "Destination",
@@ -1837,7 +1863,8 @@
       "SWITCH_FROM": "F. Switch From",
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
-      "FEE": "Fee"
+      "FEE": "Fee",
+      "SPLIT": "Split"
     },
     "productType": {
       "ACCOUNT": "Account",
@@ -2280,7 +2307,7 @@
     "monthlyRecurringEarnings": "Monthly recurring earnings",
     "monthlyRecurringExpenses": "Monthly recurring expenses",
     "savableAmount": "Savable amount",
-    "monthlyInvestedAmount": "Monthly invested amount",
+    "monthlyInvestedAmount": "Monthly invested",
     "savingsRate": "Savings rate",
     "investedRate": "Invested rate",
     "ofEarnings": "of earnings",

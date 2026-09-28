@@ -19,15 +19,17 @@ def _build_settings(
     currency="EUR",
     weight_unit="g",
     auto_refresh_mode="NO_2FA",
+    edit_mode="QUICK",
     stablecoins=None,
     hide_unknown_tokens=False,
 ):
     return {
         "lastUpdate": "2025-01-01T00:00:00+00:00",
-        "version": 7,
+        "version": 8,
         "general": {
             "defaultCurrency": currency,
             "defaultCommodityWeightUnit": weight_unit,
+            "editMode": edit_mode,
         },
         "data": {
             "autoRefresh": {
@@ -55,7 +57,8 @@ class TestGetSettings:
         assert response.status_code == 200
         body = await response.get_json()
         assert body["general"]["defaultCurrency"] == "EUR"
-        assert body["version"] == 7
+        assert body["general"]["editMode"] == "QUICK"
+        assert body["version"] == 8
         assert "lastUpdate" in body
 
     @pytest.mark.asyncio
@@ -95,6 +98,15 @@ class TestUpdateSettings:
 
         body = await (await client.get(SETTINGS_URL)).get_json()
         assert body["general"]["defaultCurrency"] == "GBP"
+
+    @pytest.mark.asyncio
+    async def test_update_edit_mode_persists(self, client):
+        await _signup_and_stay_logged_in(client)
+        new_settings = _build_settings(edit_mode="DRAFT")
+        await client.post(SETTINGS_URL, json=new_settings)
+
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["general"]["editMode"] == "DRAFT"
 
     @pytest.mark.asyncio
     async def test_update_auto_refresh_mode(self, client):

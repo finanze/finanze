@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
 import { PieChart as PieChartIcon, Info } from "lucide-react"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import {
   Popover,
   PopoverContent,
@@ -229,12 +230,6 @@ export const InvestmentDistributionChart: React.FC<
     }
     return true
   }, [])
-
-  const formattedCenterValue = centerContent
-    ? compactNumbers && !isPrivate
-      ? formatCompactCurrency(centerContent.rawValue, locale, currency)
-      : formatCurrency(centerContent.rawValue, locale, currency)
-    : ""
 
   const maxOuterRadius = centerContent ? 200 : maxOuterRadiusProp
 
@@ -464,10 +459,32 @@ export const InvestmentDistributionChart: React.FC<
                 <span
                   className={cn(
                     "font-light",
-                    compactNumbers ? "text-3xl" : "text-[1.7rem]",
+                    compactNumbers && !isPrivate && "text-3xl",
                   )}
+                  style={
+                    compactNumbers && !isPrivate
+                      ? undefined
+                      : { fontSize: "1.7rem" }
+                  }
                 >
-                  <Sensitive>{formattedCenterValue}</Sensitive>
+                  <Sensitive>
+                    {compactNumbers && !isPrivate ? (
+                      formatCompactCurrency(
+                        centerContent.rawValue,
+                        locale,
+                        currency,
+                      )
+                    ) : (
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          centerContent.rawValue,
+                          locale,
+                          currency,
+                        )}
+                        locale={locale}
+                      />
+                    )}
+                  </Sensitive>
                 </span>
                 {centerContent.badgeText && (
                   <span className="text-sm font-semibold text-muted-foreground mt-0.5">

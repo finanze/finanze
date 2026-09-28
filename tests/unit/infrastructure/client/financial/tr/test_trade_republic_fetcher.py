@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from domain.dezimal import Dezimal
 from domain.entity_login import (
     EntityLoginParams,
@@ -321,6 +320,154 @@ class TestFetcherGlobalPositionHardening:
 
         position = await fetcher.global_position()
         assert len(position.products[ProductType.STOCK_ETF].entries) == 1
+
+    @pytest.mark.asyncio
+    async def test_by_type_categories_do_not_duplicate_existing_positions(self):
+        fetcher = _make_fetcher()
+        crypto_position = {
+            "instrumentId": "CRYPTO1",
+            "instrumentType": "CRYPTO",
+            "averageBuyIn": "10",
+            "netSize": "1",
+            "netValue": "20",
+        }
+        stock_position = _stock_position()
+        _setup_position_client(
+            fetcher,
+            [crypto_position, stock_position],
+            {
+                "CRYPTO1": _stock_details(
+                    isin="CRYPTO1", name="Bitcoin", ticker="BTC", stock_details={}
+                ),
+                "US0378331005": _stock_details(),
+            },
+            user_info={"securitiesAccountNumber": "sec-1"},
+        )
+        # TR's "by type" feed re-exposes the same stock/crypto positions already
+        # returned by get_portfolio - the fetcher must not add them a second time.
+        fetcher._client.get_portfolio_by_type = AsyncMock(
+            return_value={
+                "categories": [
+                    {"positions": [crypto_position]},
+                    {"positions": [stock_position]},
+                ]
+            }
+        )
+
+        position = await fetcher.global_position()
+
+        assert len(position.products[ProductType.CRYPTO].entries[0].assets) == 1
+        assert len(position.products[ProductType.STOCK_ETF].entries) == 1
+        assert fetcher._client.get_details.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_by_type_categories_mutual_fund_still_added(self):
+        fetcher = _make_fetcher()
+        _setup_position_client(
+            fetcher,
+            [_stock_position()],
+            {"US0378331005": _stock_details()},
+            user_info={"securitiesAccountNumber": "sec-1"},
+        )
+        mutual_fund_position = {
+            "instrumentId": "FUND1",
+            "instrumentType": "MUTUALFUND",
+            "averageBuyIn": "10",
+            "netSize": "5",
+            "netValue": "60",
+        }
+        fetcher._client.get_portfolio_by_type = AsyncMock(
+            return_value={"categories": [{"positions": [mutual_fund_position]}]}
+        )
+        details_by_isin = {
+            "US0378331005": _stock_details(),
+            "FUND1": _stock_details(
+                isin="FUND1",
+                name="Test Fund",
+                ticker=None,
+                stock_details={},
+                fund_details={"name": "Test Fund", "fundType": "equity"},
+            ),
+        }
+        fetcher._client.get_details = AsyncMock(
+            side_effect=lambda isin, types=None: details_by_isin[isin]
+        )
+
+        position = await fetcher.global_position()
+
+        funds = position.products[ProductType.FUND].entries
+        assert len(funds) == 1
+        assert funds[0].isin == "FUND1"
+
+    @pytest.mark.asyncio
+    async def test_by_type_categories_add_positions_missing_from_portfolio(self):
+        # Regression for #194: raw_portfolio.portfolio (unscoped feed) may be
+        # incomplete for some accounts. Crypto/ETF positions that only appear
+        # in the by-type (scoped) feed must still be added, not dropped just
+        # because their instrumentType isn't MUTUALFUND.
+        fetcher = _make_fetcher()
+        _setup_position_client(
+            fetcher,
+            [_stock_position()],
+            {"US0378331005": _stock_details()},
+            user_info={"securitiesAccountNumber": "sec-1"},
+        )
+        crypto_only_in_by_type = {
+            "instrumentId": "CRYPTO2",
+            "instrumentType": "CRYPTO",
+            "averageBuyIn": "10",
+            "netSize": "2",
+            "netValue": "40",
+        }
+        fetcher._client.get_portfolio_by_type = AsyncMock(
+            return_value={"categories": [{"positions": [crypto_only_in_by_type]}]}
+        )
+        details_by_isin = {
+            "US0378331005": _stock_details(),
+            "CRYPTO2": _stock_details(
+                isin="CRYPTO2", name="Ethereum", ticker="ETH", stock_details={}
+            ),
+        }
+        fetcher._client.get_details = AsyncMock(
+            side_effect=lambda isin, types=None: details_by_isin[isin]
+        )
+
+        position = await fetcher.global_position()
+
+        crypto_assets = position.products[ProductType.CRYPTO].entries[0].assets
+        assert len(crypto_assets) == 1
+        assert crypto_assets[0].symbol == "ETH"
+        assert len(position.products[ProductType.STOCK_ETF].entries) == 1
+
+    @pytest.mark.asyncio
+    async def test_by_type_feed_wins_over_unscoped_feed_on_conflict(self):
+        # The scoped (by_type) feed is more reliable than the unscoped one:
+        # Portfolio.portfolio_loop() (backing get_portfolio()) can silently drop
+        # a position's price data (e.g. missing exchangeIds -> no ticker
+        # subscription -> sanitize step removes it, or stale values otherwise).
+        # When the same ISIN appears in both feeds, the by_type value must win.
+        fetcher = _make_fetcher()
+        isin = "US0378331005"
+        stale_position = _stock_position(isin)  # netValue 250.50 in unscoped feed
+        fresh_position = {
+            **_stock_position(isin),
+            "netValue": "999.99",  # different value from the scoped feed
+        }
+        _setup_position_client(
+            fetcher,
+            [stale_position],
+            {isin: _stock_details()},
+            user_info={"securitiesAccountNumber": "sec-1"},
+        )
+        fetcher._client.get_portfolio_by_type = AsyncMock(
+            return_value={"categories": [{"positions": [fresh_position]}]}
+        )
+
+        position = await fetcher.global_position()
+
+        stocks = position.products[ProductType.STOCK_ETF].entries
+        assert len(stocks) == 1
+        assert stocks[0].market_value == Dezimal("999.99")
 
 
 class TestFetcherTransactionsHardening:

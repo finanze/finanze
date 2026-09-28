@@ -16,6 +16,7 @@ from application.ports.entity_account_port import EntityAccountPort
 from application.ports.error_reporter_port import ErrorReporterPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.feature_flag_port import FeatureFlagPort
+from application.ports.fetch_pointers_port import FetchPointersPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
@@ -33,6 +34,7 @@ from domain.native_entity import CredentialType
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
+from domain.fetch_pointer import FetchPointerContext
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
     FetchedData,
@@ -60,6 +62,7 @@ from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
+FETCH_POINTER_SUPPORTED_ENTITIES = [native_entities.MY_INVESTOR]
 POSITION_UPDATE_COOLDOWN_SECONDS = int(
     os.environ.get("POSITION_UPDATE_COOLDOWN_SECONDS", 60)
 )
@@ -162,6 +165,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         loan_calculator: LoanCalculatorPort,
         real_estate_port: RealEstatePort,
         feature_flag_port: FeatureFlagPort,
+        fetch_pointers_port: FetchPointersPort,
         error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
@@ -182,6 +186,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._real_estate_port = real_estate_port
         self._feature_flag_port = feature_flag_port
         self._error_reporter = error_reporter
+        self._fetch_pointers_port = fetch_pointers_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -335,11 +340,27 @@ class FetchFinancialDataImpl(FetchFinancialData):
                         entity_account_id, entity.id, session
                     )
 
+            fetch_options = fetch_request.fetch_options or FetchOptions()
+            if (
+                Feature.TRANSACTIONS in features
+                and entity in FETCH_POINTER_SUPPORTED_ENTITIES
+            ):
+                pointers = []
+                if not fetch_options.deep:
+                    pointers = await self._fetch_pointers_port.get_by_entity_account_id(
+                        entity_account_id
+                    )
+                fetch_options.pointer_context = FetchPointerContext(
+                    entity_id=entity.id,
+                    entity_account_id=entity_account_id,
+                    pointers={pointer.key: pointer for pointer in pointers},
+                )
+
             return await self.get_data(
                 entity,
                 features,
                 specific_fetcher,
-                fetch_request.fetch_options,
+                fetch_options,
                 entity_account_id=entity_account_id,
             )
 
@@ -524,8 +545,16 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 await self._transaction_port.delete_by_entity_account_id(
                     entity_account_id
                 )
+                if options.pointer_context:
+                    await self._fetch_pointers_port.delete_by_entity_account_id(
+                        entity_account_id
+                    )
             if transactions:
                 await self._transaction_port.save(transactions)
+            if options.pointer_context:
+                await self._fetch_pointers_port.save(
+                    list(options.pointer_context.pointers.values())
+                )
             await self._update_last_fetch(
                 entity.id, [Feature.TRANSACTIONS], entity_account_id
             )

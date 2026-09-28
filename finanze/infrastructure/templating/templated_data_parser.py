@@ -7,6 +7,7 @@ from application.ports.template_parser_port import TemplateParserPort
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
+from domain.entity import Feature
 from domain.exception.exceptions import MissingFieldsError
 from domain.export import NumberFormat
 from domain.global_position import (
@@ -52,6 +53,7 @@ from domain.transactions import (
     RealEstateCFTx,
     StockTx,
     Transactions,
+    TxType,
 )
 from pydantic import ValidationError
 
@@ -338,6 +340,32 @@ class TemplateDataParser(TemplateParserPort):
             tx_dict["id"] = tx_id
             tx_dict["source"] = candidate.source
 
+            if tx_dict.get("type") == TxType.SPLIT.value:
+                for field in ("amount", "price"):
+                    if tx_dict.get(field) is None:
+                        tx_dict[field] = Dezimal(0)
+                ratio = tx_dict.get("split_ratio")
+                if ratio is None or not ratio.val.is_finite() or ratio <= 0:
+                    raise InvalidFieldError("split_ratio", str(ratio))
+                amount = tx_dict["amount"]
+                price = tx_dict["price"]
+                if amount < 0:
+                    raise InvalidFieldError("amount", str(amount))
+                if price < 0:
+                    raise InvalidFieldError("price", str(price))
+                for field in ("fees", "retentions", "shares"):
+                    value = tx_dict.get(field)
+                    if value is not None and value < 0:
+                        raise InvalidFieldError(field, str(value))
+                if amount > 0 and price <= 0:
+                    raise InvalidFieldError("price", str(price))
+                if prod_type == ProductType.FUND and not tx_dict.get("isin"):
+                    raise MissingFieldsError(["isin"])
+                if prod_type == ProductType.STOCK_ETF and not (
+                    tx_dict.get("isin") or tx_dict.get("ticker")
+                ):
+                    raise MissingFieldsError(["isin", "ticker"])
+
             if prod_type not in self.TX_PROD_TYPE_ATTR_MAP:
                 raise InvalidFieldError(
                     "product_type",
@@ -432,14 +460,45 @@ class TemplateDataParser(TemplateParserPort):
         for row in table[header_row_index + 1 :]:
             raw_parsed_row = {}
             missing_fields = []
+            transaction_type_column = next(
+                (
+                    index + start_column_index
+                    for index, column in enumerate(columns)
+                    if column is not None and column.field == "type"
+                ),
+                None,
+            )
+            row_type = (
+                row[transaction_type_column].strip().upper()
+                if transaction_type_column is not None
+                and transaction_type_column < len(row)
+                and row[transaction_type_column]
+                else ""
+            )
+            is_split_row = (
+                config.feature == Feature.TRANSACTIONS
+                and config.product in {ProductType.STOCK_ETF, ProductType.FUND}
+                and row_type == TxType.SPLIT.value
+            )
             for j, column in enumerate(columns, start_column_index):
                 if not column:
                     continue
 
                 value = row[j] if j < len(row) else None
                 if not value:
-                    value = column.default_value
-                    if value is None and column.required:
+                    if is_split_row and column.field in {"amount", "price"}:
+                        value = Dezimal(0)
+                    elif is_split_row and column.field == "shares":
+                        value = None
+                    else:
+                        value = column.default_value
+                    required = column.required and not (
+                        is_split_row and column.field in {"amount", "price", "shares"}
+                    )
+                    required = required or (
+                        is_split_row and column.field == "split_ratio"
+                    )
+                    if value is None and required:
                         missing_fields.append(column.field)
                         continue
 

@@ -5,7 +5,7 @@ from typing import Optional
 from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
-CURRENT_VERSION = 7
+CURRENT_VERSION = 8
 
 FilterValues = str | list[str]
 
@@ -118,10 +118,16 @@ class AssetConfig:
     crypto: CryptoAssetConfig
 
 
+class EditMode(str, Enum):
+    DRAFT = "DRAFT"
+    QUICK = "QUICK"
+
+
 @dataclass
 class GeneralConfig:
     defaultCurrency: str = "EUR"
     defaultCommodityWeightUnit: str = WeightUnit.GRAM.value
+    editMode: EditMode = EditMode.QUICK
 
 
 class AutoRefreshMode(str, Enum):

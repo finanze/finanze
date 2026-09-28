@@ -46,6 +46,7 @@ import {
 } from "lucide-react"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -683,9 +684,12 @@ export default function PendingMoneyPage() {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="font-mono font-semibold">
+            <span className="font-semibold">
               <Sensitive>
-                {formatCurrency(flow.amount, locale, flow.currency)}
+                <FormattedMarketValue
+                  value={formatCurrency(flow.amount, locale, flow.currency)}
+                  locale={locale}
+                />
               </Sensitive>
             </span>
             <div className="hidden sm:flex items-center gap-1">
@@ -927,12 +931,19 @@ export default function PendingMoneyPage() {
                   {entry.label}
                 </span>
                 <span
-                  className={`font-mono shrink-0 ${
+                  className={`shrink-0 ${
                     tone === "earning" ? "text-green-600" : "text-red-600"
                   }`}
                 >
                   <Sensitive>
-                    {formatCurrency(entry.amount, locale, defaultCurrency)}
+                    <FormattedMarketValue
+                      value={formatCurrency(
+                        entry.amount,
+                        locale,
+                        defaultCurrency,
+                      )}
+                      locale={locale}
+                    />
                   </Sensitive>
                 </span>
               </div>
@@ -1106,7 +1117,14 @@ export default function PendingMoneyPage() {
             </div>
             <div className="text-2xl font-bold text-green-600">
               <Sensitive>
-                {formatCurrency(totalPendingEarnings, locale, defaultCurrency)}
+                <FormattedMarketValue
+                  value={formatCurrency(
+                    totalPendingEarnings,
+                    locale,
+                    defaultCurrency,
+                  )}
+                  locale={locale}
+                />
               </Sensitive>
             </div>
             <div className="text-xs text-gray-500">
@@ -1131,7 +1149,14 @@ export default function PendingMoneyPage() {
             </div>
             <div className="text-2xl font-bold text-red-600">
               <Sensitive>
-                {formatCurrency(totalPendingExpenses, locale, defaultCurrency)}
+                <FormattedMarketValue
+                  value={formatCurrency(
+                    totalPendingExpenses,
+                    locale,
+                    defaultCurrency,
+                  )}
+                  locale={locale}
+                />
               </Sensitive>
             </div>
             <div className="text-xs text-gray-500">

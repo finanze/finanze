@@ -22,6 +22,12 @@ import {
   Moon,
   SunMoon,
   EyeOff,
+  Settings2,
+  SlidersHorizontal,
+  Bug,
+  Languages,
+  Palette,
+  Fingerprint,
 } from "lucide-react"
 import { useAppContext } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
@@ -165,8 +171,9 @@ export default function SettingsPage() {
           >
             <TabsTrigger
               value="general"
-              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
             >
+              <Settings2 className="h-4 w-4 shrink-0" />
               {t.settings.general}
             </TabsTrigger>
             {isCloudEnabled && (
@@ -200,8 +207,9 @@ export default function SettingsPage() {
             )}
             <TabsTrigger
               value="application"
-              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
             >
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
               {t.settings.application}
             </TabsTrigger>
             <TabsTrigger
@@ -227,9 +235,12 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 {t.settings.applicationDisclaimerDescription}
               </p>
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
-                  <CardTitle>{t.settings.applicationLanguageTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Languages className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.applicationLanguageTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.applicationLanguageDescription}
                   </CardDescription>
@@ -261,9 +272,12 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
-                  <CardTitle>{t.settings.themeTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.themeTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.themeDescription}
                   </CardDescription>
@@ -328,9 +342,12 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                 <CardHeader>
-                  <CardTitle>{t.settings.dataDisplayModeTitle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <EyeOff className="h-5 w-5 text-primary" />
+                    <CardTitle>{t.settings.dataDisplayModeTitle}</CardTitle>
+                  </div>
                   <CardDescription>
                     {t.settings.dataDisplayModeDescription}
                   </CardDescription>
@@ -367,11 +384,14 @@ export default function SettingsPage() {
               </Card>
 
               {isNativeMobile() && (
-                <Card>
+                <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   <CardHeader>
-                    <CardTitle>
-                      {t.settings.biometricCredentialsTitle}
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Fingerprint className="h-5 w-5 text-primary" />
+                      <CardTitle>
+                        {t.settings.biometricCredentialsTitle}
+                      </CardTitle>
+                    </div>
                     <CardDescription>
                       {t.settings.biometricCredentialsDescription}
                     </CardDescription>
@@ -421,22 +441,25 @@ export default function SettingsPage() {
 
               {/* Advanced Settings Section (Desktop only) */}
               {isDesktopApp && (
-                <Card>
+                <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   <CardHeader
                     className="cursor-pointer select-none"
                     onClick={() => toggleSection("advancedSettings")}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>{t.advancedSettings.title}</CardTitle>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <Bug className="h-5 w-5 shrink-0 text-primary" />
+                          <CardTitle>{t.advancedSettings.title}</CardTitle>
+                        </div>
                         <CardDescription>
                           {t.advancedSettings.subtitle}
                         </CardDescription>
                       </div>
                       {expandedSections.advancedSettings ? (
-                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                        <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
                       ) : (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
                       )}
                     </div>
                   </CardHeader>

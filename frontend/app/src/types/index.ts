@@ -350,7 +350,6 @@ export interface FetchResponse {
     failedFeatures?: Feature[]
     completedFeatures?: Feature[]
   }
-  data?: any
 }
 
 export interface UpdateTrackedResult {
@@ -469,6 +468,7 @@ export interface Settings {
   general: {
     defaultCurrency: string
     defaultCommodityWeightUnit: string
+    editMode: EditMode
   }
   export?: {
     sheets?: {
@@ -1242,6 +1242,7 @@ export interface InstrumentInfo {
   price?: number | null
   symbol?: string | null
   isin?: string | null
+  issuer?: string | null
 }
 
 export interface InstrumentsResponse {
@@ -1443,6 +1444,10 @@ export interface MoneyEvents {
 }
 
 // Auto-refresh configuration
+export enum EditMode {
+  DRAFT = "DRAFT",
+  QUICK = "QUICK",
+}
 export enum AutoRefreshMode {
   OFF = "OFF",
   NO_2FA = "NO_2FA",

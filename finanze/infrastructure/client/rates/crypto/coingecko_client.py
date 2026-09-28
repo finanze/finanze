@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Callable, Optional
 
 import httpx
@@ -582,6 +582,31 @@ class CoinGeckoClient:
                 "contract_addresses": addresses_param,
                 "precision": "full",
             },
+            timeout=timeout,
+        )
+
+    async def get_market_chart_by_address(
+        self,
+        platform_id: str,
+        contract_address: str,
+        vs_currency: str,
+        from_date: date,
+        to_date: date,
+        precision: Optional[str] = "full",
+        timeout: int = TIMEOUT,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "vs_currency": vs_currency.strip().lower(),
+            "from": from_date.isoformat(),
+            "to": to_date.isoformat(),
+        }
+        if precision is not None:
+            params["precision"] = precision
+
+        return await self._fetch(
+            f"/coins/{platform_id.strip()}/contract/{contract_address.strip()}"
+            "/market_chart/range",
+            params=params,
             timeout=timeout,
         )
 

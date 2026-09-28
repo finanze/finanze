@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { ensureEditMode } from '../../helpers/edit-mode'
 import { selectEntity } from '../../helpers/entity-selector'
 
 const CREDENTIALS = {
@@ -138,7 +139,28 @@ async function createManualTransaction(
     ).toBeVisible({ timeout: 10_000 })
 }
 
+async function openManualSplitForm(
+    page: Page,
+    product: 'Fund' | 'Stock/ETF',
+    name: string,
+) {
+    await page.getByRole('button', { name: 'Add' }).click()
+    await expect(page.getByText('Add transaction')).toBeVisible({
+        timeout: 5_000,
+    })
+
+    await selectEntity(page, 'Urbanitae', { inDialog: true })
+    await page.locator('#transaction-name').fill(name)
+    await selectCustomDropdown(page, 'transaction-product', product)
+    await selectCustomDropdown(page, 'transaction-type', 'Split')
+    await page.locator('#transaction-currency').selectOption('EUR')
+}
+
 test.describe('Manual Transactions', () => {
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await ensureEditMode(page, 'DRAFT')
+    })
+
     test('add a manual transaction', async ({ authenticatedPage: page }) => {
         await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
         await navigateToTransactions(page)
@@ -206,7 +228,11 @@ test.describe('Manual Transactions', () => {
         await expect(page.getByText('E2E Edit Tx').first()).toBeVisible({
             timeout: 5_000,
         })
-        await expect(page.getByText('+€750.50').first()).toBeVisible({
+        const updatedTxRow = page
+            .getByText('E2E Edit Tx')
+            .first()
+            .locator('../..')
+        await expect(updatedTxRow).toContainText(/\+€750\s*50/, {
             timeout: 5_000,
         })
     })
@@ -364,7 +390,9 @@ test.describe('Manual Transactions', () => {
         ).toBeVisible({ timeout: 10_000 })
         await expect(
             page.getByText('E2E Fund Transfer Dest').first(),
-        ).toBeVisible({ timeout: 10_000 })
+        ).toBeVisible({
+            timeout: 10_000,
+        })
         await expect(page.getByText('Transfer Out').first()).toBeVisible()
         await expect(page.getByText('Transfer In').first()).toBeVisible()
     })
@@ -403,7 +431,9 @@ test.describe('Manual Transactions', () => {
         ).toBeVisible({ timeout: 10_000 })
         await expect(
             page.getByText('E2E Fund Origin Only').first(),
-        ).toBeVisible({ timeout: 10_000 })
+        ).toBeVisible({
+            timeout: 10_000,
+        })
         await expect(page.getByText('Transfer Out').first()).toBeVisible()
     })
 
@@ -450,5 +480,103 @@ test.describe('Manual Transactions', () => {
         })
         await expect(page.getByText('S. Swap From').first()).toBeVisible()
         await expect(page.getByText('S. Swap To').first()).toBeVisible()
+    })
+
+    test('create and edit a manual stock split', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        const name = `E2E Stock Split ${Date.now()}`
+        await openManualSplitForm(page, 'Stock/ETF', name)
+        const dialog = page.locator('.fixed.inset-0').last()
+        await expect(dialog.getByLabel('Cash-in-lieu amount')).toBeVisible()
+        const unitPriceInput = dialog.getByLabel('Cash-in-lieu unit price')
+        await expect(unitPriceInput).toBeVisible()
+        await expect(dialog.getByLabel('Shares')).toHaveCount(0)
+        await page.locator('#transaction-ticker').fill('E2ESPLIT')
+        await page.locator('#transaction-split_ratio').fill('1')
+        await expect(
+            dialog.getByText('1:1 split (no share-count change)'),
+        ).toBeVisible()
+        await page.locator('#transaction-split_ratio').fill('4')
+        await expect(
+            dialog.getByText('Forward split (increases shares)'),
+        ).toBeVisible()
+        await expect(
+            dialog.getByText(
+                'At this ratio, 1 pre-split share becomes 4 post-split shares.',
+            ),
+        ).toBeVisible()
+        await dialog.getByRole('button', { name: 'Save' }).click()
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText(name).first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        const splitRow = page.getByText(name).first().locator('../..')
+        await expect(splitRow).not.toContainText(/€0/)
+        await expect(splitRow).not.toContainText(/\+/)
+        await expandTransaction(page, name)
+        await expect(splitRow).toContainText(/Split ratio:\s*4/)
+
+        await page.getByRole('button', { name: 'Edit' }).click()
+        await expect(page.getByText('Edit transaction')).toBeVisible({
+            timeout: 5_000,
+        })
+        const editDialog = page.locator('.fixed.inset-0').last()
+        await expect(
+            editDialog.locator('#transaction-split_ratio'),
+        ).toHaveValue('4')
+        await editDialog.locator('#transaction-split_ratio').fill('0.25')
+        await expect(
+            editDialog.getByText('Reverse split (reduces shares)'),
+        ).toBeVisible()
+        await editDialog.getByRole('button', { name: 'Save' }).click()
+        await expect(page.getByText('Edit transaction')).toBeHidden({
+            timeout: 10_000,
+        })
+
+        const ratioDetails = splitRow.getByText(/Split ratio:/)
+        if (!(await ratioDetails.isVisible().catch(() => false))) {
+            await expandTransaction(page, name)
+        }
+        await expect(splitRow).toContainText(/Split ratio:\s*0[.,]25/)
+        await expect(splitRow).not.toContainText(/\+/)
+    })
+
+    test('create a manual fund reverse split with cash in lieu', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        const name = `E2E Fund Reverse Split ${Date.now()}`
+        await openManualSplitForm(page, 'Fund', name)
+        await page.locator('#transaction-isin').fill('LU0000000991')
+        await page.locator('#transaction-split_ratio').fill('0.2')
+        await page.locator('#transaction-amount').fill('1')
+
+        const dialog = page.locator('.fixed.inset-0').last()
+        await dialog.getByRole('button', { name: 'Save' }).click()
+        await expect(dialog.getByText('Enter a positive number')).toBeVisible()
+
+        await page.locator('#transaction-price').fill('10')
+        await expect(page.locator('#transaction-amount')).toHaveValue('1')
+        await dialog.getByRole('button', { name: 'Save' }).click()
+        await expect(
+            page.getByText('Manual transaction created successfully'),
+        ).toBeVisible({ timeout: 10_000 })
+
+        await expect(page.getByText(name).first()).toBeVisible({
+            timeout: 10_000,
+        })
+        const splitRow = page.getByText(name).first().locator('../..')
+        await expect(splitRow).toContainText(/\+€1/)
+        await expandTransaction(page, name)
+        await expect(splitRow).toContainText(/Split ratio:\s*0[.,]2/)
     })
 })

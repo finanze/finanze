@@ -368,6 +368,7 @@ class LazyComponents:
                 d.loan_calculator,
                 d.re_repo,
                 self._core.ff_client,
+                d.fetch_pointers_repo,
                 self._core.error_reporter,
             )
             self.fetch_crypto = FetchCryptoDataImpl(
@@ -397,6 +398,7 @@ class LazyComponents:
                 d.tx_repo,
                 d.auto_repo,
                 historic_repo,
+                d.fetch_pointers_repo,
             )
             self.cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
 

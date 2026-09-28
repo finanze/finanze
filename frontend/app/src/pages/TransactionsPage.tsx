@@ -35,12 +35,14 @@ import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { cn } from "@/lib/utils"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getTransactionDisplayAmount,
   getTransactionDisplaySign,
   getTransactionDisplayType,
+  shouldDisplayTransactionAmount,
 } from "@/utils/financialDataUtils"
 import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
@@ -834,7 +836,19 @@ export default function TransactionsPage() {
                 <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
-            {Number(stockTx.shares || 0) !== 0 && (
+            {stockTx.split_ratio != null && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.form.splitRatio}:
+                </span>{" "}
+                <Sensitive>
+                  {stockTx.split_ratio.toLocaleString(locale, {
+                    maximumFractionDigits: 6,
+                  })}
+                </Sensitive>
+              </div>
+            )}
+            {stockTx.shares != null && Number(stockTx.shares) !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
@@ -1033,21 +1047,41 @@ export default function TransactionsPage() {
               <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
               <span className="font-mono">{fundTx.isin}</span>
             </div>
-            <div className={detailRowClass}>
-              <span className={detailLabelClass}>{t.transactions.shares}:</span>{" "}
-              <Sensitive>{fundTx.shares.toLocaleString()}</Sensitive>
-            </div>
-            <div className={detailRowClass}>
-              <span className={detailLabelClass}>{t.transactions.price}:</span>{" "}
-              <Sensitive>
-                {formatCurrency(
-                  fundTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </Sensitive>
-            </div>
+            {fundTx.split_ratio != null && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.form.splitRatio}:
+                </span>{" "}
+                <Sensitive>
+                  {fundTx.split_ratio.toLocaleString(locale, {
+                    maximumFractionDigits: 6,
+                  })}
+                </Sensitive>
+              </div>
+            )}
+            {fundTx.shares != null && Number(fundTx.shares) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.shares}:
+                </span>{" "}
+                <Sensitive>{fundTx.shares.toLocaleString()}</Sensitive>
+              </div>
+            )}
+            {Number(fundTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                <Sensitive>
+                  {formatCurrency(
+                    fundTx.price,
+                    locale,
+                    settings.general.defaultCurrency,
+                    tx.currency,
+                  )}
+                </Sensitive>
+              </div>
+            )}
             {grossAmountField}
             {fundTx.fees > 0 && (
               <div className={detailRowClass}>
@@ -1868,42 +1902,53 @@ export default function TransactionsPage() {
                                           </div>
 
                                           <div className="shrink-0 flex items-center gap-1.5 self-center -translate-y-0.5">
-                                            <div
-                                              onClick={
-                                                hasDetails
-                                                  ? () =>
-                                                      toggleCardExpansion(tx.id)
-                                                  : undefined
-                                              }
-                                              className={cn(
-                                                "text-right",
-                                                hasDetails && "cursor-pointer",
-                                              )}
-                                            >
+                                            {shouldDisplayTransactionAmount(
+                                              tx.type,
+                                              tx.amount,
+                                            ) && (
                                               <div
-                                                className={`font-semibold ${
-                                                  displayType === "in"
-                                                    ? "text-green-600 dark:text-green-400"
-                                                    : tx.type === TxType.FEE
-                                                      ? "text-red-600 dark:text-red-400"
-                                                      : "text-gray-900 dark:text-gray-100"
-                                                }`}
+                                                onClick={
+                                                  hasDetails
+                                                    ? () =>
+                                                        toggleCardExpansion(
+                                                          tx.id,
+                                                        )
+                                                    : undefined
+                                                }
+                                                className={cn(
+                                                  "text-right",
+                                                  hasDetails &&
+                                                    "cursor-pointer",
+                                                )}
                                               >
-                                                <Sensitive>
-                                                  {getTransactionDisplaySign(
-                                                    tx.type,
-                                                    displayAmount,
-                                                  )}
-                                                  {formatCurrency(
-                                                    Math.abs(displayAmount),
-                                                    locale,
-                                                    settings.general
-                                                      .defaultCurrency,
-                                                    tx.currency,
-                                                  )}
-                                                </Sensitive>
+                                                <div
+                                                  className={`font-semibold ${
+                                                    displayType === "in"
+                                                      ? "text-green-600 dark:text-green-400"
+                                                      : tx.type === TxType.FEE
+                                                        ? "text-red-600 dark:text-red-400"
+                                                        : "text-gray-900 dark:text-gray-100"
+                                                  }`}
+                                                >
+                                                  <Sensitive>
+                                                    {getTransactionDisplaySign(
+                                                      tx.type,
+                                                      displayAmount,
+                                                    )}
+                                                    <FormattedMarketValue
+                                                      value={formatCurrency(
+                                                        Math.abs(displayAmount),
+                                                        locale,
+                                                        settings.general
+                                                          .defaultCurrency,
+                                                        tx.currency,
+                                                      )}
+                                                      locale={locale}
+                                                    />
+                                                  </Sensitive>
+                                                </div>
                                               </div>
-                                            </div>
+                                            )}
 
                                             {hasDetails && (
                                               <button
@@ -2146,6 +2191,10 @@ export default function TransactionsPage() {
                                           className={cn(
                                             "text-right",
                                             hasDetails && "cursor-pointer",
+                                            !shouldDisplayTransactionAmount(
+                                              tx.type,
+                                              tx.amount,
+                                            ) && "hidden",
                                           )}
                                         >
                                           <div
@@ -2162,13 +2211,16 @@ export default function TransactionsPage() {
                                               displayAmount,
                                             )}
                                             <Sensitive>
-                                              {formatCurrency(
-                                                Math.abs(displayAmount),
-                                                locale,
-                                                settings.general
-                                                  .defaultCurrency,
-                                                tx.currency,
-                                              )}
+                                              <FormattedMarketValue
+                                                value={formatCurrency(
+                                                  Math.abs(displayAmount),
+                                                  locale,
+                                                  settings.general
+                                                    .defaultCurrency,
+                                                  tx.currency,
+                                                )}
+                                                locale={locale}
+                                              />
                                             </Sensitive>
                                           </div>
                                         </div>

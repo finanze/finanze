@@ -103,7 +103,7 @@ def _map_investment_row(
             isin=row["isin"] if row["isin"] else None,
             ticker=row["ticker"],
             market=row["market"] if row["market"] else None,
-            shares=Dezimal(row["shares"]),
+            shares=Dezimal(row["shares"]) if row["shares"] is not None else None,
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
             fees=Dezimal(row["fees"]),
@@ -114,6 +114,9 @@ def _map_investment_row(
             linked_tx=row["linked_tx"],
             equity_type=(
                 EquityType(row["product_subtype"]) if row["product_subtype"] else None
+            ),
+            split_ratio=(
+                Dezimal(row["split_ratio"]) if row["split_ratio"] is not None else None
             ),
         )
     elif row["product_type"] == ProductType.CRYPTO.value:
@@ -148,7 +151,7 @@ def _map_investment_row(
             **common,
             isin=row["isin"] if row["isin"] else None,
             market=row["market"] if row["market"] else None,
-            shares=Dezimal(row["shares"]),
+            shares=Dezimal(row["shares"]) if row["shares"] is not None else None,
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
@@ -158,6 +161,9 @@ def _map_investment_row(
             ),
             fund_type=(
                 FundType(row["product_subtype"]) if row["product_subtype"] else None
+            ),
+            split_ratio=(
+                Dezimal(row["split_ratio"]) if row["split_ratio"] is not None else None
             ),
         )
     elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
@@ -233,6 +239,7 @@ class TransactionSQLRepository(TransactionPort):
                     "portfolio_name": None,
                     "product_subtype": None,
                     "asset_contract_address": None,
+                    "split_ratio": None,
                     "entity_account_id": str(tx.entity_account_id)
                     if tx.entity_account_id
                     else None,
@@ -244,7 +251,7 @@ class TransactionSQLRepository(TransactionPort):
                             "isin": tx.isin,
                             "ticker": tx.ticker,
                             "market": tx.market if tx.market else None,
-                            "shares": str(tx.shares),
+                            "shares": str(tx.shares) if tx.shares is not None else None,
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
                             if tx.net_amount is not None
@@ -255,6 +262,11 @@ class TransactionSQLRepository(TransactionPort):
                                 tx.order_date.isoformat() if tx.order_date else None
                             ),
                             "linked_tx": tx.linked_tx,
+                            "split_ratio": (
+                                str(tx.split_ratio)
+                                if tx.split_ratio is not None
+                                else None
+                            ),
                             "product_subtype": (
                                 tx.equity_type.value if tx.equity_type else None
                             ),
@@ -298,7 +310,7 @@ class TransactionSQLRepository(TransactionPort):
                         {
                             "isin": tx.isin,
                             "market": tx.market if tx.market else None,
-                            "shares": str(tx.shares),
+                            "shares": str(tx.shares) if tx.shares is not None else None,
                             "price": str(tx.price),
                             "net_amount": str(tx.net_amount)
                             if tx.net_amount is not None
@@ -310,6 +322,11 @@ class TransactionSQLRepository(TransactionPort):
                             ),
                             "product_subtype": (
                                 tx.fund_type.value if tx.fund_type else None
+                            ),
+                            "split_ratio": (
+                                str(tx.split_ratio)
+                                if tx.split_ratio is not None
+                                else None
                             ),
                         }
                     )

@@ -20,6 +20,7 @@ interface InvestmentFiltersProps {
   entityImageOverride?: (entity: Entity) => string | null | undefined
   showEntityFilter?: boolean
   showWalletFilter?: boolean
+  hideLabelOnMobile?: boolean
 }
 
 export function InvestmentFilters({
@@ -36,6 +37,7 @@ export function InvestmentFilters({
   entityImageOverride,
   showEntityFilter = true,
   showWalletFilter = true,
+  hideLabelOnMobile = false,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
 
@@ -69,7 +71,11 @@ export function InvestmentFilters({
           {(showEntityFilter || showWalletFilter) && (
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <Filter size={16} />
-              <span>{t.transactions.filters}:</span>
+              <span
+                className={hideLabelOnMobile ? "hidden sm:inline" : undefined}
+              >
+                {t.transactions.filters}:
+              </span>
             </div>
           )}
           {showEntityFilter && (

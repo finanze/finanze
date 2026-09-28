@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -141,3 +141,60 @@ class TestGetPrices:
 
         assert prices == {"ETH": {"EUR": Dezimal("1701.79")}}
         assert client._fetch.await_args.kwargs["params"]["symbols"] == "eth"
+
+
+class TestGetMarketChart:
+    @pytest.mark.asyncio
+    async def test_get_market_chart_by_address_uses_range_endpoint(self):
+        client = _build_client()
+        response = {
+            "prices": [[1735689600000, 1.0005]],
+            "market_caps": [[1735689600000, 1000000]],
+            "total_volumes": [[1735689600000, 50000]],
+        }
+        client._fetch = AsyncMock(return_value=response)
+
+        result = await client.get_market_chart_by_address(
+            " ethereum ",
+            " 0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 ",
+            " EUR ",
+            date(2025, 1, 1),
+            date(2025, 1, 31),
+        )
+
+        assert result is response
+        client._fetch.assert_awaited_once_with(
+            "/coins/ethereum/contract/0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+            "/market_chart/range",
+            params={
+                "vs_currency": "eur",
+                "from": "2025-01-01",
+                "to": "2025-01-31",
+                "precision": "full",
+            },
+            timeout=client.TIMEOUT,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_market_chart_by_address_can_omit_precision(self):
+        client = _build_client()
+        client._fetch = AsyncMock(return_value={})
+
+        await client.get_market_chart_by_address(
+            "ethereum",
+            "0xabc",
+            "usd",
+            date(2025, 1, 1),
+            date(2025, 1, 2),
+            precision=None,
+            timeout=3,
+        )
+
+        assert client._fetch.await_args.kwargs == {
+            "params": {
+                "vs_currency": "usd",
+                "from": "2025-01-01",
+                "to": "2025-01-02",
+            },
+            "timeout": 3,
+        }

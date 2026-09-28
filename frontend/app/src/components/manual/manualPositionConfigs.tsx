@@ -46,7 +46,6 @@ import {
   DataSource,
   InstrumentDataRequest,
   InstrumentInfo,
-  InstrumentOverview,
   InstrumentType,
   ExchangeRates,
   CryptoAssetDetails,
@@ -80,6 +79,7 @@ import {
   Search,
   X,
   AlertTriangle,
+  Building2,
   Coins,
   Home,
   User,
@@ -93,6 +93,7 @@ import {
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { Switch } from "@/components/ui/Switch"
 import { cn, getCurrencySymbol } from "@/lib/utils"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 
 const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
@@ -988,6 +989,7 @@ export interface FundFormState extends ManualPositionFormBase {
   _instrument_ticker: string
   _instrument_currency: string
   _instrument_price_value: string
+  _instrument_issuer: string
   _tracker_candidate: string
   _tracker_status: "auto" | "on" | "off"
   _initial_tracker_key: string
@@ -1007,6 +1009,7 @@ export interface StockFormState extends ManualPositionFormBase {
   _suggested_market_price: string
   _instrument_currency: string
   _instrument_price_value: string
+  _instrument_issuer: string
   _tracker_candidate: string
   _tracker_status: "auto" | "on" | "off"
   _initial_tracker_key: string
@@ -1156,6 +1159,46 @@ const buildInstrumentPrimaryLabel = (
   if (entry.symbol) return entry.symbol
   if (entry.isin) return entry.isin
   return t("common.notAvailable")
+}
+
+function InstrumentIssuerPreview({
+  issuer,
+  label,
+}: {
+  issuer?: string | null
+  label: string
+}) {
+  const normalizedIssuer = issuer?.trim() ?? ""
+  const iconPath = getIssuerIconPath(normalizedIssuer)
+  const [failedIconPath, setFailedIconPath] = useState<string | null>(null)
+
+  if (!normalizedIssuer) return null
+
+  return (
+    <div className="md:col-span-2 flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+      {iconPath && iconPath !== failedIconPath ? (
+        <img
+          src={iconPath}
+          alt=""
+          className="h-8 w-8 shrink-0 rounded-md object-contain"
+          onError={() => setFailedIconPath(iconPath)}
+        />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background">
+          <Building2
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="truncate text-sm font-semibold text-foreground">
+          {normalizedIssuer}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const buildInstrumentSecondaryInfo = (
@@ -1349,7 +1392,7 @@ function FundInstrumentSearchField({
     const hasInstrumentMetadata =
       Boolean(form._instrument_currency?.trim()) &&
       Boolean(form._instrument_price_value?.trim())
-    if (hasInstrumentMetadata) return
+    if (hasInstrumentMetadata && form._instrument_issuer?.trim()) return
 
     const trackerLookupKey = initialTrackerKey || trackerCandidate || null
 
@@ -1366,7 +1409,9 @@ function FundInstrumentSearchField({
 
     let isActive = true
 
-    const applyOverview = (overview: InstrumentOverview) => {
+    const applyOverview = (overview: InstrumentInfo) => {
+      updateField("_instrument_issuer", overview.issuer?.trim() ?? "")
+
       const instrumentCurrency = overview.currency
         ? overview.currency.toString().trim().toUpperCase()
         : ""
@@ -1455,6 +1500,7 @@ function FundInstrumentSearchField({
     form._initial_tracker_key,
     form._tracker_candidate,
     form._tracker_status,
+    form._instrument_issuer,
     form.currency,
     form.isin,
     form.name,
@@ -1533,7 +1579,7 @@ function FundInstrumentSearchField({
       detailsRequest.ticker = entry.symbol
     }
 
-    const applySelection = (details: InstrumentOverview | null) => {
+    const applySelection = (details: InstrumentInfo | null) => {
       const resolvedName = (
         entry.name ??
         details?.name ??
@@ -1582,6 +1628,7 @@ function FundInstrumentSearchField({
         .trim()
         .toUpperCase()
       updateField("_instrument_ticker", resolvedTicker)
+      updateField("_instrument_issuer", details?.issuer?.trim() ?? "")
 
       updateField("type", FundType.MUTUAL_FUND)
       clearError("type")
@@ -1649,7 +1696,7 @@ function FundInstrumentSearchField({
     }
 
     setDetailsLoadingId(resultKey)
-    let details: InstrumentOverview | null = null
+    let details: InstrumentInfo | null = null
 
     try {
       details = await getInstrumentDetails(detailsRequest)
@@ -1688,6 +1735,9 @@ function FundInstrumentSearchField({
             }
             if (form._instrument_price_value) {
               updateField("_instrument_price_value", "")
+            }
+            if (form._instrument_issuer) {
+              updateField("_instrument_issuer", "")
             }
             if (form._initial_tracker_key) {
               updateField("_initial_tracker_key", "")
@@ -1819,7 +1869,7 @@ function StockInstrumentSearchField({
     const hasInstrumentMetadata =
       Boolean(form._instrument_currency?.trim()) &&
       Boolean(form._instrument_price_value?.trim())
-    if (hasInstrumentMetadata) return
+    if (hasInstrumentMetadata && form._instrument_issuer?.trim()) return
 
     const instrumentType =
       mapEquityTypeToInstrumentType(form.type) ?? InstrumentType.STOCK
@@ -1839,7 +1889,9 @@ function StockInstrumentSearchField({
 
     let isActive = true
 
-    const applyOverview = (overview: InstrumentOverview) => {
+    const applyOverview = (overview: InstrumentInfo) => {
+      updateField("_instrument_issuer", overview.issuer?.trim() ?? "")
+
       const instrumentCurrency = overview.currency
         ? overview.currency.toString().trim().toUpperCase()
         : ""
@@ -1921,6 +1973,7 @@ function StockInstrumentSearchField({
     form._initial_tracker_key,
     form._tracker_candidate,
     form._tracker_status,
+    form._instrument_issuer,
     form.currency,
     form.isin,
     form.name,
@@ -2004,7 +2057,7 @@ function StockInstrumentSearchField({
       detailsRequest.ticker = entry.symbol
     }
 
-    const applySelection = (details: InstrumentOverview | null) => {
+    const applySelection = (details: InstrumentInfo | null) => {
       const resolvedName = (
         entry.name ??
         details?.name ??
@@ -2055,6 +2108,8 @@ function StockInstrumentSearchField({
         updateField("currency", resolvedCurrency)
         clearError("currency")
       }
+
+      updateField("_instrument_issuer", details?.issuer?.trim() ?? "")
 
       const mappedType = mapInstrumentTypeToEquityType(
         details?.type ?? entry.type ?? requestType ?? null,
@@ -2126,7 +2181,7 @@ function StockInstrumentSearchField({
     }
 
     setDetailsLoadingId(resultKey)
-    let details: InstrumentOverview | null = null
+    let details: InstrumentInfo | null = null
 
     try {
       details = await getInstrumentDetails(detailsRequest)
@@ -2172,6 +2227,9 @@ function StockInstrumentSearchField({
             }
             if (form._instrument_price_value) {
               updateField("_instrument_price_value", "")
+            }
+            if (form._instrument_issuer) {
+              updateField("_instrument_issuer", "")
             }
             if (form._initial_tracker_key) {
               updateField("_initial_tracker_key", "")
@@ -4503,6 +4561,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         _instrument_ticker: "",
         _instrument_currency: "",
         _instrument_price_value: "",
+        _instrument_issuer: "",
         _tracker_candidate: "",
         _tracker_status: "auto",
         _initial_tracker_key: "",
@@ -4550,6 +4609,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         _instrument_ticker: draft.manual_data?.tracker_key ?? "",
         _instrument_currency: "",
         _instrument_price_value: "",
+        _instrument_issuer: draft.issuer?.trim() ?? "",
         _tracker_candidate: draft.manual_data?.tracker_key ?? "",
         _tracker_status: draft.manual_data?.tracker_key ? "on" : "off",
         _initial_tracker_key: draft.manual_data?.tracker_key ?? "",
@@ -4849,6 +4909,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             field="isin"
             label={props.t("management.manualPositions.funds.fields.isin")}
             formProps={props}
+          />
+          <InstrumentIssuerPreview
+            issuer={props.form._instrument_issuer}
+            label={props.t("investments.issuer")}
           />
           {renderBadgeSelector(
             "type",
@@ -5257,6 +5321,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       _suggested_market_price: "",
       _instrument_currency: "",
       _instrument_price_value: "",
+      _instrument_issuer: "",
       _tracker_candidate: "",
       _tracker_status: "auto",
       _initial_tracker_key: "",
@@ -5293,6 +5358,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       _suggested_market_price: "",
       _instrument_currency: "",
       _instrument_price_value: "",
+      _instrument_issuer: draft.issuer?.trim() ?? "",
       _tracker_candidate: draft.manual_data?.tracker_key ?? "",
       _tracker_status: draft.manual_data?.tracker_key ? "on" : "off",
       _initial_tracker_key: draft.manual_data?.tracker_key ?? "",
@@ -5520,6 +5586,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                     onClick={() => {
                       props.updateField("type", value)
                       props.clearError("type")
+                      if (props.form.type !== value) {
+                        props.updateField("_instrument_issuer", "")
+                      }
                       if (props.form._tracker_candidate) {
                         props.updateField("_tracker_candidate", "")
                       }
@@ -5556,6 +5625,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             field="isin"
             label={props.t("management.manualPositions.stocks.fields.isin")}
             formProps={props}
+          />
+          <InstrumentIssuerPreview
+            issuer={props.form._instrument_issuer}
+            label={props.t("investments.issuer")}
           />
           <div className="space-y-1.5">
             <Label htmlFor="stocks-currency">

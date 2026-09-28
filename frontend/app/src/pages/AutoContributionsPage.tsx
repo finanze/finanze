@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { getCurrencySymbol, cn } from "@/lib/utils"
@@ -75,7 +76,7 @@ import {
   ManualPeriodicContribution,
   PeriodicContribution,
 } from "@/types/contributions"
-import { DataSource, EntityType } from "@/types"
+import { DataSource, EditMode, EntityType } from "@/types"
 import {
   AccountType,
   EquityType,
@@ -264,6 +265,7 @@ export default function AutoContributionsPage() {
     useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
+  const isQuickMode = settings.general.editMode === EditMode.QUICK
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // DO NOT change periodicByEntity (user fixed previously)
@@ -486,12 +488,19 @@ export default function AutoContributionsPage() {
   const [formErrors, setFormErrors] = useState<ManualContributionErrors>({})
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showModalDiscardConfirm, setShowModalDiscardConfirm] = useState(false)
+  const [quickSaveRequest, setQuickSaveRequest] = useState(0)
+  const quickSavePendingRef = useRef(false)
   const modalInitialSnapshotRef = useRef<ManualContributionFormState | null>(
     null,
   )
   const [subtypeDropdownOpen, setSubtypeDropdownOpen] = useState(false)
   const subtypeDropdownRef = useRef<HTMLDivElement>(null)
   const [suggestionPopoverOpen, setSuggestionPopoverOpen] = useState(false)
+
+  const queueQuickSave = useCallback(() => {
+    quickSavePendingRef.current = true
+    setQuickSaveRequest(request => request + 1)
+  }, [])
 
   useModalBackHandler(isModalOpen, () => setIsModalOpen(false))
   useModalBackHandler(showCancelConfirm, () => setShowCancelConfirm(false))
@@ -527,10 +536,10 @@ export default function AutoContributionsPage() {
   }, [])
 
   useEffect(() => {
-    if (!hasLocalChanges) {
+    if (!hasLocalChanges && !quickSavePendingRef.current && !isSaving) {
       setManualDrafts(manualEntriesFromData)
     }
-  }, [manualEntriesFromData, hasLocalChanges])
+  }, [manualEntriesFromData, hasLocalChanges, isSaving])
 
   const groupedEntries = useMemo(() => {
     const entries = new Map<string, PeriodicContribution[]>()
@@ -932,6 +941,7 @@ export default function AutoContributionsPage() {
     abortControllerRef.current = null
     setIsEditMode(false)
     setHasLocalChanges(false)
+    quickSavePendingRef.current = false
     setIsModalOpen(false)
     setModalForm(null)
     setFormErrors({})
@@ -940,13 +950,13 @@ export default function AutoContributionsPage() {
   }, [manualEntriesFromData])
 
   const handleRequestCancelEdit = useCallback(() => {
-    if (isSaving) return
+    if (isSaving || (isQuickMode && quickSavePendingRef.current)) return
     if (hasLocalChanges) {
       setShowCancelConfirm(true)
       return
     }
     resetEditState()
-  }, [hasLocalChanges, isSaving, resetEditState])
+  }, [hasLocalChanges, isQuickMode, isSaving, resetEditState])
 
   const handleConfirmCancelEdit = useCallback(() => {
     setShowCancelConfirm(false)
@@ -991,10 +1001,17 @@ export default function AutoContributionsPage() {
     [draftToFormState, handleEnterEditMode, isEditMode],
   )
 
-  const handleDeleteManual = useCallback((localId: string) => {
-    setManualDrafts(prev => prev.filter(draft => draft.localId !== localId))
-    setHasLocalChanges(true)
-  }, [])
+  const handleDeleteManual = useCallback(
+    (localId: string) => {
+      setManualDrafts(prev => prev.filter(draft => draft.localId !== localId))
+      if (isQuickMode) {
+        queueQuickSave()
+      } else {
+        setHasLocalChanges(true)
+      }
+    },
+    [isQuickMode, queueQuickSave],
+  )
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false)
@@ -1048,66 +1065,98 @@ export default function AutoContributionsPage() {
         }
         return [...prev, updatedDraft]
       })
-      setHasLocalChanges(true)
+      if (isQuickMode) {
+        queueQuickSave()
+      } else {
+        setHasLocalChanges(true)
+      }
       closeModal()
     },
-    [closeModal, formToDraft, modalForm, validateForm],
+    [
+      closeModal,
+      formToDraft,
+      isQuickMode,
+      modalForm,
+      queueQuickSave,
+      validateForm,
+    ],
   )
 
-  const handleSaveAll = useCallback(async () => {
-    if (isSaving || !isEditMode) return
-    if (!hasLocalChanges) {
-      setIsEditMode(false)
+  const handleSaveAll = useCallback(
+    async (options?: { preserveEditMode?: boolean }) => {
+      const preserveEditMode = options?.preserveEditMode ?? false
+
+      if (isSaving || !isEditMode) return
+      if (!hasLocalChanges && !preserveEditMode) {
+        setIsEditMode(false)
+        return
+      }
+
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = new AbortController()
+      setIsSaving(true)
+      try {
+        const payload: ManualContributionsRequest = {
+          entries: manualDrafts.map(draft => ({
+            entity_id: draft.entity_id,
+            name: draft.name,
+            target: draft.target,
+            target_name: draft.target_name ?? null,
+            target_type: draft.target_type,
+            target_subtype: draft.target_subtype ?? null,
+            amount: draft.amount,
+            currency: draft.currency,
+            since: draft.since,
+            until: draft.until ?? null,
+            frequency: draft.frequency,
+          })),
+        }
+
+        await saveManualContributions(payload)
+        setIsModalOpen(false)
+        setModalForm(null)
+        await refreshData()
+        showToast(t.management.saveSuccess, "success")
+        setHasLocalChanges(false)
+        if (!preserveEditMode) {
+          setIsEditMode(false)
+        }
+      } catch (error: any) {
+        if (error?.name === "AbortError") {
+          return
+        }
+        console.error("Error saving manual contributions:", error)
+        showToast(t.management.saveError, "error")
+      } finally {
+        abortControllerRef.current = null
+        setIsSaving(false)
+      }
+    },
+    [
+      hasLocalChanges,
+      isEditMode,
+      isSaving,
+      manualDrafts,
+      refreshData,
+      showToast,
+      t.management.saveError,
+      t.management.saveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    if (
+      !isQuickMode ||
+      quickSaveRequest === 0 ||
+      !quickSavePendingRef.current ||
+      isSaving
+    ) {
       return
     }
 
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = new AbortController()
-    setIsSaving(true)
-    try {
-      const payload: ManualContributionsRequest = {
-        entries: manualDrafts.map(draft => ({
-          entity_id: draft.entity_id,
-          name: draft.name,
-          target: draft.target,
-          target_name: draft.target_name ?? null,
-          target_type: draft.target_type,
-          target_subtype: draft.target_subtype ?? null,
-          amount: draft.amount,
-          currency: draft.currency,
-          since: draft.since,
-          until: draft.until ?? null,
-          frequency: draft.frequency,
-        })),
-      }
-
-      await saveManualContributions(payload)
-      showToast(t.management.saveSuccess, "success")
-      setHasLocalChanges(false)
-      setIsModalOpen(false)
-      setModalForm(null)
-      setIsEditMode(false)
-      await refreshData()
-    } catch (error: any) {
-      if (error?.name === "AbortError") {
-        return
-      }
-      console.error("Error saving manual contributions:", error)
-      showToast(t.management.saveError, "error")
-    } finally {
-      abortControllerRef.current = null
-      setIsSaving(false)
-    }
-  }, [
-    hasLocalChanges,
-    isEditMode,
-    isSaving,
-    manualDrafts,
-    refreshData,
-    showToast,
-    t.management.saveError,
-    t.management.saveSuccess,
-  ])
+    quickSavePendingRef.current = false
+    void handleSaveAll({ preserveEditMode: true })
+  }, [handleSaveAll, isQuickMode, isSaving, quickSaveRequest])
 
   const getNextDateInfo = (nextDate?: string) => {
     if (!nextDate) return null
@@ -1235,7 +1284,14 @@ export default function AutoContributionsPage() {
                 <div className="flex flex-col items-end gap-1">
                   <div className="text-2xl font-semibold tracking-tight leading-none">
                     <Sensitive>
-                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          convertedAmount,
+                          locale,
+                          defaultCurrency,
+                        )}
+                        locale={locale}
+                      />
                     </Sensitive>
                   </div>
                   {showOriginalCurrency && (
@@ -1511,7 +1567,7 @@ export default function AutoContributionsPage() {
               </span>
             </Button>
             {isEditMode ? (
-              <>
+              isQuickMode ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1519,30 +1575,45 @@ export default function AutoContributionsPage() {
                   onClick={handleRequestCancelEdit}
                   disabled={isSaving}
                 >
-                  <X className="h-3.5 w-3.5 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.common.cancel}</span>
+                  <Check className="h-3.5 w-3.5 sm:mr-1" />
+                  <span className="hidden sm:inline">{t.common.done}</span>
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                  onClick={handleSaveAll}
-                  disabled={isSaving || !hasLocalChanges}
-                >
-                  {isSaving ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span className="hidden sm:inline">
-                        {t.common.saving}
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+                    onClick={handleRequestCancelEdit}
+                    disabled={isSaving}
+                  >
+                    <X className="h-3.5 w-3.5 sm:mr-1" />
+                    <span className="hidden sm:inline">{t.common.cancel}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+                    onClick={() => handleSaveAll()}
+                    disabled={isSaving || !hasLocalChanges}
+                  >
+                    {isSaving ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span className="hidden sm:inline">
+                          {t.common.saving}
+                        </span>
                       </span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Save className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">{t.common.save}</span>
-                    </span>
-                  )}
-                </Button>
-              </>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Save className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">
+                          {t.common.save}
+                        </span>
+                      </span>
+                    )}
+                  </Button>
+                </>
+              )
             ) : (
               <Button
                 variant="default"
@@ -1557,7 +1628,7 @@ export default function AutoContributionsPage() {
           </div>
         </motion.div>
 
-        {isEditMode && hasLocalChanges && (
+        {isEditMode && !isQuickMode && hasLocalChanges && (
           <motion.div
             variants={fadeListItem}
             className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"

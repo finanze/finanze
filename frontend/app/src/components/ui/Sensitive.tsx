@@ -7,14 +7,20 @@ function extractText(node: ReactNode): string {
   if (typeof node === "string") return node
   if (typeof node === "number") return String(node)
   if (Array.isArray(node)) return node.map(extractText).join("")
-  if (isValidElement(node))
-    return extractText((node.props as { children?: ReactNode }).children)
+  if (isValidElement(node)) {
+    const props = node.props as {
+      children?: ReactNode
+      value?: ReactNode
+    }
+    const childrenText = extractText(props.children)
+    return childrenText || extractText(props.value)
+  }
   return ""
 }
 
 function maskText(text: string): string {
   return text
-    .replace(/[+\-\u2212]/g, "")
+    .replace(/[+\-\u2212▴▾]/g, "")
     .replace(/\d[\d.,]*/g, "••••")
     .trim()
 }

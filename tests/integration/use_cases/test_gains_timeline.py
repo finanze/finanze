@@ -92,7 +92,8 @@ _SCHEMA = """
         id CHAR(36) PRIMARY KEY, ref TEXT, entity_id CHAR(36),
         entity_account_id CHAR(36), source TEXT, product_type TEXT, type TEXT,
         date DATETIME, amount TEXT, currency CHAR(3), shares TEXT,
-        net_amount TEXT, fees TEXT, retentions TEXT, isin TEXT, ticker TEXT,
+        price TEXT, split_ratio TEXT, net_amount TEXT, fees TEXT, retentions TEXT,
+        isin TEXT, ticker TEXT,
         asset_contract_address TEXT, name TEXT, portfolio_name TEXT,
         product_subtype TEXT
     );
@@ -606,6 +607,58 @@ class TestGainsTimelineRepositoryIntegration:
         assert valuations[ProductType.STOCK_ETF].equity_type == EquityType.ETF
         assert flows_by_type[ProductType.FUND].portfolio_name == "Retirement"
         assert flows_by_type[ProductType.STOCK_ETF].equity_type == EquityType.ETF
+
+    @pytest.mark.asyncio
+    async def test_maps_manual_split_price_and_ratio(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, price, split_ratio, net_amount, fees, retentions, "
+            "isin, ticker, asset_contract_address, name) "
+            "VALUES (?, ?, ?, NULL, 'REAL', 'STOCK_ETF', 'SPLIT', "
+            "'2025-02-14T12:00:00', '25', 'EUR', NULL, '50', '2', '25', '0', '0', "
+            "'IE00STOCK0001', NULL, NULL, 'Stock')",
+            (str(uuid4()), str(uuid4()), str(entity_id)),
+        )
+        conn.commit()
+
+        flows = await repository.get_flows(
+            [GainsAssetFilter(product_type=ProductType.STOCK_ETF)], [str(entity_id)]
+        )
+
+        assert len(flows) == 1
+        assert flows[0].price == Dezimal(50)
+        assert flows[0].split_ratio == Dezimal(2)
+
+    @pytest.mark.asyncio
+    async def test_split_ratios_are_available_without_entity_filter(self, setup):
+        repository, conn = setup
+        split_entity_id = uuid4()
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, price, split_ratio, net_amount, fees, retentions, "
+            "isin, ticker, asset_contract_address, name) "
+            "VALUES (?, ?, ?, NULL, 'REAL', 'STOCK_ETF', 'SPLIT', "
+            "'2025-02-14T12:00:00', '0', 'EUR', NULL, '0', '2', '0', '0', '0', "
+            "'IE00STOCK0001', NULL, NULL, 'Stock')",
+            (str(uuid4()), str(uuid4()), str(split_entity_id)),
+        )
+        conn.commit()
+
+        selected_entity_flows = await repository.get_flows(
+            [GainsAssetFilter(product_type=ProductType.STOCK_ETF)], [str(uuid4())]
+        )
+        split_ratios = await repository.get_split_ratios(
+            [GainsAssetFilter(product_type=ProductType.STOCK_ETF)]
+        )
+
+        assert selected_entity_flows == []
+        assert len(split_ratios) == 1
+        assert split_ratios[0].asset_key == "IE00STOCK0001"
+        assert split_ratios[0].ratio == Dezimal(2)
 
     @pytest.mark.asyncio
     async def test_fund_flow_portfolio_is_resolved_per_currency(self, setup):

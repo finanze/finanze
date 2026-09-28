@@ -9,6 +9,7 @@ import {
 } from "react"
 import {
   EntityStatus,
+  EditMode,
   AutoRefreshMode,
   AutoRefreshMaxOutdatedTime,
   type Entity,
@@ -51,6 +52,7 @@ export interface AppSettings {
   general: {
     defaultCurrency: string
     defaultCommodityWeightUnit: string
+    editMode: EditMode
   }
   assets: {
     crypto: {
@@ -127,6 +129,7 @@ const defaultSettings: AppSettings = {
   general: {
     defaultCurrency: "EUR",
     defaultCommodityWeightUnit: WeightUnit.GRAM,
+    editMode: EditMode.QUICK,
   },
   assets: {
     crypto: {

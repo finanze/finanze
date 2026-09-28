@@ -351,18 +351,71 @@ async def test_acquisition_maps_to_share_swap_only():
 
 
 @pytest.mark.asyncio
-async def test_split_maps_to_swap():
+async def test_split_maps_to_split_ratio_across_pages():
     fetcher = _fetcher()
     fetcher._client.iter_history_orders = MagicMock(
         return_value=_agen(
-            [[_trade_order(21, quantity="10", fill_type="STOCK_SPLIT", net_value="0")]]
+            [
+                [
+                    _trade_order(
+                        21,
+                        quantity="-700",
+                        fill_type="STOCK_SPLIT",
+                        net_value="121.16",
+                    )
+                ],
+                [
+                    _trade_order(
+                        22,
+                        quantity="35",
+                        fill_type="STOCK_SPLIT",
+                        net_value="121.16",
+                    )
+                ],
+            ]
         )
     )
     txs = await fetcher.transactions(set(), FetchOptions())
     assert len(txs.investment) == 1
-    assert txs.investment[0].type == TxType.SWAP_TO
-    assert txs.investment[0].ticker == "AAPL"
-    assert txs.investment[0].amount == Dezimal(0)
+    split = txs.investment[0]
+    assert split.type == TxType.SPLIT
+    assert split.ticker == "AAPL"
+    assert split.shares is None
+    assert split.split_ratio == Dezimal("0.05")
+    assert split.amount == Dezimal(0)
+    assert split.price == Dezimal(0)
+    assert split.fees == Dezimal(0)
+    assert split.net_amount == Dezimal(0)
+    assert txs.account == []
+
+
+@pytest.mark.asyncio
+async def test_forward_split_maps_to_multiplicative_ratio():
+    fetcher = _fetcher()
+    fetcher._client.iter_history_orders = MagicMock(
+        return_value=_agen(
+            [
+                [
+                    _trade_order(
+                        23,
+                        quantity="-10",
+                        fill_type="STOCK_SPLIT",
+                        net_value="0",
+                    ),
+                    _trade_order(
+                        24,
+                        quantity="20",
+                        fill_type="STOCK_SPLIT",
+                        net_value="0",
+                    ),
+                ]
+            ]
+        )
+    )
+    txs = await fetcher.transactions(set(), FetchOptions())
+    assert len(txs.investment) == 1
+    assert txs.investment[0].type == TxType.SPLIT
+    assert txs.investment[0].split_ratio == Dezimal("2")
 
 
 @pytest.mark.asyncio

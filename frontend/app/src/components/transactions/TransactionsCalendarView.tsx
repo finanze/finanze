@@ -18,11 +18,13 @@ import {
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getTransactionDisplayAmount,
   getTransactionDisplaySign,
   getTransactionDisplayType,
+  shouldDisplayTransactionAmount,
 } from "@/utils/financialDataUtils"
 import {
   getIconForTxType,
@@ -214,6 +216,9 @@ export function TransactionsCalendarView({
     const displayType = getTransactionDisplayType(type)
     if (displayType === "in") {
       return "bg-green-500 dark:bg-green-400"
+    }
+    if (displayType === "neutral") {
+      return "bg-gray-400 dark:bg-gray-500"
     }
     if (type === TxType.FEE) {
       return "bg-red-500 dark:bg-red-400"
@@ -635,7 +640,17 @@ function DayDetailModal({
                 <span className="font-mono">{stockTx.isin}</span>
               </div>
             )}
-            {Number(stockTx.shares || 0) !== 0 && (
+            {stockTx.split_ratio != null && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.form.splitRatio}:
+                </span>{" "}
+                {stockTx.split_ratio.toLocaleString(locale, {
+                  maximumFractionDigits: 6,
+                })}
+              </div>
+            )}
+            {stockTx.shares != null && Number(stockTx.shares) !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
@@ -709,7 +724,17 @@ function DayDetailModal({
                 <span className="font-mono">{fundTx.isin}</span>
               </div>
             )}
-            {fundTx.shares !== undefined && fundTx.shares !== null && (
+            {fundTx.split_ratio != null && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.form.splitRatio}:
+                </span>{" "}
+                {fundTx.split_ratio.toLocaleString(locale, {
+                  maximumFractionDigits: 6,
+                })}
+              </div>
+            )}
+            {fundTx.shares != null && Number(fundTx.shares) !== 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>
                   {t.transactions.shares}:
@@ -1157,16 +1182,23 @@ function DayDetailModal({
                               : tx.type === TxType.FEE
                                 ? "text-red-600 dark:text-red-400"
                                 : "text-gray-900 dark:text-gray-100"
-                          } ${hasDetails ? "cursor-pointer" : ""}`}
+                          } ${hasDetails ? "cursor-pointer" : ""} ${
+                            !shouldDisplayTransactionAmount(tx.type, tx.amount)
+                              ? "hidden"
+                              : ""
+                          }`}
                         >
                           <Sensitive>
                             {getTransactionDisplaySign(tx.type, displayAmount)}
-                            {formatCurrency(
-                              Math.abs(displayAmount),
-                              locale,
-                              settings.general.defaultCurrency,
-                              tx.currency,
-                            )}
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                Math.abs(displayAmount),
+                                locale,
+                                settings.general.defaultCurrency,
+                                tx.currency,
+                              )}
+                              locale={locale}
+                            />
                           </Sensitive>
                         </span>
                       </div>

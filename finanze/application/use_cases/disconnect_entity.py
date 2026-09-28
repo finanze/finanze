@@ -4,6 +4,7 @@ from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_account_port import EntityAccountPort
+from application.ports.fetch_pointers_port import FetchPointersPort
 from application.ports.historic_port import HistoricPort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
@@ -25,6 +26,7 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         transaction_port: TransactionPort,
         auto_contributions_port: AutoContributionsPort,
         historic_port: HistoricPort,
+        fetch_pointers_port: FetchPointersPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
@@ -34,6 +36,7 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         self._transaction_port = transaction_port
         self._auto_contributions_port = auto_contributions_port
         self._historic_port = historic_port
+        self._fetch_pointers_port = fetch_pointers_port
 
         self._log = logging.getLogger(__name__)
 
@@ -73,3 +76,4 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
             entity_account_id
         )
         await self._historic_port.delete_by_entity_account_id(entity_account_id)
+        await self._fetch_pointers_port.delete_by_entity_account_id(entity_account_id)

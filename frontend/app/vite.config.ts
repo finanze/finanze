@@ -92,6 +92,9 @@ export default defineConfig(({ command, mode }) => {
             electronPlugin({
               main: {
                 entry: "electron/main/index.ts",
+                onstart: async ({ startup }) => {
+                  await startup(["."])
+                },
                 vite: {
                   define: {
                     __APP_VERSION__: JSON.stringify(appVersion),

@@ -69,6 +69,7 @@
     "save": "Guardar",
     "delete": "Eliminar",
     "discard": "Descartar",
+    "done": "Listo",
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
@@ -685,6 +686,18 @@
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
+    "editMode": "Modo de edición manual",
+    "editModeDescription": "Elige cómo actualizas tus posiciones y aportaciones.",
+    "editModeOptions": {
+      "QUICK": {
+        "label": "Rápido",
+        "description": "Guarda cada cambio manual inmediatamente al hacerlo."
+      },
+      "DRAFT": {
+        "label": "Borrador",
+        "description": "Revisa tus cambios y guárdalos juntos cuando estés listo."
+      }
+    },
     "assets": {
       "title": "Activos",
       "description": "Ajustes específicos del funcionamiento de los activos",
@@ -782,6 +795,8 @@
         "PLUS": "＋ Plus"
       },
       "logout": "Cerrar sesión",
+      "logoutConfirmationTitle": "¿Cerrar sesión?",
+      "logoutConfirmationMessage": "¿Seguro que quieres cerrar sesión de tu cuenta?",
       "deleteAccount": "Eliminar cuenta",
       "requestAccountDeletion": "Solicitar eliminación de cuenta",
       "deleteAccountEmailSubject": "Solicitud de eliminación de cuenta",
@@ -1748,6 +1763,17 @@
       "transferHint": "Usa Traspaso cuando un activo se mueve o se convierte de una entidad a otra. En España también se usa para traspasos entre fondos de inversión con diferimiento fiscal.",
       "swap": "Canje",
       "swapRatio": "Ratio",
+      "splitRatio": "Ratio del split",
+      "splitRatioHint": "Participaciones después del split divididas por las anteriores. Un valor superior a 1 aumenta las participaciones; uno inferior a 1 las reduce.",
+      "splitRatioForward": "Split directo (aumenta las participaciones)",
+      "splitRatioReverse": "Split inverso (reduce las participaciones)",
+      "splitRatioOneToOneDirection": "Split 1:1 (sin cambio en el número de participaciones)",
+      "splitRatioExample": "Con este ratio, 1 participación antes del split pasa a ser {shares} participaciones después del split.",
+      "splitRatioOneToOne": "Con este ratio, 1 participación sigue siendo 1 participación.",
+      "cashInLieuAmount": "Importe en efectivo por fracciones",
+      "cashInLieuAmountHint": "Importe bruto recibido en efectivo en lugar de las participaciones fraccionarias. Déjalo en 0 si no hay pago en efectivo.",
+      "cashInLieuUnitPrice": "Precio unitario de las participaciones fraccionarias",
+      "cashInLieuUnitPriceHint": "Se usa para calcular las participaciones fraccionarias a partir del efectivo; solo es obligatorio si el importe en efectivo por fracciones es mayor que cero.",
       "swapRatioHint": "Participaciones de destino por cada participación de origen. Rellena participaciones y precio de destino a partir del origen.",
       "origin": "Origen",
       "destination": "Destino",
@@ -1836,7 +1862,8 @@
       "SWITCH_FROM": "Switch F. Orig.",
       "SWITCH_TO": "Switch F. Dest.",
       "INVESTMENT": "Inversión",
-      "FEE": "Comisión"
+      "FEE": "Comisión",
+      "SPLIT": "Split"
     },
     "productType": {
       "ACCOUNT": "Cuenta",

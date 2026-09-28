@@ -245,16 +245,47 @@ class Trading212Fetcher(FinancialEntityFetcher):
         catalog: dict[str, dict],
     ) -> list[StockTx]:
         investment: list[StockTx] = []
+        split_groups: dict[tuple[str, datetime], list[dict]] = {}
+        split_group_order: list[tuple[str, datetime]] = []
+        resolved_split_groups: set[tuple[str, datetime]] = set()
         async for page in self._client.iter_history_orders():
             known_page = True
             for item in page:
+                if self._is_stock_split(item):
+                    split_key = self._split_group_key(item)
+                    if split_key is None:
+                        continue
+                    if split_key not in split_groups:
+                        split_groups[split_key] = []
+                        split_group_order.append(split_key)
+                    split_groups[split_key].append(item)
+                    if self._split_group_is_ready(split_groups[split_key]):
+                        resolved_split_groups.add(split_key)
+                        if self._split_ref(split_key) not in registered_txs:
+                            known_page = False
+                    else:
+                        known_page = False
+                    continue
                 mapped = self._map_history_order(item, registered_txs, catalog)
                 if mapped is None:
                     continue
                 known_page = False
                 investment.append(mapped)
-            if page and known_page and not options.deep:
+            has_pending_split = any(
+                split_key not in resolved_split_groups for split_key in split_groups
+            )
+            if page and known_page and not has_pending_split and not options.deep:
                 break
+
+        for split_key in split_group_order:
+            mapped = self._map_stock_split_group(
+                split_groups[split_key],
+                split_key,
+                registered_txs,
+                catalog,
+            )
+            if mapped is not None:
+                investment.append(mapped)
         return investment
 
     async def _collect_dividend_txs(
@@ -291,6 +322,127 @@ class Trading212Fetcher(FinancialEntityFetcher):
             if page and known_page and not options.deep:
                 break
         return txs
+
+    @staticmethod
+    def _is_stock_split(item: dict) -> bool:
+        fill = item.get("fill")
+        return (
+            isinstance(fill, dict) and (fill.get("type") or "").upper() == "STOCK_SPLIT"
+        )
+
+    def _split_group_key(self, item: dict) -> tuple[str, datetime] | None:
+        order = item.get("order") or {}
+        fill = item.get("fill")
+        if not isinstance(fill, dict):
+            return None
+        if not fill.get("id") and not fill.get("filledAt"):
+            return None
+        status = (order.get("status") or "").upper()
+        if status and status not in _EXECUTED_ORDER_STATUSES:
+            return None
+        if order.get("id") is None and fill.get("id") is None:
+            return None
+
+        t212_id = order.get("ticker") or (order.get("instrument") or {}).get("ticker")
+        timestamp = fill.get("filledAt") or order.get("createdAt")
+        if not t212_id or not isinstance(timestamp, str):
+            return None
+        try:
+            parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=tzlocal())
+        else:
+            parsed = parsed.astimezone(tzlocal())
+        return t212_id, parsed
+
+    @staticmethod
+    def _split_group_quantities(items: list[dict]) -> tuple[Dezimal, Dezimal]:
+        old_quantity = Dezimal(0)
+        new_quantity = Dezimal(0)
+        for item in items:
+            order = item.get("order") or {}
+            fill = item.get("fill") or {}
+            quantity = _dezimal(fill.get("quantity") or order.get("quantity"))
+            if quantity < Dezimal(0):
+                old_quantity += _abs(quantity)
+            elif quantity > Dezimal(0):
+                new_quantity += quantity
+        return old_quantity, new_quantity
+
+    @staticmethod
+    def _split_group_is_ready(items: list[dict]) -> bool:
+        old_quantity, new_quantity = Trading212Fetcher._split_group_quantities(items)
+        return old_quantity > Dezimal(0) and new_quantity > Dezimal(0)
+
+    @staticmethod
+    def _split_ref(split_key: tuple[str, datetime]) -> str:
+        ticker, timestamp = split_key
+        return _get_ref("split", f"{ticker}:{timestamp.isoformat()}")
+
+    def _map_stock_split_group(
+        self,
+        items: list[dict],
+        split_key: tuple[str, datetime],
+        registered_txs: set[str],
+        catalog: dict[str, dict],
+    ) -> StockTx | None:
+        old_quantity, new_quantity = self._split_group_quantities(items)
+        if old_quantity == Dezimal(0) or new_quantity == Dezimal(0):
+            self._log.warning(
+                "Skipping incomplete Trading 212 stock split for %s",
+                split_key[0],
+            )
+            return None
+
+        item = items[0]
+        order = item.get("order") or {}
+        fill = item.get("fill") or {}
+        order_id = order.get("id")
+        fill_id = fill.get("id")
+        if order_id is None and fill_id is None:
+            return None
+
+        ref = self._split_ref(split_key)
+        if ref in registered_txs:
+            return None
+
+        t212_id = order.get("ticker") or (order.get("instrument") or {}).get("ticker")
+        meta = self._instrument_meta(t212_id, order.get("instrument"), catalog)
+        instrument_type = meta["type"]
+        if instrument_type not in _STOCK_TYPES and instrument_type not in _ETF_TYPES:
+            return None
+
+        currency = None
+        for split_item in items:
+            split_order = split_item.get("order") or {}
+            split_fill = split_item.get("fill") or {}
+            wallet = split_fill.get("walletImpact") or {}
+            currency = wallet.get("currency") or split_order.get("currency")
+            if currency:
+                break
+        if not currency:
+            return None
+
+        return self._build_investment_tx(
+            ref=ref,
+            name=meta["name"],
+            amount=Dezimal(0),
+            currency=currency,
+            tx_type=TxType.SPLIT,
+            date=split_key[1],
+            shares=None,
+            price=Dezimal(0),
+            fees=Dezimal(0),
+            net_amount=Dezimal(0),
+            isin=meta["isin"],
+            ticker=meta["ticker"],
+            market=meta["market"],
+            order_date=self._parse_date(order.get("createdAt")),
+            instrument_type=instrument_type,
+            split_ratio=new_quantity / old_quantity,
+        )
 
     def _map_history_order(
         self,
@@ -408,7 +560,7 @@ class Trading212Fetcher(FinancialEntityFetcher):
                 instrument_type=instrument_type,
             )
 
-        if fill_type == "STOCK_SPLIT" or fill_type in _ACQUISITION_FILLS:
+        if fill_type in _ACQUISITION_FILLS:
             swap_type = TxType.SWAP_FROM if quantity < Dezimal(0) else TxType.SWAP_TO
             return self._build_investment_tx(
                 ref=ref,
@@ -532,6 +684,7 @@ class Trading212Fetcher(FinancialEntityFetcher):
         market: str,
         order_date: datetime,
         instrument_type: str | None,
+        split_ratio: Dezimal | None = None,
     ) -> StockTx | None:
         if instrument_type not in _STOCK_TYPES and instrument_type not in _ETF_TYPES:
             return None
@@ -559,6 +712,7 @@ class Trading212Fetcher(FinancialEntityFetcher):
             equity_type=equity_type,
             product_type=ProductType.STOCK_ETF,
             source=DataSource.REAL,
+            split_ratio=split_ratio,
         )
 
     @staticmethod

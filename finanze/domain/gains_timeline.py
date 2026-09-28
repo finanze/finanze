@@ -164,6 +164,8 @@ class GainsFlow:
     portfolio_name: Optional[str] = None
     equity_type: Optional[EquityType] = None
     quantity: Optional[Dezimal] = None
+    price: Optional[Dezimal] = None
+    split_ratio: Optional[Dezimal] = None
     net_amount: Optional[Dezimal] = None
     fees: Dezimal = Dezimal(0)
     retentions: Dezimal = Dezimal(0)
@@ -171,6 +173,14 @@ class GainsFlow:
     wallet_id: Optional[UUID] = None
     name: Optional[str] = None
     related_portfolios: list[str] = field(default_factory=list)
+
+
+@dataclass
+class GainsSplit:
+    product_type: ProductType
+    asset_key: str
+    day: date
+    ratio: Dezimal
 
 
 @dataclass

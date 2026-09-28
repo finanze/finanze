@@ -23,6 +23,7 @@ from domain.entity_login import (
     LoginResultCode,
 )
 from domain.fetch_record import DataSource
+from domain.fetch_pointer import FetchPointer
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -114,6 +115,13 @@ ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 
 ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
+
+OPEN_ORDER_STATUSES = {"PENDING", "IN_PROGRESS"}
+EXECUTABLE_ORDER_STATUS = "COMPLETE"
+STOCK_ORDERS_POINTER = "stock_orders"
+FUND_ORDERS_POINTER = "fund_orders"
+PENSION_ORDERS_POINTER = "pension_orders"
+DEPOSIT_TXS_POINTER = "deposit_txs"
 
 
 def _map_deposit_tx(
@@ -248,11 +256,18 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 await self._get_related_security_account(account_id)
             )["accountId"]
             investment_txs += await self._get_investment_txs(
-                registered_txs, related_security_account_id, creation_date
+                registered_txs,
+                related_security_account_id,
+                creation_date,
+                options,
             )
 
             account_related_txs = await self._classify_account_txs(
-                account, registered_txs, related_security_account_id, creation_date
+                account,
+                registered_txs,
+                related_security_account_id,
+                creation_date,
+                options,
             )
             investment_txs += account_related_txs["deposit"]
             investment_txs += account_related_txs["portfolio"]
@@ -269,7 +284,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             try:
                 pension_fund_txs += await self._fetch_pension_fund_txs(
-                    pension_account_id, registered_txs, min_creation_date
+                    pension_account_id, registered_txs, min_creation_date, options
                 )
             except Exception as e:
                 self._log.exception(f"Error getting pension fund txs: {e}")
@@ -279,20 +294,24 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return Transactions(investment=investment_txs, account=account_txs)
 
     async def _get_investment_txs(
-        self, registered_txs, related_security_account_id, min_date: date
+        self,
+        registered_txs,
+        related_security_account_id,
+        min_date: date,
+        options: Optional[FetchOptions] = None,
     ):
         fund_txs, stock_txs = [], []
 
         try:
             fund_txs = await self.fetch_fund_txs(
-                related_security_account_id, registered_txs, min_date
+                related_security_account_id, registered_txs, min_date, options
             )
         except Exception as e:
             self._log.exception(f"Error getting fund txs: {e}")
 
         try:
             stock_txs = await self.fetch_stock_txs(
-                related_security_account_id, registered_txs, min_date
+                related_security_account_id, registered_txs, min_date, options
             )
         except Exception as e:
             self._log.exception(f"Error getting stock txs: {e}")
@@ -300,6 +319,74 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         investment_txs = fund_txs + stock_txs
 
         return investment_txs
+
+    def _pointer_key(self, prefix: str, remote_account_id: str) -> str:
+        return f"{prefix}:{remote_account_id}"
+
+    def _pointer_date(
+        self, options: Optional[FetchOptions], key: str, fallback: date
+    ) -> date:
+        if not options or not options.pointer_context:
+            return fallback
+
+        pointer = options.pointer_context.pointers.get(key)
+        return pointer.threshold if pointer else fallback
+
+    def _update_pointer(
+        self,
+        options: Optional[FetchOptions],
+        key: str,
+        threshold: Optional[date],
+    ):
+        if not options or not options.pointer_context:
+            return
+
+        options.pointer_context.pointers[key] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=key,
+            threshold=threshold or date.today(),
+        )
+
+    @staticmethod
+    def _order_status(order: dict) -> str:
+        return str(order.get("status") or order.get("orderStatus") or "").upper()
+
+    @staticmethod
+    def _order_date(order: dict) -> Optional[date]:
+        raw_order_date = order.get("orderDate")
+        if not raw_order_date:
+            return None
+        if isinstance(raw_order_date, datetime):
+            return raw_order_date.date()
+        if isinstance(raw_order_date, date):
+            return raw_order_date
+        try:
+            return _parse_datetime(raw_order_date).date()
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _oldest_open_order_date(cls, orders: list[dict]) -> Optional[date]:
+        open_order_dates = [
+            order_date
+            for order in orders
+            if cls._order_status(order) in OPEN_ORDER_STATUSES
+            and (order_date := cls._order_date(order)) is not None
+        ]
+        return min(open_order_dates) if open_order_dates else None
+
+    @staticmethod
+    def _account_tx_date(tx: dict) -> datetime:
+        raw_op_date = tx["operationDate"]
+        if isinstance(raw_op_date, str):
+            return _parse_datetime(raw_op_date).astimezone(tzlocal())
+        return datetime.fromtimestamp(raw_op_date / 1000).replace(tzinfo=tzlocal())
+
+    @classmethod
+    def _latest_account_tx_date(cls, txs: list[dict]) -> Optional[date]:
+        tx_dates = [cls._account_tx_date(tx).date() for tx in txs]
+        return max(tx_dates) if tx_dates else None
 
     async def _get_related_security_account(self, account_id: str) -> Optional[dict]:
         security_accounts = await self._client.get_security_accounts()
@@ -332,9 +419,22 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return found
 
     async def _classify_account_txs(
-        self, account: dict, registered_txs, related_security_account_id, min_date: date
+        self,
+        account: dict,
+        registered_txs,
+        related_security_account_id,
+        min_date: date,
+        options: Optional[FetchOptions] = None,
     ):
         account_id = account["accountId"]
+        pointer_key = self._pointer_key(DEPOSIT_TXS_POINTER, account_id)
+        has_pointer_context = (
+            options is not None and options.pointer_context is not None
+        )
+        if has_pointer_context:
+            min_date = min(
+                self._pointer_date(options, pointer_key, min_date), date.today()
+            )
         account_type = account.get("accountType")
         portfolio_account_details = {}
 
@@ -354,26 +454,30 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         to_date = from_date = date.today()
         from_date += timedelta(days=1)
+        latest_fetched_tx_date = None
         while from_date > min_date:
             from_date -= ACCOUNT_TX_FETCH_STEP
+            if has_pointer_context:
+                from_date = max(from_date, min_date)
             raw_txs = (
                 await self._client.get_account_movements(account_id, from_date, to_date)
             )["flowList"]
+            current_latest_tx_date = self._latest_account_tx_date(raw_txs)
+            if current_latest_tx_date and (
+                latest_fetched_tx_date is None
+                or current_latest_tx_date > latest_fetched_tx_date
+            ):
+                latest_fetched_tx_date = current_latest_tx_date
 
             for tx in raw_txs:
                 ref = tx["reference"]
                 if ref in registered_txs:
+                    self._update_pointer(options, pointer_key, latest_fetched_tx_date)
                     return result
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
-                raw_op_date = tx["operationDate"]
-                if isinstance(raw_op_date, str):
-                    tx_date = _parse_datetime(raw_op_date).astimezone(tzlocal())
-                else:
-                    tx_date = datetime.fromtimestamp(raw_op_date / 1000).replace(
-                        tzinfo=tzlocal()
-                    )
+                tx_date = self._account_tx_date(tx)
                 currency = tx["currency"]
                 name = tx["concept"].strip()
                 raw_amount = Dezimal(tx["amount"])
@@ -503,6 +607,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             to_date -= ACCOUNT_TX_FETCH_STEP
 
+        self._update_pointer(options, pointer_key, latest_fetched_tx_date)
         return result
 
     async def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
@@ -860,17 +965,28 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return fund_list
 
     async def _fetch_pension_fund_txs(
-        self, pension_account_id: str, registered_txs: set[str], min_date: date
+        self,
+        pension_account_id: str,
+        registered_txs: set[str],
+        min_date: date,
+        options: Optional[FetchOptions] = None,
     ) -> list[FundTx]:
         fund_txs = []
+        pointer_key = self._pointer_key(PENSION_ORDERS_POINTER, pension_account_id)
+        min_date = self._pointer_date(options, pointer_key, min_date)
         raw_fund_orders = await self._client.get_pension_plan_orders(
-            pension_account_id=pension_account_id, from_date=min_date
+            pension_account_id=pension_account_id,
+            from_date=min_date,
+            status=None,
         )
+        oldest_open_order_date = self._oldest_open_order_date(raw_fund_orders)
 
         for order in raw_fund_orders:
             ref = order["reference"]
-
             if ref in registered_txs:
+                continue
+
+            if self._order_status(order) != EXECUTABLE_ORDER_STATUS:
                 continue
 
             raw_operation_type = order["operationType"]
@@ -926,6 +1042,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
             )
 
+        self._update_pointer(options, pointer_key, oldest_open_order_date)
         return fund_txs
 
     def _map_periodic_contribution(self, auto_contribution):
@@ -993,17 +1110,29 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return AutoContributions(periodic=periodic_contributions)
 
     async def fetch_fund_txs(
-        self, securities_account_id: str, registered_txs: set[str], min_date: date
+        self,
+        securities_account_id: str,
+        registered_txs: set[str],
+        min_date: date,
+        options: Optional[FetchOptions] = None,
     ) -> list[FundTx]:
+        pointer_key = self._pointer_key(FUND_ORDERS_POINTER, securities_account_id)
+        min_date = self._pointer_date(options, pointer_key, min_date)
         raw_fund_orders = await self._client.get_fund_orders(
-            securities_account_id=securities_account_id, from_date=min_date
+            securities_account_id=securities_account_id,
+            from_date=min_date,
+            status=None,
         )
+        oldest_open_order_date = self._oldest_open_order_date(raw_fund_orders)
 
         fund_txs = []
         for order in raw_fund_orders:
             ref = order["reference"]
 
             if ref in registered_txs:
+                continue
+
+            if self._order_status(order) != EXECUTABLE_ORDER_STATUS:
                 continue
 
             raw_operation_type = order.get("operationType")
@@ -1109,28 +1238,48 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
             )
 
+        self._update_pointer(options, pointer_key, oldest_open_order_date)
         return fund_txs
 
     async def fetch_stock_txs(
-        self, securities_account_id: str, registered_txs: set[str], min_date: date
+        self,
+        securities_account_id: str,
+        registered_txs: set[str],
+        min_date: date,
+        options: Optional[FetchOptions] = None,
     ) -> list[StockTx]:
         stock_txs = []
+        pointer_key = self._pointer_key(STOCK_ORDERS_POINTER, securities_account_id)
+        min_date = self._pointer_date(options, pointer_key, min_date)
+        today = date.today()
+        min_date = min(min_date, today)
 
-        to_date = from_date = date.today()
-        from_date += timedelta(days=1)
-        while from_date > min_date:
-            from_date -= STOCKS_TX_FETCH_STEP
+        to_date = today
+        oldest_open_order_date = None
+        while True:
+            from_date = max(
+                to_date - STOCKS_TX_FETCH_STEP + timedelta(days=1), min_date
+            )
             raw_txs = await self._client.get_stock_orders(
                 securities_account_id=securities_account_id,
                 from_date=from_date,
                 to_date=to_date,
                 status=None,
             )
+            current_oldest_open_order_date = self._oldest_open_order_date(raw_txs)
+            if current_oldest_open_order_date and (
+                oldest_open_order_date is None
+                or current_oldest_open_order_date < oldest_open_order_date
+            ):
+                oldest_open_order_date = current_oldest_open_order_date
 
             for order in raw_txs:
                 ref = order["id"]
 
                 if ref in registered_txs:
+                    continue
+
+                if self._order_status(order) != EXECUTABLE_ORDER_STATUS:
                     continue
 
                 raw_operation_type = order["operation"]
@@ -1203,8 +1352,11 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     )
                 )
 
-            to_date -= STOCKS_TX_FETCH_STEP
+            if from_date == min_date:
+                break
+            to_date = from_date - timedelta(days=1)
 
+        self._update_pointer(options, pointer_key, oldest_open_order_date)
         return stock_txs
 
     async def _get_fund_investments(

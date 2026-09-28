@@ -13,10 +13,13 @@ vi.mock("@/lib/capacitor/appConsole", () => ({
   appConsole: { debug: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 
+const backupProcessorMocks = vi.hoisted(() => ({
+  deleteFile: vi.fn(),
+  getFilePath: vi.fn(),
+}))
+
 vi.mock("@/lib/capacitor/plugins", () => ({
-  BackupProcessor: {
-    getFilePath: vi.fn().mockResolvedValue({ path: "/tmp/staging.db" }),
-  },
+  BackupProcessor: backupProcessorMocks,
 }))
 
 vi.mock("@capacitor-community/sqlite", () => {
@@ -56,6 +59,13 @@ let bridge: Bridge
 beforeEach(async () => {
   // Fresh module state per test: txOwner / connectionOwner / spanWaiters /
   // opLock / currentDb all reset.
+  backupProcessorMocks.deleteFile.mockReset()
+  backupProcessorMocks.deleteFile.mockResolvedValue({ success: true })
+  backupProcessorMocks.getFilePath.mockReset()
+  backupProcessorMocks.getFilePath.mockResolvedValue({
+    path: "/tmp/staging.db",
+    exists: false,
+  })
   vi.resetModules()
   bridge = await import("@/lib/pyodide/bridges/sqliteBridge")
 })
@@ -90,6 +100,86 @@ async function openShared(dbName = "testdb.db") {
   const db = await main.openDatabase(dbName, false, "no-encryption", 1, false)
   return { main, db }
 }
+
+describe("sqliteBridge staging export", () => {
+  it("clears the previous export before each staging export", async () => {
+    const { main, db } = await openShared()
+    const executeMock = db.execute as ReturnType<typeof vi.fn>
+    const queryMock = db.query as ReturnType<typeof vi.fn>
+    const operations: string[] = []
+    let stagingExists = true
+
+    backupProcessorMocks.deleteFile.mockImplementation(async () => {
+      operations.push("delete")
+      stagingExists = false
+      return { success: true }
+    })
+    backupProcessorMocks.getFilePath.mockImplementation(async () => {
+      operations.push("verify")
+      return { path: "/tmp/staging.db", exists: stagingExists }
+    })
+    executeMock.mockClear()
+    executeMock.mockImplementation(async (statement: string) => {
+      operations.push(statement.startsWith("ATTACH") ? "attach" : "detach")
+      return { changes: { changes: 0 } }
+    })
+    queryMock.mockClear()
+    queryMock.mockImplementation(async () => {
+      operations.push("export")
+      stagingExists = true
+      return { values: [] }
+    })
+
+    await main.exportDatabaseToStaging("EXPORTED_DATA")
+    await main.exportDatabaseToStaging("EXPORTED_DATA")
+
+    expect(operations).toEqual([
+      "delete",
+      "verify",
+      "attach",
+      "export",
+      "detach",
+      "delete",
+      "verify",
+      "attach",
+      "export",
+      "detach",
+    ])
+  })
+
+  it("does not attach when the old staging file remains after cleanup", async () => {
+    const { main, db } = await openShared()
+    const executeMock = db.execute as ReturnType<typeof vi.fn>
+    backupProcessorMocks.getFilePath.mockResolvedValue({
+      path: "/tmp/staging.db",
+      exists: true,
+    })
+
+    await expect(main.exportDatabaseToStaging("EXPORTED_DATA")).rejects.toThrow(
+      "Staging file still exists after cleanup: EXPORTED_DATA",
+    )
+    expect(executeMock).not.toHaveBeenCalled()
+  })
+
+  it("detaches after export fails and preserves the export error", async () => {
+    const { main, db } = await openShared()
+    const executeMock = db.execute as ReturnType<typeof vi.fn>
+    const queryMock = db.query as ReturnType<typeof vi.fn>
+    const exportError = new Error("sqlcipher_export failed")
+
+    executeMock.mockClear()
+    queryMock.mockClear()
+    queryMock.mockRejectedValueOnce(exportError)
+
+    await expect(main.exportDatabaseToStaging("EXPORTED_DATA")).rejects.toBe(
+      exportError,
+    )
+    expect(executeMock.mock.calls.map(([statement]) => statement)).toEqual([
+      "ATTACH DATABASE '/tmp/staging.db' AS plaintext KEY '';",
+      "DETACH DATABASE plaintext;",
+    ])
+  })
+})
 
 describe("sqliteBridge cross-worker transaction-span mutex", () => {
   it("blocks a non-owner read while the owner holds an open span, resumes after COMMIT", async () => {

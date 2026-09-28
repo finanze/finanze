@@ -197,6 +197,12 @@ from infrastructure.repository.db.versions.v0.v10.v0100_6_clear_instrument_negat
 from infrastructure.repository.db.versions.v0.v10.v0100_7_trading212 import (
     V01007Trading212,
 )
+from infrastructure.repository.db.versions.v0.v10.v0101_0_fetch_pointers import (
+    V01010FetchPointers,
+)
+from infrastructure.repository.db.versions.v0.v10.v0101_1_transaction_split_ratio import (
+    V01011TransactionSplitRatio,
+)
 
 versions = [
     V0Genesis(),
@@ -276,4 +282,6 @@ versions = [
     V01005CryptoDefiZerion(),
     V01006ClearInstrumentNegativeCache(),
     V01007Trading212(),
+    V01010FetchPointers(),
+    V01011TransactionSplitRatio(),
 ]

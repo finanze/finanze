@@ -6,6 +6,7 @@ import {
   FileText,
   FileMinus,
   Repeat,
+  GitFork,
   ArrowLeftRight,
   Undo,
   BarChart3,
@@ -207,6 +208,8 @@ export function getIconForProductType(
 export const getIconForTxType = (txType: TxType, size: string = "h-4 w-4") => {
   const iconClass = size
   switch (txType) {
+    case TxType.SPLIT:
+      return <GitFork className={iconClass} />
     case TxType.BUY:
       return <TrendingUp className={iconClass} />
     case TxType.SELL:

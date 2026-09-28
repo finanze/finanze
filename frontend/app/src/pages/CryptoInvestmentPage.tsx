@@ -8,16 +8,13 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { EditDialog } from "@/components/ui/EditDialog"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
+import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
-import {
-  formatCurrency,
-  formatGainLoss,
-  formatNumber,
-  formatPercentage,
-} from "@/lib/formatters"
+import { formatCurrency, formatGainLoss, formatNumber } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { formatChainName, normalizeCryptoChain } from "@/utils/cryptoChains"
 import { copyToClipboard } from "@/lib/clipboard"
@@ -51,8 +48,6 @@ import {
 } from "@/types"
 import {
   ArrowLeft,
-  TrendingUp,
-  TrendingDown,
   Copy,
   Check,
   Wallet,
@@ -1767,12 +1762,16 @@ function CryptoInvestmentContent({
             <div className="text-right">
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    entityGroup.totalValue +
-                      (derivativeValueByEntity.get(entityGroup.entity.id) || 0),
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      entityGroup.totalValue +
+                        (derivativeValueByEntity.get(entityGroup.entity.id) ||
+                          0),
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -2100,38 +2099,27 @@ function CryptoInvestmentContent({
                                         className={`font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
                                       >
                                         <Sensitive>
-                                          {assetView.valueAvailable
-                                            ? formatCurrency(
+                                          {assetView.valueAvailable ? (
+                                            <FormattedMarketValue
+                                              value={formatCurrency(
                                                 assetView.value,
                                                 locale,
                                                 settings.general
                                                   .defaultCurrency,
-                                              )
-                                            : t.common.notAvailable}
+                                              )}
+                                              locale={locale}
+                                            />
+                                          ) : (
+                                            t.common.notAvailable
+                                          )}
                                         </Sensitive>
                                       </p>
                                       {assetView.roi !== null && (
-                                        <div
-                                          className={`flex items-center gap-1 text-sm ${
-                                            assetView.roi >= 0
-                                              ? "text-green-600 dark:text-green-400"
-                                              : "text-red-600 dark:text-red-400"
-                                          }`}
-                                        >
-                                          <Sensitive>
-                                            {assetView.roi >= 0 ? (
-                                              <TrendingUp className="h-3 w-3" />
-                                            ) : (
-                                              <TrendingDown className="h-3 w-3" />
-                                            )}
-                                            <span>
-                                              {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                                Math.abs(assetView.roi),
-                                                locale,
-                                              )}`}
-                                            </span>
-                                          </Sensitive>
-                                        </div>
+                                        <InvestmentPerformanceIndicator
+                                          value={assetView.roi}
+                                          locale={locale}
+                                          className="justify-end"
+                                        />
                                       )}
                                     </div>
                                   </div>
@@ -2608,37 +2596,26 @@ function CryptoInvestmentContent({
                               className={`text-lg font-semibold ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
                             >
                               <Sensitive>
-                                {assetView.valueAvailable
-                                  ? formatCurrency(
+                                {assetView.valueAvailable ? (
+                                  <FormattedMarketValue
+                                    value={formatCurrency(
                                       assetView.value,
                                       locale,
                                       settings.general.defaultCurrency,
-                                    )
-                                  : t.common.notAvailable}
+                                    )}
+                                    locale={locale}
+                                  />
+                                ) : (
+                                  t.common.notAvailable
+                                )}
                               </Sensitive>
                             </p>
                             {assetView.roi !== null && (
-                              <div
-                                className={`flex items-center justify-end gap-1 text-sm ${
-                                  assetView.roi >= 0
-                                    ? "text-green-600 dark:text-green-400"
-                                    : "text-red-600 dark:text-red-400"
-                                }`}
-                              >
-                                <Sensitive>
-                                  {assetView.roi >= 0 ? (
-                                    <TrendingUp className="h-3 w-3" />
-                                  ) : (
-                                    <TrendingDown className="h-3 w-3" />
-                                  )}
-                                  <span>
-                                    {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                      Math.abs(assetView.roi),
-                                      locale,
-                                    )}`}
-                                  </span>
-                                </Sensitive>
-                              </div>
+                              <InvestmentPerformanceIndicator
+                                value={assetView.roi}
+                                locale={locale}
+                                className="justify-end"
+                              />
                             )}
                           </div>
                         </div>
@@ -2900,11 +2877,14 @@ function CryptoInvestmentContent({
             <div className="text-right">
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    networkGroup.totalValue,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      networkGroup.totalValue,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -3074,37 +3054,26 @@ function CryptoInvestmentContent({
                               className={`text-lg font-semibold ${assetSummary.totalValue < 0 ? "text-red-600 dark:text-red-400" : ""}`}
                             >
                               <Sensitive>
-                                {assetSummary.valueAvailable
-                                  ? formatCurrency(
+                                {assetSummary.valueAvailable ? (
+                                  <FormattedMarketValue
+                                    value={formatCurrency(
                                       assetSummary.totalValue,
                                       locale,
                                       settings.general.defaultCurrency,
-                                    )
-                                  : t.common.notAvailable}
+                                    )}
+                                    locale={locale}
+                                  />
+                                ) : (
+                                  t.common.notAvailable
+                                )}
                               </Sensitive>
                             </p>
                             {assetSummary.roi !== null && (
-                              <div
-                                className={`flex items-center gap-1 text-sm ${
-                                  assetSummary.roi >= 0
-                                    ? "text-green-600 dark:text-green-400"
-                                    : "text-red-600 dark:text-red-400"
-                                }`}
-                              >
-                                <Sensitive>
-                                  {assetSummary.roi >= 0 ? (
-                                    <TrendingUp className="h-3 w-3" />
-                                  ) : (
-                                    <TrendingDown className="h-3 w-3" />
-                                  )}
-                                  <span>
-                                    {`${assetSummary.roi >= 0 ? "+" : "-"}${formatPercentage(
-                                      Math.abs(assetSummary.roi),
-                                      locale,
-                                    )}`}
-                                  </span>
-                                </Sensitive>
-                              </div>
+                              <InvestmentPerformanceIndicator
+                                value={assetSummary.roi}
+                                locale={locale}
+                                className="justify-end"
+                              />
                             )}
                           </div>
                         </div>
@@ -3168,6 +3137,7 @@ function CryptoInvestmentContent({
         filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         onEntitiesChange={setSelectedEntities}
+        hideLabelOnMobile
         walletOptions={walletFilterOptions}
         selectedWallets={selectedWalletFilters}
         onWalletsChange={setSelectedWalletFilters}
@@ -3511,9 +3481,9 @@ function CryptoInvestmentContent({
                         <p
                           className={`text-2xl font-bold ${
                             convertedMv < 0
-                              ? "text-red-600 dark:text-red-400"
+                              ? "text-red-500"
                               : convertedMv > 0
-                                ? "text-green-600 dark:text-green-400"
+                                ? "text-green-500"
                                 : ""
                           }`}
                         >
@@ -3591,9 +3561,9 @@ function CryptoInvestmentContent({
                               <span
                                 className={`font-medium text-right ${
                                   convertedPnl < 0
-                                    ? "text-red-600 dark:text-red-400"
+                                    ? "text-red-500"
                                     : convertedPnl > 0
-                                      ? "text-green-600 dark:text-green-400"
+                                      ? "text-green-500"
                                       : ""
                                 }`}
                               >

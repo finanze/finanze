@@ -24,3 +24,22 @@ class LastFetchesQueries(str, Enum):
         INSERT OR REPLACE INTO last_fetches (id, entity_id, feature, date, entity_account_id)
         VALUES (?, ?, ?, ?, ?)
     """
+
+
+class FetchPointersQueries(str, Enum):
+    GET_BY_ENTITY_ACCOUNT_ID = """
+        SELECT entity_id, entity_account_id, key, threshold
+        FROM fetch_pointers
+        WHERE entity_account_id = ?
+    """
+
+    UPSERT = """
+        INSERT OR REPLACE INTO fetch_pointers
+            (entity_id, entity_account_id, key, threshold)
+        VALUES (?, ?, ?, ?)
+    """
+
+    DELETE_BY_ENTITY_ACCOUNT_ID = """
+        DELETE FROM fetch_pointers
+        WHERE entity_account_id = ?
+    """

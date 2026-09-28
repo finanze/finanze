@@ -46,6 +46,7 @@ export function SourceBadge({
       )}
       title={title}
       onClick={onClick}
+      data-source-badge={onClick ? "true" : undefined}
       {...(onClick && {
         role: "button" as const,
         tabIndex: 0,

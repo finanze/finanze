@@ -20,6 +20,7 @@ class TestDisconnectEntityExecute:
         transaction_port = AsyncMock()
         auto_contributions_port = AsyncMock()
         historic_port = AsyncMock()
+        fetch_pointers_port = AsyncMock()
 
         use_case = DisconnectEntityImpl(
             credentials_port=credentials_port,
@@ -29,6 +30,7 @@ class TestDisconnectEntityExecute:
             transaction_port=transaction_port,
             auto_contributions_port=auto_contributions_port,
             historic_port=historic_port,
+            fetch_pointers_port=fetch_pointers_port,
         )
 
         return (
@@ -127,6 +129,12 @@ class TestDisconnectEntityExecute:
             entity_account_id
         )
         historic_port.delete_by_entity_account_id.assert_called_once_with(
+            entity_account_id
+        )
+        use_case._fetch_pointers_port.delete_by_entity_account_id.assert_awaited_once_with(
+            entity_account_id
+        )
+        use_case._fetch_pointers_port.delete_by_entity_account_id.assert_awaited_once_with(
             entity_account_id
         )
 

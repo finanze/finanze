@@ -107,6 +107,9 @@ class DeferredComponents:
         from infrastructure.repository.fetch.last_fetches_repository import (
             LastFetchesRepository,
         )
+        from infrastructure.repository.fetch.fetch_pointers_repository import (
+            FetchPointersRepository,
+        )
         from infrastructure.repository.position.manual_position_data_repository import (
             ManualPositionDataSQLRepository,
         )
@@ -237,6 +240,7 @@ class DeferredComponents:
         self.virtual_repo = VirtualImportRepository(client=db_client)
         self.wallet_repo = CryptoWalletRepository(client=db_client)
         self.last_fetches_repo = LastFetchesRepository(client=db_client)
+        self.fetch_pointers_repo = FetchPointersRepository(client=db_client)
         self.ext_int_repo = ExternalIntegrationRepository(client=db_client)
         self.period_repo = PeriodicFlowRepository(client=db_client)
         self.pending_repo = PendingFlowRepository(client=db_client)

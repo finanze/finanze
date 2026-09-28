@@ -9,7 +9,6 @@ import {
   ExternalLink,
   History,
   Link2,
-  TrendingDown,
   TrendingUp,
   Vote,
 } from "lucide-react"
@@ -25,6 +24,8 @@ import { EntityBadge } from "@/components/ui/EntityBadge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { Sensitive } from "@/components/ui/Sensitive"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
+import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
 import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -495,9 +496,7 @@ function MarketForecastDetail({
                 <div
                   className={cn(
                     "mt-0.5 font-medium",
-                    pnl >= 0
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400",
+                    pnl >= 0 ? "text-green-500" : "text-red-500",
                   )}
                 >
                   <Sensitive>
@@ -765,10 +764,12 @@ function MarketForecastPositionCard({
                     (formattedShares || formattedMarkPrice) && (
                       <span className="inline-flex items-center gap-1">
                         {formattedShares && (
-                          <Sensitive>{formattedShares}</Sensitive>
+                          <span className="font-semibold">
+                            <Sensitive>{formattedShares}</Sensitive>
+                          </span>
                         )}
                         {formattedShares && formattedMarkPrice && (
-                          <span>×</span>
+                          <span className="text-muted-foreground/50">×</span>
                         )}
                         {formattedMarkPrice && (
                           <span>{formattedMarkPrice}</span>
@@ -800,7 +801,12 @@ function MarketForecastPositionCard({
               {formattedOriginalValue && (
                 <Sensitive>
                   <div className="text-base font-semibold">
-                    <div>{formattedOriginalValue}</div>
+                    <div>
+                      <FormattedMarketValue
+                        value={formattedOriginalValue}
+                        locale={locale}
+                      />
+                    </div>
                     {formattedConvertedValue && (
                       <div className="text-xs font-normal text-muted-foreground">
                         {formattedConvertedValue}
@@ -810,21 +816,15 @@ function MarketForecastPositionCard({
                 </Sensitive>
               )}
 
-              <div
-                className={cn(
-                  "inline-flex items-center gap-1 md:justify-end",
-                  pnl >= 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400",
-                )}
-              >
-                {pnl >= 0 ? (
-                  <TrendingUp className="h-4 w-4" />
-                ) : (
-                  <TrendingDown className="h-4 w-4" />
-                )}
-                <span>{pct != null ? formatPercentage(pct, locale) : "-"}</span>
-              </div>
+              {pct != null ? (
+                <InvestmentPerformanceIndicator
+                  value={pct}
+                  locale={locale}
+                  className="md:justify-end"
+                />
+              ) : (
+                <span className="text-muted-foreground">-</span>
+              )}
 
               {positionUrl && (
                 <div className="hidden w-full lg:block lg:w-auto lg:text-right">
@@ -1457,6 +1457,7 @@ function MarketForecastInvestmentContent() {
           filteredEntities={polymarketEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          hideLabelOnMobile
           walletOptions={accountOptions}
           selectedWallets={selectedAccounts}
           onWalletsChange={setSelectedAccounts}
@@ -1518,8 +1519,8 @@ function MarketForecastInvestmentContent() {
                       summary.openPnl == null
                         ? "text-muted-foreground"
                         : summary.openPnl >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400",
+                          ? "text-green-500"
+                          : "text-red-500",
                     )}
                   >
                     {summary.openPnl != null
@@ -1719,8 +1720,8 @@ function MarketForecastInvestmentContent() {
                         summary.closedPnl == null
                         ? "text-muted-foreground"
                         : summary.closedPnl >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400",
+                          ? "text-green-500"
+                          : "text-red-500",
                     )}
                   >
                     {marketForecastClosedPositionsData &&

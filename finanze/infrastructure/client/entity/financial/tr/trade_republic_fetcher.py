@@ -1,7 +1,6 @@
 import logging
 import re
 from datetime import datetime
-from typing import Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -36,6 +35,7 @@ from domain.global_position import (
 )
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import TRADE_REPUBLIC
+from domain.status import FFStatus
 from domain.transactions import (
     AccountTx,
     CryptoCurrencyTx,
@@ -47,12 +47,11 @@ from domain.transactions import (
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
-from domain.status import FFStatus
 
 FALLBACK_LOCALE = "en"
 
 
-def parse_sub_section_float(section: dict, fallback_locale: str) -> Optional[Dezimal]:
+def parse_sub_section_float(section: dict, fallback_locale: str) -> Dezimal | None:
     if not section:
         return None
 
@@ -137,7 +136,7 @@ def get_section(d, title):
     return None
 
 
-def _as_dezimal(value) -> Optional[Dezimal]:
+def _as_dezimal(value) -> Dezimal | None:
     if value is None or value == "":
         return None
     if isinstance(value, dict):
@@ -218,7 +217,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def _map_private_equity(
         self, position: dict, currency: str
-    ) -> Optional[FundDetail]:
+    ) -> FundDetail | None:
         isin = position.get("instrumentId")
         if not isin:
             self._log.warning("No ISIN found for private equity instrument")
@@ -266,7 +265,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def _instrument_mapper(
         self, instrument: dict, currency: str
-    ) -> Optional[StockDetail | FundDetail | CryptoCurrencyPosition]:
+    ) -> StockDetail | FundDetail | CryptoCurrencyPosition | None:
         isin = instrument.get("instrumentId") or instrument.get("isin")
         instrument_type = (instrument.get("instrumentType") or "").upper()
         if instrument_type in self.UNSUPPORTED_INSTRUMENT_TYPES:
@@ -479,17 +478,18 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
 
         investments = []
-        for position in raw_portfolio.portfolio or []:
-            identifier = position.get("instrumentId") or position.get("isin")
-            investment = await self._safe_await(
-                self._instrument_mapper(position, currency),
-                "position",
-                identifier,
-            )
-            if investment:
-                investments.append(investment)
+        seen_isins: set[str] = set()
 
+        # Prioritize the by_type (secAccNo-scoped) feed over the unscoped one:
+        # Portfolio.portfolio_loop() (used by get_portfolio()) can silently drop
+        # positions whose instrument has no exchangeIds - it never subscribes to a
+        # ticker for them, so they never get a netValue/price and get filtered out
+        # by its own sanitize step. _instrument_mapper (used for the by_type feed)
+        # falls back to initial_investment in that same situation instead of
+        # dropping the position, so it's the more reliable source when both feeds
+        # report the same ISIN. See #194 review discussion.
         securities_account_number = user_info.get("securitiesAccountNumber")
+        securities_portfolio = None
         if securities_account_number:
             try:
                 securities_portfolio = await self._client.get_portfolio_by_type(
@@ -512,7 +512,24 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                     )
                     if investment:
                         investments.append(investment)
+                        if identifier:
+                            seen_isins.add(identifier)
 
+        for position in raw_portfolio.portfolio or []:
+            identifier = position.get("instrumentId") or position.get("isin")
+            if identifier and identifier in seen_isins:
+                continue
+            investment = await self._safe_await(
+                self._instrument_mapper(position, currency),
+                "position",
+                identifier,
+            )
+            if investment:
+                investments.append(investment)
+                if identifier:
+                    seen_isins.add(identifier)
+
+        if securities_account_number:
             try:
                 pm_status = await self._client.get_private_markets_portfolio_status()
             except Exception:
@@ -654,7 +671,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    def _parse_tx_date(self, raw_tx: dict) -> Optional[datetime]:
+    def _parse_tx_date(self, raw_tx: dict) -> datetime | None:
         timestamp = raw_tx.get("timestamp")
         if not timestamp:
             self._log.warning(
@@ -676,7 +693,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def _map_saving_plan(
         self, saving_plan: dict, currency: str
-    ) -> Optional[PeriodicContribution]:
+    ) -> PeriodicContribution | None:
         raw_amount = saving_plan.get("amount")
         isin = saving_plan.get("instrumentId")
         raw_saving_interval = saving_plan.get("interval")
@@ -781,7 +798,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def map_investment_tx(
         self, raw_tx: dict, date: datetime
-    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx | list[StockTx | FundTx]]:
+    ) -> StockTx | FundTx | CryptoCurrencyTx | list[StockTx | FundTx] | None:
         name = (raw_tx.get("title") or "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().lower()
         amount_obj = raw_tx.get("amount") or {}
@@ -1008,7 +1025,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         currency: str,
         date: datetime,
         detail_sections: list[dict],
-    ) -> Optional[list[StockTx | FundTx] | StockTx | FundTx]:
+    ) -> list[StockTx | FundTx] | StockTx | FundTx | None:
         isin = self._get_tx_isin(raw_tx, detail_sections)
         if not isin:
             self._log.warning(
@@ -1131,7 +1148,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         return txs
 
     @staticmethod
-    def _extract_isin_from_asset(asset: str | dict) -> Optional[str]:
+    def _extract_isin_from_asset(asset: str | dict) -> str | None:
         if isinstance(asset, dict):
             asset = asset.get("asset")
         if not asset:
@@ -1141,7 +1158,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         return isin or None
 
     @classmethod
-    def _get_tx_isin(cls, raw_tx, sections: list[dict]) -> Optional[str]:
+    def _get_tx_isin(cls, raw_tx, sections: list[dict]) -> str | None:
         isin = cls._extract_isin_from_asset(raw_tx.get("icon", ""))
         isin2 = None
         for section in sections:
@@ -1157,7 +1174,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         return isin2 if isin2 else isin
 
-    def map_account_tx(self, raw_tx: dict, date: datetime) -> Optional[AccountTx]:
+    def map_account_tx(self, raw_tx: dict, date: datetime) -> AccountTx | None:
         title = (raw_tx.get("title") or "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().replace("\xa0", "")
         amount_obj = raw_tx.get("amount") or {}

@@ -26,6 +26,7 @@ import type {
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 import { cn } from "@/lib/utils"
@@ -240,6 +241,7 @@ function BankingManualControls({
   refreshEntity,
   fetchEntities,
   refreshData,
+  isQuickMode,
   className,
 }: {
   controllers: ManualSectionController[]
@@ -252,6 +254,7 @@ function BankingManualControls({
   refreshEntity: (entityId: string) => Promise<void>
   fetchEntities: () => Promise<void>
   refreshData: () => Promise<void>
+  isQuickMode: boolean
   className?: string
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -496,58 +499,77 @@ function BankingManualControls({
     t,
   ])
 
+  if (!isAnyEditMode) {
+    return null
+  }
+
+  if (isQuickMode) {
+    return (
+      <div className={cn("flex justify-end", className)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCancel}
+          disabled={isAnySaving}
+          className="h-7 px-2 text-xs"
+        >
+          <Check className="h-3 w-3" />
+          <span className="hidden sm:inline ml-1">{t.common.done}</span>
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {isAnyEditMode && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="relative flex-shrink-0">
-              <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
-              {t.common.editing}
-            </span>
-            {unsavedControllers.length > 0 && (
-              <>
-                <span className="text-blue-300 dark:text-blue-600">·</span>
-                <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
-                  {unsavedControllers[0].translate("management.unsavedChanges")}
-                </span>
-                <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-                </span>
-              </>
-            )}
+      <div className="flex items-center gap-3 rounded-lg border border-blue-400/50 bg-blue-50 px-3 py-2 dark:border-blue-500/40 dark:bg-blue-950/40">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="relative flex-shrink-0">
+            <Pencil className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCancel}
-              disabled={isAnySaving}
-              className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
-            >
-              <X className="h-3 w-3" />
-              <span className="hidden sm:inline ml-1">{t.common.cancel}</span>
-            </Button>
-            <Button
-              data-testid="save-positions"
-              size="sm"
-              onClick={handleSave}
-              disabled={isAnySaving || !hasAnyChanges}
-              className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
-            >
-              {isAnySaving ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Save className="h-3 w-3" />
-              )}
-              <span className="hidden sm:inline ml-1">{t.common.save}</span>
-            </Button>
-          </div>
+          <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+            {t.common.editing}
+          </span>
+          {unsavedControllers.length > 0 && (
+            <>
+              <span className="text-blue-300 dark:text-blue-600">·</span>
+              <span className="text-xs text-blue-600/80 dark:text-blue-400/80 truncate hidden sm:inline">
+                {unsavedControllers[0].translate("management.unsavedChanges")}
+              </span>
+              <span className="relative flex h-2 w-2 flex-shrink-0 sm:hidden">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+              </span>
+            </>
+          )}
         </div>
-      )}
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            disabled={isAnySaving}
+            className="h-7 px-2 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white"
+          >
+            <X className="h-3 w-3" />
+            <span className="hidden sm:inline ml-1">{t.common.cancel}</span>
+          </Button>
+          <Button
+            data-testid="save-positions"
+            size="sm"
+            onClick={handleSave}
+            disabled={isAnySaving || !hasAnyChanges}
+            className="h-7 px-2.5 text-xs bg-white text-foreground hover:bg-gray-100 dark:bg-white/90 dark:text-gray-900 dark:hover:bg-white disabled:opacity-40"
+          >
+            {isAnySaving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Save className="h-3 w-3" />
+            )}
+            <span className="hidden sm:inline ml-1">{t.common.save}</span>
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1060,6 +1082,7 @@ export default function BankingPage() {
               refreshEntity={refreshEntity}
               fetchEntities={fetchEntities}
               refreshData={refreshData}
+              isQuickMode={settings.general.editMode === "QUICK"}
             />
           )}
           <InvestmentFilters
@@ -1082,11 +1105,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalAccountBalance,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalAccountBalance,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               {accountsSummary.weightedInterest > 0 && (
@@ -1114,11 +1140,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalCardUsed,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalCardUsed,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -1138,11 +1167,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalLoanDebt,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalLoanDebt,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               {combinedWeightedInterest > 0 && (
@@ -1167,11 +1199,14 @@ export default function BankingPage() {
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
-                  {formatCurrency(
-                    totalMonthlyPayments,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )}
+                  <FormattedMarketValue
+                    value={formatCurrency(
+                      totalMonthlyPayments,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                    locale={locale}
+                  />
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -1901,11 +1936,14 @@ function BankAccountsSection({
                               <div className="space-y-1">
                                 <div className="text-2xl font-bold">
                                   <Sensitive>
-                                    {formatCurrency(
-                                      position.convertedTotal,
-                                      locale,
-                                      defaultCurrency,
-                                    )}
+                                    <FormattedMarketValue
+                                      value={formatCurrency(
+                                        position.convertedTotal,
+                                        locale,
+                                        defaultCurrency,
+                                      )}
+                                      locale={locale}
+                                    />
                                   </Sensitive>
                                 </div>
                                 <div className="text-xs text-muted-foreground">

@@ -6,6 +6,7 @@ from domain.gains_timeline import (
     AssetSnapshot,
     GainsAssetFilter,
     GainsFlow,
+    GainsSplit,
     GainsSettlement,
 )
 
@@ -24,6 +25,12 @@ class GainsTimelinePort(metaclass=abc.ABCMeta):
     async def get_flows(
         self, assets: list[GainsAssetFilter], entity_ids: list[str]
     ) -> list[GainsFlow]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_split_ratios(
+        self, assets: list[GainsAssetFilter]
+    ) -> list[GainsSplit]:
         raise NotImplementedError
 
     @abc.abstractmethod

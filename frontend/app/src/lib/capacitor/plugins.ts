@@ -5,6 +5,7 @@ const NativeCookies = registerPlugin("NativeCookies")
 const FileTransfer = registerPlugin("FileTransfer")
 
 interface BackupProcessorPlugin {
+  deleteFile(options: { fileName: string }): Promise<{ success: boolean }>
   getFilePath(options: {
     fileName: string
   }): Promise<{ path: string; exists: boolean }>

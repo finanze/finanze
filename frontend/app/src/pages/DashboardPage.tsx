@@ -14,6 +14,7 @@ import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { useSkipMountAnimation } from "@/lib/animations"
 import { isNativeMobile } from "@/lib/platform"
 import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
+import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
@@ -1423,15 +1424,18 @@ export default function DashboardPage() {
                 )
                 const amountEl = (
                   <p
-                    className={`font-mono text-sm font-semibold flex-shrink-0 text-right ${amountColorClass}`}
+                    className={`text-sm font-semibold flex-shrink-0 text-right ${amountColorClass}`}
                   >
                     <Sensitive>
                       {amountPrefix}
-                      {formatCurrency(
-                        Math.abs(item.convertedAmount),
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          Math.abs(item.convertedAmount),
+                          locale,
+                          settings.general.defaultCurrency,
+                        )}
+                        locale={locale}
+                      />
                     </Sensitive>
                   </p>
                 )
@@ -2006,7 +2010,10 @@ export default function DashboardPage() {
                                   <div className="flex justify-between items-start mb-2">
                                     <p className="text-base font-semibold">
                                       <Sensitive>
-                                        {project.formattedValue}
+                                        <FormattedMarketValue
+                                          value={project.formattedValue}
+                                          locale={locale}
+                                        />
                                       </Sensitive>
                                     </p>
                                     {(() => {
@@ -3204,7 +3211,10 @@ export default function DashboardPage() {
                                           >
                                             <Sensitive>
                                               {tx.displaySign}
-                                              {tx.formattedAmount}
+                                              <FormattedMarketValue
+                                                value={tx.formattedAmount}
+                                                locale={locale}
+                                              />
                                             </Sensitive>
                                           </p>
                                         </div>
