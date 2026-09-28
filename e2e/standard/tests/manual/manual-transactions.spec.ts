@@ -577,6 +577,6 @@ test.describe('Manual Transactions', () => {
         const splitRow = page.getByText(name).first().locator('../..')
         await expect(splitRow).toContainText(/\+€1/)
         await expandTransaction(page, name)
-        await expect(splitRow).toContainText(/Ratio:\s*0[.,]2/)
+        await expect(splitRow).toContainText(/Split ratio:\s*0[.,]2/)
     })
 })
