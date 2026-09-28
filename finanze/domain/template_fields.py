@@ -532,6 +532,9 @@ NET_AMOUNT = TemplateField(
 )
 
 PRICE = TemplateField(key="price", field="price", type=TemplateFieldType.DECIMAL)
+SPLIT_RATIO = TemplateField(
+    key="split_ratio", field="split_ratio", type=TemplateFieldType.DECIMAL
+)
 ORDER_DATE = TemplateField(
     key="order_date",
     field="order_date",
@@ -587,6 +590,7 @@ STOCK_ETF_TX_FIELDS = FieldGroup(
         MARKET,
         SHARES.require(),
         PRICE.require(),
+        SPLIT_RATIO,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
         ORDER_DATE,
@@ -625,6 +629,7 @@ FUND_TX_FIELDS = FieldGroup(
         MARKET,
         SHARES.require(),
         PRICE.require(),
+        SPLIT_RATIO,
         FEES.default(Dezimal(0)),
         RETENTIONS.default(Dezimal(0)),
         ORDER_DATE,

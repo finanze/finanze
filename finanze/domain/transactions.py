@@ -21,7 +21,8 @@ class TxType(str, Enum):
     DIVIDEND = "DIVIDEND"
     RIGHT_ISSUE = "RIGHT_ISSUE"
     RIGHT_SELL = "RIGHT_SELL"
-    SUBSCRIPTION = "SUBSCRIPTION"
+    SUBSCRIPTION = "SUBSCRIPTION"  # Right exercise
+    SPLIT = "SPLIT"
     SWAP_FROM = "SWAP_FROM"
     SWAP_TO = "SWAP_TO"
 
@@ -68,7 +69,7 @@ class AccountTx(BaseTx):
 
 @dataclass(kw_only=True)
 class StockTx(BaseInvestmentTx):
-    shares: Dezimal
+    shares: Optional[Dezimal] = None
     price: Dezimal
     fees: Dezimal
     net_amount: Optional[Dezimal] = None
@@ -79,6 +80,7 @@ class StockTx(BaseInvestmentTx):
     order_date: Optional[datetime] = None
     linked_tx: Optional[str] = None
     equity_type: Optional[EquityType] = None
+    split_ratio: Optional[Dezimal] = None
 
 
 @dataclass(kw_only=True)
@@ -107,7 +109,7 @@ class MarketForecastTx(BaseInvestmentTx):
 
 @dataclass(kw_only=True)
 class FundTx(BaseInvestmentTx):
-    shares: Dezimal
+    shares: Optional[Dezimal] = None
     price: Dezimal
     fees: Dezimal
     net_amount: Optional[Dezimal] = None
@@ -116,6 +118,7 @@ class FundTx(BaseInvestmentTx):
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
     fund_type: Optional[FundType] = None
+    split_ratio: Optional[Dezimal] = None
 
 
 @dataclass(kw_only=True)

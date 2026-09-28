@@ -21,6 +21,7 @@ from domain.gains_timeline import (
     GainsMethod,
     GainsNotApplicableReason,
     GainsQuality,
+    GainsSplit,
     GainsSettlement,
     GainsTimelineQuery,
     GainsWarning,
@@ -3007,7 +3008,7 @@ class TestGetGainsTimelineReplay:
         history_storage.is_splits_checked.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_replay_scales_quantity_for_post_acquisition_split(self):
+    async def test_replay_prefers_manual_ratio_over_provider_split(self):
         from domain.instrument_history import InstrumentPricePoint, InstrumentSplit
 
         buy_day = date(2025, 2, 13)
@@ -3027,7 +3028,18 @@ class TestGetGainsTimelineReplay:
                 quantity=Dezimal(5),
                 transaction_type=TxType.BUY,
                 name="Aena",
-            )
+            ),
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.STOCK_ETF,
+                asset_key="ES0105046009",
+                moment=datetime(split_day.year, split_day.month, split_day.day, 12),
+                amount=Dezimal(0),
+                currency="EUR",
+                split_ratio=Dezimal(10),
+                transaction_type=TxType.SPLIT,
+                name="Aena",
+            ),
         ]
         port.get_settlements.return_value = []
 
@@ -3052,7 +3064,7 @@ class TestGetGainsTimelineReplay:
         history_storage.is_splits_checked.return_value = False
         history_provider = AsyncMock()
         history_provider.get_splits.return_value = [
-            InstrumentSplit(date=split_day, ratio=Dezimal(10))
+            InstrumentSplit(date=split_day, ratio=Dezimal(5))
         ]
         use_case = GetGainsTimelineImpl(
             port, exchange, entity, metal, history_provider, history_storage
@@ -3071,6 +3083,207 @@ class TestGetGainsTimelineReplay:
         assert by_day[buy_day].value == Dezimal("1101.00")
         assert by_day[buy_day].gain == Dezimal("1101.00") - Dezimal(1094)
         history_provider.get_splits.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_manual_split_does_not_infer_quantity_residual_as_contribution(self):
+        before_split = date(2025, 6, 18)
+        split_day = date(2025, 6, 19)
+        asset_key = "ES0105046009"
+        snapshots = [
+            AssetSnapshot(
+                holder="wallet",
+                moment=datetime(
+                    before_split.year, before_split.month, before_split.day, 12
+                ),
+                valuations=[
+                    AssetValuation(
+                        product_type=ProductType.STOCK_ETF,
+                        asset_key=asset_key,
+                        currency="EUR",
+                        market_value=Dezimal(1000),
+                        cost_basis=Dezimal(1000),
+                        quantity=Dezimal(10),
+                    )
+                ],
+            ),
+            AssetSnapshot(
+                holder="wallet",
+                moment=datetime(split_day.year, split_day.month, split_day.day, 12),
+                valuations=[
+                    AssetValuation(
+                        product_type=ProductType.STOCK_ETF,
+                        asset_key=asset_key,
+                        currency="EUR",
+                        market_value=Dezimal(1000),
+                        cost_basis=Dezimal(1000),
+                        quantity=Dezimal(20),
+                    )
+                ],
+            ),
+        ]
+        split = GainsFlow(
+            holder="wallet",
+            product_type=ProductType.STOCK_ETF,
+            asset_key=asset_key,
+            moment=datetime(split_day.year, split_day.month, split_day.day, 12),
+            amount=Dezimal(0),
+            currency="EUR",
+            transaction_type=TxType.SPLIT,
+            split_ratio=Dezimal(2),
+        )
+        use_case, _ = _build(snapshots, [split])
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+                from_date=before_split,
+                to_date=split_day,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert (
+            by_day[split_day].net_contributions
+            == by_day[before_split].net_contributions
+        )
+        assert by_day[split_day].gain == by_day[before_split].gain
+
+    @pytest.mark.asyncio
+    async def test_instrument_split_ratio_reconciles_filtered_holder_snapshots(self):
+        before_split = date(2025, 6, 18)
+        split_day = date(2025, 6, 19)
+        asset_key = "ES0105046009"
+        snapshots = [
+            AssetSnapshot(
+                holder="selected-wallet",
+                moment=datetime(
+                    before_split.year, before_split.month, before_split.day, 12
+                ),
+                valuations=[
+                    AssetValuation(
+                        product_type=ProductType.STOCK_ETF,
+                        asset_key=asset_key,
+                        currency="EUR",
+                        market_value=Dezimal(1000),
+                        cost_basis=Dezimal(1000),
+                        quantity=Dezimal(10),
+                    )
+                ],
+            ),
+            AssetSnapshot(
+                holder="selected-wallet",
+                moment=datetime(split_day.year, split_day.month, split_day.day, 12),
+                valuations=[
+                    AssetValuation(
+                        product_type=ProductType.STOCK_ETF,
+                        asset_key=asset_key,
+                        currency="EUR",
+                        market_value=Dezimal(1000),
+                        cost_basis=Dezimal(1000),
+                        quantity=Dezimal(20),
+                    )
+                ],
+            ),
+        ]
+        use_case, port = _build(snapshots)
+        port.get_split_ratios.return_value = [
+            GainsSplit(
+                product_type=ProductType.STOCK_ETF,
+                asset_key=asset_key,
+                day=split_day,
+                ratio=Dezimal(2),
+            )
+        ]
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+                from_date=before_split,
+                to_date=split_day,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert (
+            by_day[split_day].net_contributions
+            == by_day[before_split].net_contributions
+        )
+        assert by_day[split_day].gain == by_day[before_split].gain
+
+    @pytest.mark.asyncio
+    async def test_replay_books_split_cash_in_lieu_and_releases_basis(self):
+        from domain.instrument_history import InstrumentPricePoint
+
+        buy_day = date(2025, 2, 13)
+        split_day = date(2025, 2, 14)
+        asset_key = "ES0105046009"
+        port = AsyncMock(spec=GainsTimelinePort)
+        port.get_data_version.return_value = "1"
+        port.get_asset_snapshots.return_value = []
+        port.get_flows.return_value = [
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=asset_key,
+                moment=datetime(buy_day.year, buy_day.month, buy_day.day, 12),
+                amount=Dezimal(1000),
+                currency="EUR",
+                quantity=Dezimal(10),
+                transaction_type=TxType.BUY,
+            ),
+            GainsFlow(
+                holder="wallet",
+                product_type=ProductType.STOCK_ETF,
+                asset_key=asset_key,
+                moment=datetime(split_day.year, split_day.month, split_day.day, 12),
+                amount=Dezimal(25),
+                currency="EUR",
+                price=Dezimal(50),
+                split_ratio=Dezimal(2),
+                transaction_type=TxType.SPLIT,
+            ),
+        ]
+        port.get_settlements.return_value = []
+
+        exchange = AsyncMock()
+        exchange.get.return_value = {}
+        entity = AsyncMock()
+        entity.get_disabled_entities.return_value = []
+        entity.get_all.return_value = []
+        metal = AsyncMock()
+        metal.get_partial_historic_rates.return_value = None
+
+        history_storage = AsyncMock()
+        history_storage.is_no_result.return_value = False
+        history_storage.get_history.return_value = [
+            InstrumentPricePoint(date=buy_day, price=Dezimal(50), currency="EUR"),
+            InstrumentPricePoint(date=split_day, price=Dezimal(50), currency="EUR"),
+        ]
+        history_storage.get_covered_range.return_value = (buy_day, split_day)
+        history_storage.get_resolved_symbol.return_value = ("TEST", "test")
+        history_storage.is_splits_checked.return_value = False
+        history_provider = AsyncMock()
+        history_provider.get_splits.return_value = []
+        use_case = GetGainsTimelineImpl(
+            port, exchange, entity, metal, history_provider, history_storage
+        )
+
+        result = await use_case.execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[uuid4()],
+                from_date=buy_day,
+                to_date=split_day,
+            )
+        )
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert by_day[split_day].value == Dezimal(975)
+        assert by_day[split_day].cost_basis == Dezimal(975)
+        assert by_day[split_day].net_contributions == Dezimal(975)
+        assert by_day[split_day].gain == Dezimal(0)
 
     @pytest.mark.asyncio
     async def test_replay_normalizes_mixed_pre_post_split_buys(self):

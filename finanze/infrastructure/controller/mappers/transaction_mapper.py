@@ -51,44 +51,106 @@ def _require(body: dict, product_label: str, required: list[str]):
         raise ValueError(f"Missing fields for {product_label}: {', '.join(missing)}")
 
 
+def _split_decimal(body: dict, field: str, default: Optional[str] = None):
+    value = body.get(field)
+    if value in (None, ""):
+        return Dezimal(default) if default is not None else None
+    try:
+        return Dezimal(value)
+    except Exception as e:
+        raise ValueError(f"Invalid {field}: {e}") from e
+
+
+def _split_fields(body: dict, base_kwargs: dict) -> dict:
+    _require(body, "SPLIT", ["split_ratio"])
+    if base_kwargs["amount"] < 0:
+        raise ValueError("SPLIT amount cannot be negative")
+
+    ratio = _split_decimal(body, "split_ratio")
+    if not ratio.val.is_finite() or ratio <= 0:
+        raise ValueError("SPLIT ratio must be greater than zero")
+
+    price = _split_decimal(body, "price", "0")
+    fees = _split_decimal(body, "fees", "0")
+    retentions = _split_decimal(body, "retentions", "0")
+    shares = _split_decimal(body, "shares")
+    if price < 0 or fees < 0 or retentions < 0 or (shares is not None and shares < 0):
+        raise ValueError("SPLIT price, shares, fees, and retentions cannot be negative")
+    if base_kwargs["amount"] > 0 and price <= 0:
+        raise ValueError(
+            "SPLIT price must be greater than zero when amount is positive"
+        )
+
+    return {
+        "shares": shares,
+        "price": price,
+        "fees": fees,
+        "retentions": retentions,
+        "split_ratio": ratio,
+    }
+
+
 def _build_stock(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
-    _require(body, "STOCK_ETF", ["shares", "price", "fees"])
+    split_fields = None
+    if base_kwargs["type"] == TxType.SPLIT:
+        if not body.get("isin") and not body.get("ticker"):
+            raise ValueError("SPLIT requires an ISIN or ticker for STOCK_ETF")
+        split_fields = _split_fields(body, base_kwargs)
+    else:
+        _require(body, "STOCK_ETF", ["shares", "price", "fees"])
+
     order_date = _parse_datetime(body["order_date"]) if body.get("order_date") else None
     return StockTx(
         id=tx_id,
         isin=body.get("isin"),
         ticker=body.get("ticker"),
         market=body.get("market"),
-        shares=Dezimal(body["shares"]),
-        price=Dezimal(body["price"]),
+        shares=split_fields["shares"] if split_fields else Dezimal(body["shares"]),
+        price=split_fields["price"] if split_fields else Dezimal(body["price"]),
         net_amount=None,
-        fees=Dezimal(body["fees"]),
-        retentions=Dezimal(body["retentions"])
-        if body.get("retentions") is not None
-        else None,
+        fees=split_fields["fees"] if split_fields else Dezimal(body["fees"]),
+        retentions=(
+            split_fields["retentions"]
+            if split_fields
+            else Dezimal(body["retentions"])
+            if body.get("retentions") is not None
+            else None
+        ),
         order_date=order_date,
         linked_tx=body.get("linked_tx"),
         equity_type=body.get("equity_type"),
+        split_ratio=split_fields["split_ratio"] if split_fields else None,
         **base_kwargs,
     )
 
 
 def _build_fund(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
-    _require(body, "FUND", ["isin", "shares", "price", "fees"])
+    split_fields = None
+    if base_kwargs["type"] == TxType.SPLIT:
+        _require(body, "FUND", ["isin"])
+        split_fields = _split_fields(body, base_kwargs)
+    else:
+        _require(body, "FUND", ["isin", "shares", "price", "fees"])
+
     order_date = _parse_datetime(body["order_date"]) if body.get("order_date") else None
     return FundTx(
         id=tx_id,
         isin=body["isin"],
         market=body.get("market"),
-        shares=Dezimal(body["shares"]),
-        price=Dezimal(body["price"]),
+        shares=split_fields["shares"] if split_fields else Dezimal(body["shares"]),
+        price=split_fields["price"] if split_fields else Dezimal(body["price"]),
         net_amount=None,
-        fees=Dezimal(body["fees"]),
-        retentions=Dezimal(body["retentions"])
-        if body.get("retentions") is not None
-        else None,
+        fees=split_fields["fees"] if split_fields else Dezimal(body["fees"]),
+        retentions=(
+            split_fields["retentions"]
+            if split_fields
+            else Dezimal(body["retentions"])
+            if body.get("retentions") is not None
+            else None
+        ),
         order_date=order_date,
         fund_type=body.get("fund_type"),
+        split_ratio=split_fields["split_ratio"] if split_fields else None,
         **base_kwargs,
     )
 
@@ -167,14 +229,25 @@ def map_manual_transaction(body: dict, tx_id: Optional[UUID] = None) -> BaseTx:
     except TypeError as e:
         raise ValueError(str(e)) from e
 
-    for field in ("ref", "name", "amount", "currency", "type"):
+    for field in ("ref", "name", "currency", "type"):
         if field not in body:
             raise ValueError(f"Missing required field: {field}")
 
     tx_type = TxType(body["type"])
+    if tx_type == TxType.SPLIT and product_type not in (
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+    ):
+        raise ValueError("SPLIT is only supported for STOCK_ETF and FUND")
+
+    raw_amount = body.get("amount")
+    if tx_type == TxType.SPLIT and raw_amount in (None, ""):
+        raw_amount = 0
+    elif raw_amount is None:
+        raise ValueError("Missing required field: amount")
 
     try:
-        amount = Dezimal(body["amount"])
+        amount = Dezimal(raw_amount)
     except Exception as e:
         raise ValueError(f"Invalid amount: {e}") from e
 

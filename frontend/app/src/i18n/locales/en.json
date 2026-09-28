@@ -1764,6 +1764,17 @@
       "transferHint": "Use Transfer when an asset is moved or converted from one entity to another. In Spain, it is also used for tax-deferred exchanges between mutual funds.",
       "swap": "Swap",
       "swapRatio": "Ratio",
+      "splitRatio": "Split ratio",
+      "splitRatioHint": "Post-split shares divided by pre-split shares. Values above 1 increase the number of shares; values below 1 reduce it.",
+      "splitRatioForward": "Forward split (increases shares)",
+      "splitRatioReverse": "Reverse split (reduces shares)",
+      "splitRatioOneToOneDirection": "1:1 split (no share-count change)",
+      "splitRatioExample": "At this ratio, 1 pre-split share becomes {shares} post-split shares.",
+      "splitRatioOneToOne": "At this ratio, 1 share remains 1 share.",
+      "cashInLieuAmount": "Cash-in-lieu amount",
+      "cashInLieuAmountHint": "Gross cash proceeds received instead of fractional shares. Leave at 0 if no cash payout is due.",
+      "cashInLieuUnitPrice": "Cash-in-lieu unit price",
+      "cashInLieuUnitPriceHint": "Used to calculate fractional shares from the cash proceeds; required only when the cash-in-lieu amount is greater than zero.",
       "swapRatioHint": "Destination shares per origin share. Fills destination shares and price from the origin.",
       "origin": "Origin",
       "destination": "Destination",
@@ -1852,7 +1863,8 @@
       "SWITCH_FROM": "F. Switch From",
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
-      "FEE": "Fee"
+      "FEE": "Fee",
+      "SPLIT": "Split"
     },
     "productType": {
       "ACCOUNT": "Account",

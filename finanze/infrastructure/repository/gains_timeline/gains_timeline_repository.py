@@ -13,6 +13,7 @@ from domain.gains_timeline import (
     AssetValuation,
     GainsAssetFilter,
     GainsFlow,
+    GainsSplit,
     GainsSettlement,
 )
 from domain.global_position import EquityType, ProductType
@@ -120,6 +121,10 @@ class GainsTimelineSQLRepository(GainsTimelinePort):
                 quantity=Dezimal(row["quantity"])
                 if row["quantity"] is not None
                 else None,
+                price=Dezimal(row["price"]) if row["price"] is not None else None,
+                split_ratio=Dezimal(row["split_ratio"])
+                if row["split_ratio"] is not None
+                else None,
                 net_amount=Dezimal(row["net_amount"])
                 if row["net_amount"] is not None
                 else None,
@@ -136,6 +141,38 @@ class GainsTimelineSQLRepository(GainsTimelinePort):
             )
         ]
         return self._deduplicate_factoring_flows(flows)
+
+    async def get_split_ratios(
+        self, assets: list[GainsAssetFilter]
+    ) -> list[GainsSplit]:
+        product_types = sorted(
+            {
+                asset.product_type.value
+                for asset in assets
+                if asset.product_type in {ProductType.STOCK_ETF, ProductType.FUND}
+            }
+        )
+        if not product_types:
+            return []
+        product_placeholders = ", ".join("?" for _ in product_types)
+        sql = (
+            GainsTimelineQueries.GET_SPLIT_RATIOS_BASE.value
+            + f" AND it.product_type IN ({product_placeholders})"
+            + " ORDER BY it.date ASC"
+        )
+        async with self._db_client.read() as cursor:
+            await cursor.execute(sql, tuple(product_types))
+            rows = await cursor.fetchall()
+        return [
+            GainsSplit(
+                product_type=ProductType(row["product_type"]),
+                asset_key=row["asset_key"],
+                day=_parse_datetime(row["date"]).date(),
+                ratio=Dezimal(row["split_ratio"]),
+            )
+            for row in rows
+            if row["asset_key"]
+        ]
 
     async def get_settlements(
         self, assets: list[GainsAssetFilter], entity_ids: list[str]

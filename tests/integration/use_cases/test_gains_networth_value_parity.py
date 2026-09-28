@@ -194,6 +194,8 @@ _SCHEMA = """
         amount TEXT,
         currency CHAR(3),
         shares TEXT,
+        price TEXT,
+        split_ratio TEXT,
         net_amount TEXT,
         fees TEXT,
         retentions TEXT,

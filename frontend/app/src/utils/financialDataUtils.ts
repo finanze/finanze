@@ -549,9 +549,13 @@ const sumMarketForecastValues = (
 export const getTransactionDisplayType = (
   txType: TxType,
   amount?: number,
-): "in" | "out" => {
+): "in" | "out" | "neutral" => {
   if (amount != null && amount < 0) {
     return "out"
+  }
+
+  if (txType === TxType.SPLIT) {
+    return amount == null || amount === 0 ? "neutral" : "in"
   }
 
   if (
@@ -573,6 +577,19 @@ export const getTransactionDisplayType = (
     return "in"
   }
 }
+
+export const shouldDisplayTransactionAmount = (
+  txType: TxType,
+  amount: number,
+): boolean =>
+  amount !== 0 ||
+  ![
+    TxType.SWAP_FROM,
+    TxType.SWAP_TO,
+    TxType.RIGHT_ISSUE,
+    TxType.RIGHT_SELL,
+    TxType.SPLIT,
+  ].includes(txType)
 
 export const getTransactionDisplayAmount = (
   amount: number,
@@ -710,7 +727,7 @@ export interface GroupedTransaction {
   formattedAmount: string
   type: TxType
   product_type: string
-  displayType: "in" | "out"
+  displayType: "in" | "out" | "neutral"
   displaySign: "+" | "-" | ""
   entity: string
 }

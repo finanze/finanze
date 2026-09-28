@@ -199,8 +199,10 @@ class GainsTimelineQueries(str, Enum):
                it.date,
                it.name AS asset_name,
                it.amount,
+               it.price,
                it.currency,
                it.shares AS quantity,
+               it.split_ratio,
                it.net_amount,
                COALESCE(it.fees, '0') AS fees,
                COALESCE(it.retentions, '0') AS retentions,
@@ -309,6 +311,21 @@ class GainsTimelineQueries(str, Enum):
                    )
                END AS equity_type
         FROM investment_transactions it
+    """
+
+    GET_SPLIT_RATIOS_BASE = """
+        SELECT it.product_type,
+               it.date,
+               it.split_ratio,
+               CASE
+                   WHEN it.product_type = 'STOCK_ETF' THEN
+                       COALESCE(NULLIF(it.isin, ''), NULLIF(it.ticker, ''), it.name)
+                   WHEN it.product_type = 'FUND' THEN
+                       COALESCE(NULLIF(it.isin, ''), it.name)
+               END AS asset_key
+        FROM investment_transactions it
+        WHERE it.type = 'SPLIT'
+          AND it.split_ratio IS NOT NULL
     """
 
     GET_SETTLEMENTS_BASE = f"""
