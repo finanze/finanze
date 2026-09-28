@@ -1,3 +1,17 @@
+## [0.10.1] - 2026-09-28
+
+### 🚀 Features
+
+- Optional draft mode when editing position
+- Improve number style
+- Optimize MyInvestor TX fetch (#192)
+- Add split TX support (#195)
+
+### 🐛 Bug Fixes
+
+- Unicaja login window not properly working
+- Backup upload sync failing to write (#193)
+- Dedup TR positions (#194)
 ## [0.10.0] - 2026-09-14
 
 ### 🚀 Features
