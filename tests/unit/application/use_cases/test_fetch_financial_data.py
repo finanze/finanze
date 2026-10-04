@@ -34,7 +34,7 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
-from domain.native_entities import MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
+from domain.native_entities import ING, MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
 from domain.public_keychain import PublicKeychain
 from domain.transactions import AccountTx, Transactions, TxType
 
@@ -920,12 +920,13 @@ async def _prepare_logged_in_execute(
 
 class TestFetchPointers:
     @pytest.mark.asyncio
-    async def test_execute_loads_account_pointers_for_transaction_fetch(self):
+    @pytest.mark.parametrize("entity", [MY_INVESTOR, ING])
+    async def test_execute_loads_account_pointers_for_transaction_fetch(self, entity):
         uc, _, _, _ = _build_use_case()
         uc._fetch_pointers_port = AsyncMock()
         account_id = uuid4()
         pointer = FetchPointer(
-            entity_id=MY_INVESTOR.id,
+            entity_id=entity.id,
             entity_account_id=account_id,
             key="fund_orders:security-account",
             threshold=date(2025, 1, 1),
@@ -933,9 +934,9 @@ class TestFetchPointers:
         uc._fetch_pointers_port.get_by_entity_account_id.return_value = [pointer]
         fetcher = await _prepare_logged_in_execute(
             uc,
-            MY_INVESTOR,
+            entity,
             account_id,
-            credentials={"user": "test-user", "password": "1234"},
+            credentials={name: "test-value" for name in entity.credentials_template},
         )
         fetcher.transactions = AsyncMock(
             return_value=Transactions(investment=[], account=[])

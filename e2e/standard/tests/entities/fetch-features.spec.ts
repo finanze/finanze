@@ -263,7 +263,10 @@ test.describe('Feature Selection Verification', () => {
                 .last()
             await expect(popover).toBeVisible()
             await expect(
-                popover.getByRole('button', { name: 'MyInvestor', exact: true }),
+                popover.getByRole('button', {
+                    name: 'MyInvestor',
+                    exact: true,
+                }),
             ).toHaveCount(0)
             await page.keyboard.press('Escape')
         } else {

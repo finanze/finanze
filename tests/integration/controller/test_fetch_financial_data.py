@@ -1,8 +1,11 @@
+import sqlite3
 import uuid
 from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from dateutil.relativedelta import relativedelta
+from dateutil.tz import tzlocal
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
@@ -11,6 +14,7 @@ from domain.auto_contributions import (
     ContributionTargetType,
     PeriodicContribution,
 )
+from domain.data_init import DatasourceInitContext
 from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.entity_account import EntityAccount
@@ -23,8 +27,23 @@ from domain.entity_login import (
 )
 from domain.fetch_record import DataSource, FetchRecord
 from domain.global_position import GlobalPosition, ProductType
-from domain.native_entities import MY_INVESTOR
+from domain.native_entities import ING, MY_INVESTOR
 from domain.transactions import AccountTx, Transactions, TxType
+from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
+from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
+from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.db.upgrader import DatabaseUpgrader
+from infrastructure.repository.db.version_registry import versions
+from infrastructure.repository.entity.entity_repository import EntitySQLRepository
+from infrastructure.repository.entity_account.entity_account_repository import (
+    EntityAccountRepository,
+)
+from infrastructure.repository.fetch.fetch_pointers_repository import (
+    FetchPointersRepository,
+)
+from infrastructure.repository.transaction.transaction_repository import (
+    TransactionSQLRepository,
+)
 
 FETCH_URL = "/api/v1/data/fetch/financial"
 GET_POSITIONS_URL = "/api/v1/positions"
@@ -723,6 +742,166 @@ class TestMultipleFeatures:
         assert txs[0]["amount"] == 1500.0
         assert txs[0]["source"] == "REAL"
         assert txs[0]["currency"] == "EUR"
+
+
+class TestINGAccountTransactions:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("deep", [False, True])
+    async def test_fetch_persists_account_transactions_and_pointers(
+        self,
+        client,
+        db_client,
+        entity_fetchers,
+        credentials_port,
+        sessions_port,
+        last_fetches_port,
+        entity_account_port,
+        transaction_port,
+        fetch_pointers_port,
+        transaction_handler_port,
+        deep,
+    ):
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        db_client.set_connection(connection)
+        await DatabaseUpgrader(
+            db_client, versions, DatasourceInitContext(config=AsyncMock())
+        ).upgrade()
+        entity_repo = EntitySQLRepository(db_client)
+        if await entity_repo.get_by_id(ING.id) is None:
+            await entity_repo.insert(ING)
+        account = EntityAccount(
+            id=uuid.UUID(ENTITY_ACCOUNT_ID),
+            entity_id=ING.id,
+            created_at=datetime.now(tzlocal()),
+        )
+        account_repo = EntityAccountRepository(db_client)
+        await account_repo.create(account)
+        entity_account_port.get_by_id.side_effect = account_repo.get_by_id
+
+        tx_repo = TransactionSQLRepository(db_client)
+        pointer_repo = FetchPointersRepository(db_client)
+        for method in (
+            "save",
+            "get_refs_by_entity_account",
+            "get_by_filters",
+            "delete_by_entity_account_id",
+        ):
+            getattr(transaction_port, method).side_effect = getattr(tx_repo, method)
+        for method in (
+            "save",
+            "get_by_entity_account_id",
+            "delete_by_entity_account_id",
+        ):
+            getattr(fetch_pointers_port, method).side_effect = getattr(
+                pointer_repo, method
+            )
+        transaction_handler_port.start.side_effect = TransactionHandler(db_client).start
+
+        today = datetime.now(tzlocal()).date()
+        bank_client = AsyncMock(spec=INGAPIClient)
+        bank_client.get_position.return_value = {
+            "products": [
+                {
+                    "uuid": "account-product",
+                    "type": "CURRENT_ACCOUNT",
+                    "denominationCurrency": "EUR",
+                    "identifiers": [{"type": "IBAN", "value": "es12 3456 7890"}],
+                }
+            ],
+            "legacyProducts": [],
+        }
+        movements = [
+            {
+                "transactionId": {
+                    "productId": "account-product",
+                    "transactionSequence": sequence,
+                },
+                "transactionDate": today.isoformat(),
+                "description": description,
+                "amount": amount,
+            }
+            for sequence, description, amount in (
+                (1, "Pago de prueba", "-10.25"),
+                (2, "Ingreso de prueba", "20.50"),
+            )
+        ]
+        bank_client.get_account_transactions.return_value = {
+            "transactions": movements,
+            "count": 2,
+            "total": 2,
+            "mayHasMoreElements": False,
+        }
+        fetcher = INGFetcher()
+        fetcher._client = bank_client
+        fetcher.login = AsyncMock(
+            return_value=EntityLoginResult(code=LoginResultCode.RESUMED)
+        )
+        entity_fetchers[ING] = fetcher
+        credentials_port.get.return_value = {
+            name: "test-value" for name in ING.credentials_template
+        }
+        sessions_port.get.return_value = None
+        last_fetches_port.get_by_entity_account_id.return_value = []
+
+        payload = {"entityAccountId": str(account.id), "features": ["TRANSACTIONS"]}
+        response = await client.post(FETCH_URL, json=payload)
+        assert response.status_code == 200
+        assert (await response.get_json())["code"] == "COMPLETED"
+        bank_client.get_account_transactions.assert_awaited_once_with(
+            "account-product",
+            today - relativedelta(months=3),
+            offset=0,
+            limit=100,
+            to_date=today,
+        )
+
+        read_response = await client.get(GET_TRANSACTIONS_URL)
+        assert read_response.status_code == 200
+        rows = (await read_response.get_json())["transactions"]
+        assert {row["name"]: row["type"] for row in rows} == {
+            "Pago de prueba": "OUTFLOW",
+            "Ingreso de prueba": "INFLOW",
+        }
+        assert {Dezimal(str(row["amount"])) for row in rows} == {
+            Dezimal("10.25"),
+            Dezimal("20.50"),
+        }
+        assert all(row["iban"] == "ES1234567890" for row in rows)
+        assert all(row["source"] == "REAL" for row in rows)
+        first_ids = {row["id"] for row in rows}
+        assert await tx_repo.get_refs_by_entity_account(account.id) == {
+            "account-product:1",
+            "account-product:2",
+        }
+        pointers = await pointer_repo.get_by_entity_account_id(account.id)
+        assert len(pointers) == 1
+        assert pointers[0].key == "account_txs:ES1234567890"
+        assert pointers[0].threshold == today
+
+        response = await client.post(FETCH_URL, json={**payload, "deep": deep})
+        assert response.status_code == 200
+        assert (await response.get_json())["code"] == "COMPLETED"
+        assert bank_client.get_account_transactions.await_args.args[1] == (
+            today - relativedelta(months=3) if deep else today - relativedelta(days=7)
+        )
+        read_response = await client.get(GET_TRANSACTIONS_URL)
+        rows = (await read_response.get_json())["transactions"]
+        assert len(rows) == 2
+        second_ids = {row["id"] for row in rows}
+        assert first_ids.isdisjoint(second_ids) if deep else first_ids == second_ids
+        assert await pointer_repo.get_by_entity_account_id(account.id) == pointers
+        if deep:
+            transaction_port.delete_by_entity_account_id.assert_awaited_once_with(
+                account.id
+            )
+            fetch_pointers_port.delete_by_entity_account_id.assert_awaited_once_with(
+                account.id
+            )
+        else:
+            transaction_port.delete_by_entity_account_id.assert_not_awaited()
+            fetch_pointers_port.delete_by_entity_account_id.assert_not_awaited()
 
 
 class TestChallengeFlow:

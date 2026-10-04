@@ -743,6 +743,8 @@ async def app(tmp_path):
         pending_flow_port,
         file_storage_port,
         historic_port,
+        fetch_pointers_port,
+        transaction_handler_port,
     )
 
     await db_client.silent_close()
@@ -788,6 +790,16 @@ async def last_fetches_port(app):
 @pytest_asyncio.fixture
 async def transaction_port(app):
     return app[7]
+
+
+@pytest_asyncio.fixture
+async def fetch_pointers_port(app):
+    return app[32]
+
+
+@pytest_asyncio.fixture
+async def transaction_handler_port(app):
+    return app[33]
 
 
 @pytest_asyncio.fixture

@@ -72,6 +72,7 @@ FETCH_POINTER_SUPPORTED_ENTITIES = [
     native_entities.CAJAMAR,
     native_entities.TRADE_REPUBLIC,
     native_entities.B100,
+    native_entities.ING,
 ]
 POSITION_UPDATE_COOLDOWN_SECONDS = int(
     os.environ.get("POSITION_UPDATE_COOLDOWN_SECONDS", 60)
