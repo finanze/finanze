@@ -7,7 +7,11 @@ import pytest
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
-from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
+from application.use_cases.fetch_financial_data import (
+    FetchFinancialDataImpl,
+    handle_cooldown,
+    split_features_by_cooldown,
+)
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.entity_account import EntityAccount
@@ -72,6 +76,8 @@ def _build_use_case(error_reporter=None):
         feature_flag_port=MagicMock(get_all=MagicMock(return_value={})),
         error_reporter=error_reporter,
         fetch_pointers_port=AsyncMock(),
+        transaction_label_port=AsyncMock(),
+        transaction_labeler=AsyncMock(),
     )
     return uc, position_port, loan_calculator, real_estate_port
 
@@ -1083,3 +1089,34 @@ class TestPerFeatureCooldown:
         fetcher.login.assert_not_awaited()
         assert "wait" in result.details
         assert "lastUpdate" in result.details
+
+
+def _record(feature, age):
+    return FetchRecord(
+        entity_id=uuid4(),
+        feature=feature,
+        date=datetime.now(tzlocal()) - age,
+    )
+
+
+class TestCooldownElapsedDays:
+    def test_handle_cooldown_ignores_fetch_from_days_ago(self):
+        record = _record(Feature.POSITION, timedelta(days=21, minutes=30))
+
+        assert handle_cooldown([record], 7200) is None
+
+    def test_handle_cooldown_returns_cooldown_for_recent_fetch(self):
+        record = _record(Feature.POSITION, timedelta(minutes=30))
+
+        result = handle_cooldown([record], 7200)
+
+        assert result.code == FetchResultCode.COOLDOWN
+        assert 0 < result.details["wait"] <= 5400
+
+    def test_split_features_ignores_fetch_from_days_ago(self):
+        record = _record(Feature.POSITION, timedelta(days=21, minutes=30))
+
+        pending, result = split_features_by_cooldown([record], [Feature.POSITION], 7200)
+
+        assert pending == [Feature.POSITION]
+        assert result is None

@@ -25,7 +25,12 @@ import type {
   ManualSavePayloadByEntity,
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatDate,
+  formatIban,
+  formatPercentage,
+} from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
@@ -148,14 +153,6 @@ const BANKING_ACCOUNT_ENTITY_TYPES: EntityType[] = [
   EntityType.CRYPTO_EXCHANGE,
   EntityType.MARKET_FORECAST_PLATFORM,
 ]
-
-const formatIban = (iban?: string | null, reveal?: boolean) => {
-  if (!iban) return null
-  if (reveal) {
-    return iban.replace(/(.{4})/g, "$1 ").trim()
-  }
-  return `•••• •••• •••• ${iban.slice(-4)}`
-}
 
 const formatCardNumber = (ending?: string | null) =>
   ending ? `•••• •••• •••• ${ending}` : "•••• •••• •••• ••••"

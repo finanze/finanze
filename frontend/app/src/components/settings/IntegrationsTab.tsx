@@ -46,6 +46,7 @@ const INTEGRATION_CATEGORY_ORDER: ExternalIntegrationType[] = [
   ExternalIntegrationType.ENTITY_PROVIDER,
   ExternalIntegrationType.CRYPTO_PROVIDER,
   ExternalIntegrationType.CRYPTO_MARKET_PROVIDER,
+  ExternalIntegrationType.AI_PROVIDER,
   ExternalIntegrationType.DATA_SOURCE,
 ]
 
@@ -778,6 +779,9 @@ export function IntegrationsTab() {
                   className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
+                  onError={event => {
+                    event.currentTarget.style.visibility = "hidden"
+                  }}
                 />
                 <div className="min-w-0">
                   <CardTitle className="text-lg break-words">{title}</CardTitle>

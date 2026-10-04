@@ -26,6 +26,7 @@ from domain.external_entity import (
     ExternalEntityLinkCompletion,
     ExternalEntityLoginRequest,
     ExternalEntitySetupResponseCode,
+    ExternalEntityTxFetchRequest,
     ProviderExternalEntityDetails,
 )
 from domain.external_integration import (
@@ -39,11 +40,17 @@ from domain.global_position import (
     GlobalPosition,
     ProductType,
 )
+from domain.transactions import Transactions
+from infrastructure.client.entity.financial.psd2.psd2_transactions import (
+    map_enablebanking_transaction,
+)
 from infrastructure.client.financial.enablebanking.enablebanking_client import (
     EnableBankingClient,
 )
 
 MAX_CONSENT_VALIDITY_SECONDS = 90 * 24 * 60 * 60
+MAX_TRANSACTION_PAGES = 50
+FALLBACK_HISTORY_DAYS = 89
 
 ACCOUNT_TYPE_MAP = {
     "CACC": AccountType.CHECKING,
@@ -241,6 +248,56 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         products = {ProductType.ACCOUNT: Accounts(accounts)}
 
         return GlobalPosition(id=uuid4(), entity=request.entity, products=products)
+
+    async def transactions(self, request: ExternalEntityTxFetchRequest) -> Transactions:
+        payload = request.external_entity.payload or {}
+        account_txs = []
+        for raw_account in payload.get("accounts", []):
+            uid = raw_account.get("uid")
+            if not uid:
+                continue
+            account_key = raw_account.get("iban") or uid
+            raw_txs = await self._fetch_account_transactions(uid, request.from_date)
+            for raw_tx in raw_txs:
+                tx = map_enablebanking_transaction(
+                    raw_tx, account_key, request.entity, raw_account.get("iban")
+                )
+                if tx and tx.ref not in request.registered_txs:
+                    account_txs.append(tx)
+        return Transactions(investment=[], account=account_txs)
+
+    async def _fetch_account_transactions(self, uid: str, from_date) -> list[dict]:
+        try:
+            return await self._fetch_transaction_pages(uid, from_date)
+        except httpx.HTTPStatusError as e:
+            code = e.response.status_code
+            fallback_date = (
+                datetime.now(tzlocal()) - timedelta(days=FALLBACK_HISTORY_DAYS)
+            ).date()
+            if code in (400, 422) and from_date < fallback_date:
+                self._log.warning(
+                    "Enable Banking rejected the transactions period, retrying with a shorter one"
+                )
+                try:
+                    return await self._fetch_transaction_pages(uid, fallback_date)
+                except httpx.HTTPStatusError as retry_error:
+                    raise ExternalEntityFailed() from retry_error
+            if code == 429:
+                raise TooManyRequests() from e
+            raise ExternalEntityFailed() from e
+
+    async def _fetch_transaction_pages(self, uid: str, from_date) -> list[dict]:
+        raw_txs = []
+        continuation_key = None
+        for _ in range(MAX_TRANSACTION_PAGES):
+            page = await self._client.get_account_transactions(
+                uid, from_date.isoformat(), continuation_key
+            )
+            raw_txs += page.get("transactions") or []
+            continuation_key = page.get("continuation_key")
+            if not continuation_key:
+                break
+        return raw_txs
 
     async def _resolve_aspsp(
         self, request: ExternalEntityLoginRequest, external_entity

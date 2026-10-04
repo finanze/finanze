@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { ensureEditMode } from '../../helpers/edit-mode'
 import { selectEntity } from '../../helpers/entity-selector'
+import { navigateToMyMoneyPage } from '../../helpers/my-money'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -43,16 +44,10 @@ async function connectEntityIfNeeded(page: Page, entityName: string) {
 }
 
 async function navigateToContributions(page: Page) {
-    const navigation = page.getByRole('navigation')
-    await navigation
-        .getByRole('button', { name: 'Management', exact: true })
-        .click()
-    await page.waitForTimeout(300)
-    await navigation
-        .getByRole('button', { name: 'Contributions', exact: true })
-        .click()
+    await navigateToMyMoneyPage(page, 'Recurring')
+    await page.getByRole('tab', { name: /^Investments/ }).click()
     await expect(
-        page.getByRole('heading', { name: 'Contributions' }).first(),
+        page.getByRole('heading', { name: 'Recurring', exact: true }),
     ).toBeVisible({ timeout: 10_000 })
 }
 

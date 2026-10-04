@@ -1339,7 +1339,7 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/management")}
+            onClick={() => navigate("/management/recurring")}
             className="text-xs px-2 py-1 h-auto min-h-0"
           >
             <ArrowRight className="h-3 w-3 mr-1" />

@@ -21,13 +21,13 @@ import {
   ArrowLeftRight,
   Blocks,
   User,
-  CalendarCog,
+  Wallet,
   CalendarSync,
   HandCoins,
-  PiggyBank,
   Settings,
   LucideIcon,
   Calculator,
+  ChartPie,
 } from "lucide-react"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/Button"
@@ -181,6 +181,12 @@ export function Sidebar() {
   const managementRoutes = useMemo<ManagementRoute[]>(
     () => [
       {
+        path: "/management/cashflow",
+        label: t.management.cashflow,
+        Icon: ChartPie,
+        key: "management-cashflow",
+      },
+      {
         path: "/management/recurring",
         label: t.management.recurringMoney,
         Icon: CalendarSync,
@@ -192,17 +198,11 @@ export function Sidebar() {
         Icon: HandCoins,
         key: "management-pending",
       },
-      {
-        path: "/management/auto-contributions",
-        label: t.management.autoContributions,
-        Icon: PiggyBank,
-        key: "management-auto-contributions",
-      },
     ],
     [
       t.management.recurringMoney,
       t.management.pendingMoney,
-      t.management.autoContributions,
+      t.management.cashflow,
     ],
   )
 
@@ -550,7 +550,7 @@ export function Sidebar() {
                     }}
                   >
                     <span className="flex items-center">
-                      <CalendarCog size={20} />
+                      <Wallet size={20} />
                       {!collapsed && (
                         <span className="ml-3">{t.management.title}</span>
                       )}

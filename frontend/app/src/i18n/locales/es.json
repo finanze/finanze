@@ -626,6 +626,7 @@
     "enableBankingNoLinkedAccountsAfter": ". Vincúlalo allí primero y vuelve a intentarlo.",
     "confirmConnection": "Completar conexión",
     "providerLinkInstructions": "Finaliza el proceso en la ventana abierta y luego confirma la conexión.",
+    "completingConnection": "Completando la conexión, puede tardar unos segundos...",
     "openLink": "Abrir enlace",
     "dismiss": "Cerrar",
     "continueLink": "Continuar enlace",
@@ -1173,6 +1174,50 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Conecta OpenRouter para obtener sugerencias automáticas de etiquetas para tus movimientos con el modelo que elijas.",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Obtener una clave API de OpenRouter",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Crea una cuenta en "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", genera una nueva clave API y pégala aquí. El uso lo factura OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Conecta OpenAI para obtener sugerencias automáticas de etiquetas para tus movimientos con modelos GPT.",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Obtener una clave API de OpenAI",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Inicia sesión en la plataforma de OpenAI en "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", crea una nueva clave secreta y pégala aquí. El uso lo factura OpenAI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Desactivar integración",
@@ -1183,6 +1228,7 @@
       "ENTITY_PROVIDER": "Proveedores bancarios",
       "CRYPTO_PROVIDER": "Proveedores de cripto",
       "CRYPTO_MARKET_PROVIDER": "Datos de mercado cripto",
+      "AI_PROVIDER": "Proveedores de IA",
       "DATA_SOURCE": "Fuentes de datos"
     }
   },
@@ -1739,6 +1785,12 @@
     "selectAccounts": "Seleccionar cuentas...",
     "selectProductTypes": "Seleccionar tipos de producto...",
     "selectTransactionTypes": "Seleccionar tipos de transacción...",
+    "scope": {
+      "label": "Mostrar",
+      "all": "Todo",
+      "account": "Cuentas",
+      "investment": "Inversiones"
+    },
     "form": {
       "createTitle": "Añadir transacción",
       "editTitle": "Editar transacción",
@@ -1812,6 +1864,304 @@
       "calendarView": "Calendario"
     }
   },
+  "labels": {
+    "title": "Etiquetas",
+    "tabs": {
+      "labels": "Etiquetas",
+      "rules": "Reglas",
+      "automation": "Automatización"
+    },
+    "base": {
+      "salary": "Nómina",
+      "business_income": "Ingresos de actividad",
+      "rental_income": "Alquileres cobrados",
+      "refunds": "Devoluciones",
+      "gifts_received": "Regalos recibidos",
+      "interest": "Intereses",
+      "other_income": "Otros ingresos",
+      "housing": "Vivienda",
+      "utilities": "Suministros",
+      "groceries": "Supermercado",
+      "restaurants": "Restaurantes",
+      "transport": "Transporte",
+      "shopping": "Compras",
+      "subscriptions": "Suscripciones",
+      "health": "Salud",
+      "insurance": "Seguros",
+      "education": "Educación",
+      "leisure": "Ocio",
+      "travel": "Viajes",
+      "personal_care": "Cuidado personal",
+      "pets": "Mascotas",
+      "family": "Familia",
+      "gifts_donations": "Regalos y donaciones",
+      "taxes": "Impuestos",
+      "bank_fees": "Comisiones bancarias",
+      "cash_withdrawal": "Retirada de efectivo",
+      "debt_payments": "Pago de deudas",
+      "other_expense": "Otros gastos",
+      "internal_transfer": "Traspaso",
+      "savings_investment": "Ahorro e inversión"
+    },
+    "origins": {
+      "MANUAL": "Manual",
+      "RULE": "Reglas",
+      "EXTERNAL": "Sugerencias"
+    },
+    "settlement": "Inversión",
+    "settlementHint": "Este movimiento es la parte en efectivo de una operación de inversión, por lo que no cuenta como ingreso ni gasto.",
+    "editTransactionLabels": "Editar etiquetas",
+    "addLabel": "Etiqueta",
+    "searchLabels": "Buscar etiquetas...",
+    "transactionLabelsSaved": "Etiquetas actualizadas",
+    "saveError": "No se pudieron guardar los cambios",
+    "deleteError": "No se pudo eliminar",
+    "createRuleFromMovement": "Crear regla",
+    "lockLabels": "Bloquear etiquetas",
+    "lockLabelsHint": "Al reetiquetar, ni las reglas ni las sugerencias cambiarán nunca las etiquetas de este movimiento.",
+    "unlinkSettlement": "Desvincular de la operación de inversión",
+    "transferPair": "Traspaso",
+    "transferPairOtherEntity": "otra entidad",
+    "transferPairHint": "Emparejado como traspaso con un movimiento del mismo importe en {entity}.",
+    "unpairTransfer": "Desemparejar traspaso",
+    "unpairTransferHint": "Las etiquetas se bloquean para que este movimiento no se vuelva a emparejar.",
+    "newLabel": "Nueva etiqueta",
+    "editLabel": "Editar etiqueta",
+    "labelName": "Nombre",
+    "labelDescription": "Descripción",
+    "labelDescriptionHint": "Opcional. Ayuda a las sugerencias a entender qué pertenece a esta etiqueta.",
+    "baseLabelNameHint": "Déjalo vacío para mantener el nombre por defecto.",
+    "nameRequired": "Introduce un nombre",
+    "color": "Color",
+    "customColor": "Color personalizado",
+    "category": "Tipo",
+    "categoryHints": {
+      "EXPENSE": "Se agrupa con tus etiquetas de gastos.",
+      "INCOME": "Se agrupa con tus etiquetas de ingresos.",
+      "EXCLUDED": "Los movimientos con esta etiqueta no cuentan como ingresos ni gastos, por ejemplo traspasos entre tus propias cuentas."
+    },
+    "excluded": "Excluida",
+    "labelSaved": "Etiqueta guardada",
+    "labelDeleted": "Etiqueta eliminada",
+    "usage": "{count} movimientos",
+    "noUsage": "Sin usar todavía",
+    "changeIcon": "Cambiar icono",
+    "categories": {
+      "EXPENSE": "Gastos",
+      "INCOME": "Ingresos",
+      "EXCLUDED": "No cuentan en los totales"
+    },
+    "deleteLabelTitle": "Eliminar etiqueta",
+    "deleteLabelMessage": "¿Eliminar la etiqueta \"{name}\"? Se quitará de todos los movimientos.",
+    "deleteLabelWarning": "Las reglas que solo aplican esta etiqueta también se eliminarán.",
+    "unlabeled": "Sin etiqueta",
+    "anyLabel": "Cualquier etiqueta",
+    "includeLabel": "Con esta etiqueta",
+    "excludeLabel": "Sin esta etiqueta",
+    "counterparty": "Contraparte",
+    "searchTextPlaceholder": "Buscar por nombre",
+    "manualLabelsHint": "Las etiquetas elegidas aquí se mantienen. Déjalo vacío para que decidan tus reglas.",
+    "rules": {
+      "newRule": "Nueva regla",
+      "editRule": "Editar regla",
+      "name": "Nombre",
+      "namePlaceholder": "Opcional",
+      "when": "Cuando el movimiento cumpla",
+      "then": "Aplicar estas etiquetas",
+      "textField": "Campo",
+      "textOperator": "Condición",
+      "textValue": "Texto",
+      "textValuePlaceholder": "p. ej. netflix",
+      "fields": {
+        "ANY": "Concepto o contraparte",
+        "NAME": "Concepto",
+        "COUNTERPARTY": "Contraparte"
+      },
+      "operators": {
+        "CONTAINS": "Contiene",
+        "STARTS_WITH": "Empieza por",
+        "EQUALS": "Es exactamente",
+        "REGEX": "Coincide con el patrón"
+      },
+      "anyType": "Cualquier tipo",
+      "lookIn": "Buscar en",
+      "amount": "Importe",
+      "min": "Mín",
+      "max": "Máx",
+      "dateRange": "Fechas",
+      "moreConditions": "Más condiciones",
+      "minAmount": "Importe mínimo",
+      "maxAmount": "Importe máximo",
+      "anyCurrency": "Cualquier divisa",
+      "dayOfMonth": "Día del mes",
+      "dayFrom": "Desde el día",
+      "dayTo": "Hasta el día",
+      "dayOfMonthHint": "Los rangos pueden cruzar el fin de mes, p. ej. 28 – 3.",
+      "applyToExisting": "Aplicar a movimientos existentes",
+      "applyToExistingHint": "Etiqueta los movimientos que ya cumplen la regla, salvo los que tienen etiquetas mantenidas.",
+      "preview": "Vista previa",
+      "previewCount": "{count} movimientos coinciden",
+      "conditionRequired": "Añade al menos una condición",
+      "labelRequired": "Elige al menos una etiqueta",
+      "invalidRule": "La regla no es válida, revisa las condiciones",
+      "saved": "Regla guardada",
+      "savedApplied": "Regla guardada y aplicada a {count} movimientos",
+      "deleted": "Regla eliminada",
+      "emptyTitle": "Aún no hay reglas",
+      "empty": "Las reglas etiquetan tus movimientos automáticamente. Crea una aquí o usa \"Crear regla\" desde cualquier movimiento.",
+      "unnamed": "Regla sin nombre",
+      "daysSummary": "Días {from} – {to}",
+      "kind": "Tipo de regla",
+      "kinds": {
+        "MATCH": "Cumplir condiciones",
+        "TRANSFER": "Traspasos entre cuentas"
+      },
+      "kindHints": {
+        "MATCH": "Etiqueta cada movimiento que coincide por texto, tipo, importe o fechas.",
+        "TRANSFER": "Empareja el dinero que sale de una cuenta con el mismo importe que llega a otra."
+      },
+      "transferWhen": "Cuando dos movimientos parecen un traspaso",
+      "transferExplanation": "Una salida en una cuenta y una entrada del mismo importe y divisa en otra cuenta, dentro de los días permitidos, se emparejan y ambas se etiquetan. Las cuentas de una misma entidad solo se emparejan si se conocen sus IBAN.",
+      "transferThen": "Etiquetar ambos movimientos con",
+      "transferApplyToExistingHint": "Empareja y etiqueta también los movimientos existentes, salvo los que tienen etiquetas mantenidas.",
+      "transferEntitiesHint": "Déjalo vacío para emparejar movimientos entre todas tus entidades.",
+      "accounts": "Cuentas",
+      "anyAccount": "Cualquier cuenta",
+      "accountsHint": "Solo movimientos de estas cuentas. Los movimientos sin IBAN conocido nunca coinciden.",
+      "transferAccountsHint": "Ambos movimientos deben pertenecer a estas cuentas. Déjalo vacío para usar todas.",
+      "transferUnnamed": "Traspasos entre mis cuentas",
+      "maxDays": "Máximo de días de diferencia",
+      "maxDaysHint": "Días permitidos entre la salida y la entrada. 0 significa el mismo día.",
+      "maxDaysSummary": "Hasta {days} días de diferencia",
+      "sameDay": "Mismo día",
+      "deleteTitle": "Eliminar regla",
+      "deleteMessage": "¿Eliminar esta regla? Las etiquetas que aplicó se quitarán de los movimientos."
+    },
+    "relabel": {
+      "title": "Reetiquetar movimientos",
+      "description": "Vuelve a ejecutar tus reglas sobre los movimientos existentes. Se omiten los que tienen etiquetas mantenidas y las liquidaciones de inversiones.",
+      "open": "Reetiquetar",
+      "count": "Contar",
+      "run": "Reetiquetar",
+      "withLabels": "Con etiquetas",
+      "withoutLabels": "Sin las etiquetas",
+      "unlabeledOnly": "Solo movimientos sin etiqueta",
+      "replace": "Reemplazar etiquetas de",
+      "lockedHint": "Los movimientos con etiquetas bloqueadas nunca se modifican.",
+      "includeExternal": "Usar {provider} como respaldo cuando ninguna regla coincida",
+      "includeExternalHint": "Los movimientos que sigan sin etiqueta tras aplicar tus reglas se envían a {provider} para obtener una sugerencia. Usa tu configuración de Sugerencias externas.",
+      "retryUnmatched": "Reintentar movimientos que {provider} no pudo etiquetar antes",
+      "retryUnmatchedHint": "Por defecto se omiten para no volver a pagar por ellos.",
+      "matched": "{count} movimientos seleccionados",
+      "summary": "{rules} etiquetados por reglas · {external} etiquetados por sugerencias",
+      "done": "Movimientos reetiquetados",
+      "externalFailed": "Movimientos reetiquetados, pero no se pudieron obtener sugerencias"
+    },
+    "automation": {
+      "rulesTitle": "Reglas",
+      "rulesAlwaysOn": "Aplicar reglas a los movimientos nuevos",
+      "rulesAlwaysOnHint": "Cada movimiento sincronizado, importado o añadido manualmente se etiqueta con tus reglas activas en cuanto se guarda.",
+      "alwaysOn": "Siempre activo",
+      "optional": "Opcional"
+    },
+    "external": {
+      "title": "Sugerencias externas",
+      "enable": "Usar un proveedor externo",
+      "description": "Etiqueta con un modelo externo los movimientos que no cumple ninguna de tus reglas.",
+      "moreSettings": "Más ajustes",
+      "noProviders": "No hay proveedores disponibles.",
+      "provider": "Proveedor",
+      "connected": "Conectado",
+      "notConnected": "No conectado",
+      "connectProvider": "Configúralo en integraciones",
+      "connectRequired": "Conecta el proveedor o desactiva las sugerencias externas para guardar.",
+      "model": "Modelo",
+      "confidenceScores": "Nivel de confianza",
+      "customModel": "Otro modelo",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol"
+      },
+      "customModelNotice": "Algunos modelos pueden ser lentos y caros al categorizar muchos movimientos. Se recomiendan modelos más rápidos y baratos.",
+      "validate": "Validar",
+      "modelValid": "Modelo compatible",
+      "modelInvalid": "Modelo no encontrado o no compatible",
+      "upstreamProvider": "Proveedor",
+      "upstreamProviderPlaceholder": "Proveedor (opcional)",
+      "upstreamProviderHint": "Opcionalmente, envía las peticiones a un proveedor concreto, p. ej. openai/flex. Solo se usará ese proveedor, sin alternativas.",
+      "minConfidence": "Confianza mínima (%)",
+      "minConfidenceHint": "Las sugerencias por debajo de esta confianza se descartan.",
+      "minConfidenceNotApplicable": "Este modelo no indica su confianza, así que se aplican todas las sugerencias.",
+      "maxPerRun": "Máximo de movimientos por ejecución",
+      "maxPerRunHint": "Limita el uso en cada sincronización o reetiquetado.",
+      "autoRun": "Usar como respaldo cuando ninguna regla coincida",
+      "autoRunHint": "Cuando llegan movimientos nuevos (sincronizaciones, importaciones o altas manuales), primero se aplican tus reglas y solo los que queden sin etiqueta se envían al proveedor para que sugiera una. Si está desactivado, el proveedor solo se usa al reetiquetar.",
+      "examples": "Alimentar con ejemplos",
+      "examplesHint": "Incluye en cada petición algunos de tus movimientos ya etiquetados para que el modelo aprenda cómo etiquetas y sugiera con más precisión.",
+      "examplesCount": "Número de ejemplos",
+      "examplesFrom": "Usar etiquetas puestas por",
+      "instructions": "Instrucciones personalizadas",
+      "instructionsHint": "Para usuarios avanzados. Indicaciones extra que se añaden a lo que se envía al modelo, por ejemplo cómo etiquetar ciertos pagos.",
+      "instructionsPlaceholder": "p. ej. Las transferencias de Ana son alquiler. Los pagos del club de pádel son ocio.",
+      "privacyNotice": "Se envían al proveedor el concepto, la contraparte, el importe, la divisa y la fecha de los movimientos. Nunca se comparten números de cuenta ni saldos.",
+      "providerAndModelRequired": "Elige un proveedor y un modelo"
+    }
+  },
+  "cashflow": {
+    "title": "Actividad",
+    "tabs": {
+      "analysis": "Análisis"
+    },
+    "presets": {
+      "thisMonth": "Este mes",
+      "lastMonth": "Mes pasado",
+      "last3Months": "3 meses",
+      "last6Months": "6 meses",
+      "last12Months": "12 meses",
+      "ytd": "Este año",
+      "custom": "Personalizado"
+    },
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "net": "Neto",
+    "savingsRate": "Tasa de ahorro",
+    "vsPrevious": "Variación vs periodo anterior",
+    "movementsCount": "{count} movimientos",
+    "excludedCount": "{count} excluidos",
+    "excludedInfo": "No se cuentan las liquidaciones de inversiones ni los movimientos con etiquetas excluidas de los totales.",
+    "evolution": "Evolución",
+    "empty": {
+      "title": "No hay movimientos en este periodo",
+      "description": "Sincroniza tus cuentas o añade movimientos manualmente para ver a dónde va tu dinero.",
+      "goToTransactions": "Ir a transacciones",
+      "noExpenses": "No hay gastos en este periodo",
+      "noIncome": "No hay ingresos en este periodo",
+      "noCounterparties": "No hay movimientos en este periodo"
+    },
+    "byLabel": "Por etiqueta",
+    "overlapHint": "Los movimientos con varias etiquetas cuentan en cada una de ellas.",
+    "topCounterparties": "Principales movimientos",
+    "recurring": {
+      "title": "Movimientos recurrentes detectados",
+      "description": "Pagos e ingresos que se repiten con regularidad en tus movimientos.",
+      "empty": "Aún no se han detectado movimientos recurrentes",
+      "emptyHint": "Los pagos e ingresos regulares aparecen aquí tras repetirse varias veces.",
+      "next": "Próximo {date}",
+      "occurrences": "{count} veces",
+      "upTo": "hasta {amount}",
+      "track": "Seguir",
+      "tracked": "Añadido a dinero recurrente",
+      "trackedBadge": "Seguido",
+      "trackedAs": "Dinero recurrente asociado",
+      "openRecurring": "Abrir dinero recurrente",
+      "showMore": "Mostrar más",
+      "ignore": "Ignorar",
+      "ignoredToast": "Movimiento ignorado",
+      "ignoredSection": "Ignorados ({count})",
+      "restore": "Restaurar",
+      "restoredToast": "Movimiento restaurado"
+    }
+  },
   "time": {
     "justNow": "justo ahora",
     "minuteAgo": "hace 1 minuto",
@@ -1863,7 +2213,9 @@
       "SWITCH_TO": "Switch F. Dest.",
       "INVESTMENT": "Inversión",
       "FEE": "Comisión",
-      "SPLIT": "Split"
+      "SPLIT": "Split",
+      "INFLOW": "Entrada",
+      "OUTFLOW": "Salida"
     },
     "productType": {
       "ACCOUNT": "Cuenta",
@@ -2207,15 +2559,37 @@
     "FUND_PORTFOLIO": "De cartera"
   },
   "management": {
-    "title": "Gestión",
+    "title": "Mi dinero",
     "recurring": "Recurrente",
     "pending": "Pendiente",
-    "recurringMoney": "Dinero Recurrente",
-    "recurringMoneyDescription": "Gestiona tus ingresos y gastos recurrentes",
-    "pendingMoney": "Dinero Pendiente",
+    "recurringMoney": "Recurrente",
+    "recurringMoneyDescription": "Tus ingresos, gastos e inversiones recurrentes",
+    "pendingMoney": "Pendiente",
     "pendingMoneyDescription": "Gestiona tus ingresos y gastos puntuales",
     "autoContributions": "Aportaciones",
     "autoContributionsDescription": "Revisa tus aportaciones periódicas de inversión",
+    "cashflow": "Actividad",
+    "cashflowDescription": "Analiza tus ingresos y gastos, organiza movimientos con etiquetas y reglas",
+    "labels": "Etiquetas y reglas",
+    "labelsDescription": "Organiza los movimientos de tus cuentas con etiquetas",
+    "tabs": {
+      "overview": "Resumen",
+      "earnings": "Ingresos",
+      "expenses": "Gastos",
+      "investments": "Inversiones"
+    },
+    "overview": {
+      "suggestionsHint": "{count} gastos recurrentes sugeridos de tus préstamos",
+      "review": "Revisar"
+    },
+    "upcoming": {
+      "title": "Próximos",
+      "agenda": "Agenda",
+      "month": "Mes",
+      "empty": "Nada programado en los próximos {days} días",
+      "showAll": "Ver todo",
+      "showLess": "Ver menos"
+    },
     "earnings": "Ingresos",
     "expenses": "Gastos",
     "addNew": "Agregar nuevo",
@@ -2292,10 +2666,10 @@
     },
     "unsavedChanges": "Tienes cambios sin guardar",
     "requiredFields": "Campos requeridos",
-    "sortBy": "Ordenar por",
+    "sortBy": "Ordenar",
     "sortByAmount": "Cantidad",
     "sortByDate": "Fecha",
-    "groupBy": "Agrupar por",
+    "groupBy": "Agrupar",
     "groupByCategory": "Categoría",
     "uncategorized": "Sin categoría",
     "nextPayment": "Próximo",
@@ -2306,6 +2680,8 @@
     "monthlyRecurringEarnings": "Ingresos recurrentes mensuales",
     "monthlyRecurringExpenses": "Gastos recurrentes mensuales",
     "savableAmount": "Cantidad ahorrable",
+    "remainingCash": "Efectivo restante",
+    "remainingCashDescription": "Ingresos mensuales que quedan tras gastos recurrentes e inversiones ({percentage}% de los ingresos).",
     "monthlyInvestedAmount": "Inversión mensual",
     "savingsRate": "Tasa de ahorro",
     "investedRate": "Tasa invertida",

@@ -22,6 +22,35 @@ export enum TxType {
   INTEREST = "INTEREST",
 
   FEE = "FEE",
+
+  INFLOW = "INFLOW",
+  OUTFLOW = "OUTFLOW",
+}
+
+export const ACCOUNT_MOVEMENT_TX_TYPES: TxType[] = [
+  TxType.INFLOW,
+  TxType.OUTFLOW,
+]
+
+export const LABELABLE_TX_TYPES: TxType[] = [
+  TxType.INFLOW,
+  TxType.OUTFLOW,
+  TxType.INTEREST,
+  TxType.FEE,
+]
+
+export enum LabelOrigin {
+  MANUAL = "MANUAL",
+  RULE = "RULE",
+  EXTERNAL = "EXTERNAL",
+}
+
+export interface TxLabel {
+  label_id: string
+  origin: LabelOrigin
+  rule_id?: string | null
+  provider?: string | null
+  confidence?: number | null
 }
 
 // Base transaction interface
@@ -46,12 +75,24 @@ export interface BaseTx {
 export type BaseInvestmentTx = BaseTx
 
 // Account transaction interface
+export interface TransferPair {
+  tx_id: string
+  entity_id?: string | null
+  rule_id?: string | null
+}
+
 export interface AccountTx extends BaseTx {
   fees: number
   retentions: number
   interest_rate?: number
   avg_balance?: number
   net_amount?: number
+  counterparty?: string | null
+  iban?: string | null
+  linked_tx?: string | null
+  labels?: TxLabel[] | null
+  labels_locked?: boolean
+  transfer_pair?: TransferPair | null
 }
 
 // Stock transaction interface
@@ -151,6 +192,9 @@ export interface ManualAccountTransactionPayload extends ManualTransactionBasePa
   retentions?: number
   interest_rate?: number
   avg_balance?: number
+  counterparty?: string
+  iban?: string
+  labels?: string[]
 }
 
 export interface ManualStockTransactionPayload extends ManualTransactionBasePayload {
@@ -254,4 +298,8 @@ export interface TransactionQueryRequest {
   to_date?: string
   types?: TxType[]
   historic_entry_id?: string
+  labels?: string[]
+  excluded_labels?: string[]
+  unlabeled?: boolean
+  search?: string
 }

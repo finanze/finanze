@@ -628,6 +628,7 @@
     "enableBankingNoLinkedAccountsAfter": ". Link it there first, then try again.",
     "confirmConnection": "Complete Connection",
     "providerLinkInstructions": "Finish the process in the opened window then confirm the connection.",
+    "completingConnection": "Completing the connection, this may take a few seconds...",
     "openLink": "Open Link",
     "dismiss": "Dismiss",
     "continueLink": "Continue link",
@@ -1175,6 +1176,50 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenRouter API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Create an account at "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", generate a new API key and paste it below. Usage is billed by OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenAI API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Sign in to the OpenAI platform at "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", create a new secret key and paste it below. Usage is billed by OpenAI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
@@ -1185,6 +1230,7 @@
       "ENTITY_PROVIDER": "Banking providers",
       "CRYPTO_PROVIDER": "Crypto providers",
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
+      "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
     }
   },
@@ -1740,6 +1786,12 @@
     "selectAccounts": "Select accounts...",
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
+    "scope": {
+      "label": "Show",
+      "all": "All",
+      "account": "Accounts",
+      "investment": "Investments"
+    },
     "form": {
       "createTitle": "Add transaction",
       "editTitle": "Edit transaction",
@@ -1813,6 +1865,304 @@
       "calendarView": "Calendar"
     }
   },
+  "labels": {
+    "title": "Labels",
+    "tabs": {
+      "labels": "Labels",
+      "rules": "Rules",
+      "automation": "Automation"
+    },
+    "base": {
+      "salary": "Salary",
+      "business_income": "Business income",
+      "rental_income": "Rental income",
+      "refunds": "Refunds",
+      "gifts_received": "Gifts received",
+      "interest": "Interest",
+      "other_income": "Other income",
+      "housing": "Housing",
+      "utilities": "Utilities",
+      "groceries": "Groceries",
+      "restaurants": "Restaurants",
+      "transport": "Transport",
+      "shopping": "Shopping",
+      "subscriptions": "Subscriptions",
+      "health": "Health",
+      "insurance": "Insurance",
+      "education": "Education",
+      "leisure": "Leisure",
+      "travel": "Travel",
+      "personal_care": "Personal care",
+      "pets": "Pets",
+      "family": "Family",
+      "gifts_donations": "Gifts & donations",
+      "taxes": "Taxes",
+      "bank_fees": "Bank fees",
+      "cash_withdrawal": "Cash withdrawal",
+      "debt_payments": "Debt payments",
+      "other_expense": "Other expenses",
+      "internal_transfer": "Internal transfer",
+      "savings_investment": "Savings & investment"
+    },
+    "origins": {
+      "MANUAL": "Manual",
+      "RULE": "Rules",
+      "EXTERNAL": "Suggestions"
+    },
+    "settlement": "Investment",
+    "settlementHint": "This movement is the cash side of an investment operation, so it is not counted as income or expense.",
+    "editTransactionLabels": "Edit labels",
+    "addLabel": "Label",
+    "searchLabels": "Search labels...",
+    "transactionLabelsSaved": "Labels updated",
+    "saveError": "Unable to save changes",
+    "deleteError": "Unable to delete",
+    "createRuleFromMovement": "Create rule",
+    "lockLabels": "Lock labels",
+    "lockLabelsHint": "Relabeling, rules and suggestions will never change the labels of this movement.",
+    "unlinkSettlement": "Unlink from investment operation",
+    "transferPair": "Transfer",
+    "transferPairOtherEntity": "another entity",
+    "transferPairHint": "Paired as a transfer with a movement of the same amount in {entity}.",
+    "unpairTransfer": "Unpair transfer",
+    "unpairTransferHint": "Labels are locked so this movement is not paired again.",
+    "newLabel": "New label",
+    "editLabel": "Edit label",
+    "labelName": "Name",
+    "labelDescription": "Description",
+    "labelDescriptionHint": "Optional. Helps suggestions understand what belongs to this label.",
+    "baseLabelNameHint": "Leave empty to keep the default name.",
+    "nameRequired": "Enter a name",
+    "color": "Color",
+    "customColor": "Custom color",
+    "category": "Type",
+    "categoryHints": {
+      "EXPENSE": "Grouped with your spending labels.",
+      "INCOME": "Grouped with your income labels.",
+      "EXCLUDED": "Movements with this label are not counted as income or expenses, e.g. transfers between your own accounts."
+    },
+    "excluded": "Excluded",
+    "labelSaved": "Label saved",
+    "labelDeleted": "Label deleted",
+    "usage": "{count} movements",
+    "noUsage": "Not used yet",
+    "changeIcon": "Change icon",
+    "categories": {
+      "EXPENSE": "Spending",
+      "INCOME": "Income",
+      "EXCLUDED": "Not counted in totals"
+    },
+    "deleteLabelTitle": "Delete label",
+    "deleteLabelMessage": "Delete the label \"{name}\"? It will be removed from every movement.",
+    "deleteLabelWarning": "Rules that only apply this label will also be deleted.",
+    "unlabeled": "Unlabeled",
+    "anyLabel": "Any label",
+    "includeLabel": "With this label",
+    "excludeLabel": "Without this label",
+    "counterparty": "Counterparty",
+    "searchTextPlaceholder": "Search by name",
+    "manualLabelsHint": "Labels chosen here are kept. Leave empty to let your rules decide.",
+    "rules": {
+      "newRule": "New rule",
+      "editRule": "Edit rule",
+      "name": "Name",
+      "namePlaceholder": "Optional",
+      "when": "When the movement matches",
+      "then": "Apply these labels",
+      "textField": "Field",
+      "textOperator": "Condition",
+      "textValue": "Text",
+      "textValuePlaceholder": "e.g. netflix",
+      "fields": {
+        "ANY": "Name or counterparty",
+        "NAME": "Name",
+        "COUNTERPARTY": "Counterparty"
+      },
+      "operators": {
+        "CONTAINS": "Contains",
+        "STARTS_WITH": "Starts with",
+        "EQUALS": "Is exactly",
+        "REGEX": "Matches pattern"
+      },
+      "anyType": "Any type",
+      "lookIn": "Look in",
+      "amount": "Amount",
+      "min": "Min",
+      "max": "Max",
+      "dateRange": "Dates",
+      "moreConditions": "More conditions",
+      "minAmount": "Minimum amount",
+      "maxAmount": "Maximum amount",
+      "anyCurrency": "Any currency",
+      "dayOfMonth": "Day of month",
+      "dayFrom": "From day",
+      "dayTo": "To day",
+      "dayOfMonthHint": "Ranges can wrap around the month end, e.g. 28 – 3.",
+      "applyToExisting": "Apply to existing movements",
+      "applyToExistingHint": "Labels already matching movements, except the ones with kept labels.",
+      "preview": "Preview",
+      "previewCount": "{count} movements match",
+      "conditionRequired": "Add at least one condition",
+      "labelRequired": "Choose at least one label",
+      "invalidRule": "The rule is not valid, review the conditions",
+      "saved": "Rule saved",
+      "savedApplied": "Rule saved and applied to {count} movements",
+      "deleted": "Rule deleted",
+      "emptyTitle": "No rules yet",
+      "empty": "Rules label your movements automatically. Create one here or use \"Create rule\" from any movement.",
+      "unnamed": "Unnamed rule",
+      "daysSummary": "Days {from} – {to}",
+      "kind": "Rule type",
+      "kinds": {
+        "MATCH": "Match conditions",
+        "TRANSFER": "Transfers between accounts"
+      },
+      "kindHints": {
+        "MATCH": "Labels each movement matching text, type, amount or dates.",
+        "TRANSFER": "Pairs money leaving one account with the same amount arriving at another."
+      },
+      "transferWhen": "When two movements look like a transfer",
+      "transferExplanation": "An outflow in one account and an inflow of the same amount and currency in another account, within the allowed days, are paired and both get labeled. Accounts of the same entity are only paired when their IBANs are known.",
+      "transferThen": "Label both movements with",
+      "transferApplyToExistingHint": "Pairs and labels existing movements too, except the ones with kept labels.",
+      "transferEntitiesHint": "Leave empty to pair movements across all your entities.",
+      "accounts": "Accounts",
+      "anyAccount": "Any account",
+      "accountsHint": "Only movements of these accounts. Movements without a known IBAN never match.",
+      "transferAccountsHint": "Both movements must belong to these accounts. Leave empty to use all accounts.",
+      "transferUnnamed": "Transfers between my accounts",
+      "maxDays": "Maximum days apart",
+      "maxDaysHint": "Days allowed between the outflow and the inflow. 0 means same day.",
+      "maxDaysSummary": "Up to {days} days apart",
+      "sameDay": "Same day",
+      "deleteTitle": "Delete rule",
+      "deleteMessage": "Delete this rule? Labels it applied will be removed from movements."
+    },
+    "relabel": {
+      "title": "Relabel movements",
+      "description": "Run your rules again over existing movements. Movements with kept labels and investment settlements are skipped.",
+      "open": "Relabel",
+      "count": "Count",
+      "run": "Relabel",
+      "withLabels": "With labels",
+      "withoutLabels": "Without labels",
+      "unlabeledOnly": "Only unlabeled movements",
+      "replace": "Replace labels from",
+      "lockedHint": "Movements with locked labels are never changed.",
+      "includeExternal": "Use {provider} as fallback when no rule matches",
+      "includeExternalHint": "Movements left without a label after your rules run are sent to {provider} for a suggestion. Uses your External suggestions setup.",
+      "retryUnmatched": "Retry movements {provider} could not label before",
+      "retryUnmatchedHint": "By default they are skipped to avoid paying for them again.",
+      "matched": "{count} movements selected",
+      "summary": "{rules} labeled by rules · {external} labeled by suggestions",
+      "done": "Movements relabeled",
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+    },
+    "automation": {
+      "rulesTitle": "Rules",
+      "rulesAlwaysOn": "Apply rules to new movements",
+      "rulesAlwaysOnHint": "Every movement that is synced, imported or added manually is labeled by your enabled rules as soon as it is saved.",
+      "alwaysOn": "Always on",
+      "optional": "Optional"
+    },
+    "external": {
+      "title": "External suggestions",
+      "enable": "Use an external provider",
+      "description": "Label the movements that none of your rules match with an external model.",
+      "moreSettings": "More settings",
+      "noProviders": "No providers available.",
+      "provider": "Provider",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "connectProvider": "Configure it in integrations",
+      "connectRequired": "Connect the provider or turn off external suggestions to save.",
+      "model": "Model",
+      "confidenceScores": "Confidence scores",
+      "customModel": "Other model",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol"
+      },
+      "customModelNotice": "Some models can be slow and expensive when categorizing many movements. Faster and cheaper models are recommended.",
+      "validate": "Validate",
+      "modelValid": "Model supported",
+      "modelInvalid": "Model not found or not supported",
+      "upstreamProvider": "Provider",
+      "upstreamProviderPlaceholder": "Provider (optional)",
+      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "minConfidence": "Minimum confidence (%)",
+      "minConfidenceHint": "Suggestions below this confidence are discarded.",
+      "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",
+      "maxPerRun": "Maximum movements per run",
+      "maxPerRunHint": "Limits usage on each sync or relabel.",
+      "autoRun": "Use as fallback when no rule matches",
+      "autoRunHint": "When new movements arrive (syncs, imports or manual entries), your rules are applied first and only the ones left without a label are sent to the provider for a suggestion. When off, the provider is only used when you run a relabel.",
+      "examples": "Feed with examples",
+      "examplesHint": "Include some of your already labeled movements with each request so the model learns how you label and suggests more accurately.",
+      "examplesCount": "Number of examples",
+      "examplesFrom": "Use labels set by",
+      "instructions": "Custom instructions",
+      "instructionsHint": "For advanced users. Extra guidance added to what is sent to the model, for example how to label specific payees.",
+      "instructionsPlaceholder": "e.g. Transfers from Ana are rent. Padel club payments are leisure.",
+      "privacyNotice": "Movement names, counterparties, amounts, currencies and dates are sent to the provider. Account numbers and balances are never shared.",
+      "providerAndModelRequired": "Choose a provider and a model"
+    }
+  },
+  "cashflow": {
+    "title": "Activity",
+    "tabs": {
+      "analysis": "Analysis"
+    },
+    "presets": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last3Months": "3 months",
+      "last6Months": "6 months",
+      "last12Months": "12 months",
+      "ytd": "Year to date",
+      "custom": "Custom"
+    },
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "savingsRate": "Savings rate",
+    "vsPrevious": "Change vs previous period",
+    "movementsCount": "{count} movements",
+    "excludedCount": "{count} excluded",
+    "excludedInfo": "Investment settlements and movements with labels excluded from totals are not counted.",
+    "evolution": "Evolution",
+    "empty": {
+      "title": "No movements in this period",
+      "description": "Sync your accounts or add movements manually to see where your money goes.",
+      "goToTransactions": "Go to transactions",
+      "noExpenses": "No expenses in this period",
+      "noIncome": "No income in this period",
+      "noCounterparties": "No movements in this period"
+    },
+    "byLabel": "By label",
+    "overlapHint": "Movements with several labels count in each of them.",
+    "topCounterparties": "Main movements",
+    "recurring": {
+      "title": "Detected recurring movements",
+      "description": "Payments and income that repeat regularly in your movements.",
+      "empty": "No recurring movements detected yet",
+      "emptyHint": "Regular payments and income show up here after a few repetitions.",
+      "next": "Next {date}",
+      "occurrences": "{count} times",
+      "upTo": "up to {amount}",
+      "track": "Track",
+      "tracked": "Added to recurring money",
+      "trackedBadge": "Tracked",
+      "trackedAs": "Matched recurring money",
+      "openRecurring": "Open recurring money",
+      "showMore": "Show more",
+      "ignore": "Ignore",
+      "ignoredToast": "Movement ignored",
+      "ignoredSection": "Ignored ({count})",
+      "restore": "Restore",
+      "restoredToast": "Movement restored"
+    }
+  },
   "time": {
     "justNow": "just now",
     "minuteAgo": "1 minute ago",
@@ -1864,7 +2214,9 @@
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
       "FEE": "Fee",
-      "SPLIT": "Split"
+      "SPLIT": "Split",
+      "INFLOW": "Inflow",
+      "OUTFLOW": "Outflow"
     },
     "productType": {
       "ACCOUNT": "Account",
@@ -2208,15 +2560,37 @@
     "FUND_PORTFOLIO": "Fund Portfolio"
   },
   "management": {
-    "title": "Management",
+    "title": "My Money",
     "recurring": "Recurring",
     "pending": "Pending",
-    "recurringMoney": "Recurring Money",
-    "recurringMoneyDescription": "Manage your recurring income and expenses",
-    "pendingMoney": "Pending Money",
+    "recurringMoney": "Recurring",
+    "recurringMoneyDescription": "Your recurring earnings, expenses and investments",
+    "pendingMoney": "Pending",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
     "autoContributions": "Contributions",
     "autoContributionsDescription": "Review your periodic investment contributions",
+    "cashflow": "Activity",
+    "cashflowDescription": "Analyze your income and spending, organize movements with labels and rules",
+    "labels": "Labels & Rules",
+    "labelsDescription": "Organize your account movements with labels",
+    "tabs": {
+      "overview": "Overview",
+      "earnings": "Earnings",
+      "expenses": "Expenses",
+      "investments": "Investments"
+    },
+    "overview": {
+      "suggestionsHint": "{count} suggested recurring expenses from your loans",
+      "review": "Review"
+    },
+    "upcoming": {
+      "title": "Upcoming",
+      "agenda": "Agenda",
+      "month": "Month",
+      "empty": "Nothing scheduled in the next {days} days",
+      "showAll": "Show all",
+      "showLess": "Show less"
+    },
     "earnings": "Earnings",
     "expenses": "Expenses",
     "addNew": "Add new",
@@ -2307,6 +2681,8 @@
     "monthlyRecurringEarnings": "Monthly recurring earnings",
     "monthlyRecurringExpenses": "Monthly recurring expenses",
     "savableAmount": "Savable amount",
+    "remainingCash": "Remaining cash",
+    "remainingCashDescription": "Monthly earnings left after recurring expenses and investments ({percentage}% of earnings).",
     "monthlyInvestedAmount": "Monthly invested",
     "savingsRate": "Savings rate",
     "investedRate": "Invested rate",

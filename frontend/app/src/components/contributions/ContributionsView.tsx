@@ -8,12 +8,10 @@ import {
 } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
-import { useNavigate } from "react-router-dom"
 import {
   Info,
   PiggyBank,
   CalendarDays,
-  ArrowLeft,
   TrendingUp,
   Folder,
   BarChart3,
@@ -35,7 +33,6 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
-import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Card,
   CardContent,
@@ -258,12 +255,11 @@ function SuggestionIcon({
   return null
 }
 
-export default function AutoContributionsPage() {
+export function ContributionsView() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
   const { contributions, positionsData, refreshData, ensureContributions } =
     useFinancialData()
-  const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const isQuickMode = settings.general.editMode === EditMode.QUICK
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -1532,27 +1528,8 @@ export default function AutoContributionsPage() {
       >
         <motion.div
           variants={fadeListItem}
-          className="flex items-center justify-between gap-4 flex-wrap"
+          className="flex items-center justify-end gap-2 flex-wrap"
         >
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8"
-              onClick={() => navigate("/management")}
-            >
-              <ArrowLeft size={20} />
-            </Button>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">
-                {t.management.autoContributions}
-              </h1>
-              <PinAssetButton
-                assetId="management-auto-contributions"
-                className="hidden md:inline-flex"
-              />
-            </div>
-          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="default"

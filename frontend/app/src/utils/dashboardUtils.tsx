@@ -20,6 +20,7 @@ import {
   House,
   Home,
   ArrowDownRight,
+  ArrowDownLeft,
   ArrowUpRight,
   Wallet,
   CreditCard,
@@ -239,6 +240,10 @@ export const getIconForTxType = (txType: TxType, size: string = "h-4 w-4") => {
       return <Undo className={iconClass} />
     case TxType.FEE:
       return <FileMinus className={iconClass} />
+    case TxType.INFLOW:
+      return <ArrowDownLeft className={iconClass} />
+    case TxType.OUTFLOW:
+      return <ArrowUpRight className={iconClass} />
     default:
       return <DollarSign className={iconClass} />
   }

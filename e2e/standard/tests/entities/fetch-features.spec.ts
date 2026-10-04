@@ -1,5 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
+import { navigateToMyMoneyPage } from '../../helpers/my-money'
 
 /**
  * Helper: connect an entity via login form and reload.
@@ -53,20 +55,9 @@ async function connectEntityIfNeeded(
     }
 }
 
-/**
- * Helper: navigate to Auto Contributions page via sidebar Management section.
- */
 async function navigateToAutoContributions(page: Page) {
-    await page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Management' })
-        .click()
-    await page.waitForTimeout(500)
-    await page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Contributions' })
-        .click()
-    await page.waitForTimeout(1_000)
+    await navigateToMyMoneyPage(page, 'Recurring')
+    await page.getByRole('tab', { name: /^Investments/ }).click()
 }
 
 // MyInvestor: has POSITION, AUTO_CONTRIBUTIONS, TRANSACTIONS
@@ -121,6 +112,12 @@ test.describe('Feature Selection Verification', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'MyInvestor')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).toBeVisible({
             timeout: 5_000,
         })
@@ -258,6 +255,12 @@ test.describe('Feature Selection Verification', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'MyInvestor')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).not.toBeVisible({
             timeout: 5_000,
         })

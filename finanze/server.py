@@ -117,6 +117,31 @@ from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
+from application.use_cases.create_label import CreateLabelImpl
+from application.use_cases.create_labeling_rule import CreateLabelingRuleImpl
+from application.use_cases.delete_label import DeleteLabelImpl
+from application.use_cases.delete_labeling_rule import DeleteLabelingRuleImpl
+from application.use_cases.get_external_labeling_providers import (
+    GetExternalLabelingProvidersImpl,
+)
+from application.use_cases.get_labeling_rules import GetLabelingRulesImpl
+from application.use_cases.get_labels import GetLabelsImpl
+from application.use_cases.preview_labeling_rule import PreviewLabelingRuleImpl
+from application.use_cases.relabel_transactions import RelabelTransactionsImpl
+from application.use_cases.update_label import UpdateLabelImpl
+from application.use_cases.update_labeling_rule import UpdateLabelingRuleImpl
+from application.use_cases.update_transaction_labels import (
+    UpdateTransactionLabelsImpl,
+)
+from application.use_cases.validate_ai_model import ValidateAIModelImpl
+from application.use_cases.get_cashflow_summary import GetCashflowSummaryImpl
+from application.use_cases.get_recurring_movements import GetRecurringMovementsImpl
+from application.use_cases.ignore_recurring_movement import (
+    IgnoreRecurringMovementImpl,
+)
+from application.use_cases.restore_recurring_movement import (
+    RestoreRecurringMovementImpl,
+)
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
@@ -126,6 +151,8 @@ from infrastructure.client.cloud.backup.backup_client import BackupClient
 from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
+from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.openrouter.openrouter_client import OpenRouterClient
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.zerion.zerion_client import ZerionClient
@@ -221,6 +248,11 @@ from infrastructure.crypto.public_key_derivation_adapter import (
 )
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
+from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
+from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
+from infrastructure.labeling.transaction_labeler_adapter import (
+    TransactionLabelerAdapter,
+)
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
@@ -268,6 +300,16 @@ from infrastructure.repository.fetch.fetch_pointers_repository import (
 )
 from infrastructure.repository.keychain.public_keychain_repository import (
     PublicKeychainRepository,
+)
+from infrastructure.repository.labeling.label_repository import LabelRepository
+from infrastructure.repository.cashflow.ignored_recurring_movement_repository import (
+    IgnoredRecurringMovementRepository,
+)
+from infrastructure.repository.labeling.labeling_rule_repository import (
+    LabelingRuleRepository,
+)
+from infrastructure.repository.labeling.transaction_label_repository import (
+    TransactionLabelRepository,
 )
 from infrastructure.repository.position.manual_position_data_repository import (
     ManualPositionDataSQLRepository,
@@ -377,6 +419,10 @@ class FinanzeServer:
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
         polymarket_fetcher = PolymarketFetcher()
+        ai_clients = {
+            ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
+            ExternalIntegrationId.OPENAI: OpenAIClient(),
+        }
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -432,6 +478,12 @@ class FinanzeServer:
             ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
             ExternalIntegrationId.ZERION: zerion_client,
+            **ai_clients,
+        }
+
+        external_labeling_providers = {
+            integration_id: AILabelingProvider(client, LABELING_PRESETS[integration_id])
+            for integration_id, client in ai_clients.items()
         }
 
         sheets_adapter = SheetsAdapter(sheets_initiator)
@@ -476,6 +528,12 @@ class FinanzeServer:
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
+        label_repository = LabelRepository(client=db_client)
+        labeling_rule_repository = LabelingRuleRepository(client=db_client)
+        transaction_label_repository = TransactionLabelRepository(client=db_client)
+        ignored_recurring_movement_repository = IgnoredRecurringMovementRepository(
+            client=db_client
+        )
 
         public_keychain_data_repository = PublicKeychainRepository(client=db_client)
         public_keychain_fetcher_client = PublicKeychainClient()
@@ -502,6 +560,17 @@ class FinanzeServer:
         credentials_port = CredentialsRepository(client=db_client)
 
         transaction_handler = TransactionHandler(client=db_client)
+
+        transaction_labeler = TransactionLabelerAdapter(
+            transaction_port=transaction_repository,
+            transaction_label_port=transaction_label_repository,
+            labeling_rule_port=labeling_rule_repository,
+            label_port=label_repository,
+            config_port=config_loader,
+            external_integration_port=external_integration_repository,
+            providers=external_labeling_providers,
+            transaction_handler_port=transaction_handler,
+        )
 
         user_login = UserLoginImpl(
             db_manager,
@@ -577,6 +646,8 @@ class FinanzeServer:
             real_estate_repository,
             feature_flag_port,
             fetch_pointers_port=fetch_pointers_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
             error_reporter=self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
@@ -599,6 +670,8 @@ class FinanzeServer:
             external_integration_repository,
             last_fetches_repository,
             transaction_handler,
+            transaction_repository,
+            transaction_labeler,
         )
         export_sheets = ExportSheetsImpl(
             position_repository,
@@ -634,6 +707,8 @@ class FinanzeServer:
             template_repository,
             template_parser,
             transaction_handler,
+            transaction_label_repository,
+            transaction_labeler,
         )
         import_file = ImportFileImpl(
             position_port=position_repository,
@@ -644,6 +719,7 @@ class FinanzeServer:
             template_port=template_repository,
             template_parser=template_parser,
             transaction_handler_port=transaction_handler,
+            transaction_labeler=transaction_labeler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
             financial_entity_fetchers,
@@ -863,12 +939,18 @@ class FinanzeServer:
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
             historic_port=historic_repository,
+            label_port=label_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
             transaction_port=transaction_repository,
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
+            label_port=label_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
         )
         delete_manual_transaction = DeleteManualTransactionImpl(
             transaction_port=transaction_repository,
@@ -940,6 +1022,70 @@ class FinanzeServer:
         delete_template = DeleteTemplateImpl(template_repository)
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
+
+        get_labels = GetLabelsImpl(label_repository)
+        create_label = CreateLabelImpl(label_repository)
+        update_label = UpdateLabelImpl(label_repository)
+        delete_label = DeleteLabelImpl(
+            label_repository, labeling_rule_repository, transaction_handler
+        )
+        get_labeling_rules = GetLabelingRulesImpl(labeling_rule_repository)
+        create_labeling_rule = CreateLabelingRuleImpl(
+            labeling_rule_repository,
+            label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        update_labeling_rule = UpdateLabelingRuleImpl(
+            labeling_rule_repository,
+            label_repository,
+            transaction_label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        delete_labeling_rule = DeleteLabelingRuleImpl(
+            labeling_rule_repository, transaction_label_repository, transaction_handler
+        )
+        preview_labeling_rule = PreviewLabelingRuleImpl(transaction_repository)
+        relabel_transactions = RelabelTransactionsImpl(
+            transaction_repository,
+            transaction_label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        update_transaction_labels = UpdateTransactionLabelsImpl(
+            transaction_repository,
+            transaction_label_repository,
+            label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        get_external_labeling_providers = GetExternalLabelingProvidersImpl(
+            external_integration_repository, external_labeling_providers
+        )
+        validate_ai_model = ValidateAIModelImpl(
+            external_integration_repository, ai_clients
+        )
+        get_cashflow_summary = GetCashflowSummaryImpl(
+            transaction_repository,
+            label_repository,
+            entity_repository,
+            exchange_rate_storage,
+        )
+        get_recurring_movements = GetRecurringMovementsImpl(
+            transaction_repository,
+            label_repository,
+            entity_repository,
+            periodic_flow_repository,
+            exchange_rate_storage,
+            ignored_recurring_movement_repository,
+        )
+        ignore_recurring_movement = IgnoreRecurringMovementImpl(
+            ignored_recurring_movement_repository
+        )
+        restore_recurring_movement = RestoreRecurringMovementImpl(
+            ignored_recurring_movement_repository
+        )
 
         backup_processor = BackupProcessorAdapter()
         backup_repository = BackupClient(HttpFileTransferStrategy())
@@ -1084,6 +1230,23 @@ class FinanzeServer:
             get_euribor_rates,
             get_telemetry_consent,
             update_telemetry_consent,
+            get_labels_uc=get_labels,
+            create_label_uc=create_label,
+            update_label_uc=update_label,
+            delete_label_uc=delete_label,
+            get_labeling_rules_uc=get_labeling_rules,
+            create_labeling_rule_uc=create_labeling_rule,
+            update_labeling_rule_uc=update_labeling_rule,
+            delete_labeling_rule_uc=delete_labeling_rule,
+            preview_labeling_rule_uc=preview_labeling_rule,
+            relabel_transactions_uc=relabel_transactions,
+            update_transaction_labels_uc=update_transaction_labels,
+            get_external_labeling_providers_uc=get_external_labeling_providers,
+            validate_ai_model_uc=validate_ai_model,
+            get_cashflow_summary_uc=get_cashflow_summary,
+            get_recurring_movements_uc=get_recurring_movements,
+            ignore_recurring_movement_uc=ignore_recurring_movement,
+            restore_recurring_movement_uc=restore_recurring_movement,
         )
 
         self._log.info("Warming up exchange rates...")

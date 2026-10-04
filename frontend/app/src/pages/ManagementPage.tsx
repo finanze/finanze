@@ -4,14 +4,13 @@ import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
 import {
   CalendarSync,
+  ChartPie,
   HandCoins,
-  PiggyBank,
   type LucideIcon,
 } from "lucide-react"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
 import type { PinnedShortcutId } from "@/context/PinnedShortcutsContext"
-import { EventsCalendarView } from "@/components/EventsCalendarView"
 
 export default function ManagementPage() {
   const { t } = useI18n()
@@ -30,6 +29,15 @@ export default function ManagementPage() {
   const managementRoutes = React.useMemo<ManagementRoute[]>(
     () => [
       {
+        path: "/management/cashflow",
+        label: t.management.cashflow,
+        Icon: ChartPie,
+        color:
+          "bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-300",
+        description: t.management.cashflowDescription,
+        assetId: "management-cashflow",
+      },
+      {
         path: "/management/recurring",
         label: t.management.recurringMoney,
         Icon: CalendarSync,
@@ -46,22 +54,14 @@ export default function ManagementPage() {
         description: t.management.pendingMoneyDescription,
         assetId: "management-pending",
       },
-      {
-        path: "/management/auto-contributions",
-        label: t.management.autoContributions,
-        Icon: PiggyBank,
-        color: "bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-300",
-        description: t.management.autoContributionsDescription,
-        assetId: "management-auto-contributions",
-      },
     ],
     [
       t.management.recurringMoney,
       t.management.recurringMoneyDescription,
       t.management.pendingMoney,
       t.management.pendingMoneyDescription,
-      t.management.autoContributions,
-      t.management.autoContributionsDescription,
+      t.management.cashflow,
+      t.management.cashflowDescription,
     ],
   )
 
@@ -118,13 +118,6 @@ export default function ManagementPage() {
             </div>
           </Card>
         ))}
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Upcoming events</h2>
-        </div>
-        <EventsCalendarView />
       </div>
     </div>
   )

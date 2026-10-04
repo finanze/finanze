@@ -26,6 +26,7 @@ class ManualTransactionVirtualImportHelper:
             TxType.TRANSFER_IN,
             TxType.SWITCH_TO,
             TxType.SWAP_TO,
+            TxType.INFLOW,
         }
         outgoing_types = {
             TxType.BUY,
@@ -36,6 +37,7 @@ class ManualTransactionVirtualImportHelper:
             TxType.TRANSFER_OUT,
             TxType.SWITCH_FROM,
             TxType.SWAP_FROM,
+            TxType.OUTFLOW,
         }
 
         fees = getattr(tx, "fees", None) or Dezimal(0)

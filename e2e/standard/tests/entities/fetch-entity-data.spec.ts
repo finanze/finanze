@@ -1,5 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
+import { navigateToMyMoneyPage } from '../../helpers/my-money'
 
 /**
  * Helper: connect an entity via login form and reload.
@@ -94,23 +96,9 @@ async function fetchEntityAllFeatures(page: Page, entityName: string) {
     ).toBeHidden({ timeout: 5_000 })
 }
 
-/**
- * Helper: navigate to Auto Contributions page via sidebar Management section.
- */
 async function navigateToAutoContributions(page: Page) {
-    // Click Management to expand the section
-    const mgmtBtn = page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Management' })
-    await mgmtBtn.click()
-    await page.waitForTimeout(500)
-    // Click Auto Contributions sub-item (scoped to nav to avoid matching page buttons)
-    await page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Contributions' })
-        .click()
-    // Wait for page to load
-    await page.waitForTimeout(1_000)
+    await navigateToMyMoneyPage(page, 'Recurring')
+    await page.getByRole('tab', { name: /^Investments/ }).click()
 }
 
 // Urbanitae: has POSITION, TRANSACTIONS, HISTORIC (no AUTO_CONTRIBUTIONS)
@@ -135,6 +123,12 @@ test.describe('Fetch Entity Data - Transactions', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'Urbanitae')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
 
         // Verify mock transactions are visible
         await expect(page.getByText('Mock Stock A').first()).toBeVisible({

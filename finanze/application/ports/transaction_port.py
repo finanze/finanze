@@ -1,9 +1,17 @@
 import abc
+from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
 from domain.fetch_record import DataSource
-from domain.transactions import BaseTx, TransactionQueryRequest, Transactions
+from domain.transactions import (
+    AccountTx,
+    AccountTxSelection,
+    BaseInvestmentTx,
+    BaseTx,
+    TransactionQueryRequest,
+    Transactions,
+)
 
 
 class TransactionPort(metaclass=abc.ABCMeta):
@@ -55,4 +63,28 @@ class TransactionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def delete_by_id(self, tx_id: UUID):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_account_txs(
+        self, selection: AccountTxSelection, limit: Optional[int] = None
+    ) -> list[AccountTx]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def count_account_txs(self, selection: AccountTxSelection) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_refs_by_entity(self, entity_id: UUID) -> set[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_latest_account_tx_date(self, entity_id: UUID) -> Optional[datetime]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_investment_txs_in_range(
+        self, entity_ids: list[UUID], from_date: date, to_date: date
+    ) -> list[BaseInvestmentTx]:
         raise NotImplementedError

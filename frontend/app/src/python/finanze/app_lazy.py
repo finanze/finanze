@@ -126,6 +126,66 @@ class LazyComponents:
             TemplateRepository,
         )
         from infrastructure.client.interests.ecb_client import ECBClient
+        from infrastructure.client.ai.openai.openai_client import OpenAIClient
+        from infrastructure.client.ai.openrouter.openrouter_client import (
+            OpenRouterClient,
+        )
+        from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
+        from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
+        from infrastructure.labeling.transaction_labeler_adapter import (
+            TransactionLabelerAdapter,
+        )
+        from infrastructure.repository.labeling.transaction_label_repository import (
+            TransactionLabelRepository,
+        )
+        from infrastructure.repository.labeling.label_repository import (
+            LabelRepository,
+        )
+        from infrastructure.repository.labeling.labeling_rule_repository import (
+            LabelingRuleRepository,
+        )
+        from infrastructure.repository.cashflow.ignored_recurring_movement_repository import (
+            IgnoredRecurringMovementRepository,
+        )
+        from application.use_cases.get_labels import GetLabelsImpl
+        from application.use_cases.get_labeling_rules import GetLabelingRulesImpl
+        from application.use_cases.get_cashflow_summary import (
+            GetCashflowSummaryImpl,
+        )
+        from application.use_cases.get_recurring_movements import (
+            GetRecurringMovementsImpl,
+        )
+        from application.use_cases.create_label import CreateLabelImpl
+        from application.use_cases.update_label import UpdateLabelImpl
+        from application.use_cases.delete_label import DeleteLabelImpl
+        from application.use_cases.create_labeling_rule import (
+            CreateLabelingRuleImpl,
+        )
+        from application.use_cases.update_labeling_rule import (
+            UpdateLabelingRuleImpl,
+        )
+        from application.use_cases.delete_labeling_rule import (
+            DeleteLabelingRuleImpl,
+        )
+        from application.use_cases.preview_labeling_rule import (
+            PreviewLabelingRuleImpl,
+        )
+        from application.use_cases.relabel_transactions import (
+            RelabelTransactionsImpl,
+        )
+        from application.use_cases.update_transaction_labels import (
+            UpdateTransactionLabelsImpl,
+        )
+        from application.use_cases.get_external_labeling_providers import (
+            GetExternalLabelingProvidersImpl,
+        )
+        from application.use_cases.validate_ai_model import ValidateAIModelImpl
+        from application.use_cases.ignore_recurring_movement import (
+            IgnoreRecurringMovementImpl,
+        )
+        from application.use_cases.restore_recurring_movement import (
+            RestoreRecurringMovementImpl,
+        )
 
         if INCLUDE_CONNECTIONS:
             from infrastructure.repository.keychain.public_keychain_repository import (
@@ -301,9 +361,18 @@ class LazyComponents:
             }
 
         public_key_derivation = PublicKeyDerivationAdapter()
+        ai_clients = {
+            ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
+            ExternalIntegrationId.OPENAI: OpenAIClient(),
+        }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
             ExternalIntegrationId.ETHPLORER: True,
+            **ai_clients,
+        }
+        external_labeling_providers = {
+            integration_id: AILabelingProvider(client, LABELING_PRESETS[integration_id])
+            for integration_id, client in ai_clients.items()
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = (
@@ -338,6 +407,21 @@ class LazyComponents:
         historic_repo = HistoricRepository(client=db_client)
         crypto_asset_repo = CryptoAssetRegistryRepository(client=db_client)
         temp_repo = TemplateRepository(client=db_client)
+        tx_label_repo = TransactionLabelRepository(client=db_client)
+        label_repo = LabelRepository(client=db_client)
+        labeling_rule_repo = LabelingRuleRepository(client=db_client)
+        ignored_recurring_repo = IgnoredRecurringMovementRepository(client=db_client)
+
+        transaction_labeler = TransactionLabelerAdapter(
+            transaction_port=d.tx_repo,
+            transaction_label_port=tx_label_repo,
+            labeling_rule_port=labeling_rule_repo,
+            label_port=label_repo,
+            config_port=d.config_loader,
+            external_integration_port=d.ext_int_repo,
+            providers=external_labeling_providers,
+            transaction_handler_port=d.tx_handler,
+        )
 
         if INCLUDE_CONNECTIONS:
             self.add_entity_creds = AddEntityCredentialsImpl(
@@ -368,8 +452,10 @@ class LazyComponents:
                 d.loan_calculator,
                 d.re_repo,
                 self._core.ff_client,
-                d.fetch_pointers_repo,
-                self._core.error_reporter,
+                fetch_pointers_port=d.fetch_pointers_repo,
+                transaction_label_port=tx_label_repo,
+                transaction_labeler=transaction_labeler,
+                error_reporter=self._core.error_reporter,
             )
             self.fetch_crypto = FetchCryptoDataImpl(
                 d.position_repo,
@@ -432,6 +518,8 @@ class LazyComponents:
                 d.ext_int_repo,
                 d.last_fetches_repo,
                 d.tx_handler,
+                d.tx_repo,
+                transaction_labeler,
             )
 
             market_forecast_provider = polymarket_fetcher
@@ -461,6 +549,7 @@ class LazyComponents:
             temp_repo,
             template_parser,
             d.tx_handler,
+            transaction_labeler,
         )
         self.export_file = ExportFileImpl(
             d.position_repo,
@@ -576,10 +665,23 @@ class LazyComponents:
             d.tx_handler,
         )
         self.add_manual_tx = AddManualTransactionImpl(
-            d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler, historic_repo
+            d.entity_repo,
+            d.tx_repo,
+            d.virtual_repo,
+            d.tx_handler,
+            historic_repo,
+            label_repo,
+            tx_label_repo,
+            transaction_labeler,
         )
         self.up_manual_tx = UpdateManualTransactionImpl(
-            d.entity_repo, d.tx_repo, d.virtual_repo, d.tx_handler
+            d.entity_repo,
+            d.tx_repo,
+            d.virtual_repo,
+            d.tx_handler,
+            label_repo,
+            tx_label_repo,
+            transaction_labeler,
         )
         self.del_manual_tx = DeleteManualTransactionImpl(
             d.tx_repo, d.virtual_repo, d.tx_handler
@@ -633,4 +735,53 @@ class LazyComponents:
 
         self.save_bkp_settings = SaveBackupSettingsImpl(
             d.cloud_register, d.cloud_register
+        )
+
+        self.get_labels = GetLabelsImpl(label_repo)
+        self.get_labeling_rules = GetLabelingRulesImpl(labeling_rule_repo)
+        self.get_cashflow = GetCashflowSummaryImpl(
+            d.tx_repo, label_repo, d.entity_repo, d.ex_storage
+        )
+        self.get_recurring = GetRecurringMovementsImpl(
+            d.tx_repo,
+            label_repo,
+            d.entity_repo,
+            d.period_repo,
+            d.ex_storage,
+            ignored_recurring_repo,
+        )
+        self.create_label = CreateLabelImpl(label_repo)
+        self.update_label = UpdateLabelImpl(label_repo)
+        self.delete_label = DeleteLabelImpl(
+            label_repo, labeling_rule_repo, d.tx_handler
+        )
+        self.create_labeling_rule = CreateLabelingRuleImpl(
+            labeling_rule_repo, label_repo, transaction_labeler, d.tx_handler
+        )
+        self.update_labeling_rule = UpdateLabelingRuleImpl(
+            labeling_rule_repo,
+            label_repo,
+            tx_label_repo,
+            transaction_labeler,
+            d.tx_handler,
+        )
+        self.delete_labeling_rule = DeleteLabelingRuleImpl(
+            labeling_rule_repo, tx_label_repo, d.tx_handler
+        )
+        self.preview_labeling_rule = PreviewLabelingRuleImpl(d.tx_repo)
+        self.relabel_transactions = RelabelTransactionsImpl(
+            d.tx_repo, tx_label_repo, transaction_labeler, d.tx_handler
+        )
+        self.update_transaction_labels = UpdateTransactionLabelsImpl(
+            d.tx_repo, tx_label_repo, label_repo, transaction_labeler, d.tx_handler
+        )
+        self.get_external_labeling_providers = GetExternalLabelingProvidersImpl(
+            d.ext_int_repo, external_labeling_providers
+        )
+        self.validate_ai_model = ValidateAIModelImpl(d.ext_int_repo, ai_clients)
+        self.ignore_recurring_movement = IgnoreRecurringMovementImpl(
+            ignored_recurring_repo
+        )
+        self.restore_recurring_movement = RestoreRecurringMovementImpl(
+            ignored_recurring_repo
         )

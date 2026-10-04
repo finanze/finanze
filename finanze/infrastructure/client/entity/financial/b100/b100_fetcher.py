@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha1
 from typing import Optional
 from uuid import uuid4
@@ -10,6 +10,7 @@ from dateutil.tz import tzlocal
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_pointer import FetchPointer
 from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
@@ -23,7 +24,13 @@ from domain.global_position import (
     ProductType,
 )
 from domain.native_entities import B100
-from domain.transactions import AccountTx, Transactions, TxType
+from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
+    AccountTx,
+    Transactions,
+    TxType,
+    normalize_iban,
+)
 from infrastructure.client.entity.financial.b100.b100_client import B100Client
 
 ACCOUNT_TYPE_MAP = {
@@ -41,6 +48,14 @@ ACCOUNT_NAME_MAP = {
 TAE_PATTERN = re.compile(r"(\d+,\d+)\s*%\s*TAE")
 
 MOVEMENTS_PAGE_SIZE = 50
+
+ACCOUNT_TXS_POINTER = "account_txs"
+ACCOUNT_MOVEMENTS_SETTLE_DAYS = 7
+
+MOVEMENT_TX_TYPES = {
+    "INCOME": TxType.INFLOW,
+    "EXPENSE": TxType.OUTFLOW,
+}
 
 
 class B100Fetcher(FinancialEntityFetcher):
@@ -235,37 +250,105 @@ class B100Fetcher(FinancialEntityFetcher):
         account_txs: list[AccountTx] = []
 
         for entry in raw_accounts:
-            account_raw_id = entry.get("id")
-            if not account_raw_id:
+            if not entry.get("id"):
                 continue
-
-            cursor = None
-            stop = False
-            while not stop:
-                page = await self._client.get_account_movements(
-                    account_raw_id, page_size=MOVEMENTS_PAGE_SIZE, cursor=cursor
-                )
-                movements = page.get("data") or []
-
-                for movement in movements:
-                    if not self._is_interest(movement):
-                        continue
-                    amount = movement.get("amount") or {}
-                    ref = self._calc_tx_id(
-                        movement.get("detail") or "INTERESES",
-                        Dezimal(amount.get("quantity") or 0),
-                        amount.get("currency"),
-                        self._parse_date(movement.get("transactionDate")),
-                    )
-                    if ref in registered_txs:
-                        if not options.deep:
-                            stop = True
-                            break
-                        continue
-                    account_txs.append(self._map_interest_tx(movement))
-
-                cursor = (page.get("pagination") or {}).get("next")
-                if not cursor or not movements:
-                    break
+            account_txs += await self._fetch_account_txs(entry, registered_txs, options)
 
         return Transactions(account=account_txs)
+
+    async def _fetch_account_txs(
+        self, account: dict, registered_txs: set[str], options: FetchOptions
+    ) -> list[AccountTx]:
+        account_raw_id = account["id"]
+        iban = normalize_iban(account.get("iban"))
+        pointer_key = f"{ACCOUNT_TXS_POINTER}:{account.get('iban') or account_raw_id}"
+        today = datetime.now(tzlocal()).date()
+        pointer = self._get_pointer(options, pointer_key)
+        if pointer:
+            min_date = min(pointer.threshold, today) - timedelta(
+                days=ACCOUNT_MOVEMENTS_SETTLE_DAYS
+            )
+        else:
+            min_date = today - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
+
+        txs: list[AccountTx] = []
+        cursor = None
+        while True:
+            page = await self._client.get_account_movements(
+                account_raw_id, page_size=MOVEMENTS_PAGE_SIZE, cursor=cursor
+            )
+            movements = page.get("data") or []
+
+            reached_end = False
+            for movement in movements:
+                tx_date = self._parse_date(movement.get("transactionDate"))
+                if tx_date.date() < min_date:
+                    reached_end = True
+                    continue
+                tx = self._map_movement(movement, tx_date)
+                if tx is None or tx.ref in registered_txs:
+                    continue
+                tx.iban = iban
+                txs.append(tx)
+
+            cursor = (page.get("pagination") or {}).get("next")
+            if reached_end or not cursor or not movements:
+                break
+
+        self._update_pointer(options, pointer_key, today)
+        return txs
+
+    def _map_movement(self, movement: dict, tx_date: datetime) -> Optional[AccountTx]:
+        if self._is_interest(movement):
+            return self._map_interest_tx(movement)
+
+        movement_type = movement.get("movementType")
+        tx_type = MOVEMENT_TX_TYPES.get(movement_type)
+        amount_data = movement.get("amount") or {}
+        quantity = amount_data.get("quantity")
+        if tx_type is None or quantity is None:
+            self._log.info(f"Skipping B100 movement of type {movement_type}")
+            return None
+
+        amount = round(abs(Dezimal(str(quantity))), 2)
+        if amount == 0:
+            return None
+
+        name = " ".join((movement.get("detail") or "").split())
+        currency = amount_data.get("currency")
+        ref = movement.get("id") or self._calc_tx_id(name, amount, currency, tx_date)
+
+        return AccountTx(
+            id=uuid4(),
+            ref=ref,
+            name=name,
+            amount=amount,
+            currency=currency,
+            type=tx_type,
+            date=tx_date,
+            entity=B100,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(0),
+            retentions=Dezimal(0),
+            net_amount=amount,
+        )
+
+    @staticmethod
+    def _get_pointer(
+        options: Optional[FetchOptions], key: str
+    ) -> Optional[FetchPointer]:
+        if not options or not options.pointer_context:
+            return None
+        return options.pointer_context.pointers.get(key)
+
+    @staticmethod
+    def _update_pointer(options: Optional[FetchOptions], key: str, threshold: date):
+        if not options or not options.pointer_context:
+            return
+        options.pointer_context.pointers[key] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=key,
+            threshold=threshold,
+        )

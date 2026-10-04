@@ -33,6 +33,11 @@ import { reportError } from "@/lib/telemetry"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
+import { LabelOrigin } from "@/types/transactions"
+import type {
+  ExternalLabelingSettings,
+  LabelingSettings,
+} from "@/types/labeling"
 import {
   getFeatureFlags,
   subscribeFeatureFlags,
@@ -61,6 +66,7 @@ export interface AppSettings {
     }
   }
   data?: DataConfig
+  labeling?: LabelingSettings
 }
 
 export interface ExportState {
@@ -152,6 +158,22 @@ const defaultAutoRefresh: AutoRefresh = {
   entities: [],
 }
 
+const defaultExternalLabeling: ExternalLabelingSettings = {
+  enabled: false,
+  provider: null,
+  model: null,
+  upstreamProvider: null,
+  autoRun: true,
+  minConfidence: 70,
+  maxPerRun: 400,
+  examples: {
+    enabled: false,
+    count: 20,
+    origins: [LabelOrigin.MANUAL, LabelOrigin.RULE],
+  },
+  instructions: null,
+}
+
 const mergeSettingsWithDefaults = (
   incoming?: Partial<AppSettings>,
 ): AppSettings => {
@@ -215,6 +237,16 @@ const mergeSettingsWithDefaults = (
         ...defaultAutoRefresh,
         ...incoming?.data?.autoRefresh,
         entities: incoming?.data?.autoRefresh?.entities ?? [],
+      },
+    },
+    labeling: {
+      external: {
+        ...defaultExternalLabeling,
+        ...incoming?.labeling?.external,
+        examples: {
+          ...defaultExternalLabeling.examples,
+          ...incoming?.labeling?.external?.examples,
+        },
       },
     },
   }

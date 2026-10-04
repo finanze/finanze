@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from datetime import date
 from typing import Optional
 
@@ -11,6 +12,11 @@ from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_response import HttpResponse
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
+
+# Public client id of the Univia web app
+OAUTH_CLIENT_ID = "47e23c03c68ab335aabfabfdeba946ea"
+OAUTH_SCOPE = "BD"
+TOKEN_EXPIRY_MARGIN_SECONDS = 60
 
 
 def _encrypt_password(key: str, password: str) -> str:
@@ -82,11 +88,16 @@ def _create_client(mobile: bool, retrying: bool):
 class UnicajaClient:
     BASE_URL = "https://univia.unicajabanco.es"
     AUTH_PATH = "/services/rest/autenticacion"
+    TOKEN_PATH = "/apis/externo/unicaja/univia/oauth2/token"
+    MOVEMENTS_REFERER = BASE_URL + "/mfe-integration/cuentas/{ppp}/movimientos"
 
     def __init__(self, use_mobile_client: bool = False):
         self._log = logging.getLogger(__name__)
         self._session = None
         self._use_mobile_client = use_mobile_client
+        self._username: Optional[str] = None
+        self._token_confirmation: Optional[str] = None
+        self._token_expires_at: Optional[float] = None
 
     def _set_abck_cookie(self, abck: str) -> None:
         jar = self._session.cookies.jar
@@ -150,6 +161,9 @@ class UnicajaClient:
 
             self._session.headers["tokenCSRF"] = auth_response_body["tokenCSRF"]
             self._session.headers["Content-Type"] = "application/x-www-form-urlencoded"
+            self._username = username
+            self._token_confirmation = auth_response_body.get("confirmacion")
+            self._token_expires_at = None
 
             return EntityLoginResult(LoginResultCode.CREATED)
 
@@ -183,9 +197,10 @@ class UnicajaClient:
         params: dict,
         json: bool = True,
         raw: bool = False,
+        headers: Optional[dict] = None,
     ) -> dict | str | HttpResponse:
         response = await self._session.request(
-            method, self.BASE_URL + path, data=body, params=params
+            method, self.BASE_URL + path, data=body, params=params, headers=headers
         )
 
         if raw:
@@ -209,10 +224,10 @@ class UnicajaClient:
         )
 
     async def _post_request(
-        self, path: str, body: object, raw=False
+        self, path: str, body: object, raw=False, headers: Optional[dict] = None
     ) -> dict | HttpResponse:
         return await self._execute_request(
-            path, "POST", body=body, json=True, raw=raw, params=None
+            path, "POST", body=body, json=True, raw=raw, params=None, headers=headers
         )
 
     async def _ck(self):
@@ -229,22 +244,65 @@ class UnicajaClient:
         }
         return await self._post_request(self.AUTH_PATH, body=data, raw=True)
 
+    async def _ensure_access_token(self):
+        if self._token_expires_at and time.monotonic() < self._token_expires_at:
+            return
+        if not self._username or not self._token_confirmation:
+            raise ValueError("Unicaja login did not provide an API token grant")
+
+        response = await self._post_request(
+            self.TOKEN_PATH,
+            {
+                "grant_type": "password",
+                "client_id": OAUTH_CLIENT_ID,
+                "scope": OAUTH_SCOPE,
+                "username": self._username,
+                "password": self._token_confirmation,
+            },
+            headers={
+                "Accept": "application/json, text/plain, */*",
+                "Origin": self.BASE_URL,
+                "Referer": self.BASE_URL + "/login",
+            },
+        )
+        expires_in = int(response.get("expires_in") or 0)
+        self._token_expires_at = (
+            time.monotonic() + expires_in - TOKEN_EXPIRY_MARGIN_SECONDS
+        )
+
     async def get_user(self):
         return await self._get_request("/services/rest/perfilusuario")
 
     async def list_accounts(self):
         return await self._get_request("/services/rest/api/productos/listacuentas")
 
-    async def get_account_movements(self, ppp: str):
-        # account_movs_request = {"ppp": ppp, "indOperacion": "I"}
-        account_movs_request = {
-            "ppp": ppp,
-            "saldoUltMov": "283.57",
-            "numUltMov": "1097",
-            "indOperacion": "P",
-        }
+    async def get_account_movements(
+        self,
+        ppp: str,
+        last_balance: Optional[str] = None,
+        last_movement: Optional[str] = None,
+    ):
+        await self._ensure_access_token()
+
+        if last_balance is None or last_movement is None:
+            account_movs_request = {"ppp": ppp, "indOperacion": "I"}
+        else:
+            account_movs_request = {
+                "ppp": ppp,
+                "saldoUltMov": last_balance,
+                "numUltMov": last_movement,
+                "indOperacion": "P",
+            }
+
+        # the banca-digital gateway rejects requests without browser origin headers
         return await self._post_request(
-            "/services/rest/api/cuentas/listadoMovimientos", account_movs_request
+            "/apis/externo/unicaja/banca-digital/cuentas/movimientos",
+            account_movs_request,
+            headers={
+                "Accept": "application/json, text/plain, */*",
+                "Origin": self.BASE_URL,
+                "Referer": self.MOVEMENTS_REFERER.format(ppp=ppp),
+            },
         )
 
     async def get_account_movement(self, ppp: str, nummov: str):

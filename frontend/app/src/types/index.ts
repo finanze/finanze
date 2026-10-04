@@ -761,6 +761,7 @@ export enum ExternalIntegrationType {
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
   CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
+  AI_PROVIDER = "AI_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {

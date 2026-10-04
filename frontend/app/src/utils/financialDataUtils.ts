@@ -570,6 +570,7 @@ export const getTransactionDisplayType = (
       TxType.SWITCH_TO,
       TxType.TRANSFER_IN,
       TxType.FEE,
+      TxType.OUTFLOW,
     ].includes(txType)
   ) {
     return "out"
@@ -609,7 +610,7 @@ export const getTransactionDisplaySign = (
   if (getTransactionDisplayType(txType, amount) === "in") {
     return "+"
   }
-  if (txType === TxType.FEE) {
+  if (txType === TxType.FEE || txType === TxType.OUTFLOW) {
     return "-"
   }
   return ""

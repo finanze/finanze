@@ -52,7 +52,7 @@ UNICAJA = NativeFinancialEntity(
     natural_id="UCJAES2M",
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
+    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
     products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -221,7 +221,7 @@ CAJAMAR = NativeFinancialEntity(
     natural_id="BCCAESMM",
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION],
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
