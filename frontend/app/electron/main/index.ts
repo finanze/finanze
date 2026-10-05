@@ -358,6 +358,7 @@ app.whenReady().then(async () => {
     createAboutWindow(mainWindow)
   })
   ipcMain.handle("about-info", () => getAboutInfo())
+  ipcMain.handle("locale-country-code", () => app.getLocaleCountryCode())
   ipcMain.handle("external-login", async (_, id, request) => {
     return await promptLogin(id, request)
   })

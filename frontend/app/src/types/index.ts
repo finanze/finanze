@@ -169,6 +169,7 @@ export enum AuthResultCode {
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   USER_NOT_FOUND = "USER_NOT_FOUND",
   UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
+  REGION_RESTRICTED = "REGION_RESTRICTED",
 }
 
 export interface ChangePasswordRequest {
@@ -658,6 +659,7 @@ declare global {
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       getAboutInfo: () => Promise<AboutAppInfo>
+      getLocaleCountryCode?: () => Promise<string>
       requestExternalLogin: (
         id: string,
         request?: any,
