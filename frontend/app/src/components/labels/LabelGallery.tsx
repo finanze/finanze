@@ -78,7 +78,7 @@ export function LabelGallery({
             </span>
             <div className="h-px flex-1 bg-border" />
           </div>
-          <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {groupLabels.map(label => (
               <LabelTile
                 key={label.id}

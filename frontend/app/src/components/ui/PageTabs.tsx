@@ -71,7 +71,7 @@ export function PageTabs<K extends string>({
     <nav
       ref={navRef}
       className={cn(
-        "no-scrollbar -mx-6 flex gap-5 overflow-x-auto border-b border-border px-6 sm:gap-6 md:mx-0 md:px-0",
+        "no-scrollbar -mx-6 flex touch-pan-x gap-5 overflow-x-auto overflow-y-hidden border-b border-border px-6 sm:gap-6 md:mx-0 md:px-0",
         className,
       )}
       role="tablist"
