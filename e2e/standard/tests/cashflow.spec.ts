@@ -189,6 +189,22 @@ async function createManualTransaction(
     await page
         .getByRole('option', { name: transactionType, exact: true })
         .click()
+    const iban = dialog.locator('input[id$="-iban"]')
+    const counterparty = dialog.locator('input[id$="-counterparty"]')
+    const retentions = dialog.locator('input[id$="-retentions"]')
+    await expect(iban).toBeVisible()
+    await expect(counterparty).toHaveCount(0)
+    await expect(retentions).toHaveCount(0)
+    const moreDetails = dialog.getByRole('button', {
+        name: 'More details',
+        exact: true,
+    })
+    await moreDetails.click()
+    await expect(counterparty).toBeVisible()
+    await expect(iban).toBeVisible()
+    await expect(retentions).toHaveCount(0)
+    await moreDetails.click()
+    await expect(counterparty).toHaveCount(0)
     await dialog.locator('#transaction-amount').fill(amount)
     await dialog.locator('#transaction-currency').selectOption('EUR')
     await selectDate(page, date)
@@ -234,7 +250,12 @@ async function selectCashflowPreset(
         )
     })
     await page.getByTestId(`cashflow-preset-${preset}`).click()
-    await summaryResponse
+    const summary = await (await summaryResponse).json()
+    for (const metric of ['income', 'expenses', 'net'] as const) {
+        await expect
+            .poll(() => readCashflowKpiAmount(page, `kpi-${metric}`))
+            .toBeCloseTo(summary.totals[metric], 2)
+    }
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -291,6 +312,61 @@ test.describe('Cashflow', () => {
         ).toHaveCount(0)
     })
 
+    test('toggles My Money without desktop navigation and keeps the mobile landing page', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        const navigation = page.getByRole('navigation')
+        const myMoney = navigation.getByRole('button', {
+            name: 'My Money',
+            exact: true,
+        })
+        const recurring = navigation.getByRole('button', {
+            name: 'Recurring',
+            exact: true,
+        })
+        if ((await myMoney.getAttribute('aria-expanded')) === 'true') {
+            await myMoney.click()
+        }
+        const initialUrl = page.url()
+        await myMoney.click()
+        await expect(myMoney).toHaveAttribute('aria-expanded', 'true')
+        await expect(recurring).toBeVisible()
+        await expect(page).toHaveURL(initialUrl)
+        await recurring.click()
+        await expect(page).toHaveURL(/\/management\/recurring$/)
+
+        const recurringUrl = page.url()
+        await myMoney.click()
+        await expect(myMoney).toHaveAttribute('aria-expanded', 'false')
+        await expect(recurring).toBeHidden()
+        await expect(page).toHaveURL(recurringUrl)
+        await myMoney.click()
+        await expect(recurring).toBeVisible()
+        await expect(page).toHaveURL(recurringUrl)
+
+        await page.setViewportSize({ width: 390, height: 844 })
+        await page
+            .getByRole('button', { name: 'My Money', exact: true })
+            .click()
+        await expect(page).toHaveURL(/\/management$/)
+        await expect(
+            page.getByRole('heading', { name: 'My Money', exact: true }),
+        ).toBeVisible()
+
+        await page.setViewportSize({ width: 768, height: 844 })
+        await expect(page).toHaveURL(/\/management\/cashflow$/)
+        await expect(
+            page.getByRole('heading', { name: 'My Money', exact: true }),
+        ).toHaveCount(0)
+        await expect(
+            page.getByRole('heading', { name: 'Activity', exact: true }),
+        ).toBeVisible()
+        await expect(
+            page.getByRole('button', { name: 'Back', exact: true }),
+        ).toBeHidden()
+    })
+
     test('shows the desktop New label action in the title row and opens its dialog', async ({
         authenticatedPage: page,
     }) => {
@@ -321,6 +397,12 @@ test.describe('Cashflow', () => {
         await expect(
             page.getByRole('heading', { name: 'New rule', exact: true }),
         ).toBeVisible()
+        await expect(
+            page.getByTestId('rule-dialog').getByRole('radio', {
+                name: 'All',
+                exact: true,
+            }),
+        ).toHaveAttribute('aria-checked', 'true')
     })
 
     test('creates a label and applies a matching rule to an existing outflow', async ({
@@ -430,9 +512,39 @@ test.describe('Cashflow', () => {
         await page.setViewportSize({ width: 1440, height: 1000 })
         await ensureEditMode(page, 'DRAFT')
         await connectUrbanitaeIfNeeded(page)
+        const entityCard = page
+            .locator('h3', { hasText: 'Urbanitae' })
+            .first()
+            .locator('../..')
+        await entityCard.getByRole('button', { name: 'Fetch' }).click()
+        const fetchTitle = page.getByText(
+            'Select features to fetch from Urbanitae',
+        )
+        await expect(fetchTitle).toBeVisible()
+        await page
+            .locator('.fixed.inset-0')
+            .last()
+            .getByRole('button', { name: 'Fetch', exact: true })
+            .click()
+        await expect(
+            page.getByText('Data successfully fetched from Urbanitae'),
+        ).toBeVisible()
+        await expect(fetchTitle).toBeHidden()
         await navigateToCashflow(page)
         await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
 
+        await selectCashflowPreset(page, 'thisMonth')
+        const incomeBeforeThisMonth = await readCashflowKpiAmount(
+            page,
+            'kpi-income',
+        )
+        const expensesBeforeThisMonth = await readCashflowKpiAmount(
+            page,
+            'kpi-expenses',
+        )
+        const netBeforeThisMonth = await readCashflowKpiAmount(page, 'kpi-net')
+
+        await selectCashflowPreset(page, 'last3Months')
         const incomeBeforeLast3Months = await readCashflowKpiAmount(
             page,
             'kpi-income',
@@ -445,17 +557,6 @@ test.describe('Cashflow', () => {
             page,
             'kpi-net',
         )
-
-        await selectCashflowPreset(page, 'thisMonth')
-        const incomeBeforeThisMonth = await readCashflowKpiAmount(
-            page,
-            'kpi-income',
-        )
-        const expensesBeforeThisMonth = await readCashflowKpiAmount(
-            page,
-            'kpi-expenses',
-        )
-        const netBeforeThisMonth = await readCashflowKpiAmount(page, 'kpi-net')
 
         await selectCashflowPreset(page, 'lastMonth')
         const incomeBeforeLastMonth = await readCashflowKpiAmount(

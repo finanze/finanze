@@ -1,6 +1,6 @@
 import React from "react"
 import { useI18n } from "@/i18n"
-import { useNavigate } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
 import {
   CalendarSync,
@@ -16,6 +16,15 @@ export default function ManagementPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { isPinned } = usePinnedShortcuts()
+  const [isDesktop, setIsDesktop] = React.useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : false,
+  )
+
+  React.useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768)
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
 
   type ManagementRoute = {
     path: string
@@ -70,6 +79,10 @@ export default function ManagementPage() {
       .map(route => ({ ...route, pinned: isPinned(route.assetId) }))
       .sort((a, b) => Number(b.pinned) - Number(a.pinned))
   }, [managementRoutes, isPinned])
+
+  if (isDesktop) {
+    return <Navigate to="/management/cashflow" replace />
+  }
 
   return (
     <div className="space-y-6">

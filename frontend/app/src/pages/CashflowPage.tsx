@@ -260,7 +260,7 @@ export default function CashflowPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 shrink-0 p-1"
+            className="h-8 w-8 shrink-0 p-1 md:hidden"
             onClick={() => navigate("/management")}
             aria-label={t.common.back}
           >

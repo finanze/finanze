@@ -167,6 +167,9 @@ const getMoreDetailsFieldNames = (type: ManualTxTypeOption): Set<string> => {
     return DEFAULT_MORE_DETAILS_FIELDS
   }
   switch (type) {
+    case TxType.INFLOW:
+    case TxType.OUTFLOW:
+      return new Set(["fees", "counterparty"])
     case TxType.BUY:
     case TxType.INVESTMENT:
       return new Set(["retentions", "market"])
@@ -527,13 +530,6 @@ const getFieldConfigs = (
           {
             name: "fees",
             labelKey: t.transactions.fees,
-            type: "number",
-            numericType: "nonNegative",
-            step: "0.01",
-          },
-          {
-            name: "retentions",
-            labelKey: t.transactions.retentions,
             type: "number",
             numericType: "nonNegative",
             step: "0.01",

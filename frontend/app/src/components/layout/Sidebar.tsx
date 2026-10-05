@@ -283,6 +283,11 @@ export function Sidebar() {
   }
 
   const toggleManagement = () => {
+    if (collapsed) {
+      setCollapsed(false)
+      setManagementExpanded(true)
+      return
+    }
     setManagementExpanded(!managementExpanded)
   }
 
@@ -534,20 +539,9 @@ export function Sidebar() {
                         ? "bg-gray-200 dark:bg-gray-900 text-primary"
                         : "hover:bg-gray-200 dark:hover:bg-gray-900",
                     )}
-                    onClick={() => {
-                      const isOnManagementSubpage =
-                        location.pathname.startsWith("/management/")
-                      const isOnManagementPage =
-                        location.pathname.endsWith("/management")
-                      if (
-                        !collapsed &&
-                        !isOnManagementSubpage &&
-                        isOnManagementPage
-                      ) {
-                        toggleManagement()
-                      }
-                      navigate("/management")
-                    }}
+                    onClick={toggleManagement}
+                    aria-label={t.management.title}
+                    aria-expanded={!collapsed && managementExpanded}
                   >
                     <span className="flex items-center">
                       <Wallet size={20} />

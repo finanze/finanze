@@ -1074,7 +1074,7 @@ export default function PendingMoneyPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8 shrink-0"
+              className="p-1 h-8 w-8 shrink-0 md:hidden"
               onClick={() => navigate("/management")}
             >
               <ArrowLeft size={20} />

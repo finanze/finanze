@@ -1969,7 +1969,7 @@
       "textValue": "Testo",
       "textValuePlaceholder": "es. netflix",
       "fields": {
-        "ANY": "Descrizione o controparte",
+        "ANY": "Tutti",
         "NAME": "Descrizione",
         "COUNTERPARTY": "Controparte"
       },

@@ -1973,7 +1973,7 @@
       "textValue": "Texto",
       "textValuePlaceholder": "p. ej. netflix",
       "fields": {
-        "ANY": "Concepto o contraparte",
+        "ANY": "Todos",
         "NAME": "Concepto",
         "COUNTERPARTY": "Contraparte"
       },
