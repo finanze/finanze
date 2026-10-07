@@ -1518,6 +1518,78 @@ export function ContributionsView() {
 
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
+  const contributionActions = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="default"
+        size="sm"
+        className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+        onClick={handleOpenCreateModal}
+        disabled={financialEntities.length === 0}
+      >
+        <Plus className="h-3.5 w-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">
+          {t.management.manualContributions.add}
+        </span>
+      </Button>
+      {isEditMode ? (
+        isQuickMode ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+            onClick={handleRequestCancelEdit}
+            disabled={isSaving}
+          >
+            <Check className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">{t.common.done}</span>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={handleRequestCancelEdit}
+              disabled={isSaving}
+            >
+              <X className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">{t.common.cancel}</span>
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={() => handleSaveAll()}
+              disabled={isSaving || !hasLocalChanges}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span className="hidden sm:inline">{t.common.saving}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Save className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t.common.save}</span>
+                </span>
+              )}
+            </Button>
+          </>
+        )
+      ) : (
+        <Button
+          variant="default"
+          size="sm"
+          className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+          onClick={handleEnterEditMode}
+        >
+          <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+          <span className="hidden sm:inline">{t.common.edit}</span>
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <>
       <motion.div
@@ -1526,84 +1598,11 @@ export function ContributionsView() {
         initial="hidden"
         animate="show"
       >
-        <motion.div
-          variants={fadeListItem}
-          className="flex items-center justify-end gap-2 flex-wrap"
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-              onClick={handleOpenCreateModal}
-              disabled={financialEntities.length === 0}
-            >
-              <Plus className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">
-                {t.management.manualContributions.add}
-              </span>
-            </Button>
-            {isEditMode ? (
-              isQuickMode ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                  onClick={handleRequestCancelEdit}
-                  disabled={isSaving}
-                >
-                  <Check className="h-3.5 w-3.5 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.common.done}</span>
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={handleRequestCancelEdit}
-                    disabled={isSaving}
-                  >
-                    <X className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">{t.common.cancel}</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={() => handleSaveAll()}
-                    disabled={isSaving || !hasLocalChanges}
-                  >
-                    {isSaving ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="hidden sm:inline">
-                          {t.common.saving}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {t.common.save}
-                        </span>
-                      </span>
-                    )}
-                  </Button>
-                </>
-              )
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                onClick={handleEnterEditMode}
-              >
-                <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">{t.common.edit}</span>
-              </Button>
-            )}
-          </div>
-        </motion.div>
+        {chartData.length === 0 && (
+          <motion.div variants={fadeListItem} className="flex justify-end">
+            {contributionActions}
+          </motion.div>
+        )}
 
         {isEditMode && !isQuickMode && hasLocalChanges && (
           <motion.div
@@ -1620,6 +1619,7 @@ export function ContributionsView() {
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            hideLabelOnMobile
           />
         </motion.div>
 
@@ -1630,6 +1630,7 @@ export function ContributionsView() {
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
+                  headerAction={contributionActions}
                   locale={locale}
                   currency={defaultCurrency}
                   hideLegend

@@ -7,6 +7,7 @@ import {
 } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
+import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import {
   endOfMonth,
   format,
@@ -34,6 +35,7 @@ import {
   ChevronDown,
   Check,
   EyeOff,
+  Filter,
   Info,
   PiggyBank,
   Plus,
@@ -86,7 +88,7 @@ import {
   formatDate,
 } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
-import { EntityType, FlowType } from "@/types"
+import { DataDisplayMode, EntityType, FlowType } from "@/types"
 import { TxType } from "@/types/transactions"
 import {
   CashflowGranularity,
@@ -273,7 +275,7 @@ export default function CashflowPage() {
           />
         </div>
         {tabAction && (tab === "labels" || tab === "rules") && (
-          <div className="hidden shrink-0 md:flex">{tabAction}</div>
+          <div className="flex shrink-0">{tabAction}</div>
         )}
       </div>
 
@@ -304,6 +306,7 @@ export default function CashflowPage() {
 
 function CashflowAnalysis() {
   const { t, locale } = useI18n()
+  const { mode } = useDataDisplayMode()
   const navigate = useNavigate()
   const { settings, entities, showToast } = useAppContext()
   const { getLabel, getLabelName } = useLabels()
@@ -624,17 +627,19 @@ function CashflowAnalysis() {
           )}
         </div>
         <div className="flex h-5 items-center">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            {rate != null && (
-              <div
-                className={cn(
-                  "h-full rounded-full",
-                  rate >= 0 ? "bg-violet-500" : "bg-red-500",
-                )}
-                style={{ width: `${Math.min(Math.abs(rate) * 100, 100)}%` }}
-              />
-            )}
-          </div>
+          {mode !== DataDisplayMode.PRIVATE && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              {rate != null && (
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    rate >= 0 ? "bg-violet-500" : "bg-red-500",
+                  )}
+                  style={{ width: `${Math.min(Math.abs(rate) * 100, 100)}%` }}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -744,11 +749,16 @@ function CashflowAnalysis() {
             </div>
           </div>
         )}
-        <div className="sm:ml-auto sm:w-64">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:ml-auto sm:w-64">
+          <Filter
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
           <EntitySelector
             entities={entityOptions}
             selectedEntityIds={entityIds}
             onSelectionChange={setEntityIds}
+            className="min-w-0 flex-1"
           />
         </div>
       </div>

@@ -2594,6 +2594,14 @@
     "amount": "Importo",
     "amountPlaceholder": "Inserisci l'importo",
     "category": "Categoria",
+    "categoryFilter": {
+      "title": "Categorie",
+      "include": "Includi categoria",
+      "exclude": "Escludi categoria"
+    },
+    "categoryLegend": {
+      "showMore": "Mostra +{count}"
+    },
     "categoryPlaceholder": "Inserisci la categoria",
     "iconLabel": "Icona",
     "frequencyLabel": "Frequenza",

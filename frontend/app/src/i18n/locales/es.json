@@ -2598,6 +2598,14 @@
     "amount": "Cantidad",
     "amountPlaceholder": "Ingresa la cantidad",
     "category": "Categoría",
+    "categoryFilter": {
+      "title": "Categorías",
+      "include": "Incluir categoría",
+      "exclude": "Excluir categoría"
+    },
+    "categoryLegend": {
+      "showMore": "Mostrar +{count}"
+    },
     "categoryPlaceholder": "Ingresa la categoría",
     "iconLabel": "Icono",
     "frequencyLabel": "Frecuencia",

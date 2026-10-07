@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const formatDateKey = (date: Date): string => {
@@ -36,6 +37,7 @@ export interface BaseCalendarProps<T> {
   maxYear?: number
   showTodayButton?: boolean
   todayButtonLabel?: string
+  className?: string
 }
 
 export function BaseCalendar<T>({
@@ -53,6 +55,7 @@ export function BaseCalendar<T>({
   maxYear,
   showTodayButton = true,
   todayButtonLabel,
+  className,
 }: BaseCalendarProps<T>) {
   const { t, locale } = useI18n()
   const [showYearPicker, setShowYearPicker] = useState(false)
@@ -249,7 +252,7 @@ export function BaseCalendar<T>({
     currentMonth === currentMonthNow && currentYear === currentYearNow
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn("overflow-hidden", className)}>
       <div className="flex items-center justify-between p-2 sm:p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-gray-100 capitalize">

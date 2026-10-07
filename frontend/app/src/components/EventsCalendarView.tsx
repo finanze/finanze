@@ -70,11 +70,15 @@ const getEventTypeLabel = (event: MoneyEvent, t: Translations): string => {
 interface EventsCalendarViewProps {
   onEventClick?: (event: MoneyEvent) => void
   defaultMode?: CalendarMode
+  header?: React.ReactNode
+  mobileFullWidth?: boolean
 }
 
 export function EventsCalendarView({
   onEventClick,
   defaultMode = "month",
+  header,
+  mobileFullWidth = false,
 }: EventsCalendarViewProps) {
   const { t, locale } = useI18n()
 
@@ -459,34 +463,53 @@ export function EventsCalendarView({
     )
   }
 
+  const modeSwitcher = (
+    <div
+      className="flex shrink-0 items-center rounded-lg bg-muted p-1"
+      role="group"
+    >
+      {(
+        [
+          ["agenda", List, t.management.upcoming.agenda],
+          ["month", CalendarDays, t.management.upcoming.month],
+        ] as const
+      ).map(([key, ModeIcon, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setMode(key)}
+          aria-pressed={mode === key}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all sm:px-3",
+            mode === key
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ModeIcon className="h-3.5 w-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center rounded-lg bg-muted p-1" role="group">
-          {(
-            [
-              ["agenda", List, t.management.upcoming.agenda],
-              ["month", CalendarDays, t.management.upcoming.month],
-            ] as const
-          ).map(([key, ModeIcon, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMode(key)}
-              aria-pressed={mode === key}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all",
-                mode === key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <ModeIcon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
+        {header ? (
+          <div className="flex w-full min-w-0 items-center justify-between gap-2">
+            {header}
+            {modeSwitcher}
+          </div>
+        ) : (
+          modeSwitcher
+        )}
+        <div
+          className={cn(
+            "flex flex-wrap gap-2",
+            header && "w-full justify-center",
+          )}
+        >
           {filterButtons.map(({ type, label, icon }) => (
             <Button
               key={type}
@@ -511,18 +534,23 @@ export function EventsCalendarView({
       {mode === "agenda" ? (
         renderAgenda()
       ) : (
-        <BaseCalendar
-          items={filteredEvents}
-          getItemDateKey={getItemDateKey}
-          currentMonth={currentMonth}
-          currentYear={currentYear}
-          onMonthChange={handleMonthChange}
-          loading={loading}
-          renderDayContent={renderDayContent}
-          onDayClick={handleDayClick}
-          disablePastNavigation={true}
-          showTodayButton={false}
-        />
+        <div className={mobileFullWidth ? "-mx-4 md:mx-0" : undefined}>
+          <BaseCalendar
+            items={filteredEvents}
+            getItemDateKey={getItemDateKey}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onMonthChange={handleMonthChange}
+            loading={loading}
+            renderDayContent={renderDayContent}
+            onDayClick={handleDayClick}
+            disablePastNavigation={true}
+            showTodayButton={false}
+            className={
+              mobileFullWidth ? "rounded-none md:rounded-lg" : undefined
+            }
+          />
+        </div>
       )}
 
       <AnimatePresence>

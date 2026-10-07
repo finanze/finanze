@@ -206,14 +206,26 @@ export function LabelsManager({
   useEffect(() => {
     const action =
       tab === "labels" ? (
-        <Button size="sm" className="gap-1.5" onClick={openNewLabel}>
+        <Button
+          size="sm"
+          className="h-8 w-8 gap-1.5 p-1 md:h-9 md:w-auto md:px-3 md:py-0"
+          onClick={openNewLabel}
+          aria-label={t.labels.newLabel}
+          title={t.labels.newLabel}
+        >
           <Plus className="h-4 w-4" />
-          {t.labels.newLabel}
+          <span className="hidden md:inline">{t.labels.newLabel}</span>
         </Button>
       ) : tab === "rules" && rulesLoaded ? (
-        <Button size="sm" className="gap-1.5" onClick={openNewRule}>
+        <Button
+          size="sm"
+          className="h-8 w-8 gap-1.5 p-1 md:h-9 md:w-auto md:px-3 md:py-0"
+          onClick={openNewRule}
+          aria-label={t.labels.rules.newRule}
+          title={t.labels.rules.newRule}
+        >
           <Plus className="h-4 w-4" />
-          {t.labels.rules.newRule}
+          <span className="hidden md:inline">{t.labels.rules.newRule}</span>
         </Button>
       ) : null
 
@@ -291,12 +303,6 @@ export function LabelsManager({
     <div className="space-y-4">
       {tab === "labels" && (
         <>
-          <div className="flex justify-end md:hidden">
-            <Button size="sm" className="gap-1.5" onClick={openNewLabel}>
-              <Plus className="h-4 w-4" />
-              {t.labels.newLabel}
-            </Button>
-          </div>
           {!loaded ? (
             <div className="flex justify-center py-10">
               <LoadingSpinner />
@@ -317,14 +323,6 @@ export function LabelsManager({
 
       {tab === "rules" && (
         <>
-          {rulesLoaded && rules.length > 0 && (
-            <div className="flex justify-end md:hidden">
-              <Button size="sm" className="gap-1.5" onClick={openNewRule}>
-                <Plus className="h-4 w-4" />
-                {t.labels.rules.newRule}
-              </Button>
-            </div>
-          )}
           {!rulesLoaded ? (
             <div className="flex justify-center py-10">
               <LoadingSpinner />
@@ -335,16 +333,6 @@ export function LabelsManager({
                 icon={Wand2}
                 title={t.labels.rules.emptyTitle}
                 description={t.labels.rules.empty}
-                action={
-                  <Button
-                    size="sm"
-                    className="gap-1.5 md:hidden"
-                    onClick={openNewRule}
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t.labels.rules.newRule}
-                  </Button>
-                }
               />
             </Card>
           ) : (

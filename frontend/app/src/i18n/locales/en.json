@@ -2599,6 +2599,14 @@
     "amount": "Amount",
     "amountPlaceholder": "Enter amount",
     "category": "Category",
+    "categoryFilter": {
+      "title": "Categories",
+      "include": "Include category",
+      "exclude": "Exclude category"
+    },
+    "categoryLegend": {
+      "showMore": "Show +{count}"
+    },
     "categoryPlaceholder": "Enter category",
     "iconLabel": "Icon",
     "frequencyLabel": "Frequency",
@@ -2667,10 +2675,10 @@
     },
     "unsavedChanges": "You have unsaved changes",
     "requiredFields": "Required fields",
-    "sortBy": "Sort by",
+    "sortBy": "Sort",
     "sortByAmount": "Amount",
     "sortByDate": "Date",
-    "groupBy": "Group by",
+    "groupBy": "Group",
     "groupByCategory": "Category",
     "uncategorized": "Uncategorized",
     "nextPayment": "Next",

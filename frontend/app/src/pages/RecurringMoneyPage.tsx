@@ -1,4 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from "react"
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
@@ -14,10 +21,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import {
-  MultiSelect,
-  type MultiSelectOption,
-} from "@/components/ui/MultiSelect"
+import { type MultiSelectOption } from "@/components/ui/MultiSelect"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   PageTabs,
@@ -27,6 +31,7 @@ import {
 import { EventsCalendarView } from "@/components/EventsCalendarView"
 import { ContributionsView } from "@/components/contributions/ContributionsView"
 import {
+  Ban,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
@@ -88,6 +93,210 @@ const RECURRING_TABS: readonly RecurringTab[] = [
   "expenses",
   "investments",
 ]
+const MOBILE_CATEGORY_LEGEND_PAGE_SIZE = 4
+
+interface CategoryFilterValue {
+  included: string[]
+  excluded: string[]
+}
+
+type CategoryFilterMode = "included" | "excluded"
+
+interface CategoryFilterSelectProps {
+  options: MultiSelectOption[]
+  value: CategoryFilterValue
+  onStateChange: (category: string, state: CategoryFilterMode | null) => void
+}
+
+const hasCategoryFilter = (filter: CategoryFilterValue) =>
+  filter.included.length > 0 || filter.excluded.length > 0
+
+const matchesCategoryFilter = (
+  category: string | null | undefined,
+  filter: CategoryFilterValue,
+) => {
+  if (
+    filter.included.length > 0 &&
+    (!category || !filter.included.includes(category))
+  ) {
+    return false
+  }
+  return !category || !filter.excluded.includes(category)
+}
+
+function CategoryFilterSelect({
+  options,
+  value,
+  onStateChange,
+}: CategoryFilterSelectProps) {
+  const { t } = useI18n()
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false)
+        setSearchTerm("")
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isOpen])
+
+  const term = searchTerm.trim().toLowerCase()
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(term),
+  )
+  const stateButtonClass =
+    "inline-flex h-6 w-6 items-center justify-center rounded-md border transition-colors"
+
+  return (
+    <div className="relative w-full sm:w-56" ref={containerRef}>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls="recurring-category-menu"
+        data-testid="recurring-category-select"
+        onClick={() => {
+          setIsOpen(open => !open)
+          if (isOpen) setSearchTerm("")
+        }}
+        className={cn(
+          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          isOpen && "ring-2 ring-ring ring-offset-2",
+        )}
+      >
+        <span className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground" />
+          {t.management.categoryFilter.title}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 transition-transform",
+            isOpen && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+
+      <div
+        id="recurring-category-menu"
+        role="group"
+        aria-label={t.management.categoryFilter.title}
+        className={cn(
+          "absolute left-0 top-full z-50 mt-1 w-full min-w-[220px] rounded-md border border-input bg-background shadow-lg",
+          !isOpen && "hidden",
+        )}
+      >
+        <div className="border-b p-2">
+          <input
+            type="text"
+            aria-label={t.common.searchOptions}
+            placeholder={t.common.searchOptions}
+            value={searchTerm}
+            onChange={event => setSearchTerm(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Escape") {
+                setIsOpen(false)
+                setSearchTerm("")
+              }
+            }}
+            className="w-full rounded border border-input bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="max-h-60 overflow-auto">
+          {filteredOptions.length === 0 ? (
+            <div className="p-2 text-center text-sm text-muted-foreground">
+              {t.common.noOptionsFound}
+            </div>
+          ) : (
+            filteredOptions.map(option => {
+              const included = value.included.includes(option.value)
+              const excluded = value.excluded.includes(option.value)
+              const includeLabel = `${t.management.categoryFilter.include}: ${option.label}`
+              const excludeLabel = `${t.management.categoryFilter.exclude}: ${option.label}`
+              return (
+                <div
+                  key={option.value}
+                  className={cn(
+                    "flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground",
+                    (included || excluded) &&
+                      "bg-accent text-accent-foreground",
+                  )}
+                  data-testid={`recurring-category-option-${option.value}`}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={included}
+                    onClick={() =>
+                      onStateChange(option.value, included ? null : "included")
+                    }
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-left",
+                      excluded && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      title={includeLabel}
+                      aria-label={includeLabel}
+                      aria-pressed={included}
+                      onClick={() =>
+                        onStateChange(
+                          option.value,
+                          included ? null : "included",
+                        )
+                      }
+                      data-testid={`recurring-category-include-${option.value}`}
+                      className={cn(
+                        stateButtonClass,
+                        included
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-transparent text-muted-foreground hover:border-input",
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title={excludeLabel}
+                      aria-label={excludeLabel}
+                      aria-pressed={excluded}
+                      onClick={() =>
+                        onStateChange(
+                          option.value,
+                          excluded ? null : "excluded",
+                        )
+                      }
+                      data-testid={`recurring-category-exclude-${option.value}`}
+                      className={cn(
+                        stateButtonClass,
+                        excluded
+                          ? "border-red-500 bg-red-500 text-white"
+                          : "border-transparent text-muted-foreground hover:border-input",
+                      )}
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
@@ -102,7 +311,18 @@ export default function RecurringMoneyPage() {
     ensurePeriodicFlows,
   } = useFinancialData()
   const navigate = useNavigate()
-  const [tab, setTab] = useTabSearchParam(RECURRING_TABS, "overview")
+  const [tab, setTabParam] = useTabSearchParam(RECURRING_TABS, "overview")
+  const tabScrollTopRef = useRef<number | null>(null)
+  const setTab = useCallback(
+    (next: RecurringTab) => {
+      if (next !== tab) {
+        tabScrollTopRef.current =
+          document.querySelector("main")?.scrollTop ?? null
+      }
+      setTabParam(next)
+    },
+    [setTabParam, tab],
+  )
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
@@ -120,13 +340,38 @@ export default function RecurringMoneyPage() {
   const [deletingFlow, setDeletingFlow] = useState<PeriodicFlow | null>(null)
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterValue>({
+    included: [],
+    excluded: [],
+  })
+  const [visibleEarningsLegendCount, setVisibleEarningsLegendCount] = useState(
+    MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+  )
+  const [visibleExpensesLegendCount, setVisibleExpensesLegendCount] = useState(
+    MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+  )
   const [showContributions, setShowContributions] = useState(true)
   const [remainingCashOpen, setRemainingCashOpen] = useState(false)
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [expandedFlows, setExpandedFlows] = useState<Record<string, boolean>>(
     {},
   )
+  const hasActiveCategoryFilter = hasCategoryFilter(categoryFilter)
+  const filteredPeriodicFlows = useMemo(
+    () =>
+      periodicFlows.filter(flow =>
+        matchesCategoryFilter(flow.category, categoryFilter),
+      ),
+    [periodicFlows, categoryFilter],
+  )
+
+  useLayoutEffect(() => {
+    const scrollTop = tabScrollTopRef.current
+    if (scrollTop === null) return
+    const scrollContainer = document.querySelector("main")
+    if (scrollContainer) scrollContainer.scrollTop = scrollTop
+    tabScrollTopRef.current = null
+  }, [tab])
 
   useModalBackHandler(isDialogOpen, () => setIsDialogOpen(false))
   useModalBackHandler(isDeleteDialogOpen, () => setIsDeleteDialogOpen(false))
@@ -137,9 +382,9 @@ export default function RecurringMoneyPage() {
 
   // When category filter is active we suppress contributions per requirement
   const effectiveShowContributions =
-    showContributions && categoryFilter.length === 0
-  const singleCategoryFiltered = categoryFilter.length === 1
-  const showSavingsCard = categoryFilter.length === 0
+    showContributions && !hasActiveCategoryFilter
+  const singleCategoryFiltered = categoryFilter.included.length === 1
+  const showSavingsCard = !hasActiveCategoryFilter
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
@@ -154,11 +399,6 @@ export default function RecurringMoneyPage() {
 
   // Sort flows by amount or next_date
   const sortedFlows = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
     const sortFn = (a: PeriodicFlow, b: PeriodicFlow) => {
       let cmp: number
       if (sortBy === "amount") {
@@ -172,7 +412,7 @@ export default function RecurringMoneyPage() {
       return sortOrder === "desc" ? -cmp : cmp
     }
 
-    const sortedPeriodicFlows = [...baseFlows].sort(sortFn)
+    const sortedPeriodicFlows = [...filteredPeriodicFlows].sort(sortFn)
 
     return {
       earnings: sortedPeriodicFlows.filter(
@@ -182,15 +422,11 @@ export default function RecurringMoneyPage() {
         flow => flow.flow_type === FlowType.EXPENSE,
       ),
     }
-  }, [periodicFlows, sortBy, sortOrder, categoryFilter])
+  }, [filteredPeriodicFlows, sortBy, sortOrder])
 
   // Calculate monthly amounts for KPIs
   const monthlyAmounts = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
+    const baseFlows = filteredPeriodicFlows
     const getMonthlyMultiplier = (frequency: FlowFrequency): number => {
       switch (frequency) {
         case FlowFrequency.DAILY:
@@ -288,8 +524,7 @@ export default function RecurringMoneyPage() {
       monthlyContributionsVisible,
     }
   }, [
-    periodicFlows,
-    categoryFilter,
+    filteredPeriodicFlows,
     contributions,
     effectiveShowContributions,
     exchangeRates,
@@ -362,13 +597,9 @@ export default function RecurringMoneyPage() {
 
   // Calculate flow distribution for the horizontal bar chart
   const flowDistribution = useMemo(() => {
-    const baseFlows = categoryFilter.length
-      ? periodicFlows.filter(
-          f => f.category && categoryFilter.includes(f.category),
-        )
-      : periodicFlows
+    const baseFlows = filteredPeriodicFlows
     const enabledFlows = baseFlows.filter(flow => flow.enabled)
-    const singleCategoryMode = categoryFilter.length === 1
+    const singleCategoryMode = categoryFilter.included.length === 1
 
     const toMonthlyAmount = (flow: PeriodicFlow): number => {
       const multiplier =
@@ -501,7 +732,7 @@ export default function RecurringMoneyPage() {
       contributionsAmount: effectiveShowContributions ? totalContributions : 0,
     }
   }, [
-    periodicFlows,
+    filteredPeriodicFlows,
     monthlyAmounts,
     categoryFilter,
     effectiveShowContributions,
@@ -566,18 +797,28 @@ export default function RecurringMoneyPage() {
     return map
   }, [flowDistribution])
 
-  const toggleCategoryFilter = (category: string) => {
-    setCategoryFilter(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category],
-    )
+  const updateCategoryFilter = (
+    category: string,
+    state: CategoryFilterMode | null,
+  ) => {
+    setCategoryFilter(previous => {
+      const currentState = previous.included.includes(category)
+        ? "included"
+        : previous.excluded.includes(category)
+          ? "excluded"
+          : null
+      if (currentState === state) return previous
+
+      const included = previous.included.filter(item => item !== category)
+      const excluded = previous.excluded.filter(item => item !== category)
+      if (state === "included") included.push(category)
+      if (state === "excluded") excluded.push(category)
+      return { included, excluded }
+    })
   }
 
   const focusCategory = (category: string, type: "earning" | "expense") => {
-    setCategoryFilter(prev =>
-      prev.includes(category) ? prev : [...prev, category],
-    )
+    updateCategoryFilter(category, "included")
     setTab(type === "earning" ? "earnings" : "expenses")
   }
 
@@ -612,6 +853,16 @@ export default function RecurringMoneyPage() {
     () => existingCategories.map(c => ({ value: c, label: c })),
     [existingCategories],
   )
+  const selectedCategoryFilters = [
+    ...categoryFilter.included.map(category => ({
+      category,
+      state: "included" as const,
+    })),
+    ...categoryFilter.excluded.map(category => ({
+      category,
+      state: "excluded" as const,
+    })),
+  ]
 
   // Get loan suggestions from positions data
   const loanSuggestions = useMemo(() => {
@@ -692,6 +943,7 @@ export default function RecurringMoneyPage() {
     },
   )
   const [showDismissed, setShowDismissed] = useState(false)
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false)
 
   const handleDismissSuggestion = (loanId: string) => {
     const newDismissed = [...dismissedSuggestions, loanId]
@@ -1110,7 +1362,10 @@ export default function RecurringMoneyPage() {
                                 type="button"
                                 data-no-expand
                                 onClick={() =>
-                                  toggleCategoryFilter(flow.category!)
+                                  updateCategoryFilter(
+                                    flow.category!,
+                                    "included",
+                                  )
                                 }
                                 className={cn(
                                   "text-[0.7rem] inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
@@ -1422,7 +1677,7 @@ export default function RecurringMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex flex-row items-center justify-between gap-3"
+          className="flex flex-row items-center gap-3"
         >
           <div className="flex items-center gap-3 min-w-0">
             <Button
@@ -1446,13 +1701,6 @@ export default function RecurringMoneyPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => navigate("/management/pending")}
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
-          >
-            {t.management.pending}
-            <ArrowRight size={16} />
-          </button>
         </motion.div>
 
         {/* KPI Cards */}
@@ -1470,7 +1718,7 @@ export default function RecurringMoneyPage() {
           <Card
             className={cn(
               "p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x cursor-pointer transition-colors hover:bg-accent/40",
-              tab === "earnings" && "md:ring-2 md:ring-green-500/50",
+              tab === "earnings" && "ring-2 ring-green-500/50",
             )}
             onClick={() => setTab("earnings")}
             data-testid="recurring-kpi-earnings"
@@ -1505,7 +1753,7 @@ export default function RecurringMoneyPage() {
           <Card
             className={cn(
               "p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x cursor-pointer transition-colors hover:bg-accent/40",
-              tab === "expenses" && "md:ring-2 md:ring-red-500/50",
+              tab === "expenses" && "ring-2 ring-red-500/50",
             )}
             onClick={() => setTab("expenses")}
             data-testid="recurring-kpi-expenses"
@@ -1570,7 +1818,7 @@ export default function RecurringMoneyPage() {
             <Card
               className={cn(
                 "p-4 md:col-span-2 xl:col-span-1 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x",
-                tab === "investments" && "md:ring-2 md:ring-cyan-500/50",
+                tab === "investments" && "ring-2 ring-cyan-500/50",
               )}
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
@@ -1684,43 +1932,73 @@ export default function RecurringMoneyPage() {
           )}
         </motion.div>
 
+        {(hasActiveCategoryFilter || tab !== "investments") && (
+          <div className="flex flex-wrap items-center gap-2">
+            {hasActiveCategoryFilter && (
+              <div
+                className="flex flex-wrap items-center gap-2"
+                data-testid="recurring-category-filter"
+              >
+                <Tag size={14} className="text-muted-foreground" />
+                {selectedCategoryFilters.map(({ category, state }) => {
+                  const excluded = state === "excluded"
+                  const stateLabel = excluded
+                    ? t.management.categoryFilter.exclude
+                    : t.management.categoryFilter.include
+                  return (
+                    <button
+                      key={`${state}-${category}`}
+                      type="button"
+                      title={`${stateLabel}: ${category}`}
+                      aria-label={`${t.common.clear} ${category}`}
+                      onClick={() => updateCategoryFilter(category, null)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
+                        excluded
+                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                          : getColorForName(category),
+                      )}
+                    >
+                      {excluded ? (
+                        <Ban className="h-3 w-3" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                      <span className={cn(excluded && "line-through")}>
+                        {category}
+                      </span>
+                      <X size={12} />
+                    </button>
+                  )
+                })}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() =>
+                    setCategoryFilter({ included: [], excluded: [] })
+                  }
+                >
+                  {t.common.clear}
+                </Button>
+              </div>
+            )}
+            {tab !== "investments" && (
+              <CategoryFilterSelect
+                options={categoryOptions}
+                value={categoryFilter}
+                onStateChange={updateCategoryFilter}
+              />
+            )}
+          </div>
+        )}
+
         <PageTabs
           tabs={recurringTabs}
           active={tab}
           onChange={setTab}
           layoutId="recurring-tab-indicator"
         />
-
-        {tab === "overview" && categoryFilter.length > 0 && (
-          <div
-            className="flex flex-wrap items-center gap-2"
-            data-testid="recurring-category-filter"
-          >
-            <Tag size={14} className="text-muted-foreground" />
-            {categoryFilter.map(category => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => toggleCategoryFilter(category)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
-                  getColorForName(category),
-                )}
-              >
-                {category}
-                <X size={12} />
-              </button>
-            ))}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => setCategoryFilter([])}
-            >
-              {t.common.clear}
-            </Button>
-          </div>
-        )}
 
         {tab === "overview" && (
           <>
@@ -2071,8 +2349,8 @@ export default function RecurringMoneyPage() {
 
                   {/* Legends */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto">
-                      {flowDistribution.earnings.map(earning => {
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap md:max-h-40 md:overflow-auto">
+                      {flowDistribution.earnings.map((earning, index) => {
                         const sourceCategory = earning.sourceCategory ?? null
                         const canFilter = Boolean(
                           sourceCategory &&
@@ -2083,6 +2361,8 @@ export default function RecurringMoneyPage() {
                             key={`legend2-earning-${earning.id}`}
                             className={cn(
                               "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
+                              index >= visibleEarningsLegendCount &&
+                                "hidden md:flex",
                               canFilter
                                 ? "cursor-pointer"
                                 : "cursor-default opacity-70",
@@ -2113,9 +2393,35 @@ export default function RecurringMoneyPage() {
                           </div>
                         )
                       })}
+                      {flowDistribution.earnings.length >
+                        visibleEarningsLegendCount && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVisibleEarningsLegendCount(count =>
+                              Math.min(
+                                count + MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.earnings.length,
+                              ),
+                            )
+                          }
+                          className="inline-flex h-7 w-fit items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+                        >
+                          {t.management.categoryLegend.showMore.replace(
+                            "{count}",
+                            String(
+                              Math.min(
+                                MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.earnings.length -
+                                  visibleEarningsLegendCount,
+                              ),
+                            ),
+                          )}
+                        </button>
+                      )}
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto sm:justify-end">
-                      {flowDistribution.expenses.map(expense => {
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end md:max-h-40 md:overflow-auto">
+                      {flowDistribution.expenses.map((expense, index) => {
                         const sourceCategory = expense.sourceCategory ?? null
                         const canFilter = Boolean(
                           sourceCategory &&
@@ -2126,6 +2432,8 @@ export default function RecurringMoneyPage() {
                             key={`legend2-expense-${expense.id}`}
                             className={cn(
                               "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
+                              index >= visibleExpensesLegendCount &&
+                                "hidden md:flex",
                               canFilter
                                 ? "cursor-pointer"
                                 : "cursor-default opacity-70",
@@ -2156,6 +2464,32 @@ export default function RecurringMoneyPage() {
                           </div>
                         )
                       })}
+                      {flowDistribution.expenses.length >
+                        visibleExpensesLegendCount && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setVisibleExpensesLegendCount(count =>
+                              Math.min(
+                                count + MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.expenses.length,
+                              ),
+                            )
+                          }
+                          className="inline-flex h-7 w-fit items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+                        >
+                          {t.management.categoryLegend.showMore.replace(
+                            "{count}",
+                            String(
+                              Math.min(
+                                MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
+                                flowDistribution.expenses.length -
+                                  visibleExpensesLegendCount,
+                              ),
+                            ),
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </Card>
@@ -2187,15 +2521,18 @@ export default function RecurringMoneyPage() {
 
             <motion.div variants={fadeListItem}>
               <Card className="p-4 space-y-3 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5 text-muted-foreground" />
-                  <h2 className="text-lg font-semibold">
-                    {t.management.upcoming.title}
-                  </h2>
-                </div>
                 <EventsCalendarView
                   defaultMode="agenda"
                   onEventClick={handleEventClick}
+                  mobileFullWidth
+                  header={
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CalendarDays className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      <h2 className="truncate text-lg font-semibold">
+                        {t.management.upcoming.title}
+                      </h2>
+                    </div>
+                  }
                 />
               </Card>
             </motion.div>
@@ -2272,12 +2609,6 @@ export default function RecurringMoneyPage() {
                   {t.management.groupByCategory}
                 </span>
               </button>
-              <MultiSelect
-                options={categoryOptions}
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
-              />
             </div>
           </motion.div>
         )}
@@ -2292,19 +2623,48 @@ export default function RecurringMoneyPage() {
               variants={fadeListItem}
               initial={runEntranceAnimation ? "hidden" : false}
               animate="show"
-              className="space-y-4"
+              className={cn(suggestionsExpanded && "space-y-4")}
             >
-              <div className="flex items-center gap-2">
-                <Lightbulb className="text-yellow-500" size={20} />
-                <h2 className="text-lg font-semibold">
-                  {t.management.loanSuggestions.title}
-                </h2>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSuggestionsExpanded(value => !value)}
+                aria-expanded={suggestionsExpanded}
+                aria-controls="loan-suggestions-content"
+                className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <span
+                  role="heading"
+                  aria-level={2}
+                  className="flex items-center gap-2"
+                >
+                  <Lightbulb
+                    className="text-yellow-500"
+                    size={20}
+                    aria-hidden="true"
+                  />
+                  <span className="text-lg font-semibold">
+                    {t.management.loanSuggestions.title}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    suggestionsExpanded && "rotate-180",
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
               <motion.div
-                variants={fadeListContainer}
-                initial={runEntranceAnimation ? "hidden" : false}
-                animate="show"
-                className="space-y-3"
+                id="loan-suggestions-content"
+                initial={false}
+                animate={{
+                  height: suggestionsExpanded ? "auto" : 0,
+                  opacity: suggestionsExpanded ? 1 : 0,
+                }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                aria-hidden={!suggestionsExpanded}
+                inert={!suggestionsExpanded}
+                className="-mx-6 overflow-hidden space-y-3 sm:mx-0"
               >
                 {loanSuggestions
                   .filter(
@@ -2322,7 +2682,7 @@ export default function RecurringMoneyPage() {
                         variants={fadeListItem}
                         initial={runEntranceAnimation ? "hidden" : false}
                         animate="show"
-                        className={`-mx-6 flex flex-col gap-3 rounded-none border-y p-4 sm:mx-0 sm:flex-row sm:items-start sm:justify-between sm:rounded-lg sm:border ${
+                        className={`flex flex-col gap-3 rounded-none border-y p-4 sm:flex-row sm:items-start sm:justify-between sm:rounded-lg sm:border ${
                           isDismissed
                             ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 opacity-70"
                             : "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800"
@@ -2464,7 +2824,10 @@ export default function RecurringMoneyPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setShowDismissed(!showDismissed)}
+                    onClick={() => {
+                      setShowDismissed(value => !value)
+                      setSuggestionsExpanded(true)
+                    }}
                     className="h-8 px-3 text-yellow-600 hover:text-yellow-700"
                   >
                     {showDismissed ? (
