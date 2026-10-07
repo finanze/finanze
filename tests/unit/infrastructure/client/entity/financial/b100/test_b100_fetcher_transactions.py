@@ -113,7 +113,7 @@ async def test_maps_income_expense_and_interest_movements_across_pages():
     assert {tx.iban for tx in result.account} == {IBAN}
 
     outflow = txs["Bizum to Ana"]
-    assert outflow.ref == "m1"
+    assert outflow.ref != "m1"
     assert outflow.type == TxType.OUTFLOW
     assert outflow.amount == Dezimal("25.5")
     assert outflow.net_amount == Dezimal("25.5")
@@ -156,7 +156,7 @@ async def test_first_fetch_skips_registered_and_sets_pointer():
 
     result = await fetcher.transactions({registered_interest_ref}, options)
 
-    assert [tx.ref for tx in result.account] == ["new", "older"]
+    assert [tx.name for tx in result.account] == ["Coffee", "Rent"]
     assert fetcher._client.get_account_movements.await_count == 1
     assert options.pointer_context.pointers[POINTER_KEY].threshold == today
 
@@ -166,12 +166,18 @@ async def test_pointer_limits_rescan_to_settle_window():
     today = date.today()
     threshold = today - timedelta(days=5)
     window_start = threshold - timedelta(days=ACCOUNT_MOVEMENTS_SETTLE_DAYS)
+    known = _movement("known", threshold, 15, "Gym")
+    known_ref = (
+        B100Fetcher()
+        ._map_movement(known, B100Fetcher._parse_date(known["transactionDate"]), IBAN)
+        .ref
+    )
     fetcher = _fetcher(
         [
             _page(
                 [
                     _movement("recent", today, 10, "Coffee"),
-                    _movement("known", threshold, 15, "Gym"),
+                    known,
                     _movement("late", window_start, 12, "Late booking"),
                     _movement("stale", window_start - timedelta(days=1), 9, "X"),
                 ],
@@ -181,8 +187,37 @@ async def test_pointer_limits_rescan_to_settle_window():
     )
     options = _options(pointer_threshold=threshold)
 
-    result = await fetcher.transactions({"known"}, options)
+    result = await fetcher.transactions({known_ref}, options)
 
-    assert [tx.ref for tx in result.account] == ["recent", "late"]
+    assert [tx.name for tx in result.account] == ["Coffee", "Late booking"]
     assert fetcher._client.get_account_movements.await_count == 1
     assert options.pointer_context.pointers[POINTER_KEY].threshold == today
+
+
+@pytest.mark.asyncio
+async def test_refs_stable_across_sessions_with_rotating_movement_ids():
+    today = date.today()
+    first = _fetcher([_page([_movement("session-1-id", today, 10, "Coffee")])])
+    second = _fetcher([_page([_movement("session-2-id", today, 10, "Coffee")])])
+
+    first_result = await first.transactions(set(), _options())
+    first_ref = first_result.account[0].ref
+    second_result = await second.transactions({first_ref}, _options())
+
+    assert second_result.account == []
+
+
+@pytest.mark.asyncio
+async def test_same_movement_in_different_accounts_gets_distinct_refs():
+    today = date.today()
+    movement = _movement("id", today, 1500, "AHORRO PARA HUCHA", "EXPENSE")
+    tx_date = B100Fetcher._parse_date(movement["transactionDate"])
+    fetcher = B100Fetcher()
+
+    main = fetcher._map_movement(movement, tx_date, IBAN)
+    savings = fetcher._map_movement(movement, tx_date, "ES7601000000000000000002")
+    income = fetcher._map_movement(
+        {**movement, "movementType": "INCOME"}, tx_date, IBAN
+    )
+
+    assert len({main.ref, savings.ref, income.ref}) == 3

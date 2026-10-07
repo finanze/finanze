@@ -65,6 +65,21 @@ export async function promptLogin(
     }
   }
 
+  // Earlier snapshots may hold a stale lb-os/JSESSIONID, which makes genoma_api return 401
+  async function refreshGenomaCookie() {
+    const genomaCookies = await readNativeCookies(
+      "https://ing.ingdirect.es/genoma_api/rest/client",
+    )
+    if (!genomaCookies || !genomaCookies.includes("genoma-session-id")) return
+    result.credentials.genomaCookie = genomaCookies
+    const sessionId = genomaCookies
+      .split("genoma-session-id=")[1]
+      ?.split(";")[0]
+    if (sessionId) {
+      result.credentials.genomaSessionId = sessionId
+    }
+  }
+
   try {
     // Listen for request interception events.
     // On iOS, JS interception captures headers set via setRequestHeader
@@ -116,21 +131,7 @@ export async function promptLogin(
         if (cookieHeader) {
           result.credentials.apiCookie = cookieHeader
         }
-        // Also capture genoma cookies if not yet captured (use genoma path for Android)
-        if (!result.credentials.genomaCookie) {
-          const genomaCookies = await readNativeCookies(
-            "https://ing.ingdirect.es/genoma_api/rest/client",
-          )
-          if (genomaCookies && genomaCookies.includes("genoma-session-id")) {
-            result.credentials.genomaCookie = genomaCookies
-            const sessionId = genomaCookies
-              .split("genoma-session-id=")[1]
-              ?.split(";")[0]
-            if (sessionId) {
-              result.credentials.genomaSessionId = sessionId
-            }
-          }
-        }
+        await refreshGenomaCookie()
 
         checkCompletion()
       }
@@ -163,6 +164,7 @@ export async function promptLogin(
         if (cookieHeader) {
           result.credentials.apiCookie = cookieHeader
         }
+        await refreshGenomaCookie()
         checkCompletion()
       }
     })

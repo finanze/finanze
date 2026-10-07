@@ -285,7 +285,7 @@ class B100Fetcher(FinancialEntityFetcher):
                 if tx_date.date() < min_date:
                     reached_end = True
                     continue
-                tx = self._map_movement(movement, tx_date)
+                tx = self._map_movement(movement, tx_date, iban)
                 if tx is None or tx.ref in registered_txs:
                     continue
                 tx.iban = iban
@@ -298,7 +298,23 @@ class B100Fetcher(FinancialEntityFetcher):
         self._update_pointer(options, pointer_key, today)
         return txs
 
-    def _map_movement(self, movement: dict, tx_date: datetime) -> Optional[AccountTx]:
+    @staticmethod
+    def _calc_movement_ref(
+        movement: dict,
+        iban: Optional[str],
+        name: str,
+        amount: Dezimal,
+        currency: str,
+        tx_date: datetime,
+    ) -> str:
+        balance = (movement.get("balanceAfterTransaction") or {}).get("quantity")
+        utc_date = tx_date.astimezone(timezone.utc).isoformat()
+        raw = f"{iban}_{movement.get('movementType')}_{name}_{amount}_{currency}_{utc_date}_{balance}"
+        return sha1(raw.encode("UTF-8")).hexdigest()
+
+    def _map_movement(
+        self, movement: dict, tx_date: datetime, iban: Optional[str] = None
+    ) -> Optional[AccountTx]:
         if self._is_interest(movement):
             return self._map_interest_tx(movement)
 
@@ -316,7 +332,8 @@ class B100Fetcher(FinancialEntityFetcher):
 
         name = " ".join((movement.get("detail") or "").split())
         currency = amount_data.get("currency")
-        ref = movement.get("id") or self._calc_tx_id(name, amount, currency, tx_date)
+        # B100 movement ids are session-scoped, they change on every login
+        ref = self._calc_movement_ref(movement, iban, name, amount, currency, tx_date)
 
         return AccountTx(
             id=uuid4(),
