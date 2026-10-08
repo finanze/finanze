@@ -1086,6 +1086,8 @@ export default function BankingPage() {
             filteredEntities={bankingEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            showClearFilters={false}
+            hideLabelOnMobile
           />
         </div>
       </motion.div>

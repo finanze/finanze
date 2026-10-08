@@ -724,36 +724,38 @@ function FundsInvestmentPageContent({
       </motion.div>
 
       <motion.div variants={fadeListItem}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <Filter size={16} />
-            <span className="hidden sm:inline">{t.transactions.filters}:</span>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <div className="w-full sm:max-w-xs">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex min-w-64 flex-1 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Filter size={16} />
+              <span className="hidden sm:inline">
+                {t.transactions.filters}:
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-xs">
               <EntitySelector
                 entities={filteredEntities}
                 selectedEntityIds={selectedEntities}
                 onSelectionChange={setSelectedEntities}
               />
             </div>
-            {portfolioOptions.length > 0 && (
-              <div className="w-full sm:max-w-xs">
-                <MultiSelect
-                  options={portfolioOptions}
-                  value={selectedPortfolios}
-                  onChange={setSelectedPortfolios}
-                  placeholder={(t.investments as any).portfolio}
-                />
-              </div>
-            )}
           </div>
+          {portfolioOptions.length > 0 && (
+            <div className="min-w-64 flex-1 sm:max-w-xs">
+              <MultiSelect
+                options={portfolioOptions}
+                value={selectedPortfolios}
+                onChange={setSelectedPortfolios}
+                placeholder={(t.investments as any).portfolio}
+              />
+            </div>
+          )}
           {(selectedEntities.length > 0 || selectedPortfolios.length > 0) && (
             <Button
               variant="outline"
               size="sm"
               onClick={handleClearAllFilters}
-              className="flex items-center gap-2 self-start lg:self-auto"
+              className="flex shrink-0 items-center gap-2"
             >
               <FilterX size={16} />
               {t.transactions.clear}

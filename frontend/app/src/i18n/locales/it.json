@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Indietro",
+    "backTo": "Torna a {page}",
     "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
@@ -642,6 +643,8 @@
     "POSITION": "Posizioni",
     "AUTO_CONTRIBUTIONS": "Contributi Automatici",
     "TRANSACTIONS": "Transazioni",
+    "accountTransactions": "Mov. conto",
+    "investmentTransactions": "Mov. investimenti",
     "HISTORIC": "Dati Storici",
     "selectFeatures": "Seleziona i dati da recuperare da",
     "selectAll": "Seleziona tutto",
@@ -2126,6 +2129,15 @@
     "excludedCount": "{count} esclusi",
     "excludedInfo": "Non vengono conteggiati i regolamenti di investimenti né i movimenti con etichette escluse dai totali.",
     "evolution": "Andamento",
+    "evolutionViews": {
+      "bars": "Grafico a barre",
+      "heatmap": "Mappa di calore giornaliera"
+    },
+    "heatmap": {
+      "hint": "Passa il mouse o tocca un giorno per vederne i movimenti",
+      "noMovements": "Nessun movimento",
+      "view": "Vedi"
+    },
     "empty": {
       "title": "Nessun movimento in questo periodo",
       "description": "Sincronizza i tuoi conti o aggiungi movimenti manualmente per vedere dove vanno i tuoi soldi.",
@@ -2138,8 +2150,8 @@
     "overlapHint": "I movimenti con più etichette vengono conteggiati in ciascuna.",
     "topCounterparties": "Movimenti principali",
     "recurring": {
-      "title": "Movimenti ricorrenti rilevati",
-      "description": "Pagamenti ed entrate che si ripetono regolarmente nei tuoi movimenti.",
+      "title": "Storico dei movimenti ricorrenti",
+      "description": "Movimenti ricorrenti rilevati in tutto lo storico disponibile, indipendentemente dall'intervallo selezionato.",
       "empty": "Nessun movimento ricorrente rilevato",
       "emptyHint": "Pagamenti ed entrate regolari compaiono qui dopo alcune ripetizioni.",
       "next": "Prossimo {date}",

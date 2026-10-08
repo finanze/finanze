@@ -434,16 +434,29 @@ export function ContributionsView() {
     return m
   }, [distributionData])
 
-  const chartData = useMemo(
-    () =>
-      distributionData.map((d, i) => ({
-        name: d.name,
-        value: d.value,
-        color: colors[i % colors.length],
-        percentage: d.percentage,
-      })),
-    [distributionData],
-  )
+  const chartData = useMemo(() => {
+    const data = distributionData.map((d, i) => ({
+      name: d.name,
+      value: d.value,
+      color: colors[i % colors.length],
+      percentage: d.percentage,
+    }))
+    if (data.length > 0 || filteredContributions.length === 0) return data
+
+    const contribution = filteredContributions[0].contribution
+    return [
+      {
+        name:
+          contribution.target_name ||
+          contribution.target ||
+          (t.enums?.productType as any)?.[contribution.target_type] ||
+          contribution.target_type,
+        value: 0,
+        color: colors[0],
+        percentage: 0,
+      },
+    ]
+  }, [distributionData, filteredContributions, t])
 
   const manualEntriesFromData = useMemo<ManualContributionDraft[]>(() => {
     const fallbackName = t.management.manualContributions.unnamed
@@ -1619,6 +1632,7 @@ export function ContributionsView() {
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            showClearFilters={false}
             hideLabelOnMobile
           />
         </motion.div>

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
 
-from domain.entity import Entity, EntityType, Feature
+from domain.entity import Entity, EntityType, Feature, TransactionKind
 from domain.external_integration import (
     ExternalIntegrationId,
 )
@@ -28,6 +28,7 @@ class ExternalEntity:
 
 
 EXTERNAL_ENTITY_FEATURES = [Feature.POSITION, Feature.TRANSACTIONS]
+EXTERNAL_ENTITY_TRANSACTION_KINDS = [TransactionKind.ACCOUNT]
 
 
 @dataclass

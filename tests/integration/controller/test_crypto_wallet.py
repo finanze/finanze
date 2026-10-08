@@ -15,7 +15,7 @@ from domain.crypto import (
     HDAddress,
 )
 from domain.dezimal import Dezimal
-from domain.native_entities import ETHEREUM, NATIVE_ENTITIES
+from domain.native_entities import ETHEREUM, ING, NATIVE_ENTITIES
 from domain.entity import EntityType
 from domain.public_key import CoinType, DerivedAddressesResult, ScriptType
 
@@ -77,6 +77,35 @@ def _setup_get_entities_mocks(
 
     crypto_wallet_port.get_by_entity_id = AsyncMock(side_effect=get_wallets_for_entity)
     last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+
+
+class TestAvailableEntityTransactionKinds:
+    @pytest.mark.asyncio
+    async def test_native_transaction_kinds_are_serialized(
+        self,
+        client,
+        entity_port,
+        credentials_port,
+        last_fetches_port,
+        virtual_import_registry,
+        entity_account_port,
+        external_integration_port,
+    ):
+        entity_port.get_all = AsyncMock(return_value=[ING])
+        credentials_port.get_available_entities = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        entity_account_port.get_by_ids = AsyncMock(return_value=[])
+        external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
+
+        response = await client.get(GET_ENTITIES_URL)
+
+        assert response.status_code == 200
+        body = await response.get_json()
+        ing_entity = next(
+            entity for entity in body["entities"] if entity["id"] == str(ING.id)
+        )
+        assert ing_entity["transaction_kinds"] == ["ACCOUNT", "INVESTMENT"]
 
 
 class TestConnectValidation:

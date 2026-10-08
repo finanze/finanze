@@ -2,15 +2,17 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import {
   endOfMonth,
   format,
+  parseISO,
   startOfMonth,
   startOfYear,
   subMonths,
@@ -36,6 +38,7 @@ import {
   Check,
   EyeOff,
   Filter,
+  Grid3x3,
   Info,
   PiggyBank,
   Plus,
@@ -75,6 +78,11 @@ import { Icon, type IconName } from "@/components/ui/icon-picker"
 import { EntitySelector } from "@/components/EntitySelector"
 import { LabelChip } from "@/components/labels/LabelChip"
 import { LabelsManager } from "@/components/labels/LabelsManager"
+import { CashflowHeatmap } from "@/components/cashflow/CashflowHeatmap"
+import {
+  useNavigateWithReturn,
+  useRestoreReturnScroll,
+} from "@/hooks/useReturnNavigation"
 import {
   createPeriodicFlow,
   getCashflowSummary,
@@ -82,11 +90,7 @@ import {
   ignoreRecurringMovement,
   restoreRecurringMovement,
 } from "@/services/api"
-import {
-  formatCompactCurrency,
-  formatCurrency,
-  formatDate,
-} from "@/lib/formatters"
+import { formatCompactCurrency, formatCurrency } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { DataDisplayMode, EntityType, FlowType } from "@/types"
 import { TxType } from "@/types/transactions"
@@ -109,6 +113,11 @@ type PeriodPreset =
 
 type CashflowTab = "analysis" | "labels" | "rules" | "automation"
 
+type EvolutionView = "bars" | "heatmap"
+
+const EVOLUTION_VIEWS: readonly EvolutionView[] = ["bars", "heatmap"]
+const EVOLUTION_VIEW_KEY = "cashflowEvolutionView"
+
 const CASHFLOW_TABS: readonly CashflowTab[] = [
   "analysis",
   "labels",
@@ -125,8 +134,12 @@ const PRESETS: Exclude<PeriodPreset, "custom">[] = [
   "ytd",
 ]
 
+const DEFAULT_PRESET: PeriodPreset = "last3Months"
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
 const DAILY_GRANULARITY_MAX_DAYS = 62
-const MAX_VISIBLE_RECURRING_MOVEMENTS = 10
+const MAX_VISIBLE_RECURRING_MOVEMENTS = 8
+const MAX_COUNTERPARTY_LABEL_DOTS = 4
 const INCOME_COLOR = "#16a34a"
 const EXPENSE_COLOR = "#ef4444"
 
@@ -166,6 +179,38 @@ const presetRange = (preset: PeriodPreset): [string, string] => {
 
 const recurringMovementId = (movement: RecurringMovement) =>
   `${movement.key}-${movement.type}-${movement.currency}-${movement.amount}`
+
+const FILTER_PARAMS = ["period", "from", "to", "entity"] as const
+
+const filtersFromParams = (params: URLSearchParams) => {
+  const period = params.get("period")
+  const preset: PeriodPreset =
+    period === "custom" || PRESETS.some(key => key === period)
+      ? (period as PeriodPreset)
+      : DEFAULT_PRESET
+  const from = params.get("from") ?? ""
+  const to = params.get("to") ?? ""
+  const range: [string, string] =
+    preset === "custom" && ISO_DATE.test(from) && ISO_DATE.test(to)
+      ? [from, to]
+      : presetRange(preset)
+  return { preset, range, entityIds: params.getAll("entity") }
+}
+
+const formatRecurringDate = (dateInput: string, locale: string) => {
+  const date = parseISO(dateInput)
+  if (Number.isNaN(date.getTime())) return "—"
+
+  const options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+  }
+  if (date.getFullYear() !== new Date().getFullYear()) {
+    options.year = "2-digit"
+  }
+
+  return new Intl.DateTimeFormat(locale, options).format(date)
+}
 
 const daysBetween = (from: string, to: string) =>
   Math.round(
@@ -308,32 +353,64 @@ function CashflowAnalysis() {
   const { t, locale } = useI18n()
   const { mode } = useDataDisplayMode()
   const navigate = useNavigate()
+  const navigateWithReturn = useNavigateWithReturn(t.cashflow.title)
+  const [searchParams, setSearchParams] = useSearchParams()
   const { settings, entities, showToast } = useAppContext()
   const { getLabel, getLabelName } = useLabels()
   const { periodicFlows, ensurePeriodicFlows, refreshFlows } =
     useFinancialData()
   const currency = settings.general.defaultCurrency
 
-  const [preset, setPreset] = useState<PeriodPreset>("last3Months")
-  const [[fromDate, toDate], setRange] = useState<[string, string]>(() =>
-    presetRange("last3Months"),
+  const [initialFilters] = useState(() => filtersFromParams(searchParams))
+  const [preset, setPreset] = useState<PeriodPreset>(initialFilters.preset)
+  const [[fromDate, toDate], setRange] = useState<[string, string]>(
+    initialFilters.range,
   )
-  const [entityIds, setEntityIds] = useState<string[]>([])
+  const [entityIds, setEntityIds] = useState<string[]>(initialFilters.entityIds)
   const [summary, setSummary] = useState<CashflowSummary | null>(null)
+  const [summaryGranularity, setSummaryGranularity] =
+    useState<CashflowGranularity | null>(null)
+  const [evolutionView, setEvolutionView] = useState<EvolutionView>(() =>
+    localStorage.getItem(EVOLUTION_VIEW_KEY) === "heatmap" ? "heatmap" : "bars",
+  )
   const [loading, setLoading] = useState(false)
+  const [summarySettled, setSummarySettled] = useState(false)
   const [chartWidth, setChartWidth] = useState(0)
   const [breakdownSide, setBreakdownSide] = useState<"expenses" | "income">(
     "expenses",
   )
   const [recurring, setRecurring] = useState<RecurringMovement[] | null>(null)
+  const recurringSectionRef = useRef<HTMLElement | null>(null)
+  const recurringRequestedFor = useRef<(() => Promise<void>) | null>(null)
   const [showAllRecurring, setShowAllRecurring] = useState(false)
   const [showIgnoredRecurring, setShowIgnoredRecurring] = useState(false)
   const [trackingKey, setTrackingKey] = useState<string | null>(null)
 
   const granularity =
+    evolutionView === "heatmap" ||
     daysBetween(fromDate, toDate) <= DAILY_GRANULARITY_MAX_DAYS
       ? CashflowGranularity.DAY
       : CashflowGranularity.MONTH
+
+  const changeEvolutionView = (view: EvolutionView) => {
+    setEvolutionView(view)
+    localStorage.setItem(EVOLUTION_VIEW_KEY, view)
+  }
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    FILTER_PARAMS.forEach(key => next.delete(key))
+    if (preset !== DEFAULT_PRESET) next.set("period", preset)
+    if (preset === "custom") {
+      next.set("from", fromDate)
+      next.set("to", toDate)
+    }
+    entityIds.forEach(id => next.append("entity", id))
+    if (next.toString() !== searchParams.toString())
+      setSearchParams(next, { replace: true })
+  }, [preset, fromDate, toDate, entityIds, searchParams, setSearchParams])
+
+  useRestoreReturnScroll(summarySettled)
 
   const entityOptions = useMemo(
     () =>
@@ -349,20 +426,21 @@ function CashflowAnalysis() {
     if (!fromDate || !toDate || fromDate > toDate) return
     setLoading(true)
     try {
-      setSummary(
-        await getCashflowSummary({
-          currency,
-          from_date: fromDate,
-          to_date: toDate,
-          granularity,
-          entities: entityIds.length ? entityIds : undefined,
-        }),
-      )
+      const response = await getCashflowSummary({
+        currency,
+        from_date: fromDate,
+        to_date: toDate,
+        granularity,
+        entities: entityIds.length ? entityIds : undefined,
+      })
+      setSummary(response)
+      setSummaryGranularity(granularity)
     } catch (error) {
       console.error("Error loading cashflow:", error)
       showToast(t.common.unexpectedError, "error")
     } finally {
       setLoading(false)
+      setSummarySettled(true)
     }
   }, [currency, fromDate, toDate, granularity, entityIds, showToast, t])
 
@@ -393,8 +471,46 @@ function CashflowAnalysis() {
   }, [loadSummary])
 
   useEffect(() => {
-    void loadRecurring()
-  }, [loadRecurring])
+    const mediaQuery = window.matchMedia("(max-width: 639px)")
+    let observer: IntersectionObserver | null = null
+
+    const loadOnce = () => {
+      if (recurringRequestedFor.current === loadRecurring) return
+      recurringRequestedFor.current = loadRecurring
+      void loadRecurring()
+    }
+
+    const loadWhenVisible = () => {
+      observer?.disconnect()
+
+      if (!mediaQuery.matches) {
+        loadOnce()
+        return
+      }
+      // Section sits at the top until the summary renders above it
+      if (!summarySettled || recurringRequestedFor.current === loadRecurring)
+        return
+
+      const section = recurringSectionRef.current
+      if (!section) return
+
+      observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer?.disconnect()
+          loadOnce()
+        }
+      })
+      observer.observe(section)
+    }
+
+    loadWhenVisible()
+    mediaQuery.addEventListener("change", loadWhenVisible)
+
+    return () => {
+      observer?.disconnect()
+      mediaQuery.removeEventListener("change", loadWhenVisible)
+    }
+  }, [loadRecurring, summarySettled])
 
   useEffect(() => {
     void ensurePeriodicFlows()
@@ -438,7 +554,7 @@ function CashflowAnalysis() {
         return {
           period: point.period,
           label:
-            granularity === CashflowGranularity.DAY
+            summaryGranularity === CashflowGranularity.DAY
               ? new Intl.DateTimeFormat(locale, {
                   day: "numeric",
                   month: "short",
@@ -451,7 +567,7 @@ function CashflowAnalysis() {
           expenses: point.expenses,
         }
       }),
-    [summary, granularity, locale],
+    [summary, summaryGranularity, locale],
   )
 
   const breakdown = useMemo(() => {
@@ -658,7 +774,7 @@ function CashflowAnalysis() {
       <button
         key={row.label_id ?? "unlabeled"}
         type="button"
-        onClick={() => navigate(txLink(params))}
+        onClick={() => navigateWithReturn(txLink(params))}
         className="w-full space-y-1 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
         data-testid="cashflow-label-row"
       >
@@ -705,6 +821,7 @@ function CashflowAnalysis() {
               type="button"
               onClick={() => handlePreset(key)}
               data-testid={`cashflow-preset-${key}`}
+              aria-pressed={preset === key}
               aria-label={
                 key === "custom" ? t.cashflow.presets.custom : undefined
               }
@@ -835,7 +952,7 @@ function CashflowAnalysis() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate("/transactions")}
+                    onClick={() => navigateWithReturn("/transactions")}
                   >
                     {t.cashflow.empty.goToTransactions}
                   </Button>
@@ -850,90 +967,137 @@ function CashflowAnalysis() {
                     <BarChart3 className="mr-2 h-5 w-5 text-primary" />
                     {t.cashflow.evolution}
                   </h2>
-                  {loading && <LoadingSpinner size="sm" />}
+                  <div className="flex items-center gap-2">
+                    {loading && <LoadingSpinner size="sm" />}
+                    <div className="inline-flex rounded-md border border-input p-0.5">
+                      {EVOLUTION_VIEWS.map(view => {
+                        const ViewIcon = view === "bars" ? BarChart3 : Grid3x3
+                        return (
+                          <button
+                            key={view}
+                            type="button"
+                            data-testid={`cashflow-evolution-${view}`}
+                            aria-label={t.cashflow.evolutionViews[view]}
+                            title={t.cashflow.evolutionViews[view]}
+                            aria-pressed={evolutionView === view}
+                            onClick={() => changeEvolutionView(view)}
+                            className={cn(
+                              "rounded px-2 py-1",
+                              evolutionView === view
+                                ? "bg-foreground text-background"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            <ViewIcon className="h-4 w-4" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
                 <Card className={cn(EDGE_CARD, "p-4")}>
-                  <div className="h-64">
-                    <ResponsiveContainer
-                      width="100%"
-                      height="100%"
-                      onResize={width => setChartWidth(width)}
-                    >
-                      <BarChart
-                        data={chartData}
-                        margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                  {evolutionView === "heatmap" ? (
+                    summary &&
+                    summaryGranularity === CashflowGranularity.DAY ? (
+                      <CashflowHeatmap
+                        series={summary.series}
+                        fromDate={fromDate}
+                        toDate={toDate}
+                        formatAmount={value => money(value)}
+                        onOpenDay={date =>
+                          navigateWithReturn(
+                            txLink({ from_date: date, to_date: date }),
+                          )
+                        }
+                      />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center">
+                        <LoadingSpinner />
+                      </div>
+                    )
+                  ) : (
+                    <div className="h-64">
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        onResize={width => setChartWidth(width)}
                       >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          className="opacity-30"
-                        />
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fontSize: 11 }}
-                          tickLine={false}
-                          minTickGap={12}
-                        />
-                        <YAxis
-                          tick={{ fontSize: chartWidth < 480 ? 10 : 11 }}
-                          tickLine={false}
-                          axisLine={false}
-                          width={chartWidth < 480 ? 42 : 55}
-                          tickFormatter={value =>
-                            chartWidth < 480
-                              ? new Intl.NumberFormat(locale, {
-                                  notation: "compact",
-                                  compactDisplay: "short",
-                                  maximumFractionDigits: 1,
-                                }).format(Number(value))
-                              : formatCompactCurrency(
-                                  Number(value),
-                                  locale,
-                                  currency,
-                                )
-                          }
-                        />
-                        <Tooltip
-                          cursor={{
-                            fill: "currentColor",
-                            className: "opacity-5 dark:opacity-10",
-                          }}
-                          content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null
-                            const row = payload[0].payload as {
-                              income: number
-                              expenses: number
+                        <BarChart
+                          data={chartData}
+                          margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            className="opacity-30"
+                          />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 11 }}
+                            tickLine={false}
+                            minTickGap={12}
+                          />
+                          <YAxis
+                            tick={{ fontSize: chartWidth < 480 ? 10 : 11 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={chartWidth < 480 ? 42 : 55}
+                            tickFormatter={value =>
+                              chartWidth < 480
+                                ? new Intl.NumberFormat(locale, {
+                                    notation: "compact",
+                                    compactDisplay: "short",
+                                    maximumFractionDigits: 1,
+                                  }).format(Number(value))
+                                : formatCompactCurrency(
+                                    Number(value),
+                                    locale,
+                                    currency,
+                                  )
                             }
-                            return (
-                              <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-md">
-                                <p className="mb-1 font-semibold">{label}</p>
-                                <p className="text-green-600 dark:text-green-400">
-                                  {t.cashflow.income}:{" "}
-                                  <Sensitive>{money(row.income)}</Sensitive>
-                                </p>
-                                <p className="text-red-600 dark:text-red-400">
-                                  {t.cashflow.expenses}:{" "}
-                                  <Sensitive>{money(row.expenses)}</Sensitive>
-                                </p>
-                              </div>
-                            )
-                          }}
-                        />
-                        <Bar
-                          dataKey="income"
-                          fill={INCOME_COLOR}
-                          radius={[3, 3, 0, 0]}
-                          maxBarSize={28}
-                        />
-                        <Bar
-                          dataKey="expenses"
-                          fill={EXPENSE_COLOR}
-                          radius={[3, 3, 0, 0]}
-                          maxBarSize={28}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                          />
+                          <Tooltip
+                            cursor={{
+                              fill: "currentColor",
+                              className: "opacity-5 dark:opacity-10",
+                            }}
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null
+                              const row = payload[0].payload as {
+                                income: number
+                                expenses: number
+                              }
+                              return (
+                                <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-md">
+                                  <p className="mb-1 font-semibold">{label}</p>
+                                  <p className="text-green-600 dark:text-green-400">
+                                    {t.cashflow.income}:{" "}
+                                    <Sensitive>{money(row.income)}</Sensitive>
+                                  </p>
+                                  <p className="text-red-600 dark:text-red-400">
+                                    {t.cashflow.expenses}:{" "}
+                                    <Sensitive>{money(row.expenses)}</Sensitive>
+                                  </p>
+                                </div>
+                              )
+                            }}
+                          />
+                          <Bar
+                            dataKey="income"
+                            fill={INCOME_COLOR}
+                            radius={[3, 3, 0, 0]}
+                            maxBarSize={28}
+                          />
+                          <Bar
+                            dataKey="expenses"
+                            fill={EXPENSE_COLOR}
+                            radius={[3, 3, 0, 0]}
+                            maxBarSize={28}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </Card>
               </section>
 
@@ -1002,8 +1166,11 @@ function CashflowAnalysis() {
                           <button
                             key={counterparty.name}
                             type="button"
+                            data-testid="cashflow-counterparty-row"
                             onClick={() =>
-                              navigate(txLink({ search: counterparty.name }))
+                              navigateWithReturn(
+                                txLink({ search: counterparty.name }),
+                              )
                             }
                             className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
                           >
@@ -1011,11 +1178,29 @@ function CashflowAnalysis() {
                               <div className="truncate text-sm">
                                 {counterparty.name}
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {t.cashflow.movementsCount.replace(
-                                  "{count}",
-                                  `${counterparty.count}`,
-                                )}
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <span>
+                                  {t.cashflow.movementsCount.replace(
+                                    "{count}",
+                                    `${counterparty.count}`,
+                                  )}
+                                </span>
+                                {counterparty.label_ids
+                                  .map(labelId => getLabel(labelId))
+                                  .filter(label => label !== undefined)
+                                  .slice(0, MAX_COUNTERPARTY_LABEL_DOTS)
+                                  .map(label => (
+                                    <span
+                                      key={label.id}
+                                      data-testid="counterparty-label-dot"
+                                      title={getLabelName(label)}
+                                      className="h-2 w-2 shrink-0 rounded-full"
+                                      style={{
+                                        backgroundColor:
+                                          label.color ?? "#9ca3af",
+                                      }}
+                                    />
+                                  ))}
                               </div>
                             </div>
                             <div className="shrink-0 text-right text-sm">
@@ -1046,7 +1231,7 @@ function CashflowAnalysis() {
         </>
       ) : null}
 
-      <section className="min-w-0 space-y-3">
+      <section ref={recurringSectionRef} className="min-w-0 space-y-3">
         <div className="flex items-center gap-1.5">
           <h2 className="flex items-center text-lg font-bold">
             <CalendarSync className="mr-2 h-5 w-5 text-primary" />
@@ -1090,7 +1275,7 @@ function CashflowAnalysis() {
                           <button
                             type="button"
                             onClick={() =>
-                              navigate(
+                              navigateWithReturn(
                                 `/transactions?scope=account&search=${encodeURIComponent(movement.search)}`,
                               )
                             }
@@ -1107,7 +1292,7 @@ function CashflowAnalysis() {
                             <span>
                               {t.cashflow.recurring.next.replace(
                                 "{date}",
-                                formatDate(movement.next_date, locale),
+                                formatRecurringDate(movement.next_date, locale),
                               )}
                             </span>
                             <span>·</span>
@@ -1124,6 +1309,7 @@ function CashflowAnalysis() {
                                   key={labelId}
                                   label={label}
                                   name={getLabelName(label)}
+                                  hideNameOnMobile
                                 />
                               ) : null
                             })}
@@ -1223,7 +1409,10 @@ function CashflowAnalysis() {
                                         <div className="text-xs text-muted-foreground">
                                           {t.cashflow.recurring.next.replace(
                                             "{date}",
-                                            formatDate(flow.next_date, locale),
+                                            formatRecurringDate(
+                                              flow.next_date,
+                                              locale,
+                                            ),
                                           )}
                                         </div>
                                       )}

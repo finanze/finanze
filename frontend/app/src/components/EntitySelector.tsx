@@ -12,6 +12,7 @@ import {
   ArrowLeftRight,
   Package,
   ChartNoAxesColumn,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -199,6 +200,11 @@ export function EntitySelector({
       displayEntities.filter(entity => selectedEntityIds.includes(entity.id)),
     [displayEntities, selectedEntityIds],
   )
+  const hasSelection = selectedEntityIds.length > 0
+  const showSelectionCount =
+    !singleSelect &&
+    (selectedEntities.length > 0 || Boolean(emptySelectionBadge))
+  const hasTrailingControls = hasSelection || showSelectionCount
 
   if (displayEntities.length === 0 && emptyMessage) {
     return (
@@ -208,67 +214,99 @@ export function EntitySelector({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-full max-w-sm justify-between", className)}
-          disabled={disabled || displayEntities.length === 0}
-        >
-          <div className="flex items-center gap-2 overflow-hidden">
-            {selectedEntities.length > 0 ? (
-              singleSelect ? (
-                <div className="flex items-center gap-1.5 overflow-hidden select-none">
-                  <div className="h-5 w-5 flex-shrink-0 overflow-hidden rounded">
-                    <EntityIcon
-                      entity={selectedEntities[0]}
-                      src={entityImages[selectedEntities[0].id]}
-                      className="h-full w-full"
-                    />
-                  </div>
-                  <span className="truncate text-sm">
-                    {selectedEntities[0].name}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 overflow-hidden select-none">
-                  {selectedEntities.slice(0, 5).map(entity => (
-                    <div
-                      key={entity.id}
-                      className="h-5 w-5 flex-shrink-0 overflow-hidden rounded"
-                    >
+      <div className="flex w-full max-w-sm">
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "w-full max-w-sm min-w-0 flex-1 justify-between",
+              hasTrailingControls && "rounded-r-none",
+              className,
+            )}
+            disabled={disabled || displayEntities.length === 0}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              {selectedEntities.length > 0 ? (
+                singleSelect ? (
+                  <div className="flex items-center gap-1.5 overflow-hidden select-none">
+                    <div className="h-5 w-5 flex-shrink-0 overflow-hidden rounded">
                       <EntityIcon
-                        entity={entity}
-                        src={entityImages[entity.id]}
+                        entity={selectedEntities[0]}
+                        src={entityImages[selectedEntities[0].id]}
                         className="h-full w-full"
                       />
                     </div>
-                  ))}
-                  {selectedEntities.length > 5 && (
-                    <span className="text-xs text-muted-foreground">
-                      +{selectedEntities.length - 5}
+                    <span className="truncate text-sm">
+                      {selectedEntities[0].name}
                     </span>
-                  )}
-                </div>
-              )
-            ) : (
-              <span className="text-muted-foreground">
-                {defaultPlaceholder}
-              </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 overflow-hidden select-none">
+                    {selectedEntities.slice(0, 5).map(entity => (
+                      <div
+                        key={entity.id}
+                        className="h-5 w-5 flex-shrink-0 overflow-hidden rounded"
+                      >
+                        <EntityIcon
+                          entity={entity}
+                          src={entityImages[entity.id]}
+                          className="h-full w-full"
+                        />
+                      </div>
+                    ))}
+                    {selectedEntities.length > 5 && (
+                      <span className="text-xs text-muted-foreground">
+                        +{selectedEntities.length - 5}
+                      </span>
+                    )}
+                  </div>
+                )
+              ) : (
+                <span className="text-muted-foreground">
+                  {defaultPlaceholder}
+                </span>
+              )}
+            </div>
+          </Button>
+        </PopoverTrigger>
+        {hasTrailingControls && (
+          <div className="-ml-px flex h-10 shrink-0 items-center rounded-r-md border-y border-r border-input bg-background px-1">
+            {hasSelection && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={t.common.clear}
+                title={t.common.clear}
+                disabled={disabled}
+                className="h-7 min-w-0 gap-1 rounded-md px-1.5 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  onSelectionChange([])
+                  setOpen(false)
+                }}
+              >
+                {showSelectionCount && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1 text-[11px] font-medium leading-none text-secondary-foreground tabular-nums">
+                    {selectedEntities.length}
+                  </span>
+                )}
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
             )}
-          </div>
-          {!singleSelect &&
-            (selectedEntities.length > 0 || emptySelectionBadge) && (
-              <Badge variant="secondary" className="ml-2 flex-shrink-0">
-                {selectedEntities.length > 0
-                  ? selectedEntities.length
-                  : emptySelectionBadge}
+            {!hasSelection && showSelectionCount && (
+              <Badge
+                variant="secondary"
+                className="px-1.5 text-[11px] leading-none"
+              >
+                {emptySelectionBadge}
               </Badge>
             )}
-        </Button>
-      </PopoverTrigger>
+          </div>
+        )}
+      </div>
       <PopoverContent
         className="w-80 max-w-[calc(100vw-2rem)] p-0"
         align="start"

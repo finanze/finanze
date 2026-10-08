@@ -39,7 +39,6 @@ import {
   Calendar,
   Clock,
   Filter,
-  FilterX,
   History,
   Percent,
   RotateCcw,
@@ -1138,29 +1137,18 @@ function RealEstateViewContent({
 
       <motion.div variants={fadeListItem}>
         <div className="flex flex-wrap gap-4 xl:flex-nowrap xl:items-center xl:justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-[200px]">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex min-w-[200px] flex-1 items-center gap-2 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <Filter size={16} />
               <span className="hidden sm:inline">{t.transactions.filters}</span>
             </div>
-            <div className="w-full sm:max-w-xs">
+            <div className="min-w-0 flex-1 sm:max-w-xs">
               <EntitySelector
                 entities={filteredEntities}
                 selectedEntityIds={selectedEntities}
                 onSelectionChange={setSelectedEntities}
               />
             </div>
-            {selectedEntities.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 self-start sm:self-auto"
-                onClick={() => setSelectedEntities([])}
-              >
-                <FilterX size={16} />
-                {t.transactions.clear}
-              </Button>
-            )}
           </div>
         </div>
       </motion.div>

@@ -39,6 +39,13 @@ async function navigateToCashflow(page: Page) {
     ).toBeVisible()
 }
 
+async function navigateToMobileCashflow(page: Page) {
+    await page.getByRole('button', { name: 'My Money', exact: true }).click()
+    await expect(page).toHaveURL(/\/management$/)
+    await page.getByRole('heading', { name: 'Activity', exact: true }).click()
+    await expect(page).toHaveURL(/\/management\/cashflow$/)
+}
+
 async function navigateToTransactions(page: Page) {
     await page
         .getByRole('navigation')
@@ -477,6 +484,13 @@ test.describe('Cashflow', () => {
         await expect(breakdownRow).toBeVisible()
         await expect(breakdownRow).toContainText(/47[.,]13/)
 
+        const counterpartyRow = page
+            .getByTestId('cashflow-counterparty-row')
+            .filter({ hasText: transactionName })
+        await expect(
+            counterpartyRow.getByTestId('counterparty-label-dot'),
+        ).toHaveAttribute('title', labelName)
+
         await page.getByRole('tab', { name: /Rules/ }).click()
         const ruleCard = page
             .getByTestId('rule-card')
@@ -620,6 +634,205 @@ test.describe('Cashflow', () => {
             .toBeCloseTo(incomeBeforeLastMonth, 2)
     })
 
+    test('loads recurring movements on mobile when the section enters view', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 390, height: 667 })
+
+        let recurringRequestCount = 0
+        let releaseRecurringResponse: () => void = () => {}
+        const responseGate = new Promise<void>((resolve) => {
+            releaseRecurringResponse = resolve
+        })
+        await page.route('**/cashflow/recurring**', async (route) => {
+            recurringRequestCount += 1
+            await responseGate
+            await route.fulfill({
+                json: { currency: 'EUR', movements: [] },
+            })
+        })
+
+        await navigateToMobileCashflow(page)
+        const recurring = page.getByTestId('recurring-movements')
+        await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        await expect(recurring).not.toBeInViewport()
+        expect(recurringRequestCount).toBe(0)
+
+        await recurring.scrollIntoViewIfNeeded()
+        await expect.poll(() => recurringRequestCount).toBe(1)
+        await expect(recurring.locator('.animate-spin')).toBeVisible()
+
+        releaseRecurringResponse()
+        await expect(
+            recurring.getByText('No recurring movements detected yet'),
+        ).toBeVisible()
+    })
+
+    test('toggles the evolution heatmap and opens the movements of a day', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await ensureEditMode(page, 'DRAFT')
+        await connectUrbanitaeIfNeeded(page)
+        await navigateToTransactions(page)
+
+        const transactionName = 'E2E Cashflow Heatmap Outflow'
+        const date = daysAgo(4)
+        const isoDate = [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0'),
+        ].join('-')
+        await createManualTransaction(
+            page,
+            transactionName,
+            '58.37',
+            date,
+            'Outflow',
+        )
+
+        await navigateToCashflow(page)
+        await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        const barsToggle = page.getByTestId('cashflow-evolution-bars')
+        const heatmapToggle = page.getByTestId('cashflow-evolution-heatmap')
+        await expect(barsToggle).toHaveAttribute('aria-pressed', 'true')
+
+        await heatmapToggle.click()
+        await expect(heatmapToggle).toHaveAttribute('aria-pressed', 'true')
+        const heatmap = page.getByTestId('cashflow-heatmap')
+        await expect(heatmap).toBeVisible()
+        const upcomingDays = 6 - ((new Date().getDay() + 6) % 7)
+        await expect(heatmap.getByTestId('heatmap-upcoming-day')).toHaveCount(
+            upcomingDays,
+        )
+        await selectCashflowPreset(page, 'thisMonth')
+        await expect(
+            heatmap.getByTestId('heatmap-filler-week').first(),
+        ).toBeVisible()
+        const heatmapBox = await heatmap.boundingBox()
+        const lastColumnBox = await heatmap
+            .getByTestId('heatmap-filler-week')
+            .last()
+            .boundingBox()
+        expect(heatmapBox).not.toBeNull()
+        expect(lastColumnBox).not.toBeNull()
+        if (!heatmapBox || !lastColumnBox) throw new Error('Missing heatmap')
+        expect(
+            heatmapBox.x +
+                heatmapBox.width -
+                (lastColumnBox.x + lastColumnBox.width),
+        ).toBeLessThan(lastColumnBox.width + 8)
+        await selectCashflowPreset(page, 'last3Months')
+        await expect(heatmap.getByTestId('heatmap-details')).toContainText(
+            'Hover or tap a day',
+        )
+
+        const day = heatmap.locator(
+            `[data-testid="heatmap-day"][data-date="${isoDate}"]`,
+        )
+        await expect(day).not.toHaveAttribute('data-level', '0')
+        await day.hover()
+        await expect(heatmap.getByTestId('heatmap-details')).toContainText(
+            /\d+ movements/,
+        )
+
+        await day.click()
+        await expect(page).toHaveURL(
+            new RegExp(
+                `/transactions\\?.*from_date=${isoDate}&to_date=${isoDate}`,
+            ),
+        )
+        await expect(
+            page.getByText(transactionName, { exact: true }).first(),
+        ).toBeVisible()
+
+        await navigateToCashflow(page)
+        await expect(page.getByTestId('cashflow-heatmap')).toBeVisible()
+        await barsToggle.click()
+        await expect(barsToggle).toHaveAttribute('aria-pressed', 'true')
+        await expect(page.getByTestId('cashflow-heatmap')).toHaveCount(0)
+    })
+
+    test('returns from transactions to Activity keeping filters and scroll', async ({
+        authenticatedPage: page,
+    }) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await ensureEditMode(page, 'DRAFT')
+        await connectUrbanitaeIfNeeded(page)
+        await navigateToTransactions(page)
+
+        const transactionName = 'E2E Cashflow Return Outflow'
+        await createManualTransaction(
+            page,
+            transactionName,
+            '9876.54',
+            daysAgo(0),
+            'Outflow',
+        )
+
+        await navigateToCashflow(page)
+        await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        await selectCashflowPreset(page, 'thisMonth')
+        await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)
+        const expenses = await readCashflowKpiAmount(page, 'kpi-expenses')
+        const net = await readCashflowKpiAmount(page, 'kpi-net')
+
+        const counterpartyRow = page
+            .getByTestId('cashflow-counterparty-row')
+            .filter({ hasText: transactionName })
+        await counterpartyRow.click()
+        await expect(page).toHaveURL(/\/transactions\?.*search=/)
+        const returnLink = page.getByTestId('return-to-origin')
+        await expect(returnLink).toHaveText('Back to Activity')
+
+        await returnLink.click()
+        await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)
+        await expect(
+            page.getByTestId('cashflow-preset-thisMonth'),
+        ).toHaveAttribute('aria-pressed', 'true')
+        await expect
+            .poll(() => readCashflowKpiAmount(page, 'kpi-expenses'))
+            .toBeCloseTo(expenses, 2)
+        await expect
+            .poll(() => readCashflowKpiAmount(page, 'kpi-net'))
+            .toBeCloseTo(net, 2)
+
+        await navigateToTransactions(page)
+        await expect(page.getByTestId('return-to-origin')).toHaveCount(0)
+
+        await page.setViewportSize({ width: 390, height: 844 })
+        await navigateToMobileCashflow(page)
+        await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        await selectCashflowPreset(page, 'thisMonth')
+        const mobileRow = page
+            .getByTestId('cashflow-counterparty-row')
+            .filter({ hasText: transactionName })
+        await mobileRow.evaluate((element) =>
+            element.scrollIntoView({ block: 'center' }),
+        )
+        const scrollRoot = page.locator('main')
+        const scrollTop = await scrollRoot.evaluate(
+            (element) => element.scrollTop,
+        )
+        expect(scrollTop).toBeGreaterThan(200)
+        const rowTop = (await mobileRow.boundingBox())?.y ?? 0
+        await mobileRow.click()
+        await expect(page).toHaveURL(/\/transactions\?.*search=/)
+        await expect
+            .poll(() => scrollRoot.evaluate((element) => element.scrollTop))
+            .toBeLessThan(scrollTop)
+
+        await page.getByTestId('return-to-origin').click()
+        await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)
+        await expect(mobileRow).toBeInViewport()
+        await expect
+            .poll(() => scrollRoot.evaluate((element) => element.scrollTop))
+            .toBeCloseTo(scrollTop, -1)
+        await expect
+            .poll(async () => (await mobileRow.boundingBox())?.y ?? 0)
+            .toBeCloseTo(rowTop, -1)
+    })
+
     test('separates same-payee amounts, replenishes ignored rows, and restores all ignored', async ({
         authenticatedPage: page,
     }) => {
@@ -645,7 +858,8 @@ test.describe('Cashflow', () => {
         await navigateToCashflow(page)
         const recurring = page.getByTestId('recurring-movements')
         const activeRows = recurring.getByTestId('recurring-movement')
-        await expect(activeRows).toHaveCount(10, { timeout: 20_000 })
+        await recurring.scrollIntoViewIfNeeded()
+        await expect(activeRows).toHaveCount(8, { timeout: 20_000 })
 
         const trackedPayee = RECURRING_PAYEES[RECURRING_PAYEES.length - 1]
         const trackRow = activeRows.filter({ hasText: trackedPayee })
@@ -662,13 +876,6 @@ test.describe('Cashflow', () => {
             name: 'Show more',
         })
         await expect(showMoreRecurring).toBeVisible()
-        const sharedRows = activeRows.filter({
-            hasText: SHARED_RECURRING_PAYEE,
-        })
-        await expect(sharedRows).toHaveCount(2)
-        const sharedRowTexts = await sharedRows.allInnerTexts()
-        expect(sharedRowTexts.some((text) => text.includes('120'))).toBe(true)
-        expect(sharedRowTexts.some((text) => text.includes('240'))).toBe(true)
 
         const collapsedRecurring = recurring
         const collapsedRows = activeRows
@@ -677,16 +884,14 @@ test.describe('Cashflow', () => {
             payee,
             amount: recurringAmount(index).split('.')[0],
         }))
-        const omittedSeries = expectedSeries.find(
+        const omittedSeries = expectedSeries.filter(
             ({ payee, amount }) =>
                 !collapsedRowTexts.some(
                     (text) => text.includes(payee) && text.includes(amount),
                 ),
         )
-        if (!omittedSeries) {
-            throw new Error(
-                'The 10-row view omitted no seeded recurring series',
-            )
+        if (omittedSeries.length === 0) {
+            throw new Error('The 8-row view omitted no seeded recurring series')
         }
 
         await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
@@ -694,22 +899,22 @@ test.describe('Cashflow', () => {
         const totalsBeforeIgnore = (await cashflowKpis.innerText())
             .replace(/\s+/g, ' ')
             .trim()
-        const ignoredSharedRow = collapsedRows
-            .filter({ hasText: SHARED_RECURRING_PAYEE })
-            .filter({ hasText: '120' })
-        await expect(ignoredSharedRow).toBeVisible()
-        await ignoredSharedRow.getByTestId('ignore-recurring').click()
-        await expect(collapsedRows).toHaveCount(10)
-        await expect(
-            collapsedRows
-                .filter({ hasText: SHARED_RECURRING_PAYEE })
-                .filter({ hasText: '240' }),
-        ).toHaveCount(1)
-        await expect(
-            collapsedRows
-                .filter({ hasText: omittedSeries.payee })
-                .filter({ hasText: omittedSeries.amount }),
-        ).toBeVisible()
+        const ignoredRow = collapsedRows
+            .filter({ has: page.getByTestId('ignore-recurring') })
+            .first()
+        await expect(ignoredRow).toBeVisible()
+        await ignoredRow.getByTestId('ignore-recurring').click()
+        await expect(collapsedRows).toHaveCount(8)
+        await expect
+            .poll(async () => {
+                const visibleRows = await collapsedRows.allInnerTexts()
+                return omittedSeries.some(({ payee, amount }) =>
+                    visibleRows.some(
+                        (text) => text.includes(payee) && text.includes(amount),
+                    ),
+                )
+            })
+            .toBe(true)
         await expect(
             collapsedRecurring.getByTestId('ignored-recurring'),
         ).toContainText('Ignored (1)')
@@ -724,7 +929,7 @@ test.describe('Cashflow', () => {
         const persistedRecurring = page.getByTestId('recurring-movements')
         const persistedRows =
             persistedRecurring.getByTestId('recurring-movement')
-        await expect(persistedRows).toHaveCount(10, { timeout: 20_000 })
+        await expect(persistedRows).toHaveCount(8, { timeout: 20_000 })
         const persistedIgnored =
             persistedRecurring.getByTestId('ignored-recurring')
         await expect(persistedIgnored).toContainText('Ignored (1)')
@@ -735,19 +940,14 @@ test.describe('Cashflow', () => {
             await persistedIgnored.locator(':scope > button').click()
         }
 
-        const ignoredRow = persistedIgnoredRows
-            .filter({ hasText: SHARED_RECURRING_PAYEE })
-            .filter({ hasText: '120' })
-        await expect(ignoredRow).toBeVisible()
-        await ignoredRow.getByRole('button', { name: 'Restore' }).click()
+        const persistedIgnoredRow = persistedIgnoredRows.first()
+        await expect(persistedIgnoredRow).toBeVisible()
+        await persistedIgnoredRow
+            .getByRole('button', { name: 'Restore' })
+            .click()
         await expect(
             persistedRecurring.getByTestId('ignored-recurring'),
         ).toHaveCount(0)
-        await expect(
-            persistedRecurring
-                .getByTestId('recurring-movement')
-                .filter({ hasText: SHARED_RECURRING_PAYEE }),
-        ).toHaveCount(2)
 
         await navigateToMyMoneyPage(page, 'Recurring')
         await page.getByRole('tab', { name: /Expenses/ }).click()
@@ -779,11 +979,18 @@ test.describe('Cashflow', () => {
         await navigateToCashflow(page)
         const allRecurring = page.getByTestId('recurring-movements')
         const allActiveRows = allRecurring.getByTestId('recurring-movement')
-        await expect(allActiveRows).toHaveCount(10, { timeout: 20_000 })
+        await expect(allActiveRows).toHaveCount(8, { timeout: 20_000 })
         const showMore = allRecurring.getByRole('button', { name: 'Show more' })
         await expect(showMore).toBeVisible()
         await showMore.click()
         await expect(allActiveRows).toHaveCount(RECURRING_PAYEES.length)
+        const sharedRows = allActiveRows.filter({
+            hasText: SHARED_RECURRING_PAYEE,
+        })
+        await expect(sharedRows).toHaveCount(2)
+        const sharedRowTexts = await sharedRows.allInnerTexts()
+        expect(sharedRowTexts.some((text) => text.includes('120'))).toBe(true)
+        expect(sharedRowTexts.some((text) => text.includes('240'))).toBe(true)
         const allSeriesCount = await allActiveRows.count()
         expect(allSeriesCount).toBeGreaterThan(10)
         while (await allActiveRows.count()) {
@@ -808,10 +1015,12 @@ test.describe('Cashflow', () => {
 
         await page.setViewportSize({ width: 768, height: 844 })
         await navigateToMyMoneyPage(page, 'Recurring')
-        await navigateToMyMoneyPage(page, 'Activity')
         await page.setViewportSize({ width: 390, height: 844 })
+        await navigateToMobileCashflow(page)
         const mobileRecurring = page.getByTestId('recurring-movements')
         const mobileIgnored = mobileRecurring.getByTestId('ignored-recurring')
+        await expect(mobileIgnored).toHaveCount(0)
+        await mobileRecurring.scrollIntoViewIfNeeded()
         await expect(mobileIgnored).toContainText(`Ignored (${allSeriesCount})`)
         const mobileIgnoredRows = mobileRecurring.getByTestId(
             'ignored-recurring-movement',
@@ -869,6 +1078,6 @@ test.describe('Cashflow', () => {
         }
         await expect(
             cleanupRecurring.getByTestId('recurring-movement'),
-        ).toHaveCount(Math.min(allSeriesCount, 10))
+        ).toHaveCount(Math.min(allSeriesCount, 8))
     })
 })

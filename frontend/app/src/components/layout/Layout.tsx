@@ -42,6 +42,8 @@ function BackButtonHandler() {
   const { dismissTop, hasOpen } = useModalRegistry()
   const pathnameRef = useRef(location.pathname)
   pathnameRef.current = location.pathname
+  const locationStateRef = useRef<unknown>(location.state)
+  locationStateRef.current = location.state
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
   const dismissTopRef = useRef(dismissTop)
@@ -63,7 +65,7 @@ function BackButtonHandler() {
           dismissTopRef.current()
           return
         }
-        if (canNavigateBack(pathnameRef.current)) {
+        if (canNavigateBack(pathnameRef.current, locationStateRef.current)) {
           navigateRef.current(-1)
           return
         }
@@ -90,7 +92,7 @@ function LayoutContent({ children }: LayoutProps) {
   const location = useLocation()
   const prevPathnameRef = useRef(location.pathname)
   const platform = getPlatformType()
-  const { handleScroll, resetScroll } = useLayoutScroll()
+  const { handleScroll, resetScroll, scrollRootRef } = useLayoutScroll()
   const isMobilePlatform = isNativeMobile()
   const isMobileViewport = isMobilePlatform || isPWAStandalone()
   const { enabled: isErrorReportingEnabled, refresh: refreshErrorReporting } =
@@ -126,6 +128,7 @@ function LayoutContent({ children }: LayoutProps) {
       <div className="flex h-screen h-[100svh] min-h-0 overflow-hidden bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
         {!isNarrowView && <Sidebar />}
         <main
+          ref={scrollRootRef}
           className={cn(
             "flex-1 min-h-0 overflow-auto",
             isMobileViewport && "pt-[max(12px,var(--safe-area-inset-top,0px))]",

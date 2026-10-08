@@ -5,7 +5,6 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useNavigate } from "react-router-dom"
 import {
   ArrowLeftRight,
   ArrowRight,
@@ -17,6 +16,10 @@ import {
   Wand2,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
+import {
+  useNavigateWithReturn,
+  useRestoreReturnScroll,
+} from "@/hooks/useReturnNavigation"
 import { useAppContext } from "@/context/AppContext"
 import { useLabels } from "@/context/LabelsContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -64,10 +67,11 @@ export function LabelsManager({
   onActionChange,
 }: LabelsManagerProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigateWithReturn = useNavigateWithReturn(t.cashflow.title)
   const { showToast, entities } = useAppContext()
   const { positionsData } = useFinancialData()
   const { labels, loaded, getLabel, getLabelName, refreshLabels } = useLabels()
+  useRestoreReturnScroll(tab === "labels" && loaded)
 
   const [rules, setRules] = useState<LabelingRule[]>([])
   const [rulesLoaded, setRulesLoaded] = useState(false)
@@ -314,7 +318,7 @@ export function LabelsManager({
               onEdit={openEditLabel}
               onDelete={setLabelToDelete}
               onOpenMovements={label =>
-                navigate(`/transactions?label=${label.id}`)
+                navigateWithReturn(`/transactions?label=${label.id}`)
               }
             />
           )}

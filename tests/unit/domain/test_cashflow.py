@@ -97,14 +97,40 @@ def test_aggregate_excludes_linked_and_excluded_labels():
     assert summary.totals.savings_rate == Dezimal("0.92")
     assert summary.excluded_count == 2
     assert summary.previous.income == Dezimal(1000)
-    assert [(p.period, p.income, p.expenses) for p in summary.series] == [
-        (date(2025, 3, 1), Dezimal(2000), Dezimal(100)),
-        (date(2025, 4, 1), Dezimal(0), Dezimal(60)),
+    assert [(p.period, p.income, p.expenses, p.count) for p in summary.series] == [
+        (date(2025, 3, 1), Dezimal(2000), Dezimal(100), 2),
+        (date(2025, 4, 1), Dezimal(0), Dezimal(60), 2),
     ]
     by_label = {b.label_id: b for b in summary.by_label}
     assert by_label[groceries].expenses == Dezimal(150)
     assert by_label[None].income == Dezimal(2000)
     assert summary.top_counterparties[0].name == "Payroll"
+
+
+def test_aggregate_counterparty_labels_ordered_by_frequency():
+    rent, home, misc = uuid4(), uuid4(), uuid4()
+    txs = [
+        _tx("900", TxType.OUTFLOW, date(2025, 3, 1), name="Landlord", labels=[misc]),
+        _tx(
+            "900",
+            TxType.OUTFLOW,
+            date(2025, 4, 1),
+            name="Landlord",
+            labels=[rent, home, rent],
+        ),
+        _tx("900", TxType.OUTFLOW, date(2025, 5, 1), name="Landlord", labels=[rent]),
+        _tx("900", TxType.OUTFLOW, date(2025, 6, 1), name="Landlord"),
+        _tx("20", TxType.OUTFLOW, date(2025, 3, 2), name="Kiosk"),
+    ]
+    query = CashflowQuery(
+        currency="EUR", from_date=date(2025, 3, 1), to_date=date(2025, 6, 30)
+    )
+
+    summary = aggregate_cashflow(txs, [], set(), rate_converter(RATES, "EUR"), query)
+
+    counterparties = {c.name: c for c in summary.top_counterparties}
+    assert counterparties["Landlord"].label_ids == [rent, misc, home]
+    assert counterparties["Kiosk"].label_ids == []
 
 
 def test_aggregate_uses_net_amount_for_interest():

@@ -39,6 +39,7 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency, formatIban } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { cn } from "@/lib/utils"
+import { readReturnTo } from "@/lib/returnTo"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getTransactionDisplayAmount,
@@ -63,6 +64,7 @@ import {
   ChevronRight,
   Layers,
   ArrowLeftRight,
+  ArrowLeft,
   ArrowUp,
   Landmark,
   ListFilter,
@@ -262,6 +264,14 @@ export default function TransactionsPage() {
   } = useAppContext()
   const location = useLocation()
   const navigateRouter = useNavigate()
+  const returnTo = readReturnTo(location.state)
+
+  const handleReturn = () => {
+    if (!returnTo) return
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx
+    if (historyIndex && historyIndex > 0) navigateRouter(-1)
+    else navigateRouter(returnTo.path, { replace: true })
+  }
 
   const initialHistoricEntryIdRef = useRef(
     new URLSearchParams(location.search).get("historic_entry_id") ?? "",
@@ -596,9 +606,9 @@ export default function TransactionsPage() {
         pathname: location.pathname,
         search: searchString ? `?${searchString}` : "",
       },
-      { replace: true },
+      { replace: true, state: location.state },
     )
-  }, [location.pathname, location.search, navigateRouter])
+  }, [location.pathname, location.search, location.state, navigateRouter])
 
   const handleApplyFilters = () => {
     if (viewMode === "calendar") {
@@ -1950,6 +1960,19 @@ export default function TransactionsPage() {
   return (
     <>
       <div ref={pageRootRef} className="space-y-6">
+        {returnTo && (
+          <div className="-mb-4">
+            <button
+              type="button"
+              data-testid="return-to-origin"
+              onClick={handleReturn}
+              className="-ml-1 inline-flex min-h-8 items-center gap-1.5 rounded-md px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t.common.backTo.replace("{page}", returnTo.label)}
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
             {t.transactions.title}

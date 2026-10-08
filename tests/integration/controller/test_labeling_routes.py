@@ -552,7 +552,9 @@ async def test_cashflow_summary_excludes_transfers(ctx):
     assert summary["totals"]["net"] == 1900
     assert summary["excluded_count"] == 1
     assert summary["previous"]["income"] == 1800
-    assert [point["period"] for point in summary["series"]] == ["2026-03-01"]
+    assert [(point["period"], point["count"]) for point in summary["series"]] == [
+        ("2026-03-01", 2)
+    ]
     by_label = {row["label_id"]: row for row in summary["by_label"]}
     assert by_label[groceries]["expenses"] == 100
     assert by_label[None]["income"] == 2000

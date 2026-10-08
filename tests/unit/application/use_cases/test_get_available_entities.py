@@ -5,11 +5,23 @@ from uuid import uuid4
 import pytest
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from domain.available_sources import FinancialEntityStatus
-from domain.entity import Entity, EntityOrigin, EntityType
+from domain.entity import Entity, EntityOrigin, EntityType, TransactionKind
 from domain.entity_account import EntityAccount
 from domain.external_entity import ExternalEntity, ExternalEntityStatus
 from domain.external_integration import ExternalIntegrationId
-from domain.native_entities import POLYMARKET
+from domain.native_entities import (
+    B100,
+    CAJAMAR,
+    DEGIRO,
+    F24,
+    IBKR,
+    ING,
+    MY_INVESTOR,
+    POLYMARKET,
+    TRADE_REPUBLIC,
+    TRADING212,
+    UNICAJA,
+)
 from domain.native_entity import FinancialEntityCredentialsEntry
 
 
@@ -132,6 +144,55 @@ async def test_external_entity_not_fetchable_when_provider_not_bundled():
     result = await use_case.execute()
 
     assert result.entities[0].fetchable is False
+
+
+@pytest.mark.parametrize(
+    ("entity", "expected_transaction_kinds"),
+    [
+        (ING, [TransactionKind.ACCOUNT, TransactionKind.INVESTMENT]),
+        (MY_INVESTOR, [TransactionKind.ACCOUNT, TransactionKind.INVESTMENT]),
+        (TRADE_REPUBLIC, [TransactionKind.ACCOUNT, TransactionKind.INVESTMENT]),
+        (F24, [TransactionKind.ACCOUNT, TransactionKind.INVESTMENT]),
+        (UNICAJA, [TransactionKind.ACCOUNT]),
+        (CAJAMAR, [TransactionKind.ACCOUNT]),
+        (B100, [TransactionKind.ACCOUNT]),
+        (DEGIRO, [TransactionKind.INVESTMENT]),
+        (IBKR, [TransactionKind.INVESTMENT]),
+        (TRADING212, [TransactionKind.INVESTMENT]),
+        (POLYMARKET, [TransactionKind.INVESTMENT]),
+    ],
+)
+@pytest.mark.asyncio
+async def test_native_entity_transaction_kinds_are_available(
+    entity, expected_transaction_kinds
+):
+    use_case = _build_use_case(
+        entity=entity,
+        external_entity=None,
+        enabled_provider_payloads={},
+        external_entity_fetchers={},
+        entity_fetchers={entity: MagicMock()},
+    )
+
+    result = await use_case.execute()
+
+    assert result.entities[0].transaction_kinds == expected_transaction_kinds
+
+
+@pytest.mark.asyncio
+async def test_external_entity_transaction_kinds_are_account_only():
+    entity = _external_provided_entity()
+    external_entity = _external_entity(entity.id, ExternalIntegrationId.ENABLE_BANKING)
+    use_case = _build_use_case(
+        entity=entity,
+        external_entity=external_entity,
+        enabled_provider_payloads={ExternalIntegrationId.ENABLE_BANKING: {}},
+        external_entity_fetchers={ExternalIntegrationId.ENABLE_BANKING: MagicMock()},
+    )
+
+    result = await use_case.execute()
+
+    assert result.entities[0].transaction_kinds == [TransactionKind.ACCOUNT]
 
 
 @pytest.mark.asyncio

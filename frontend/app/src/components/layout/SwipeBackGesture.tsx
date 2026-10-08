@@ -68,7 +68,8 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
-  const enabled = isNativeMobile() && canNavigateBack(location.pathname)
+  const enabled =
+    isNativeMobile() && canNavigateBack(location.pathname, location.state)
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
   const hasOpenRef = useRef(hasOpen)

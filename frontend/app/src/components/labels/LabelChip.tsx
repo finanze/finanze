@@ -57,6 +57,7 @@ interface LabelChipProps {
   className?: string
   size?: "sm" | "md"
   title?: string
+  hideNameOnMobile?: boolean
 }
 
 export function LabelChip({
@@ -69,6 +70,7 @@ export function LabelChip({
   className,
   size = "sm",
   title,
+  hideNameOnMobile = false,
 }: LabelChipProps) {
   const { t } = useI18n()
   const color = getLabelColor(label)
@@ -92,6 +94,8 @@ export function LabelChip({
       className={cn(
         "inline-flex max-w-[11rem] items-center gap-1 rounded-full border font-medium leading-tight",
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
+        hideNameOnMobile &&
+          "max-sm:h-6 max-sm:w-6 max-sm:justify-center max-sm:gap-0 max-sm:px-0",
         onClick && "cursor-pointer hover:opacity-80 transition-opacity",
         className,
       )}
@@ -105,7 +109,9 @@ export function LabelChip({
         label={label}
         className={cn("shrink-0", size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5")}
       />
-      <span className="truncate">{name}</span>
+      <span className={cn("truncate", hideNameOnMobile && "max-sm:sr-only")}>
+        {name}
+      </span>
       {OriginIcon && <OriginIcon className="h-2.5 w-2.5 shrink-0 opacity-70" />}
       {onRemove && (
         <button

@@ -6,6 +6,7 @@ from domain.entity import (
     EntityOrigin,
     EntityType,
     Feature,
+    TransactionKind,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
@@ -27,6 +28,7 @@ MY_INVESTOR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -53,6 +55,7 @@ UNICAJA = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -71,6 +74,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.STOCK_ETF,
@@ -166,6 +170,7 @@ F24 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[ProductType.ACCOUNT, ProductType.DEPOSIT, ProductType.STOCK_ETF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -197,6 +202,7 @@ ING = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -222,6 +228,7 @@ CAJAMAR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -286,6 +293,7 @@ B100 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[ProductType.ACCOUNT, ProductType.CARD],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,

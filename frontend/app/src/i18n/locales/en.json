@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "backTo": "Back to {page}",
     "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
@@ -643,6 +644,8 @@
     "POSITION": "Positions",
     "AUTO_CONTRIBUTIONS": "Auto Contributions",
     "TRANSACTIONS": "Transactions",
+    "accountTransactions": "Account TXs",
+    "investmentTransactions": "Investment TXs",
     "HISTORIC": "Historic Data",
     "selectFeatures": "Select features to fetch from",
     "selectAll": "Select all",
@@ -2131,6 +2134,15 @@
     "excludedCount": "{count} excluded",
     "excludedInfo": "Investment settlements and movements with labels excluded from totals are not counted.",
     "evolution": "Evolution",
+    "evolutionViews": {
+      "bars": "Bar chart",
+      "heatmap": "Daily heatmap"
+    },
+    "heatmap": {
+      "hint": "Hover or tap a day to see its movements",
+      "noMovements": "No movements",
+      "view": "View"
+    },
     "empty": {
       "title": "No movements in this period",
       "description": "Sync your accounts or add movements manually to see where your money goes.",
@@ -2143,8 +2155,8 @@
     "overlapHint": "Movements with several labels count in each of them.",
     "topCounterparties": "Main movements",
     "recurring": {
-      "title": "Detected recurring movements",
-      "description": "Payments and income that repeat regularly in your movements.",
+      "title": "Historic recurring movements",
+      "description": "Recurring movements detected across all available history, regardless of the selected date range.",
       "empty": "No recurring movements detected yet",
       "emptyHint": "Regular payments and income show up here after a few repetitions.",
       "next": "Next {date}",

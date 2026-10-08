@@ -26,6 +26,7 @@ export interface CashflowPoint {
   period: string
   income: number
   expenses: number
+  count: number
 }
 
 export interface CashflowLabelBreakdown {
@@ -40,6 +41,7 @@ export interface CashflowCounterparty {
   income: number
   expenses: number
   count: number
+  label_ids: string[]
 }
 
 export interface CashflowSummary {

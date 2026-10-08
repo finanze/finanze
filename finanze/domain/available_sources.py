@@ -8,6 +8,7 @@ from domain.crypto import CryptoWallet
 from domain.entity import (
     Entity,
     Feature,
+    TransactionKind,
 )
 from domain.native_entity import (
     PinDetails,
@@ -37,6 +38,7 @@ class EntityAccountInfo:
 class AvailableSource(Entity):
     features: list[Feature]
     last_fetch: dict[Feature, datetime]
+    transaction_kinds: Optional[list[TransactionKind]] = None
     setup_login_type: Optional[EntitySetupLoginType] = None
     session_category: Optional[EntitySessionCategory] = None
     credentials_template: Optional[dict[str, CredentialType]] = None

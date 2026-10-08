@@ -1,3 +1,5 @@
+import { readReturnTo } from "@/lib/returnTo"
+
 const BACK_NAVIGATION_MAP: Record<string, string> = {
   "/banking": "/investments",
   "/real-estate": "/investments",
@@ -21,6 +23,6 @@ export function getBackTarget(pathname: string): string | null {
   return null
 }
 
-export function canNavigateBack(pathname: string): boolean {
-  return getBackTarget(pathname) !== null
+export function canNavigateBack(pathname: string, state?: unknown): boolean {
+  return getBackTarget(pathname) !== null || readReturnTo(state) !== null
 }

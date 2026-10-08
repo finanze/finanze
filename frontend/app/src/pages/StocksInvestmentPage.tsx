@@ -677,6 +677,7 @@ function StocksViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          showClearFilters={false}
           hideLabelOnMobile
           extraFilters={
             <div

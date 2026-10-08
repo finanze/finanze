@@ -72,6 +72,7 @@ class CashflowPoint:
     period: date
     income: Dezimal
     expenses: Dezimal
+    count: int
 
 
 @dataclass
@@ -88,6 +89,7 @@ class CashflowCounterparty:
     income: Dezimal
     expenses: Dezimal
     count: int
+    label_ids: list[UUID]
 
 
 @dataclass
@@ -245,7 +247,7 @@ def aggregate_cashflow(
     top_counterparties: int = DEFAULT_TOP_COUNTERPARTIES,
 ) -> CashflowSummary:
     income, expenses, count, excluded = Dezimal(0), Dezimal(0), 0, 0
-    series: dict[date, list[Dezimal]] = {}
+    series: dict[date, list] = {}
     by_label: dict[Optional[UUID], list] = {}
     counterparties: dict[str, dict] = {}
 
@@ -266,8 +268,9 @@ def aggregate_cashflow(
             expenses += amount
 
         period = _period_start(tx.date.date(), query.granularity)
-        point = series.setdefault(period, [Dezimal(0), Dezimal(0)])
+        point = series.setdefault(period, [Dezimal(0), Dezimal(0), 0])
         point[0 if incoming else 1] += amount
+        point[2] += 1
 
         label_ids = list(dict.fromkeys(label.label_id for label in tx.labels or []))
         for label_id in label_ids or [None]:
@@ -284,15 +287,20 @@ def aggregate_cashflow(
                     "income": Dezimal(0),
                     "expenses": Dezimal(0),
                     "count": 0,
+                    "labels": Counter(),
                 },
             )
             entry["names"][_display_name(tx)] += 1
+            entry["labels"].update(label_ids)
             entry["income" if incoming else "expenses"] += amount
             entry["count"] += 1
 
     points = [
         CashflowPoint(
-            period=period, income=round(values[0], 2), expenses=round(values[1], 2)
+            period=period,
+            income=round(values[0], 2),
+            expenses=round(values[1], 2),
+            count=values[2],
         )
         for period, values in sorted(series.items())
     ]
@@ -316,6 +324,7 @@ def aggregate_cashflow(
                 income=round(entry["income"], 2),
                 expenses=round(entry["expenses"], 2),
                 count=entry["count"],
+                label_ids=[label_id for label_id, _ in entry["labels"].most_common()],
             )
             for entry in counterparties.values()
         ),
