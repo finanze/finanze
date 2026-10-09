@@ -1,10 +1,12 @@
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
+from dateutil.tz import tzlocal
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -15,7 +17,9 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.native_entity import EntitySetupLoginType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_pointer import FetchPointer
 from domain.fetch_record import DataSource
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
     Accounts,
@@ -30,6 +34,13 @@ from domain.global_position import (
     ProductType,
 )
 from domain.native_entities import UNICAJA
+from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
+    AccountTx,
+    Transactions,
+    TxType,
+    normalize_iban,
+)
 from infrastructure.client.entity.financial.unicaja.unicaja_client import UnicajaClient
 
 CONTRIBUTION_FREQUENCY = {
@@ -38,6 +49,10 @@ CONTRIBUTION_FREQUENCY = {
     "S": ContributionFrequency.SEMIANNUAL,
     "A": ContributionFrequency.YEARLY,
 }
+
+ACCOUNT_TXS_POINTER = "account_txs"
+MAX_MOVEMENT_PAGES = 50
+MOVEMENT_DATE_FORMAT = "%Y-%m-%d"
 
 
 class UnicajaFetcher(FinancialEntityFetcher):
@@ -66,10 +81,15 @@ class UnicajaFetcher(FinancialEntityFetcher):
 
         card_list = (await self._client.get_cards())["tarjetas"]
 
-        cards = [
-            await self._map_base_card(card_data_raw, accounts)
-            for card_data_raw in card_list
-        ]
+        cards = []
+        for card_data_raw in card_list:
+            try:
+                cards.append(await self._map_base_card(card_data_raw, accounts))
+            except (KeyError, TypeError, ValueError, ArithmeticError) as e:
+                self._log.warning(
+                    f"Skipping Unicaja card ending {(card_data_raw.get('numtarjeta') or '')[-4:]} "
+                    f"due to missing or invalid data: {e!r}"
+                )
 
         raw_loans = (await self._client.get_loans())["prestamos"]
         loans = [await self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
@@ -85,6 +105,112 @@ class UnicajaFetcher(FinancialEntityFetcher):
             id=uuid4(),
             entity=UNICAJA,
             products=products,
+        )
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        accounts_response = await self._client.list_accounts()
+        account_txs = []
+        for account in accounts_response.get("cuentas") or []:
+            account_txs += await self._fetch_account_movements(
+                account, registered_txs, options
+            )
+        return Transactions(investment=[], account=account_txs)
+
+    async def _fetch_account_movements(
+        self, account: dict, registered_txs: set[str], options: FetchOptions
+    ) -> list[AccountTx]:
+        ppp = account["ppp"]
+        iban = account["iban"]
+        today = date.today()
+        pointer_key = f"{ACCOUNT_TXS_POINTER}:{iban}"
+        min_date = today - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
+        pointer = self._get_pointer(options, pointer_key)
+        if pointer:
+            min_date = min(pointer.threshold, today)
+
+        txs = []
+        latest_date: Optional[date] = None
+        last_balance = last_movement = None
+        for _ in range(MAX_MOVEMENT_PAGES):
+            page = await self._client.get_account_movements(
+                ppp, last_balance, last_movement
+            )
+            reached_end = False
+            for movement in page.get("movimientos") or []:
+                tx_date = datetime.strptime(
+                    movement["fechaOperacion"], MOVEMENT_DATE_FORMAT
+                ).date()
+                if latest_date is None or tx_date > latest_date:
+                    latest_date = tx_date
+                if tx_date < min_date:
+                    reached_end = True
+                    continue
+
+                ref = f"{iban}:{movement['numMovimiento']}"
+                if ref in registered_txs:
+                    reached_end = True
+                    continue
+
+                tx = self._map_account_movement(movement, ref, tx_date, iban)
+                if tx:
+                    txs.append(tx)
+
+            more = page.get("masMovimientos") or {}
+            if reached_end or more.get("indMasMovimientos") != "S":
+                break
+            if more.get("indOTP") == "S":
+                self._log.info("Older Unicaja movements require OTP, stopping")
+                break
+            last_balance = str((more.get("ultimoSaldo") or {}).get("cantidad"))
+            last_movement = str(more.get("numUltimoMovimiento"))
+
+        self._update_pointer(options, pointer_key, latest_date or today)
+        return txs
+
+    @staticmethod
+    def _map_account_movement(
+        movement: dict, ref: str, tx_date: date, iban: Optional[str] = None
+    ) -> Optional[AccountTx]:
+        raw_amount = Dezimal(str(movement["importeMovimiento"]["cantidad"]))
+        if raw_amount == 0:
+            return None
+        amount = abs(raw_amount)
+        return AccountTx(
+            id=uuid4(),
+            ref=ref,
+            name=(movement.get("concepto") or "").strip(),
+            amount=amount,
+            currency=movement["importeMovimiento"].get("moneda") or "EUR",
+            type=TxType.INFLOW if raw_amount > 0 else TxType.OUTFLOW,
+            date=datetime.combine(tx_date, datetime.min.time(), tzinfo=tzlocal()),
+            entity=UNICAJA,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(0),
+            retentions=Dezimal(0),
+            net_amount=amount,
+            iban=normalize_iban(iban),
+        )
+
+    @staticmethod
+    def _get_pointer(
+        options: Optional[FetchOptions], key: str
+    ) -> Optional[FetchPointer]:
+        if not options or not options.pointer_context:
+            return None
+        return options.pointer_context.pointers.get(key)
+
+    @staticmethod
+    def _update_pointer(options: Optional[FetchOptions], key: str, threshold: date):
+        if not options or not options.pointer_context:
+            return
+        options.pointer_context.pointers[key] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=key,
+            threshold=threshold,
         )
 
     async def _map_account(self, account_data_raw):

@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from domain.commodity import WeightUnit
+from domain.transactions import LabelOrigin
 from pydantic.dataclasses import dataclass
 
 CURRENT_VERSION = 8
@@ -162,6 +163,35 @@ class DataConfig:
 
 
 @dataclass
+class ExternalLabelingExamplesConfig:
+    enabled: bool = False
+    count: int = 20
+    origins: list[LabelOrigin] = field(
+        default_factory=lambda: [LabelOrigin.MANUAL, LabelOrigin.RULE]
+    )
+
+
+@dataclass
+class ExternalLabelingConfig:
+    enabled: bool = False
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    upstreamProvider: Optional[str] = None
+    autoRun: bool = True
+    minConfidence: int = 70
+    maxPerRun: int = 400
+    examples: ExternalLabelingExamplesConfig = field(
+        default_factory=ExternalLabelingExamplesConfig
+    )
+    instructions: Optional[str] = None
+
+
+@dataclass
+class LabelingConfig:
+    external: ExternalLabelingConfig = field(default_factory=ExternalLabelingConfig)
+
+
+@dataclass
 class Settings:
     lastUpdate: str
     version: int = CURRENT_VERSION
@@ -170,3 +200,4 @@ class Settings:
     export: ExportConfig = field(default_factory=ExportConfig)
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
+    labeling: LabelingConfig = field(default_factory=LabelingConfig)

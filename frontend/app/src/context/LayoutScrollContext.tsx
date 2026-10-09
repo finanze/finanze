@@ -5,12 +5,14 @@ import {
   useCallback,
   useRef,
   type ReactNode,
+  type RefObject,
 } from "react"
 
 interface LayoutScrollContextType {
   scrolling: boolean
   atTop: boolean
   atBottom: boolean
+  scrollRootRef: RefObject<HTMLElement | null>
   handleScroll: (event: React.UIEvent<HTMLElement>) => void
   resetScroll: () => void
 }
@@ -27,6 +29,7 @@ export function LayoutScrollProvider({ children }: { children: ReactNode }) {
   const [scrolling, setScrolling] = useState(false)
   const [atTop, setAtTop] = useState(true)
   const [atBottom, setAtBottom] = useState(false)
+  const scrollRootRef = useRef<HTMLElement | null>(null)
 
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -106,7 +109,14 @@ export function LayoutScrollProvider({ children }: { children: ReactNode }) {
 
   return (
     <LayoutScrollContext.Provider
-      value={{ scrolling, atTop, atBottom, handleScroll, resetScroll }}
+      value={{
+        scrolling,
+        atTop,
+        atBottom,
+        scrollRootRef,
+        handleScroll,
+        resetScroll,
+      }}
     >
       {children}
     </LayoutScrollContext.Provider>

@@ -209,6 +209,27 @@ class INGAPIClient:
         )
 
     @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_account_transactions(
+        self,
+        product_id: str,
+        from_date: date,
+        offset: int = 0,
+        limit: int = 100,
+        to_date: Optional[date] = None,
+    ) -> dict:
+        to_date = to_date or datetime.now(tzlocal()).date()
+        return await self._get_request(
+            f"/v2/products/{product_id}/transactions",
+            params={
+                "limit": limit,
+                "offset": offset,
+                "fromDate": from_date.strftime(DASHED_DATE_FORMAT),
+                "toDate": to_date.strftime(DASHED_DATE_FORMAT),
+                "filterEru": "false",
+            },
+        )
+
+    @cached(cache=Cache.MEMORY, ttl=120)
     async def get_broker_portfolio(self, product_id: str) -> dict:
         return await self._get_request(f"/products/{product_id}/portfolio", api=False)
 

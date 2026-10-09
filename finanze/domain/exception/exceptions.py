@@ -101,6 +101,20 @@ class IntegrationNotFound(Exception):
     pass
 
 
+class AIProviderErrorCode(str, Enum):
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class AIProviderError(Exception):
+    def __init__(self, code: AIProviderErrorCode, details: str):
+        self.code = code
+        self.details = details
+        super().__init__(details)
+
+
 class RealEstateNotFound(Exception):
     pass
 
@@ -167,6 +181,26 @@ class ProviderInstitutionNotFound(Exception):
 
 class TransactionNotFound(Exception):
     pass
+
+
+class LabelNotFound(Exception):
+    pass
+
+
+class LabelingRuleNotFound(Exception):
+    pass
+
+
+class InvalidLabelingRule(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        super().__init__(details)
+
+
+class ExternalLabelingUnavailable(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        super().__init__(details)
 
 
 class RelatedAccountNotFound(Exception):

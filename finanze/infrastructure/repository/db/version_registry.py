@@ -203,6 +203,15 @@ from infrastructure.repository.db.versions.v0.v10.v0101_0_fetch_pointers import 
 from infrastructure.repository.db.versions.v0.v10.v0101_1_transaction_split_ratio import (
     V01011TransactionSplitRatio,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_0_account_tx_labeling import (
+    V01100AccountTxLabeling,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_1_openai_integration import (
+    V01101OpenAIIntegration,
+)
+from infrastructure.repository.db.versions.v0.v11.v0110_2_ignored_recurring_movements import (
+    V01102IgnoredRecurringMovements,
+)
 
 versions = [
     V0Genesis(),
@@ -284,4 +293,7 @@ versions = [
     V01007Trading212(),
     V01010FetchPointers(),
     V01011TransactionSplitRatio(),
+    V01100AccountTxLabeling(),
+    V01101OpenAIIntegration(),
+    V01102IgnoredRecurringMovements(),
 ]

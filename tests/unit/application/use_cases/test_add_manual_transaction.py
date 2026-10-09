@@ -76,6 +76,9 @@ def _build_uc(entity_port=None):
         virtual_import_registry=virtual_import_registry,
         transaction_handler_port=_make_transaction_handler(),
         historic_port=historic_port,
+        label_port=AsyncMock(),
+        transaction_label_port=AsyncMock(),
+        transaction_labeler=AsyncMock(),
     )
     return uc, {
         "entity_port": entity_port,

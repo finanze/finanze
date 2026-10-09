@@ -345,6 +345,7 @@ export function useExternalEntityConnection() {
       }
 
       await closeExternalAuthBrowser()
+      setShowCompleteExternalModal(true)
       setCompletingConnection(true)
       try {
         await completeExternalEntityConnection(entityId, code)
@@ -847,47 +848,55 @@ export function ExternalEntityConnectionModals({
                 <h3 className="text-lg font-semibold">
                   {t.entities.confirmConnection}
                 </h3>
-                <button
-                  onClick={dismissCompleteModal}
-                  className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
-                  aria-label={t.entities.dismiss}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                {!completingConnection && (
+                  <button
+                    onClick={dismissCompleteModal}
+                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
+                    aria-label={t.entities.dismiss}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
               </div>
-              <div className="p-6 pt-4 space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t.entities.providerLinkInstructions}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {externalLink && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        try {
-                          window.open(externalLink, "_blank")
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                    >
-                      {t.entities.openLink}
-                    </Button>
-                  )}
-                  {externalCompleteProvider !== ENABLE_BANKING_PROVIDER && (
-                    <Button
-                      size="sm"
-                      onClick={handleCompleteExternalConnection}
-                      disabled={completingConnection}
-                    >
-                      {completingConnection
-                        ? t.common.loading
-                        : t.entities.confirmConnection}
-                    </Button>
-                  )}
+              {completingConnection ? (
+                <div className="p-6 pt-4 flex flex-col items-center gap-3 py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                    {t.entities.completingConnection}
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="p-6 pt-4 space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {t.entities.providerLinkInstructions}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {externalLink && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          try {
+                            window.open(externalLink, "_blank")
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        {t.entities.openLink}
+                      </Button>
+                    )}
+                    {externalCompleteProvider !== ENABLE_BANKING_PROVIDER && (
+                      <Button
+                        size="sm"
+                        onClick={handleCompleteExternalConnection}
+                      >
+                        {t.entities.confirmConnection}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

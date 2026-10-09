@@ -270,6 +270,26 @@ class TestAddAccountTransactionAndRead:
         assert tx.interest_rate == Dezimal("3.5")
         assert tx.avg_balance == Dezimal("50000")
 
+    @pytest.mark.asyncio
+    async def test_add_account_tx_with_iban(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(iban="es76 2100 0000 0001")
+        )
+        assert response.status_code == 204
+        assert transaction_port.save.await_args[0][0].account[0].iban == (
+            "ES76210000000001"
+        )
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(iban="ES76/2100")
+        )
+        assert response.status_code == 400
+
 
 class TestAddStockTransactionAndRead:
     @pytest.mark.asyncio

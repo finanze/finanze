@@ -99,6 +99,7 @@ export interface Entity {
   icon_url?: string | null
   status?: EntityStatus
   features: Feature[]
+  transaction_kinds?: TransactionKind[] | null
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
   session_category?: EntitySessionCategory
@@ -154,6 +155,8 @@ export enum CredentialType {
   INTERNAL = "INTERNAL",
   INTERNAL_TEMP = "INTERNAL_TEMP",
 }
+
+export type TransactionKind = "ACCOUNT" | "INVESTMENT"
 
 export type Feature =
   "POSITION" | "AUTO_CONTRIBUTIONS" | "TRANSACTIONS" | "HISTORIC"
@@ -761,6 +764,7 @@ export enum ExternalIntegrationType {
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
   CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
+  AI_PROVIDER = "AI_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {

@@ -232,11 +232,11 @@ describe('Basic Setup', () => {
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 
-    it('navigates to Management page', async () => {
-        const tab = await $('button[aria-label="Management"]')
+    it('navigates to My Money page', async () => {
+        const tab = await $('button[aria-label="My Money"]')
         await tab.click()
 
-        const heading = await $(HEADING_XPATH('Management'))
+        const heading = await $(HEADING_XPATH('My Money'))
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 

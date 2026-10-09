@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -14,6 +14,7 @@ from domain.auto_contributions import (
 from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_pointer import FetchPointer
 from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
@@ -37,12 +38,14 @@ from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import TRADE_REPUBLIC
 from domain.status import FFStatus
 from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
     AccountTx,
     CryptoCurrencyTx,
     FundTx,
     StockTx,
     Transactions,
     TxType,
+    normalize_iban,
 )
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
@@ -147,6 +150,10 @@ def _as_dezimal(value) -> Dezimal | None:
 
 
 DATE_FORMAT = "%Y-%m-%d"
+
+ACCOUNT_TXS_POINTER = "account_txs"
+# Card payments can stay pending for days, so recent history is rescanned
+ACCOUNT_MOVEMENTS_SETTLE_DAYS = 10
 
 CONTRIBUTION_FREQUENCY = {
     "weekly": ContributionFrequency.WEEKLY,
@@ -613,6 +620,29 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         "TIMELINE_LEGACY_MIGRATED_EVENTS",
     ]
 
+    ACCOUNT_MOVEMENT_TX_TYPES = {
+        "PAYMENT_INBOUND",
+        "PAYMENT_INBOUND_SEPA_DIRECT_DEBIT",
+        "PAYMENT_INBOUND_APPLE_PAY",
+        "PAYMENT_INBOUND_GOOGLE_PAY",
+        "PAYMENT_INBOUND_CREDIT_CARD",
+        "PAYMENT_OUTBOUND",
+        "INCOMING_TRANSFER",
+        "INCOMING_TRANSFER_DELEGATION",
+        "OUTGOING_TRANSFER",
+        "OUTGOING_TRANSFER_DELEGATION",
+        "ACCOUNT_TRANSFER_INCOMING",
+        "BANK_TRANSACTION_INCOMING",
+        "BANK_TRANSACTION_OUTGOING",
+        "BANK_TRANSACTION_OUTGOING_DIRECT_DEBIT",
+        "CARD_SUCCESSFUL_TRANSACTION",
+        "CARD_SUCCESSFUL_ATM_WITHDRAWAL",
+        "CARD_ORDER_BILLED",
+        "CARD_REFUND",
+        "CARD_TR_REFUND",
+        "CARD_SUCCESSFUL_OCT",
+    }
+
     HANDLED_TX_TYPES = (
         ACCOUNT_INTEREST_TX_TYPES
         + TRADE_TX_TYPES
@@ -669,7 +699,117 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                     exc_info=True,
                 )
 
+        movements = await self._safe_await(
+            self._fetch_account_movements(registered_txs, options),
+            "account movements",
+        )
+        account_txs.extend(movements or [])
+
+        if account_txs:
+            user_info = await self._safe_await(
+                self._client.get_user_info(), "cash account"
+            )
+            iban = normalize_iban(
+                ((user_info or {}).get("cashAccount") or {}).get("iban")
+            )
+            for tx in account_txs:
+                tx.iban = iban
+
         return Transactions(investment=investment_txs, account=account_txs)
+
+    async def _fetch_account_movements(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> list[AccountTx]:
+        today = date.today()
+        pointer = self._get_pointer(options)
+        if pointer:
+            since = min(pointer.threshold, today) - timedelta(
+                days=ACCOUNT_MOVEMENTS_SETTLE_DAYS
+            )
+        else:
+            since = today - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
+
+        raw_events = await self._client.get_transactions(
+            since=datetime.combine(since, time.min), with_details=False
+        )
+
+        movements = []
+        unknown_event_types = set()
+        for raw_tx in raw_events or []:
+            tx_id = raw_tx.get("id")
+            event_type = (raw_tx.get("eventType") or "").strip().upper()
+            if event_type not in self.ACCOUNT_MOVEMENT_TX_TYPES:
+                if event_type and event_type not in self.HANDLED_TX_TYPES:
+                    unknown_event_types.add(event_type)
+                continue
+            if not tx_id or tx_id in registered_txs:
+                continue
+            if raw_tx.get("status") != "EXECUTED":
+                continue
+            tx_date = self._parse_tx_date(raw_tx)
+            if tx_date is None:
+                continue
+            movement = self.map_account_movement(raw_tx, tx_date)
+            if movement:
+                movements.append(movement)
+
+        if unknown_event_types:
+            self._log.info(
+                "Ignored Trade Republic event types: %s",
+                ", ".join(sorted(unknown_event_types)),
+            )
+
+        self._update_pointer(options, today)
+        return movements
+
+    def map_account_movement(self, raw_tx: dict, date: datetime) -> AccountTx | None:
+        amount_obj = raw_tx.get("amount") or {}
+        raw_value = amount_obj.get("value")
+        currency = amount_obj.get("currency")
+        if raw_value is None or not currency:
+            self._log.warning(
+                "Incomplete Trade Republic account movement %s", raw_tx.get("id")
+            )
+            return None
+
+        signed_amount = Dezimal(str(raw_value))
+        if signed_amount == 0:
+            return None
+        amount = abs(signed_amount)
+        name = " ".join((raw_tx.get("title") or "").split())
+
+        return AccountTx(
+            id=uuid4(),
+            ref=raw_tx["id"],
+            name=name or (raw_tx.get("eventType") or ""),
+            amount=amount,
+            currency=currency,
+            type=TxType.INFLOW if signed_amount > 0 else TxType.OUTFLOW,
+            date=date,
+            entity=TRADE_REPUBLIC,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(0),
+            retentions=Dezimal(0),
+            net_amount=amount,
+        )
+
+    @staticmethod
+    def _get_pointer(options: FetchOptions | None) -> FetchPointer | None:
+        if not options or not options.pointer_context:
+            return None
+        return options.pointer_context.pointers.get(ACCOUNT_TXS_POINTER)
+
+    @staticmethod
+    def _update_pointer(options: FetchOptions | None, threshold: date):
+        if not options or not options.pointer_context:
+            return
+        options.pointer_context.pointers[ACCOUNT_TXS_POINTER] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=ACCOUNT_TXS_POINTER,
+            threshold=threshold,
+        )
 
     def _parse_tx_date(self, raw_tx: dict) -> datetime | None:
         timestamp = raw_tx.get("timestamp")

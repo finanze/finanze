@@ -1,3 +1,4 @@
+from dataclasses import field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -5,7 +6,7 @@ from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
-from domain.entity import Entity, Feature
+from domain.entity import Entity, Feature, TransactionKind
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
 
@@ -62,6 +63,9 @@ class NativeFinancialEntity(Entity):
     features: list[Feature]
     products: list[ProductType]
     pin: Optional[PinDetails] = None
+    transaction_kinds: list[TransactionKind] = field(
+        default_factory=lambda: [TransactionKind.INVESTMENT]
+    )
 
 
 @dataclass(eq=False)

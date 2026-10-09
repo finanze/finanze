@@ -16,10 +16,16 @@ from domain.transactions import (
     FactoringTx,
     FundPortfolioTx,
     FundTx,
+    LabelOrigin,
     RealEstateCFTx,
     StockTx,
+    TxLabel,
     TxType,
+    is_valid_iban_format,
+    normalize_iban,
 )
+
+MAX_COUNTERPARTY_LENGTH = 200
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -29,7 +35,26 @@ def _parse_datetime(value: str) -> datetime:
     return dt
 
 
+def _parse_manual_labels(body: dict) -> Optional[list[TxLabel]]:
+    raw_labels = body.get("labels")
+    if raw_labels is None:
+        return None
+    if not isinstance(raw_labels, list):
+        raise ValueError("labels must be a list of label IDs")
+    label_ids = list(dict.fromkeys(UUID(str(label_id)) for label_id in raw_labels))
+    return [
+        TxLabel(label_id=label_id, origin=LabelOrigin.MANUAL) for label_id in label_ids
+    ]
+
+
 def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
+    counterparty = (body.get("counterparty") or "").strip() or None
+    if counterparty and len(counterparty) > MAX_COUNTERPARTY_LENGTH:
+        raise ValueError("Counterparty is too long")
+    iban = normalize_iban(body.get("iban"))
+    if iban and not is_valid_iban_format(iban):
+        raise ValueError("Invalid IBAN")
+    labels = _parse_manual_labels(body)
     return AccountTx(
         id=tx_id,
         fees=Dezimal(body.get("fees", 0)),
@@ -41,6 +66,10 @@ def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> Base
         if body.get("avg_balance") is not None
         else None,
         net_amount=None,
+        counterparty=counterparty,
+        iban=iban,
+        labels=labels,
+        labels_locked=bool(labels),
         **base_kwargs,
     )
 

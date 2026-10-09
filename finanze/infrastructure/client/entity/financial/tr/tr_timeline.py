@@ -166,6 +166,8 @@ class TRTimeline:
             self._log.info("Received last relevant timeline transaction")
             if "timelineActivityLog" in self._requested_data:
                 await self._request_timeline_activity_log()
+            elif "timelineDetailV2" not in self._requested_data:
+                return list(self._timeline_events.values())
             else:
                 if self._timeline_events:
                     result = await self._request_all_timeline_details()

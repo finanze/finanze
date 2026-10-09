@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Indietro",
+    "backTo": "Torna a {page}",
     "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
@@ -627,6 +628,7 @@
     "enableBankingNoLinkedAccountsAfter": ". Collegala prima lì, poi riprova.",
     "confirmConnection": "Completa Connessione",
     "providerLinkInstructions": "Termina il processo nella finestra aperta, quindi conferma la connessione.",
+    "completingConnection": "Completamento della connessione, potrebbe richiedere alcuni secondi...",
     "openLink": "Apri Link",
     "dismiss": "Ignora",
     "continueLink": "Continua collegamento",
@@ -641,6 +643,8 @@
     "POSITION": "Posizioni",
     "AUTO_CONTRIBUTIONS": "Contributi Automatici",
     "TRANSACTIONS": "Transazioni",
+    "accountTransactions": "Mov. conto",
+    "investmentTransactions": "Mov. investimenti",
     "HISTORIC": "Dati Storici",
     "selectFeatures": "Seleziona i dati da recuperare da",
     "selectAll": "Seleziona tutto",
@@ -1174,6 +1178,50 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Collega OpenRouter per ottenere suggerimenti automatici di etichette per i tuoi movimenti con il modello che preferisci.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API OpenRouter",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Crea un account su "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", genera una nuova chiave API e incollala qui sotto. L'utilizzo viene fatturato da OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Collega OpenAI per ottenere suggerimenti automatici di etichette per i tuoi movimenti con i modelli GPT.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API OpenAI",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Accedi alla piattaforma OpenAI su "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", crea una nuova chiave segreta e incollala qui sotto. L'utilizzo viene fatturato da OpenAI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",
@@ -1184,6 +1232,7 @@
       "ENTITY_PROVIDER": "Provider bancari",
       "CRYPTO_PROVIDER": "Provider crypto",
       "CRYPTO_MARKET_PROVIDER": "Dati di mercato crypto",
+      "AI_PROVIDER": "Provider di IA",
       "DATA_SOURCE": "Fonti dati"
     }
   },
@@ -1735,6 +1784,12 @@
     "selectAccounts": "Seleziona conti...",
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
+    "scope": {
+      "label": "Mostra",
+      "all": "Tutto",
+      "account": "Conti",
+      "investment": "Investimenti"
+    },
     "form": {
       "createTitle": "Aggiungi transazione",
       "editTitle": "Modifica transazione",
@@ -1808,6 +1863,313 @@
       "calendarView": "Calendario"
     }
   },
+  "labels": {
+    "title": "Etichette",
+    "tabs": {
+      "labels": "Etichette",
+      "rules": "Regole",
+      "automation": "Automazione"
+    },
+    "base": {
+      "salary": "Stipendio",
+      "business_income": "Redditi d'impresa",
+      "rental_income": "Affitti percepiti",
+      "refunds": "Rimborsi",
+      "gifts_received": "Regali ricevuti",
+      "interest": "Interessi",
+      "other_income": "Altre entrate",
+      "housing": "Casa",
+      "utilities": "Utenze",
+      "groceries": "Spesa alimentare",
+      "restaurants": "Ristoranti",
+      "transport": "Trasporti",
+      "shopping": "Acquisti",
+      "subscriptions": "Abbonamenti",
+      "health": "Salute",
+      "insurance": "Assicurazioni",
+      "education": "Istruzione",
+      "leisure": "Tempo libero",
+      "travel": "Viaggi",
+      "personal_care": "Cura personale",
+      "pets": "Animali domestici",
+      "family": "Famiglia",
+      "gifts_donations": "Regali e donazioni",
+      "taxes": "Tasse",
+      "bank_fees": "Commissioni bancarie",
+      "cash_withdrawal": "Prelievo contanti",
+      "debt_payments": "Pagamento debiti",
+      "other_expense": "Altre spese",
+      "internal_transfer": "Giroconto",
+      "savings_investment": "Risparmio e investimenti"
+    },
+    "origins": {
+      "MANUAL": "Manuale",
+      "RULE": "Regole",
+      "EXTERNAL": "Suggerimenti"
+    },
+    "settlement": "Investimento",
+    "settlementHint": "Questo movimento è la parte in contanti di un'operazione di investimento, quindi non viene conteggiato come entrata o spesa.",
+    "editTransactionLabels": "Modifica etichette",
+    "addLabel": "Etichetta",
+    "searchLabels": "Cerca etichette...",
+    "transactionLabelsSaved": "Etichette aggiornate",
+    "saveError": "Impossibile salvare le modifiche",
+    "deleteError": "Impossibile eliminare",
+    "createRuleFromMovement": "Crea regola",
+    "lockLabels": "Blocca etichette",
+    "lockLabelsHint": "Durante la rietichettatura, regole e suggerimenti non modificheranno mai le etichette di questo movimento.",
+    "unlinkSettlement": "Scollega dall'operazione di investimento",
+    "transferPair": "Trasferimento",
+    "transferPairOtherEntity": "un'altra entità",
+    "transferPairHint": "Abbinato come trasferimento a un movimento dello stesso importo in {entity}.",
+    "unpairTransfer": "Separa trasferimento",
+    "unpairTransferHint": "Le etichette vengono bloccate così questo movimento non viene abbinato di nuovo.",
+    "newLabel": "Nuova etichetta",
+    "editLabel": "Modifica etichetta",
+    "labelName": "Nome",
+    "labelDescription": "Descrizione",
+    "labelDescriptionHint": "Facoltativa. Aiuta i suggerimenti a capire cosa appartiene a questa etichetta.",
+    "baseLabelNameHint": "Lascia vuoto per mantenere il nome predefinito.",
+    "nameRequired": "Inserisci un nome",
+    "color": "Colore",
+    "customColor": "Colore personalizzato",
+    "category": "Tipo",
+    "categoryHints": {
+      "EXPENSE": "Raggruppata con le tue etichette di spesa.",
+      "INCOME": "Raggruppata con le tue etichette di entrata.",
+      "EXCLUDED": "I movimenti con questa etichetta non vengono conteggiati come entrate o spese, ad esempio i giroconti tra i tuoi conti."
+    },
+    "excluded": "Esclusa",
+    "labelSaved": "Etichetta salvata",
+    "labelDeleted": "Etichetta eliminata",
+    "usage": "{count} movimenti",
+    "noUsage": "Non ancora usata",
+    "changeIcon": "Cambia icona",
+    "categories": {
+      "EXPENSE": "Spese",
+      "INCOME": "Entrate",
+      "EXCLUDED": "Non conteggiate nei totali"
+    },
+    "deleteLabelTitle": "Elimina etichetta",
+    "deleteLabelMessage": "Eliminare l'etichetta \"{name}\"? Verrà rimossa da tutti i movimenti.",
+    "deleteLabelWarning": "Anche le regole che applicano solo questa etichetta verranno eliminate.",
+    "unlabeled": "Senza etichetta",
+    "anyLabel": "Qualsiasi etichetta",
+    "includeLabel": "Con questa etichetta",
+    "excludeLabel": "Senza questa etichetta",
+    "counterparty": "Controparte",
+    "searchTextPlaceholder": "Cerca per nome",
+    "manualLabelsHint": "Le etichette scelte qui vengono mantenute. Lascia vuoto per far decidere alle tue regole.",
+    "rules": {
+      "newRule": "Nuova regola",
+      "editRule": "Modifica regola",
+      "name": "Nome",
+      "namePlaceholder": "Facoltativo",
+      "when": "Quando il movimento corrisponde",
+      "then": "Applica queste etichette",
+      "textField": "Campo",
+      "textOperator": "Condizione",
+      "textValue": "Testo",
+      "textValuePlaceholder": "es. netflix",
+      "fields": {
+        "ANY": "Tutti",
+        "NAME": "Descrizione",
+        "COUNTERPARTY": "Controparte"
+      },
+      "operators": {
+        "CONTAINS": "Contiene",
+        "STARTS_WITH": "Inizia con",
+        "EQUALS": "È esattamente",
+        "REGEX": "Corrisponde al modello"
+      },
+      "anyType": "Qualsiasi tipo",
+      "lookIn": "Cerca in",
+      "amount": "Importo",
+      "min": "Min",
+      "max": "Max",
+      "dateRange": "Date",
+      "moreConditions": "Altre condizioni",
+      "minAmount": "Importo minimo",
+      "maxAmount": "Importo massimo",
+      "anyCurrency": "Qualsiasi valuta",
+      "dayOfMonth": "Giorno del mese",
+      "dayFrom": "Dal giorno",
+      "dayTo": "Al giorno",
+      "dayOfMonthHint": "Gli intervalli possono attraversare la fine del mese, es. 28 – 3.",
+      "applyToExisting": "Applica ai movimenti esistenti",
+      "applyToExistingHint": "Etichetta i movimenti che già corrispondono, tranne quelli con etichette mantenute.",
+      "preview": "Anteprima",
+      "previewCount": "{count} movimenti corrispondono",
+      "conditionRequired": "Aggiungi almeno una condizione",
+      "labelRequired": "Scegli almeno un'etichetta",
+      "invalidRule": "La regola non è valida, rivedi le condizioni",
+      "saved": "Regola salvata",
+      "savedApplied": "Regola salvata e applicata a {count} movimenti",
+      "deleted": "Regola eliminata",
+      "emptyTitle": "Nessuna regola",
+      "empty": "Le regole etichettano automaticamente i tuoi movimenti. Creane una qui o usa \"Crea regola\" da qualsiasi movimento.",
+      "unnamed": "Regola senza nome",
+      "daysSummary": "Giorni {from} – {to}",
+      "kind": "Tipo di regola",
+      "kinds": {
+        "MATCH": "Soddisfa condizioni",
+        "TRANSFER": "Trasferimenti tra conti"
+      },
+      "kindHints": {
+        "MATCH": "Etichetta ogni movimento che corrisponde per testo, tipo, importo o date.",
+        "TRANSFER": "Abbina il denaro che esce da un conto con lo stesso importo che arriva in un altro."
+      },
+      "transferWhen": "Quando due movimenti sembrano un trasferimento",
+      "transferExplanation": "Un'uscita in un conto e un'entrata dello stesso importo e valuta in un altro conto, entro i giorni consentiti, vengono abbinate ed entrambe etichettate. I conti della stessa entità vengono abbinati solo se i loro IBAN sono noti.",
+      "transferThen": "Etichetta entrambi i movimenti con",
+      "transferApplyToExistingHint": "Abbina ed etichetta anche i movimenti esistenti, tranne quelli con etichette mantenute.",
+      "transferEntitiesHint": "Lascia vuoto per abbinare movimenti tra tutte le tue entità.",
+      "accounts": "Conti",
+      "anyAccount": "Qualsiasi conto",
+      "accountsHint": "Solo movimenti di questi conti. I movimenti senza IBAN noto non corrispondono mai.",
+      "transferAccountsHint": "Entrambi i movimenti devono appartenere a questi conti. Lascia vuoto per usarli tutti.",
+      "transferUnnamed": "Trasferimenti tra i miei conti",
+      "maxDays": "Massimo giorni di distanza",
+      "maxDaysHint": "Giorni consentiti tra l'uscita e l'entrata. 0 significa lo stesso giorno.",
+      "maxDaysSummary": "Fino a {days} giorni di distanza",
+      "sameDay": "Stesso giorno",
+      "deleteTitle": "Elimina regola",
+      "deleteMessage": "Eliminare questa regola? Le etichette applicate verranno rimosse dai movimenti."
+    },
+    "relabel": {
+      "title": "Rietichetta movimenti",
+      "description": "Esegui di nuovo le regole sui movimenti esistenti. Vengono saltati quelli con etichette mantenute e i regolamenti di investimenti.",
+      "open": "Rietichetta",
+      "count": "Conta",
+      "run": "Rietichetta",
+      "withLabels": "Con etichette",
+      "withoutLabels": "Senza le etichette",
+      "unlabeledOnly": "Solo movimenti senza etichetta",
+      "replace": "Sostituisci le etichette da",
+      "lockedHint": "I movimenti con etichette bloccate non vengono mai modificati.",
+      "includeExternal": "Usa {provider} come riserva quando nessuna regola corrisponde",
+      "includeExternalHint": "I movimenti ancora senza etichetta dopo l'applicazione delle regole vengono inviati a {provider} per un suggerimento. Usa la tua configurazione di Suggerimenti esterni.",
+      "retryUnmatched": "Riprova i movimenti che {provider} non è riuscito a etichettare",
+      "retryUnmatchedHint": "Per impostazione predefinita vengono saltati per non pagarli di nuovo.",
+      "matched": "{count} movimenti selezionati",
+      "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
+      "done": "Movimenti rietichettati",
+      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti"
+    },
+    "automation": {
+      "rulesTitle": "Regole",
+      "rulesAlwaysOn": "Applica le regole ai nuovi movimenti",
+      "rulesAlwaysOnHint": "Ogni movimento sincronizzato, importato o aggiunto manualmente viene etichettato dalle regole attive appena viene salvato.",
+      "alwaysOn": "Sempre attivo",
+      "optional": "Facoltativo"
+    },
+    "external": {
+      "title": "Suggerimenti esterni",
+      "enable": "Usa un provider esterno",
+      "description": "Etichetta con un modello esterno i movimenti che nessuna regola riconosce.",
+      "moreSettings": "Altre impostazioni",
+      "noProviders": "Nessun provider disponibile.",
+      "provider": "Provider",
+      "connected": "Collegato",
+      "notConnected": "Non collegato",
+      "connectProvider": "Configuralo nelle integrazioni",
+      "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
+      "model": "Modello",
+      "confidenceScores": "Livello di confidenza",
+      "customModel": "Altro modello",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol"
+      },
+      "customModelNotice": "Alcuni modelli possono essere lenti e costosi quando si categorizzano molti movimenti. Si consigliano modelli più veloci ed economici.",
+      "validate": "Verifica",
+      "modelValid": "Modello supportato",
+      "modelInvalid": "Modello non trovato o non supportato",
+      "upstreamProvider": "Provider",
+      "upstreamProviderPlaceholder": "Provider (opzionale)",
+      "upstreamProviderHint": "Facoltativamente, instrada le richieste verso un provider specifico, ad es. openai/flex. Verrà usato solo quel provider, senza alternative.",
+      "minConfidence": "Confidenza minima (%)",
+      "minConfidenceHint": "I suggerimenti sotto questa confidenza vengono scartati.",
+      "minConfidenceNotApplicable": "Questo modello non indica la confidenza, quindi vengono applicati tutti i suggerimenti.",
+      "maxPerRun": "Movimenti massimi per esecuzione",
+      "maxPerRunHint": "Limita l'utilizzo a ogni sincronizzazione o rietichettatura.",
+      "autoRun": "Usa come riserva quando nessuna regola corrisponde",
+      "autoRunHint": "Quando arrivano nuovi movimenti (sincronizzazioni, importazioni o inserimenti manuali), vengono applicate prima le tue regole e solo quelli rimasti senza etichetta vengono inviati al provider per un suggerimento. Se disattivato, il provider viene usato solo quando rietichetti.",
+      "examples": "Fornisci esempi",
+      "examplesHint": "Includi in ogni richiesta alcuni dei tuoi movimenti già etichettati, così il modello impara come etichetti e suggerisce con più precisione.",
+      "examplesCount": "Numero di esempi",
+      "examplesFrom": "Usa etichette impostate da",
+      "instructions": "Istruzioni personalizzate",
+      "instructionsHint": "Per utenti esperti. Indicazioni aggiuntive inviate al modello, ad esempio come etichettare determinati pagamenti.",
+      "instructionsPlaceholder": "ad es. I bonifici di Ana sono affitto. I pagamenti del club di padel sono tempo libero.",
+      "privacyNotice": "Al provider vengono inviati descrizione, controparte, importo, valuta e data dei movimenti. Numeri di conto e saldi non vengono mai condivisi.",
+      "providerAndModelRequired": "Scegli un provider e un modello"
+    }
+  },
+  "cashflow": {
+    "title": "Attività",
+    "tabs": {
+      "analysis": "Analisi"
+    },
+    "presets": {
+      "thisMonth": "Questo mese",
+      "lastMonth": "Mese scorso",
+      "last3Months": "3 mesi",
+      "last6Months": "6 mesi",
+      "last12Months": "12 mesi",
+      "ytd": "Da inizio anno",
+      "custom": "Personalizzato"
+    },
+    "income": "Entrate",
+    "expenses": "Spese",
+    "net": "Netto",
+    "savingsRate": "Tasso di risparmio",
+    "vsPrevious": "Variazione vs periodo precedente",
+    "movementsCount": "{count} movimenti",
+    "excludedCount": "{count} esclusi",
+    "excludedInfo": "Non vengono conteggiati i regolamenti di investimenti né i movimenti con etichette escluse dai totali.",
+    "evolution": "Andamento",
+    "evolutionViews": {
+      "bars": "Grafico a barre",
+      "heatmap": "Mappa di calore giornaliera"
+    },
+    "heatmap": {
+      "hint": "Passa il mouse o tocca un giorno per vederne i movimenti",
+      "noMovements": "Nessun movimento",
+      "view": "Vedi"
+    },
+    "empty": {
+      "title": "Nessun movimento in questo periodo",
+      "description": "Sincronizza i tuoi conti o aggiungi movimenti manualmente per vedere dove vanno i tuoi soldi.",
+      "goToTransactions": "Vai alle transazioni",
+      "noExpenses": "Nessuna spesa in questo periodo",
+      "noIncome": "Nessuna entrata in questo periodo",
+      "noCounterparties": "Nessun movimento in questo periodo"
+    },
+    "byLabel": "Per etichetta",
+    "overlapHint": "I movimenti con più etichette vengono conteggiati in ciascuna.",
+    "topCounterparties": "Movimenti principali",
+    "recurring": {
+      "title": "Storico dei movimenti ricorrenti",
+      "description": "Movimenti ricorrenti rilevati in tutto lo storico disponibile, indipendentemente dall'intervallo selezionato.",
+      "empty": "Nessun movimento ricorrente rilevato",
+      "emptyHint": "Pagamenti ed entrate regolari compaiono qui dopo alcune ripetizioni.",
+      "next": "Prossimo {date}",
+      "occurrences": "{count} volte",
+      "upTo": "fino a {amount}",
+      "track": "Monitora",
+      "tracked": "Aggiunto al denaro ricorrente",
+      "trackedBadge": "Monitorato",
+      "trackedAs": "Denaro ricorrente associato",
+      "openRecurring": "Apri denaro ricorrente",
+      "showMore": "Mostra di più",
+      "ignore": "Ignora",
+      "ignoredToast": "Movimento ignorato",
+      "ignoredSection": "Ignorati ({count})",
+      "restore": "Ripristina",
+      "restoredToast": "Movimento ripristinato"
+    }
+  },
   "time": {
     "justNow": "proprio ora",
     "minuteAgo": "1 minuto fa",
@@ -1859,7 +2221,9 @@
       "SWITCH_TO": "Switch F. Destinazione",
       "INVESTMENT": "Investimento",
       "FEE": "Commissione",
-      "SPLIT": "Frazionamento"
+      "SPLIT": "Frazionamento",
+      "INFLOW": "Entrata",
+      "OUTFLOW": "Uscita"
     },
     "productType": {
       "ACCOUNT": "Conto",
@@ -2203,23 +2567,53 @@
     "FUND_PORTFOLIO": "Portafoglio di Fondi"
   },
   "management": {
-    "title": "Gestione",
+    "title": "I miei soldi",
     "recurring": "Ricorrente",
     "pending": "In sospeso",
-    "recurringMoney": "Denaro Ricorrente",
-    "recurringMoneyDescription": "Gestisci le tue entrate e uscite ricorrenti",
-    "pendingMoney": "Denaro in Sospeso",
+    "recurringMoney": "Ricorrente",
+    "recurringMoneyDescription": "Le tue entrate, uscite e investimenti ricorrenti",
+    "pendingMoney": "In sospeso",
     "pendingMoneyDescription": "Gestisci le tue entrate e uscite occasionali",
     "autoContributions": "Contributi",
     "autoContributionsDescription": "Rivedi i tuoi contributi periodici di investimento",
+    "cashflow": "Attività",
+    "cashflowDescription": "Analizza entrate e spese, organizza i movimenti con etichette e regole",
+    "labels": "Etichette e regole",
+    "labelsDescription": "Organizza i movimenti dei tuoi conti con le etichette",
+    "tabs": {
+      "overview": "Panoramica",
+      "earnings": "Entrate",
+      "expenses": "Uscite",
+      "investments": "Investimenti"
+    },
+    "overview": {
+      "suggestionsHint": "{count} spese ricorrenti suggerite dai tuoi prestiti",
+      "review": "Rivedi"
+    },
+    "upcoming": {
+      "title": "Prossimi",
+      "agenda": "Agenda",
+      "month": "Mese",
+      "empty": "Niente in programma nei prossimi {days} giorni",
+      "showAll": "Mostra tutto",
+      "showLess": "Mostra meno"
+    },
     "earnings": "Entrate",
     "expenses": "Uscite",
-    "addNew": "Aggiungi nuovo",
+    "addNew": "Aggiungi",
     "name": "Nome",
     "namePlaceholder": "Inserisci il nome",
     "amount": "Importo",
     "amountPlaceholder": "Inserisci l'importo",
     "category": "Categoria",
+    "categoryFilter": {
+      "title": "Categorie",
+      "include": "Includi categoria",
+      "exclude": "Escludi categoria"
+    },
+    "categoryLegend": {
+      "showMore": "Mostra +{count}"
+    },
     "categoryPlaceholder": "Inserisci la categoria",
     "iconLabel": "Icona",
     "frequencyLabel": "Frequenza",
@@ -2288,10 +2682,10 @@
     },
     "unsavedChanges": "Hai modifiche non salvate",
     "requiredFields": "Campi obbligatori",
-    "sortBy": "Ordina per",
+    "sortBy": "Ordina",
     "sortByAmount": "Importo",
     "sortByDate": "Data",
-    "groupBy": "Raggruppa per",
+    "groupBy": "Raggruppa",
     "groupByCategory": "Categoria",
     "uncategorized": "Non categorizzato",
     "nextPayment": "Prossimo",
@@ -2299,10 +2693,12 @@
     "today": "Oggi",
     "tomorrow": "Domani",
     "inDays": "Tra {days} giorni",
-    "monthlyRecurringEarnings": "Entrate ricorrenti mensili",
-    "monthlyRecurringExpenses": "Uscite ricorrenti mensili",
-    "savableAmount": "Importo risparmiabile",
-    "monthlyInvestedAmount": "Investito mensile",
+    "monthlyRecurringEarnings": "Entrate mensili",
+    "monthlyRecurringExpenses": "Spese mensili",
+    "savableAmount": "Risparmio",
+    "remainingCash": "Liquidità residua",
+    "remainingCashDescription": "Entrate mensili rimanenti dopo spese ricorrenti e investimenti ({percentage}% delle entrate).",
+    "monthlyInvestedAmount": "Investito",
     "savingsRate": "Tasso di risparmio",
     "investedRate": "Tasso investito",
     "ofEarnings": "delle entrate",

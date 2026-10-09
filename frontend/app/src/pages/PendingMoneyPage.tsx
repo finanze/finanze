@@ -1068,13 +1068,13 @@ export default function PendingMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className="flex flex-row items-center justify-between gap-3"
+          className="flex flex-row items-center gap-3"
         >
           <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8 shrink-0"
+              className="p-1 h-8 w-8 shrink-0 md:hidden"
               onClick={() => navigate("/management")}
             >
               <ArrowLeft size={20} />
@@ -1092,13 +1092,6 @@ export default function PendingMoneyPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => navigate("/management/recurring")}
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap shrink-0"
-          >
-            {t.management.recurring}
-            <ArrowRight size={16} />
-          </button>
         </motion.div>
 
         {/* KPI Cards */}

@@ -218,8 +218,6 @@ export class PyodideApiClient implements ApiClient {
     options?: HelperOptions,
   ): Promise<T> {
     logInfo(`${method} ${path}`)
-    logDebug(`Request body:`, body)
-    logDebug(`Request options:`, options)
 
     let fullPath = withApiPrefix(path)
     if (fullPath.endsWith("?")) {
@@ -251,15 +249,13 @@ export class PyodideApiClient implements ApiClient {
     const headers = options?.headers || {}
 
     try {
-      logDebug(`${path} Body payload:`, payload)
-      logDebug(`${path} Headers:`, headers)
       const response = await callPythonFunction<{
         status: number
         data: any
         headers: Record<string, string>
       }>("controller", "handle", method, fullPath, payload, headers)
 
-      logDebug(`${path} Response status: ${response.status}`, response.data)
+      logDebug(`${path} Response status: ${response.status}`)
 
       if (response.status >= 400) {
         const error: any = new Error(response.data?.message || "Request failed")

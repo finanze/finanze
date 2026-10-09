@@ -526,6 +526,7 @@ function DepositsViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          showClearFilters={false}
           hideLabelOnMobile
         />
       </motion.div>

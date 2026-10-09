@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 from uuid import UUID
@@ -37,6 +37,48 @@ class TxType(str, Enum):
 
     FEE = "FEE"
 
+    INFLOW = "INFLOW"
+    OUTFLOW = "OUTFLOW"
+
+
+ACCOUNT_MOVEMENT_TYPES = {TxType.INFLOW, TxType.OUTFLOW}
+ACCOUNT_INCOMING_TYPES = {TxType.INFLOW, TxType.INTEREST}
+ACCOUNT_OUTGOING_TYPES = {TxType.OUTFLOW, TxType.FEE}
+ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS = 730
+MAX_IBAN_LENGTH = 34
+
+
+def normalize_iban(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    return "".join(str(value).split()).upper() or None
+
+
+def is_valid_iban_format(value: str) -> bool:
+    return value.isascii() and value.isalnum() and len(value) <= MAX_IBAN_LENGTH
+
+
+class LabelOrigin(str, Enum):
+    MANUAL = "MANUAL"
+    RULE = "RULE"
+    EXTERNAL = "EXTERNAL"
+
+
+@dataclass
+class TxLabel:
+    label_id: UUID
+    origin: LabelOrigin
+    rule_id: Optional[UUID] = None
+    provider: Optional[str] = None
+    confidence: Optional[Dezimal] = None
+
+
+@dataclass
+class TransferPair:
+    tx_id: UUID
+    entity_id: Optional[UUID] = None
+    rule_id: Optional[UUID] = None
+
 
 @dataclass(kw_only=True)
 class BaseTx(BaseData):
@@ -65,6 +107,13 @@ class AccountTx(BaseTx):
     interest_rate: Optional[Dezimal] = None
     avg_balance: Optional[Dezimal] = None
     net_amount: Optional[Dezimal] = None
+    counterparty: Optional[str] = None
+    iban: Optional[str] = None
+    # ref of the investment tx (same entity) this movement is the cash leg of
+    linked_tx: Optional[str] = None
+    labels: Optional[list[TxLabel]] = None
+    labels_locked: bool = False
+    transfer_pair: Optional[TransferPair] = None
 
 
 @dataclass(kw_only=True)
@@ -176,6 +225,35 @@ class TransactionQueryRequest:
     to_date: Optional[datetime] = None
     types: Optional[list[TxType]] = None
     historic_entry_id: Optional[UUID] = None
+    labels: Optional[list[UUID]] = None
+    excluded_labels: Optional[list[UUID]] = None
+    unlabeled: bool = False
+    search: Optional[str] = None
+
+
+@dataclass
+class AccountTxSelection:
+    ids: Optional[list[UUID]] = None
+    from_date: Optional[date] = None
+    to_date: Optional[date] = None
+    entities: Optional[list[UUID]] = None
+    types: Optional[list[TxType]] = None
+    with_labels: Optional[list[UUID]] = None
+    without_labels: Optional[list[UUID]] = None
+    unlabeled_only: bool = False
+    include_locked: bool = True
+    include_linked: bool = True
+    exclude_external_unmatched: bool = False
+    search: Optional[str] = None
+
+
+@dataclass
+class TxClassification:
+    labels: list[TxLabel]
+    locked: bool = False
+    linked_tx: Optional[str] = None
+    transfer_pair: Optional[TransferPair] = None
+    external_unmatched_at: Optional[datetime] = None
 
 
 @dataclass

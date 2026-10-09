@@ -12,6 +12,8 @@ import {
   TransactionsResult,
   TransactionQueryRequest,
   TxType,
+  ACCOUNT_MOVEMENT_TX_TYPES,
+  LABELABLE_TX_TYPES,
   type AccountTx,
   type StockTx,
   type CryptoCurrencyTx,
@@ -34,9 +36,10 @@ import {
 import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
-import { formatCurrency } from "@/lib/formatters"
+import { formatCurrency, formatIban } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { cn } from "@/lib/utils"
+import { readReturnTo } from "@/lib/returnTo"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
   getTransactionDisplayAmount,
@@ -61,9 +64,13 @@ import {
   ChevronRight,
   Layers,
   ArrowLeftRight,
+  ArrowLeft,
   ArrowUp,
   Landmark,
+  ListFilter,
   SlidersHorizontal,
+  Tag,
+  Wand2,
 } from "lucide-react"
 import {
   getIconForTxType,
@@ -79,19 +86,82 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { TransactionsCalendarView } from "@/components/transactions/TransactionsCalendarView"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
+import { Input } from "@/components/ui/Input"
+import {
+  TransactionLabels,
+  isLabelableTx,
+} from "@/components/labels/TransactionLabels"
+import {
+  LabelFilterSelect,
+  type LabelFilterValue,
+} from "@/components/labels/LabelFilterSelect"
+import {
+  TransactionLabelsDialog,
+  type LabelableTx,
+} from "@/components/labels/TransactionLabelsDialog"
+import { LabelingRuleDialog } from "@/components/labels/LabelingRuleDialog"
+import { useLabels } from "@/context/LabelsContext"
 
 type ViewMode = "list" | "calendar"
 
+type TxScope = "all" | "account" | "investment"
+
+const TX_SCOPES: TxScope[] = ["all", "account", "investment"]
+
+const INVESTMENT_PRODUCT_TYPES: ProductType[] = [
+  ProductType.STOCK_ETF,
+  ProductType.FUND,
+  ProductType.FUND_PORTFOLIO,
+  ProductType.DEPOSIT,
+  ProductType.FACTORING,
+  ProductType.REAL_ESTATE_CF,
+  ProductType.CRYPTO,
+  ProductType.MARKET_FORECAST,
+]
+
+const scopeTxTypes = (scope: TxScope): TxType[] => {
+  if (scope === "account") return LABELABLE_TX_TYPES
+  const all = Object.values(TxType)
+  if (scope === "investment") {
+    return all.filter(type => !ACCOUNT_MOVEMENT_TX_TYPES.includes(type))
+  }
+  return all
+}
+
+const parseScope = (value: string | null): TxScope =>
+  TX_SCOPES.includes(value as TxScope) ? (value as TxScope) : "all"
+
 interface TransactionFilters {
+  scope: TxScope
   entities: string[]
   product_types: ProductType[]
   types: TxType[]
   from_date: string
   to_date: string
   historic_entry_id: string
+  labels: string[]
+  excluded_labels: string[]
+  unlabeled: boolean
+  search: string
 }
 
 type TransactionItem = TransactionsResult["transactions"][number]
+
+const toQueryFilters = ({ scope, ...filters }: TransactionFilters) => ({
+  ...filters,
+  product_types:
+    scope === "account"
+      ? [ProductType.ACCOUNT]
+      : scope === "investment" && filters.product_types.length === 0
+        ? INVESTMENT_PRODUCT_TYPES
+        : filters.product_types,
+})
+
+const TX_ACTION_CLASS =
+  "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+
+const TX_ICON_ACTION_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 
 const ITEMS_PER_PAGE = 20
 
@@ -194,6 +264,14 @@ export default function TransactionsPage() {
   } = useAppContext()
   const location = useLocation()
   const navigateRouter = useNavigate()
+  const returnTo = readReturnTo(location.state)
+
+  const handleReturn = () => {
+    if (!returnTo) return
+    const historyIndex = (window.history.state as { idx?: number } | null)?.idx
+    if (historyIndex && historyIndex > 0) navigateRouter(-1)
+    else navigateRouter(returnTo.path, { replace: true })
+  }
 
   const initialHistoricEntryIdRef = useRef(
     new URLSearchParams(location.search).get("historic_entry_id") ?? "",
@@ -246,14 +324,26 @@ export default function TransactionsPage() {
     TransactionsResult["transactions"]
   >([])
 
-  const [filters, setFilters] = useState<TransactionFilters>(() => ({
-    entities: [],
-    product_types: [],
-    types: [],
-    from_date: "",
-    to_date: "",
-    historic_entry_id: initialHistoricEntryIdRef.current,
-  }))
+  const [filters, setFilters] = useState<TransactionFilters>(() => {
+    const params = new URLSearchParams(location.search)
+    return {
+      scope: parseScope(params.get("scope")),
+      entities: params.getAll("entity"),
+      product_types: [],
+      types: params.getAll("type") as TxType[],
+      from_date: params.get("from_date") ?? "",
+      to_date: params.get("to_date") ?? "",
+      historic_entry_id: initialHistoricEntryIdRef.current,
+      labels: params.getAll("label"),
+      excluded_labels: params.getAll("exclude_label"),
+      unlabeled: params.get("unlabeled") === "true",
+      search: params.get("search") ?? "",
+    }
+  })
+
+  const { refreshLabels } = useLabels()
+  const [labelsTx, setLabelsTx] = useState<LabelableTx | null>(null)
+  const [ruleFromTx, setRuleFromTx] = useState<LabelableTx | null>(null)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create")
@@ -280,38 +370,54 @@ export default function TransactionsPage() {
   }, [entities])
 
   const activeFilterCount =
+    (filters.scope !== "all" ? 1 : 0) +
     filters.entities.length +
     filters.product_types.length +
     filters.types.length +
+    filters.labels.length +
+    filters.excluded_labels.length +
+    (filters.unlabeled ? 1 : 0) +
+    (filters.search.trim() ? 1 : 0) +
     (filters.from_date ? 1 : 0) +
     (filters.to_date ? 1 : 0)
 
-  const productTypeOptions: MultiSelectOption[] = useMemo(() => {
-    const supportedTypes = [
-      ProductType.STOCK_ETF,
-      ProductType.FUND,
-      ProductType.FUND_PORTFOLIO,
-      ProductType.DEPOSIT,
-      ProductType.FACTORING,
-      ProductType.REAL_ESTATE_CF,
-      ProductType.CRYPTO,
-      ProductType.MARKET_FORECAST,
-    ]
-    return supportedTypes.map(type => ({
-      value: type,
-      label: t.enums?.productType?.[type] || type,
-      icon: getIconForProductType(type, "h-4 w-4"),
-    }))
-  }, [t])
+  const labelFilterValue: LabelFilterValue = useMemo(
+    () => ({
+      included: filters.labels,
+      excluded: filters.excluded_labels,
+      unlabeled: filters.unlabeled,
+    }),
+    [filters.labels, filters.excluded_labels, filters.unlabeled],
+  )
 
-  const transactionTypeOptions: MultiSelectOption[] = useMemo(() => {
-    const txTypes = Object.values(TxType)
-    return txTypes.map(type => ({
-      value: type,
-      label: (t.enums as any)?.transactionType?.[type] || type,
-      icon: getIconForTxType(type, "h-4 w-4"),
+  const handleLabelFilterChange = (value: LabelFilterValue) => {
+    setFilters(prev => ({
+      ...prev,
+      labels: value.included,
+      excluded_labels: value.excluded,
+      unlabeled: value.unlabeled,
     }))
-  }, [t])
+  }
+
+  const productTypeOptions: MultiSelectOption[] = useMemo(
+    () =>
+      INVESTMENT_PRODUCT_TYPES.map(type => ({
+        value: type,
+        label: t.enums?.productType?.[type] || type,
+        icon: getIconForProductType(type, "h-4 w-4"),
+      })),
+    [t],
+  )
+
+  const transactionTypeOptions: MultiSelectOption[] = useMemo(
+    () =>
+      scopeTxTypes(filters.scope).map(type => ({
+        value: type,
+        label: (t.enums as any)?.transactionType?.[type] || type,
+        icon: getIconForTxType(type, "h-4 w-4"),
+      })),
+    [t, filters.scope],
+  )
 
   const defaultCurrency = settings.general.defaultCurrency
 
@@ -387,7 +493,7 @@ export default function TransactionsPage() {
       const queryParams: TransactionQueryRequest = {
         page: resetPage ? 1 : page,
         limit: ITEMS_PER_PAGE,
-        ...filters,
+        ...toQueryFilters(filters),
       }
 
       // Remove empty arrays and strings
@@ -462,6 +568,19 @@ export default function TransactionsPage() {
     }))
   }
 
+  const handleScopeChange = (scope: TxScope) => {
+    const allowed = new Set(scopeTxTypes(scope))
+    setFilters(prev => ({
+      ...prev,
+      scope,
+      product_types: scope === "account" ? [] : prev.product_types,
+      types: prev.types.filter(type => allowed.has(type)),
+      labels: scope === "investment" ? [] : prev.labels,
+      excluded_labels: scope === "investment" ? [] : prev.excluded_labels,
+      unlabeled: scope === "investment" ? false : prev.unlabeled,
+    }))
+  }
+
   const clearHistoricFilter = useCallback(() => {
     setFilters(prev => {
       if (!prev.historic_entry_id) {
@@ -487,9 +606,9 @@ export default function TransactionsPage() {
         pathname: location.pathname,
         search: searchString ? `?${searchString}` : "",
       },
-      { replace: true },
+      { replace: true, state: location.state },
     )
-  }, [location.pathname, location.search, navigateRouter])
+  }, [location.pathname, location.search, location.state, navigateRouter])
 
   const handleApplyFilters = () => {
     if (viewMode === "calendar") {
@@ -499,15 +618,27 @@ export default function TransactionsPage() {
     }
   }
 
+  const scopeRef = useRef(filters.scope)
+  useEffect(() => {
+    if (scopeRef.current === filters.scope) return
+    scopeRef.current = filters.scope
+    handleApplyFilters()
+  }, [filters.scope])
+
   const handleClearFilters = () => {
     clearHistoricFilter()
     setFilters({
+      scope: "all",
       entities: [],
       product_types: [],
       types: [],
       from_date: "",
       to_date: "",
       historic_entry_id: "",
+      labels: [],
+      excluded_labels: [],
+      unlabeled: false,
+      search: "",
     })
     if (viewMode === "calendar") {
       fetchCalendarTransactions(calendarMonth, calendarYear, true)
@@ -555,7 +686,7 @@ export default function TransactionsPage() {
             limit: 1000,
           }
         : {
-            ...filters,
+            ...toQueryFilters(filters),
             from_date: fromDate,
             to_date: toDate,
             limit: 1000,
@@ -617,11 +748,21 @@ export default function TransactionsPage() {
   }
 
   const handleBadgeClick = (
-    type: "entity" | "productType" | "transactionType",
+    type: "entity" | "productType" | "transactionType" | "label",
     value: string,
   ) => {
     setFilters(prev => {
       switch (type) {
+        case "label":
+          if (!prev.labels.includes(value)) {
+            return {
+              ...prev,
+              unlabeled: false,
+              labels: [...prev.labels, value],
+              excluded_labels: prev.excluded_labels.filter(id => id !== value),
+            }
+          }
+          break
         case "entity":
           if (!prev.entities.includes(value)) {
             return {
@@ -634,6 +775,7 @@ export default function TransactionsPage() {
           if (!prev.product_types.includes(value as ProductType)) {
             return {
               ...prev,
+              scope: prev.scope === "account" ? "all" : prev.scope,
               product_types: [...prev.product_types, value as ProductType],
             }
           }
@@ -642,6 +784,9 @@ export default function TransactionsPage() {
           if (!prev.types.includes(value as TxType)) {
             return {
               ...prev,
+              scope: scopeTxTypes(prev.scope).includes(value as TxType)
+                ? prev.scope
+                : "all",
               types: [...prev.types, value as TxType],
             }
           }
@@ -709,7 +854,9 @@ export default function TransactionsPage() {
       setSelectedTransaction(null)
       setDialogMode("create")
 
-      if (isEdit) {
+      if (viewMode === "calendar") {
+        await fetchCalendarTransactions(calendarMonth, calendarYear)
+      } else if (isEdit) {
         await fetchTransactions(currentPage, false)
       } else {
         await fetchTransactions(1, true)
@@ -737,6 +884,11 @@ export default function TransactionsPage() {
         return next
       })
 
+      if (viewMode === "calendar") {
+        await fetchCalendarTransactions(calendarMonth, calendarYear)
+        return
+      }
+
       const current = currentPage
       const result = await fetchTransactions(current, false)
       if (result && result.transactions.length === 0 && current > 1) {
@@ -749,6 +901,29 @@ export default function TransactionsPage() {
     } finally {
       setIsDeletingTransaction(false)
     }
+  }
+
+  const refreshCurrentView = async () => {
+    if (viewMode === "calendar") {
+      await fetchCalendarTransactions(calendarMonth, calendarYear)
+    } else {
+      await fetchTransactions(currentPage, false)
+    }
+  }
+
+  const handleLabelsSaved = async () => {
+    setLabelsTx(null)
+    await Promise.all([refreshCurrentView(), refreshLabels()])
+  }
+
+  const handleCreateRuleFromTx = (tx: LabelableTx) => {
+    setLabelsTx(null)
+    setRuleFromTx(tx)
+  }
+
+  const handleRuleSaved = async () => {
+    setRuleFromTx(null)
+    await Promise.all([refreshCurrentView(), refreshLabels()])
   }
 
   const getTransactionTypeColor = (type: TxType): string => {
@@ -771,6 +946,10 @@ export default function TransactionsPage() {
         return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
       case TxType.FEE:
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+      case TxType.INFLOW:
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
+      case TxType.OUTFLOW:
+        return "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
     }
@@ -1164,6 +1343,24 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {accountTx.counterparty && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.labels.counterparty}:
+                </span>{" "}
+                {accountTx.counterparty}
+              </div>
+            )}
+            {accountTx.iban && (
+              <div className={`${detailRowClass} break-all`}>
+                <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
+                <Sensitive>
+                  <span className="font-mono" data-testid="tx-iban">
+                    {formatIban(accountTx.iban, true)}
+                  </span>
+                </Sensitive>
+              </div>
+            )}
             {grossAmountField}
             {tx.type === TxType.INTEREST && tx.amount !== undefined && (
               <div className={detailRowClass}>
@@ -1402,6 +1599,8 @@ export default function TransactionsPage() {
         const accountTx = tx as AccountTx
         return !!(
           tx.type === TxType.INTEREST ||
+          isLabelableTx(tx) ||
+          accountTx.iban ||
           accountTx.fees > 0 ||
           accountTx.retentions > 0 ||
           (accountTx.interest_rate && accountTx.interest_rate > 0) ||
@@ -1443,6 +1642,61 @@ export default function TransactionsPage() {
       default:
         return false
     }
+  }
+
+  const renderTxActions = (tx: TransactionItem) => {
+    const labelable = isLabelableTx(tx)
+    const isManual = tx.source === DataSource.MANUAL
+    if (!labelable && !isManual) return null
+    return (
+      <div className="mt-3 flex items-center gap-1 border-t border-border/60 pt-2">
+        {labelable && (
+          <>
+            <button
+              type="button"
+              onClick={() => setLabelsTx(tx)}
+              className={TX_ACTION_CLASS}
+            >
+              <Tag className="h-3.5 w-3.5" />
+              {t.labels.editTransactionLabels}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRuleFromTx(tx)}
+              className={TX_ACTION_CLASS}
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              {t.labels.createRuleFromMovement}
+            </button>
+          </>
+        )}
+        {isManual && (
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => handleEditTransaction(tx)}
+              className={TX_ICON_ACTION_CLASS}
+              aria-label={t.common.edit}
+              title={t.common.edit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRequestDelete(tx)}
+              className={cn(
+                TX_ICON_ACTION_CLASS,
+                "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400",
+              )}
+              aria-label={t.common.delete}
+              title={t.common.delete}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    )
   }
 
   interface GroupedDay {
@@ -1524,6 +1778,37 @@ export default function TransactionsPage() {
 
   const renderFilterFields = () => (
     <>
+      <div className="w-full sm:w-auto">
+        <Label className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1">
+          <ListFilter className="h-3 w-3" />
+          <span>{t.transactions.scope.label}</span>
+        </Label>
+        <div
+          role="radiogroup"
+          aria-label={t.transactions.scope.label}
+          className="flex h-10 w-full gap-0.5 rounded-md border border-input bg-background p-1 sm:w-auto"
+        >
+          {TX_SCOPES.map(scope => (
+            <button
+              key={scope}
+              type="button"
+              role="radio"
+              aria-checked={filters.scope === scope}
+              onClick={() => handleScopeChange(scope)}
+              data-testid={`tx-scope-${scope}`}
+              className={cn(
+                "flex-1 whitespace-nowrap rounded px-3 text-xs font-medium transition-colors sm:flex-none",
+                filters.scope === scope
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.transactions.scope[scope]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
         <Label
           htmlFor="entities"
@@ -1540,22 +1825,24 @@ export default function TransactionsPage() {
         />
       </div>
 
-      <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
-        <Label
-          htmlFor="product-types"
-          className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
-        >
-          <Layers className="h-3 w-3" />
-          <span>{t.transactions.productTypes}</span>
-        </Label>
-        <MultiSelect
-          options={productTypeOptions}
-          value={filters.product_types}
-          onChange={value => handleFilterChange("product_types", value)}
-          placeholder={t.transactions.selectProductTypes}
-          className="w-full"
-        />
-      </div>
+      {filters.scope !== "account" && (
+        <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
+          <Label
+            htmlFor="product-types"
+            className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+          >
+            <Layers className="h-3 w-3" />
+            <span>{t.transactions.productTypes}</span>
+          </Label>
+          <MultiSelect
+            options={productTypeOptions}
+            value={filters.product_types}
+            onChange={value => handleFilterChange("product_types", value)}
+            placeholder={t.transactions.selectProductTypes}
+            className="w-full"
+          />
+        </div>
+      )}
 
       <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
         <Label
@@ -1571,6 +1858,44 @@ export default function TransactionsPage() {
           onChange={value => handleFilterChange("types", value)}
           placeholder={t.transactions.selectTransactionTypes}
           className="w-full"
+        />
+      </div>
+
+      {filters.scope !== "investment" && (
+        <div className="w-full sm:flex-1 sm:min-w-[240px] sm:max-w-[320px]">
+          <Label
+            htmlFor="transaction-labels"
+            className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+          >
+            <Tag className="h-3 w-3" />
+            <span>{t.labels.title}</span>
+          </Label>
+          <LabelFilterSelect
+            value={labelFilterValue}
+            onChange={handleLabelFilterChange}
+            placeholder={t.labels.anyLabel}
+            className="w-full"
+          />
+        </div>
+      )}
+
+      <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
+        <Label
+          htmlFor="transaction-search"
+          className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+        >
+          <Search className="h-3 w-3" />
+          <span>{t.transactions.name}</span>
+        </Label>
+        <Input
+          id="transaction-search"
+          value={filters.search}
+          maxLength={100}
+          placeholder={t.labels.searchTextPlaceholder}
+          onChange={event => handleFilterChange("search", event.target.value)}
+          onKeyDown={event => {
+            if (event.key === "Enter") handleApplyFilters()
+          }}
         />
       </div>
 
@@ -1635,6 +1960,19 @@ export default function TransactionsPage() {
   return (
     <>
       <div ref={pageRootRef} className="space-y-6">
+        {returnTo && (
+          <div className="-mb-4">
+            <button
+              type="button"
+              data-testid="return-to-origin"
+              onClick={handleReturn}
+              className="-ml-1 inline-flex min-h-8 items-center gap-1.5 rounded-md px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t.common.backTo.replace("{page}", returnTo.label)}
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
             {t.transactions.title}
@@ -1765,6 +2103,8 @@ export default function TransactionsPage() {
             currentYear={calendarYear}
             onMonthChange={handleCalendarMonthChange}
             onBadgeClick={handleBadgeClick}
+            onEditLabels={setLabelsTx}
+            renderActions={renderTxActions}
           />
         )}
 
@@ -1899,6 +2239,18 @@ export default function TransactionsPage() {
                                               }
                                               className="text-xs justify-center text-center leading-tight max-w-[11rem]"
                                             />
+                                            {isLabelableTx(tx) && (
+                                              <TransactionLabels
+                                                tx={tx}
+                                                onLabelClick={labelId =>
+                                                  handleBadgeClick(
+                                                    "label",
+                                                    labelId,
+                                                  )
+                                                }
+                                                onEdit={() => setLabelsTx(tx)}
+                                              />
+                                            )}
                                           </div>
 
                                           <div className="shrink-0 flex items-center gap-1.5 self-center -translate-y-0.5">
@@ -1990,37 +2342,7 @@ export default function TransactionsPage() {
                                               <div className="px-3 pb-3 ml-0">
                                                 <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
                                                   {renderTransactionDetails(tx)}
-                                                  {tx.source ===
-                                                    DataSource.MANUAL && (
-                                                    <div className="flex flex-wrap gap-2 pt-3">
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                          handleEditTransaction(
-                                                            tx,
-                                                          )
-                                                        }
-                                                        className="flex items-center gap-2"
-                                                      >
-                                                        <Pencil className="h-4 w-4" />
-                                                        {t.common.edit}
-                                                      </Button>
-                                                      <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                          handleRequestDelete(
-                                                            tx,
-                                                          )
-                                                        }
-                                                        className="flex items-center gap-2"
-                                                      >
-                                                        <Trash2 className="h-4 w-4" />
-                                                        {t.common.delete}
-                                                      </Button>
-                                                    </div>
-                                                  )}
+                                                  {renderTxActions(tx)}
                                                 </div>
                                               </div>
                                             </motion.div>
@@ -2136,6 +2458,11 @@ export default function TransactionsPage() {
                                       <div className="min-w-0 flex-1 flex flex-wrap items-center gap-2">
                                         <Badge
                                           className={`${getTransactionTypeColor(tx.type)} text-xs inline-flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity text-center whitespace-normal break-words leading-tight`}
+                                          title={
+                                            t.enums?.transactionType?.[
+                                              tx.type
+                                            ] || tx.type
+                                          }
                                           onClick={() =>
                                             handleBadgeClick(
                                               "transactionType",
@@ -2144,7 +2471,14 @@ export default function TransactionsPage() {
                                           }
                                         >
                                           {getIconForTxType(tx.type, "h-3 w-3")}
-                                          <span className="text-center leading-tight">
+                                          <span
+                                            className={cn(
+                                              "text-center leading-tight",
+                                              ACCOUNT_MOVEMENT_TX_TYPES.includes(
+                                                tx.type,
+                                              ) && "sr-only",
+                                            )}
+                                          >
                                             {t.enums?.transactionType?.[
                                               tx.type
                                             ] || tx.type}
@@ -2179,6 +2513,16 @@ export default function TransactionsPage() {
                                           }
                                           className="text-xs justify-center text-center leading-tight max-w-[11rem]"
                                         />
+                                        {isLabelableTx(tx) && (
+                                          <TransactionLabels
+                                            tx={tx}
+                                            onLabelClick={labelId =>
+                                              handleBadgeClick("label", labelId)
+                                            }
+                                            onEdit={() => setLabelsTx(tx)}
+                                            compact
+                                          />
+                                        )}
                                       </div>
 
                                       <div className="shrink-0 flex items-center gap-1.5 self-center -translate-y-3">
@@ -2262,33 +2606,7 @@ export default function TransactionsPage() {
                                           <div className="px-3 pb-3 ml-0">
                                             <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
                                               {renderTransactionDetails(tx)}
-                                              {tx.source ===
-                                                DataSource.MANUAL && (
-                                                <div className="flex flex-wrap gap-2 pt-3">
-                                                  <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                      handleEditTransaction(tx)
-                                                    }
-                                                    className="flex items-center gap-2"
-                                                  >
-                                                    <Pencil className="h-4 w-4" />
-                                                    {t.common.edit}
-                                                  </Button>
-                                                  <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                      handleRequestDelete(tx)
-                                                    }
-                                                    className="flex items-center gap-2"
-                                                  >
-                                                    <Trash2 className="h-4 w-4" />
-                                                    {t.common.delete}
-                                                  </Button>
-                                                </div>
-                                              )}
+                                              {renderTxActions(tx)}
                                             </div>
                                           </div>
                                         </motion.div>
@@ -2345,6 +2663,22 @@ export default function TransactionsPage() {
         onCancel={handleCancelDelete}
         isLoading={isDeletingTransaction}
         warning={t.transactions.deleteManualTransactionWarning}
+      />
+
+      <TransactionLabelsDialog
+        isOpen={labelsTx !== null}
+        tx={labelsTx}
+        onClose={() => setLabelsTx(null)}
+        onSaved={handleLabelsSaved}
+        onCreateRule={handleCreateRuleFromTx}
+      />
+
+      <LabelingRuleDialog
+        isOpen={ruleFromTx !== null}
+        rule={null}
+        fromTx={ruleFromTx}
+        onClose={() => setRuleFromTx(null)}
+        onSaved={handleRuleSaved}
       />
     </>
   )

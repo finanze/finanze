@@ -1,5 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
+import { navigateToMyMoneyPage } from '../../helpers/my-money'
 
 /**
  * Helper: connect an entity via login form and reload.
@@ -53,20 +55,9 @@ async function connectEntityIfNeeded(
     }
 }
 
-/**
- * Helper: navigate to Auto Contributions page via sidebar Management section.
- */
 async function navigateToAutoContributions(page: Page) {
-    await page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Management' })
-        .click()
-    await page.waitForTimeout(500)
-    await page
-        .getByRole('navigation')
-        .getByRole('button', { name: 'Contributions' })
-        .click()
-    await page.waitForTimeout(1_000)
+    await navigateToMyMoneyPage(page, 'Recurring')
+    await page.getByRole('tab', { name: /^Investments/ }).click()
 }
 
 // MyInvestor: has POSITION, AUTO_CONTRIBUTIONS, TRANSACTIONS
@@ -121,6 +112,12 @@ test.describe('Feature Selection Verification', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        await selectEntity(page, 'MyInvestor')
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).toBeVisible({
             timeout: 5_000,
         })
@@ -242,12 +239,9 @@ test.describe('Feature Selection Verification', () => {
             page.getByText('Data successfully fetched from MyInvestor'),
         ).toBeVisible({ timeout: 30_000 })
 
-        // Close the FeatureSelector overlay
-        const cancelBtn = page.getByRole('button', { name: 'Cancel' })
-        if (await cancelBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-            await cancelBtn.click()
-            await page.waitForTimeout(500)
-        }
+        await expect(
+            page.getByText('Select features to fetch from MyInvestor'),
+        ).toBeHidden()
 
         // Transactions page should NOT show MyInvestor mock transactions (TRANSACTIONS was excluded)
         await page
@@ -258,6 +252,27 @@ test.describe('Feature Selection Verification', () => {
             .getByRole('heading', { name: 'Transactions' })
             .first()
             .waitFor({ timeout: 10_000 })
+        await page
+            .getByRole('radio', { name: 'Investments', exact: true })
+            .click()
+        const entityFilter = page.getByRole('combobox').first()
+        if (await entityFilter.isEnabled()) {
+            await entityFilter.click()
+            const popover = page
+                .locator('[data-radix-popper-content-wrapper]')
+                .last()
+            await expect(popover).toBeVisible()
+            await expect(
+                popover.getByRole('button', {
+                    name: 'MyInvestor',
+                    exact: true,
+                }),
+            ).toHaveCount(0)
+            await page.keyboard.press('Escape')
+        } else {
+            await expect(entityFilter).toBeDisabled()
+        }
+        await page.getByRole('button', { name: 'Search', exact: true }).click()
         await expect(page.getByText('Mock Stock A').first()).not.toBeVisible({
             timeout: 5_000,
         })

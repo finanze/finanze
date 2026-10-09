@@ -1,28 +1,86 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useI18n } from "@/i18n"
+import { useI18n, type Translations } from "@/i18n"
 import { MoneyEvent, MoneyEventType } from "@/types"
 import { getMoneyEvents } from "@/services/api"
 import { formatCurrency } from "@/lib/formatters"
+import { cn } from "@/lib/utils"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { BaseCalendar, CalendarDay } from "@/components/ui/BaseCalendar"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { X, CalendarSync, HandCoins, PiggyBank, Landmark } from "lucide-react"
+import {
+  X,
+  CalendarSync,
+  HandCoins,
+  PiggyBank,
+  Landmark,
+  List,
+  CalendarDays,
+} from "lucide-react"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 type EventTypeFilter = {
   [key in MoneyEventType]: boolean
 }
 
-interface EventsCalendarViewProps {
-  onEventClick?: (event: MoneyEvent) => void
+type CalendarMode = "agenda" | "month"
+
+const AGENDA_DAYS = 30
+const AGENDA_PREVIEW_DAYS = 6
+
+const getAmountColor = (event: MoneyEvent): string => {
+  if (event.type === MoneyEventType.CONTRIBUTION) {
+    return "text-foreground"
+  }
+  if (event.type === MoneyEventType.MATURITY || event.amount > 0) {
+    return "text-green-600"
+  }
+  return "text-red-600"
 }
 
-export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
-  const { t } = useI18n()
+const getAmountPrefix = (event: MoneyEvent): string => {
+  if (event.type === MoneyEventType.CONTRIBUTION) {
+    return ""
+  }
+  if (event.type === MoneyEventType.MATURITY || event.amount > 0) {
+    return "+"
+  }
+  return "-"
+}
+
+const getEventTypeLabel = (event: MoneyEvent, t: Translations): string => {
+  switch (event.type) {
+    case MoneyEventType.CONTRIBUTION:
+      return t.management.autoContributions
+    case MoneyEventType.PERIODIC_FLOW:
+      return t.management.recurringMoney
+    case MoneyEventType.PENDING_FLOW:
+      return t.management.pendingMoney
+    case MoneyEventType.MATURITY:
+      return t.investments.maturity
+    default:
+      return ""
+  }
+}
+
+interface EventsCalendarViewProps {
+  onEventClick?: (event: MoneyEvent) => void
+  defaultMode?: CalendarMode
+  header?: React.ReactNode
+  mobileFullWidth?: boolean
+}
+
+export function EventsCalendarView({
+  onEventClick,
+  defaultMode = "month",
+  header,
+  mobileFullWidth = false,
+}: EventsCalendarViewProps) {
+  const { t, locale } = useI18n()
 
   const today = useMemo(() => {
     const d = new Date()
@@ -30,6 +88,8 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
     return d
   }, [])
 
+  const [mode, setMode] = useState<CalendarMode>(defaultMode)
+  const [agendaExpanded, setAgendaExpanded] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [events, setEvents] = useState<MoneyEvent[]>([])
@@ -71,6 +131,27 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
   }
 
   const fetchEvents = useCallback(async () => {
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+
+    if (mode === "agenda") {
+      const agendaEnd = new Date(tomorrow)
+      agendaEnd.setDate(tomorrow.getDate() + AGENDA_DAYS - 1)
+      setLoading(true)
+      try {
+        const response = await getMoneyEvents({
+          from_date: formatDateStr(tomorrow),
+          to_date: formatDateStr(agendaEnd),
+        })
+        setEvents(response.events)
+      } catch (error) {
+        console.error("Failed to fetch events:", error)
+        setEvents([])
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     // Calculate the visible date range in the calendar grid
     // The grid always shows 6 weeks (42 days) starting from Monday
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
@@ -82,9 +163,6 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
     // Last visible day (42 days total in the grid)
     const lastVisibleDay = new Date(firstVisibleDay)
     lastVisibleDay.setDate(firstVisibleDay.getDate() + 41)
-
-    // For events, we always start from tomorrow
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
 
     // If tomorrow is after the last visible day, there's nothing to fetch
     if (tomorrow > lastVisibleDay) {
@@ -113,7 +191,7 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
     } finally {
       setLoading(false)
     }
-  }, [currentMonth, currentYear, today])
+  }, [currentMonth, currentYear, today, mode])
 
   useEffect(() => {
     fetchEvents()
@@ -266,40 +344,214 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
     },
   ]
 
+  const agendaGroups = useMemo(() => {
+    if (mode !== "agenda") return []
+    const groups = new Map<string, MoneyEvent[]>()
+    ;[...filteredEvents]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .forEach(event => {
+        const key = event.date.split("T")[0]
+        const list = groups.get(key)
+        if (list) list.push(event)
+        else groups.set(key, [event])
+      })
+    return Array.from(groups.entries())
+  }, [filteredEvents, mode])
+
+  const tomorrowKey = formatDateStr(
+    new Date(today.getTime() + 24 * 60 * 60 * 1000),
+  )
+
+  const formatAgendaDay = (key: string) => {
+    if (key === tomorrowKey) return t.management.tomorrow
+    const [y, m, d] = key.split("-").map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString(locale, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    })
+  }
+
+  const visibleAgendaGroups = agendaExpanded
+    ? agendaGroups
+    : agendaGroups.slice(0, AGENDA_PREVIEW_DAYS)
+
+  const renderAgenda = () => {
+    if (loading && events.length === 0) {
+      return (
+        <div className="flex justify-center py-8">
+          <LoadingSpinner size="sm" />
+        </div>
+      )
+    }
+    if (agendaGroups.length === 0) {
+      return (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {t.management.upcoming.empty.replace("{days}", `${AGENDA_DAYS}`)}
+        </p>
+      )
+    }
+    return (
+      <div className="space-y-4" data-testid="upcoming-agenda">
+        {visibleAgendaGroups.map(([key, dayEvents]) => (
+          <div key={key} className="space-y-1">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {formatAgendaDay(key)}
+            </div>
+            <div className="divide-y divide-border rounded-lg border border-border">
+              {dayEvents.map((event, idx) => (
+                <div
+                  key={event.id || `${key}-${idx}`}
+                  className={cn(
+                    "flex items-center justify-between gap-3 px-3 py-2",
+                    onEventClick &&
+                      "cursor-pointer transition-colors hover:bg-muted/50",
+                  )}
+                  onClick={() => onEventClick?.(event)}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {getEventIcon(event, "h-4 w-4")}
+                    <div className="min-w-0">
+                      <p
+                        className="truncate text-sm font-medium"
+                        title={event.name}
+                      >
+                        {event.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {getEventTypeLabel(event, t)}
+                      </p>
+                    </div>
+                  </div>
+                  <p
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      getAmountColor(event),
+                    )}
+                  >
+                    <Sensitive>
+                      {getAmountPrefix(event)}
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          Math.abs(event.amount),
+                          locale,
+                          event.currency,
+                        )}
+                        locale={locale}
+                      />
+                    </Sensitive>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {agendaGroups.length > AGENDA_PREVIEW_DAYS && (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAgendaExpanded(prev => !prev)}
+            >
+              {agendaExpanded
+                ? t.management.upcoming.showLess
+                : t.management.upcoming.showAll}
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const modeSwitcher = (
+    <div
+      className="flex shrink-0 items-center rounded-lg bg-muted p-1"
+      role="group"
+    >
+      {(
+        [
+          ["agenda", List, t.management.upcoming.agenda],
+          ["month", CalendarDays, t.management.upcoming.month],
+        ] as const
+      ).map(([key, ModeIcon, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setMode(key)}
+          aria-pressed={mode === key}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all sm:px-3",
+            mode === key
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ModeIcon className="h-3.5 w-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 justify-center">
-        {filterButtons.map(({ type, label, icon }) => (
-          <Button
-            key={type}
-            variant="outline"
-            size="sm"
-            onClick={() => toggleEventType(type)}
-            aria-pressed={eventTypeFilter[type]}
-            className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
-              eventTypeFilter[type]
-                ? "border-white bg-white text-black hover:border-white hover:bg-white/90 hover:text-black dark:border-white dark:bg-white dark:text-black dark:hover:bg-white/90"
-                : "bg-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {icon}
-            <span className="hidden sm:inline">{label}</span>
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {header ? (
+          <div className="flex w-full min-w-0 items-center justify-between gap-2">
+            {header}
+            {modeSwitcher}
+          </div>
+        ) : (
+          modeSwitcher
+        )}
+        <div
+          className={cn(
+            "flex flex-wrap gap-2",
+            header && "w-full justify-center",
+          )}
+        >
+          {filterButtons.map(({ type, label, icon }) => (
+            <Button
+              key={type}
+              variant="outline"
+              size="sm"
+              onClick={() => toggleEventType(type)}
+              aria-pressed={eventTypeFilter[type]}
+              title={label}
+              className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
+                eventTypeFilter[type]
+                  ? "border-white bg-white text-black hover:border-white hover:bg-white/90 hover:text-black dark:border-white dark:bg-white dark:text-black dark:hover:bg-white/90"
+                  : "bg-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {icon}
+              <span className="hidden lg:inline">{label}</span>
+            </Button>
+          ))}
+        </div>
       </div>
 
-      <BaseCalendar
-        items={filteredEvents}
-        getItemDateKey={getItemDateKey}
-        currentMonth={currentMonth}
-        currentYear={currentYear}
-        onMonthChange={handleMonthChange}
-        loading={loading}
-        renderDayContent={renderDayContent}
-        onDayClick={handleDayClick}
-        disablePastNavigation={true}
-        showTodayButton={false}
-      />
+      {mode === "agenda" ? (
+        renderAgenda()
+      ) : (
+        <div className={mobileFullWidth ? "-mx-4 md:mx-0" : undefined}>
+          <BaseCalendar
+            items={filteredEvents}
+            getItemDateKey={getItemDateKey}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onMonthChange={handleMonthChange}
+            loading={loading}
+            renderDayContent={renderDayContent}
+            onDayClick={handleDayClick}
+            disablePastNavigation={true}
+            showTodayButton={false}
+            className={
+              mobileFullWidth ? "rounded-none md:rounded-lg" : undefined
+            }
+          />
+        </div>
+      )}
 
       <AnimatePresence>
         {selectedDay && (
@@ -346,41 +598,6 @@ function EventDayDetailModal({
     month: "short",
     day: "numeric",
   })
-
-  const getAmountColor = (event: MoneyEvent): string => {
-    if (event.type === MoneyEventType.CONTRIBUTION) {
-      return "text-foreground"
-    }
-    if (event.type === MoneyEventType.MATURITY || event.amount > 0) {
-      return "text-green-600"
-    }
-    return "text-red-600"
-  }
-
-  const getAmountPrefix = (event: MoneyEvent): string => {
-    if (event.type === MoneyEventType.CONTRIBUTION) {
-      return ""
-    }
-    if (event.type === MoneyEventType.MATURITY || event.amount > 0) {
-      return "+"
-    }
-    return "-"
-  }
-
-  const getEventTypeLabel = (event: MoneyEvent): string => {
-    switch (event.type) {
-      case MoneyEventType.CONTRIBUTION:
-        return t.management.autoContributions
-      case MoneyEventType.PERIODIC_FLOW:
-        return t.management.recurringMoney
-      case MoneyEventType.PENDING_FLOW:
-        return t.management.pendingMoney
-      case MoneyEventType.MATURITY:
-        return t.investments.maturity
-      default:
-        return ""
-    }
-  }
 
   return (
     <motion.div
@@ -434,7 +651,7 @@ function EventDayDetailModal({
                         {event.name}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {getEventTypeLabel(event)}
+                        {getEventTypeLabel(event, t)}
                       </p>
                     </div>
                   </div>

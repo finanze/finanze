@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
+from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -16,6 +17,7 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
+from domain.fetch_pointer import FetchPointer
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -36,8 +38,19 @@ from domain.global_position import (
 )
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import ING
-from domain.transactions import FundTx, StockTx, Transactions, TxType
+from domain.transactions import (
+    AccountTx,
+    FundTx,
+    StockTx,
+    Transactions,
+    TxType,
+    normalize_iban,
+)
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
+
+ACCOUNT_TXS_POINTER = "account_txs"
+ACCOUNT_TXS_PAGE_SIZE = 100
+ACCOUNT_TXS_SETTLE_DAYS = 7
 
 CONTRIBUTION_FREQUENCY = {
     "MENSUAL": ContributionFrequency.MONTHLY,
@@ -167,6 +180,43 @@ def _map_movement_to_stock_tx(
         source=DataSource.REAL,
         linked_tx=None,
         equity_type=equity_type,
+    )
+
+
+def _map_movement_to_account_tx(
+    movement: dict, currency: str, iban: str | None = None
+) -> AccountTx | None:
+    transaction_id = movement.get("transactionId") or {}
+    product_id = transaction_id.get("productId")
+    sequence = transaction_id.get("transactionSequence")
+    raw_amount = movement.get("amount")
+    if not product_id or sequence is None or raw_amount is None:
+        return None
+
+    signed_amount = Dezimal(str(raw_amount))
+    if signed_amount == 0:
+        return None
+
+    amount = round(abs(signed_amount), 2)
+    tx_date = datetime.strptime(movement["transactionDate"], "%Y-%m-%d").replace(
+        tzinfo=tzlocal()
+    )
+    name = (movement.get("description") or movement.get("concept") or "").strip()
+    return AccountTx(
+        id=uuid4(),
+        ref=f"{product_id}:{sequence}",
+        name=name,
+        amount=amount,
+        net_amount=amount,
+        currency=currency,
+        type=TxType.INFLOW if signed_amount > 0 else TxType.OUTFLOW,
+        date=tx_date,
+        entity=ING,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        iban=normalize_iban(iban),
     )
 
 
@@ -423,7 +473,99 @@ class INGFetcher(FinancialEntityFetcher):
         investment_txs = await self._fetch_broker_txs(products, registered_txs)
         investment_txs += await self._fetch_fund_txs(products, registered_txs)
 
-        return Transactions(investment=investment_txs, account=[])
+        account_txs = await self._fetch_account_txs(
+            products,
+            _legacy_by_product_number(position.get("legacyProducts", [])),
+            registered_txs,
+            options,
+        )
+        return Transactions(investment=investment_txs, account=account_txs)
+
+    async def _fetch_account_txs(
+        self,
+        products: list[dict],
+        legacy_by_number: dict[str, dict],
+        registered_txs: set[str],
+        options: FetchOptions,
+    ) -> list[AccountTx]:
+        today = datetime.now(tzlocal()).date()
+        oldest_date = today - relativedelta(months=3)
+        pointer_context = options.pointer_context
+        seen_refs = set(registered_txs)
+        txs: list[AccountTx] = []
+
+        for product in products:
+            if product.get("type") not in ("CURRENT_ACCOUNT", "SAVINGS_ACCOUNT"):
+                continue
+            product_id = product.get("uuid")
+            if not product_id:
+                continue
+            if any(
+                status.get("type") == "PRODUCT_STATUS"
+                and status.get("value") != "EFF_AR"
+                for status in product.get("statuses", []) or []
+            ):
+                continue
+
+            product_number = _get_identifier(product, "PRODUCT_NUMBER")
+            legacy = legacy_by_number.get(product_number, {})
+            currency = legacy.get("currency") or product.get("denominationCurrency")
+            iban = normalize_iban(
+                legacy.get("iban") or _get_identifier(product, "IBAN")
+            )
+            pointer_key = f"{ACCOUNT_TXS_POINTER}:{iban or product_id}"
+            from_date = oldest_date
+            if pointer_context and not options.deep:
+                pointer = pointer_context.pointers.get(pointer_key)
+                if pointer:
+                    from_date = max(
+                        oldest_date,
+                        min(pointer.threshold, today)
+                        - timedelta(days=ACCOUNT_TXS_SETTLE_DAYS),
+                    )
+
+            offset = 0
+            while True:
+                response = await self._client.get_account_transactions(
+                    product_id,
+                    from_date,
+                    offset=offset,
+                    limit=ACCOUNT_TXS_PAGE_SIZE,
+                    to_date=today,
+                )
+                movements = response.get("transactions") or []
+                if not movements:
+                    break
+
+                for movement in movements:
+                    tx = _map_movement_to_account_tx(movement, currency, iban)
+                    if tx is None or tx.ref in seen_refs:
+                        continue
+                    if not from_date <= tx.date.date() <= today:
+                        continue
+                    txs.append(tx)
+                    seen_refs.add(tx.ref)
+
+                offset += response.get("count") or len(movements)
+                total = response.get("total")
+                has_more = response.get("mayHasMoreElements")
+                if has_more is False:
+                    break
+                if not has_more and (
+                    (total is not None and offset >= total)
+                    or (total is None and len(movements) < ACCOUNT_TXS_PAGE_SIZE)
+                ):
+                    break
+
+            if pointer_context:
+                pointer_context.pointers[pointer_key] = FetchPointer(
+                    entity_id=pointer_context.entity_id,
+                    entity_account_id=pointer_context.entity_account_id,
+                    key=pointer_key,
+                    threshold=today,
+                )
+
+        return txs
 
     async def auto_contributions(self) -> AutoContributions:
         position = await self._client.get_position()

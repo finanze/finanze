@@ -76,6 +76,7 @@ interface InvestmentDistributionChartProps {
   hideLegend?: boolean
   containerClassName?: string
   titleIcon?: React.ReactNode
+  headerAction?: React.ReactNode
   onSliceClick?: (item: ChartDataItem) => void
   variant?: "default" | "bare"
   innerData?: {
@@ -191,6 +192,7 @@ export const InvestmentDistributionChart: React.FC<
   hideLegend = false,
   containerClassName = "",
   titleIcon,
+  headerAction,
   onSliceClick,
   variant = "default",
   innerData,
@@ -294,34 +296,41 @@ export const InvestmentDistributionChart: React.FC<
       >
         <div className="w-full flex flex-col max-w-[640px] mx-auto">
           {toggleConfig ? (
-            <div
-              className="inline-flex items-center gap-3 px-4 pt-2"
-              role="tablist"
-            >
-              <PieChartIcon size={18} className="text-primary" />
-              {toggleConfig.options.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={toggleConfig.activeView === opt.value}
-                  onClick={() => toggleConfig.onViewChange(opt.value)}
-                  className={cn(
-                    "text-base font-medium transition-colors",
-                    toggleConfig.activeView === opt.value
-                      ? "text-foreground font-extrabold"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="flex w-full items-center justify-between gap-2 pl-4 pt-2">
+              <div className="inline-flex items-center gap-3" role="tablist">
+                <PieChartIcon size={18} className="text-primary" />
+                {toggleConfig.options.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="tab"
+                    aria-selected={toggleConfig.activeView === opt.value}
+                    onClick={() => toggleConfig.onViewChange(opt.value)}
+                    className={cn(
+                      "text-base font-medium transition-colors",
+                      toggleConfig.activeView === opt.value
+                        ? "text-foreground font-extrabold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {headerAction}
             </div>
           ) : !centerContent ? (
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
-              {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
-              {title}
-            </h3>
+            <div className="flex items-center justify-between gap-2 px-4 pt-2">
+              <h3 className="mb-1 flex items-center gap-2 text-lg font-semibold">
+                {titleIcon || (
+                  <PieChartIcon size={18} className="text-primary" />
+                )}{" "}
+                {title}
+              </h3>
+              {headerAction}
+            </div>
+          ) : headerAction ? (
+            <div className="flex justify-end px-4 pt-2">{headerAction}</div>
           ) : null}
           <div
             ref={chartAreaRef}

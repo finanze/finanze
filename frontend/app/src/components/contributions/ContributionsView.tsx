@@ -8,12 +8,10 @@ import {
 } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
-import { useNavigate } from "react-router-dom"
 import {
   Info,
   PiggyBank,
   CalendarDays,
-  ArrowLeft,
   TrendingUp,
   Folder,
   BarChart3,
@@ -35,7 +33,6 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
-import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Card,
   CardContent,
@@ -258,12 +255,11 @@ function SuggestionIcon({
   return null
 }
 
-export default function AutoContributionsPage() {
+export function ContributionsView() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
   const { contributions, positionsData, refreshData, ensureContributions } =
     useFinancialData()
-  const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const isQuickMode = settings.general.editMode === EditMode.QUICK
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -438,16 +434,29 @@ export default function AutoContributionsPage() {
     return m
   }, [distributionData])
 
-  const chartData = useMemo(
-    () =>
-      distributionData.map((d, i) => ({
-        name: d.name,
-        value: d.value,
-        color: colors[i % colors.length],
-        percentage: d.percentage,
-      })),
-    [distributionData],
-  )
+  const chartData = useMemo(() => {
+    const data = distributionData.map((d, i) => ({
+      name: d.name,
+      value: d.value,
+      color: colors[i % colors.length],
+      percentage: d.percentage,
+    }))
+    if (data.length > 0 || filteredContributions.length === 0) return data
+
+    const contribution = filteredContributions[0].contribution
+    return [
+      {
+        name:
+          contribution.target_name ||
+          contribution.target ||
+          (t.enums?.productType as any)?.[contribution.target_type] ||
+          contribution.target_type,
+        value: 0,
+        color: colors[0],
+        percentage: 0,
+      },
+    ]
+  }, [distributionData, filteredContributions, t])
 
   const manualEntriesFromData = useMemo<ManualContributionDraft[]>(() => {
     const fallbackName = t.management.manualContributions.unnamed
@@ -1522,6 +1531,78 @@ export default function AutoContributionsPage() {
 
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
+  const contributionActions = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="default"
+        size="sm"
+        className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+        onClick={handleOpenCreateModal}
+        disabled={financialEntities.length === 0}
+      >
+        <Plus className="h-3.5 w-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">
+          {t.management.manualContributions.add}
+        </span>
+      </Button>
+      {isEditMode ? (
+        isQuickMode ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+            onClick={handleRequestCancelEdit}
+            disabled={isSaving}
+          >
+            <Check className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">{t.common.done}</span>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={handleRequestCancelEdit}
+              disabled={isSaving}
+            >
+              <X className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">{t.common.cancel}</span>
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={() => handleSaveAll()}
+              disabled={isSaving || !hasLocalChanges}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span className="hidden sm:inline">{t.common.saving}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Save className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t.common.save}</span>
+                </span>
+              )}
+            </Button>
+          </>
+        )
+      ) : (
+        <Button
+          variant="default"
+          size="sm"
+          className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+          onClick={handleEnterEditMode}
+        >
+          <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+          <span className="hidden sm:inline">{t.common.edit}</span>
+        </Button>
+      )}
+    </div>
+  )
+
   return (
     <>
       <motion.div
@@ -1530,103 +1611,11 @@ export default function AutoContributionsPage() {
         initial="hidden"
         animate="show"
       >
-        <motion.div
-          variants={fadeListItem}
-          className="flex items-center justify-between gap-4 flex-wrap"
-        >
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8"
-              onClick={() => navigate("/management")}
-            >
-              <ArrowLeft size={20} />
-            </Button>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">
-                {t.management.autoContributions}
-              </h1>
-              <PinAssetButton
-                assetId="management-auto-contributions"
-                className="hidden md:inline-flex"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-              onClick={handleOpenCreateModal}
-              disabled={financialEntities.length === 0}
-            >
-              <Plus className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">
-                {t.management.manualContributions.add}
-              </span>
-            </Button>
-            {isEditMode ? (
-              isQuickMode ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                  onClick={handleRequestCancelEdit}
-                  disabled={isSaving}
-                >
-                  <Check className="h-3.5 w-3.5 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.common.done}</span>
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={handleRequestCancelEdit}
-                    disabled={isSaving}
-                  >
-                    <X className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">{t.common.cancel}</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={() => handleSaveAll()}
-                    disabled={isSaving || !hasLocalChanges}
-                  >
-                    {isSaving ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="hidden sm:inline">
-                          {t.common.saving}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {t.common.save}
-                        </span>
-                      </span>
-                    )}
-                  </Button>
-                </>
-              )
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                onClick={handleEnterEditMode}
-              >
-                <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">{t.common.edit}</span>
-              </Button>
-            )}
-          </div>
-        </motion.div>
+        {chartData.length === 0 && (
+          <motion.div variants={fadeListItem} className="flex justify-end">
+            {contributionActions}
+          </motion.div>
+        )}
 
         {isEditMode && !isQuickMode && hasLocalChanges && (
           <motion.div
@@ -1643,6 +1632,8 @@ export default function AutoContributionsPage() {
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            showClearFilters={false}
+            hideLabelOnMobile
           />
         </motion.div>
 
@@ -1653,6 +1644,7 @@ export default function AutoContributionsPage() {
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
+                  headerAction={contributionActions}
                   locale={locale}
                   currency={defaultCurrency}
                   hideLegend
@@ -2232,34 +2224,42 @@ export default function AutoContributionsPage() {
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="frequency">
-                          {t.management.frequencyLabel}
-                        </Label>
-                        <select
-                          id="frequency"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={modalForm.frequency}
-                          onChange={event => {
-                            const value = event.target
-                              .value as ContributionFrequency
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    frequency: value,
-                                  }
-                                : prev,
-                            )
-                          }}
+                        <Label>{t.management.frequencyLabel}</Label>
+                        <div
+                          role="group"
+                          aria-label={t.management.frequencyLabel}
+                          data-testid="contribution-frequency-options"
+                          className="flex flex-wrap gap-1.5 rounded-md"
                         >
-                          {frequencyOptions.map(option => (
-                            <option key={option} value={option}>
-                              {(t.management.contributionFrequency as any)?.[
-                                option
-                              ] || option}
-                            </option>
-                          ))}
-                        </select>
+                          {frequencyOptions.map(option => {
+                            const selected = modalForm.frequency === option
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setModalForm(prev =>
+                                    prev
+                                      ? { ...prev, frequency: option }
+                                      : prev,
+                                  )
+                                }
+                                aria-pressed={selected}
+                                data-testid={`contribution-frequency-option-${option.toLowerCase()}`}
+                                className={cn(
+                                  "inline-flex min-h-8 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                  selected
+                                    ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                                    : "border-border bg-background text-foreground hover:bg-accent",
+                                )}
+                              >
+                                {(t.management.contributionFrequency as any)?.[
+                                  option
+                                ] || option}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label>{t.management.since}</Label>

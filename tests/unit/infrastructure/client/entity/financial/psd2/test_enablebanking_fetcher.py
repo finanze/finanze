@@ -1,4 +1,5 @@
 import base64
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from domain.external_entity import (
     ExternalEntityLoginRequest,
     ExternalEntityStatus,
     ExternalEntitySetupResponseCode,
+    ExternalEntityTxFetchRequest,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import AccountType, ProductType
@@ -261,3 +263,66 @@ class TestGlobalPosition:
         assert accounts[0].currency == "EUR"
         assert accounts[0].type == AccountType.SAVINGS
         assert accounts[0].iban == "ES123"
+
+
+class TestTransactions:
+    @pytest.mark.asyncio
+    async def test_paginates_and_skips_registered_refs(self):
+        fetcher, client = _make_fetcher()
+        client.get_account_transactions = AsyncMock(
+            side_effect=[
+                {
+                    "transactions": [
+                        {
+                            "entry_reference": "A",
+                            "transaction_amount": {"currency": "EUR", "amount": "10"},
+                            "credit_debit_indicator": "DBIT",
+                            "status": "BOOK",
+                            "booking_date": "2026-09-01",
+                        }
+                    ],
+                    "continuation_key": "next",
+                },
+                {
+                    "transactions": [
+                        {
+                            "entry_reference": "B",
+                            "transaction_amount": {"currency": "EUR", "amount": "5"},
+                            "credit_debit_indicator": "CRDT",
+                            "status": "BOOK",
+                            "booking_date": "2026-09-02",
+                        }
+                    ],
+                    "continuation_key": None,
+                },
+            ]
+        )
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            payload={"accounts": [{"uid": "acc-uid", "iban": "ES123"}]},
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="Bank",
+            natural_id="BANKESMM",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        result = await fetcher.transactions(
+            ExternalEntityTxFetchRequest(
+                external_entity=external_entity,
+                entity=entity,
+                from_date=date(2026, 8, 1),
+                registered_txs={"ES123:A"},
+            )
+        )
+
+        assert [tx.ref for tx in result.account] == ["ES123:B"]
+        assert result.account[0].iban == "ES123"
+        assert client.get_account_transactions.await_args_list[1].args == (
+            "acc-uid",
+            "2026-08-01",
+            "next",
+        )

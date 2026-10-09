@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
 import { ensureEditMode } from '../../helpers/edit-mode'
 import { selectEntity } from '../../helpers/entity-selector'
+import { navigateToMyMoneyPage } from '../../helpers/my-money'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -43,16 +44,10 @@ async function connectEntityIfNeeded(page: Page, entityName: string) {
 }
 
 async function navigateToContributions(page: Page) {
-    const navigation = page.getByRole('navigation')
-    await navigation
-        .getByRole('button', { name: 'Management', exact: true })
-        .click()
-    await page.waitForTimeout(300)
-    await navigation
-        .getByRole('button', { name: 'Contributions', exact: true })
-        .click()
+    await navigateToMyMoneyPage(page, 'Recurring')
+    await page.getByRole('tab', { name: /^Investments/ }).click()
     await expect(
-        page.getByRole('heading', { name: 'Contributions' }).first(),
+        page.getByRole('heading', { name: 'Recurring', exact: true }),
     ).toBeVisible({ timeout: 10_000 })
 }
 
@@ -73,6 +68,22 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await expect(dialog.getByText('Add contribution')).toBeVisible({
             timeout: 5_000,
         })
+        const frequencyOptions = dialog.getByTestId(
+            'contribution-frequency-options',
+        )
+        const monthlyFrequency = dialog.getByTestId(
+            'contribution-frequency-option-monthly',
+        )
+        const biweeklyFrequency = dialog.getByTestId(
+            'contribution-frequency-option-biweekly',
+        )
+        await expect(frequencyOptions.getByRole('button')).toHaveCount(7)
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'true')
+        await biweeklyFrequency.click()
+        await expect(biweeklyFrequency).toHaveAttribute('aria-pressed', 'true')
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'false')
+        await monthlyFrequency.click()
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'true')
         await selectEntity(page, 'Urbanitae', { inDialog: true })
         await dialog.locator('#name').fill(contributionName)
         await dialog.locator('#target').fill('IE00B4L5Y983')

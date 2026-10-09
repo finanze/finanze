@@ -7,7 +7,11 @@ import pytest
 
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
-from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
+from application.use_cases.fetch_financial_data import (
+    FetchFinancialDataImpl,
+    handle_cooldown,
+    split_features_by_cooldown,
+)
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.entity_account import EntityAccount
@@ -30,7 +34,7 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
-from domain.native_entities import MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
+from domain.native_entities import ING, MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
 from domain.public_keychain import PublicKeychain
 from domain.transactions import AccountTx, Transactions, TxType
 
@@ -72,6 +76,8 @@ def _build_use_case(error_reporter=None):
         feature_flag_port=MagicMock(get_all=MagicMock(return_value={})),
         error_reporter=error_reporter,
         fetch_pointers_port=AsyncMock(),
+        transaction_label_port=AsyncMock(),
+        transaction_labeler=AsyncMock(),
     )
     return uc, position_port, loan_calculator, real_estate_port
 
@@ -914,12 +920,13 @@ async def _prepare_logged_in_execute(
 
 class TestFetchPointers:
     @pytest.mark.asyncio
-    async def test_execute_loads_account_pointers_for_transaction_fetch(self):
+    @pytest.mark.parametrize("entity", [MY_INVESTOR, ING])
+    async def test_execute_loads_account_pointers_for_transaction_fetch(self, entity):
         uc, _, _, _ = _build_use_case()
         uc._fetch_pointers_port = AsyncMock()
         account_id = uuid4()
         pointer = FetchPointer(
-            entity_id=MY_INVESTOR.id,
+            entity_id=entity.id,
             entity_account_id=account_id,
             key="fund_orders:security-account",
             threshold=date(2025, 1, 1),
@@ -927,9 +934,9 @@ class TestFetchPointers:
         uc._fetch_pointers_port.get_by_entity_account_id.return_value = [pointer]
         fetcher = await _prepare_logged_in_execute(
             uc,
-            MY_INVESTOR,
+            entity,
             account_id,
-            credentials={"user": "test-user", "password": "1234"},
+            credentials={name: "test-value" for name in entity.credentials_template},
         )
         fetcher.transactions = AsyncMock(
             return_value=Transactions(investment=[], account=[])
@@ -1083,3 +1090,34 @@ class TestPerFeatureCooldown:
         fetcher.login.assert_not_awaited()
         assert "wait" in result.details
         assert "lastUpdate" in result.details
+
+
+def _record(feature, age):
+    return FetchRecord(
+        entity_id=uuid4(),
+        feature=feature,
+        date=datetime.now(tzlocal()) - age,
+    )
+
+
+class TestCooldownElapsedDays:
+    def test_handle_cooldown_ignores_fetch_from_days_ago(self):
+        record = _record(Feature.POSITION, timedelta(days=21, minutes=30))
+
+        assert handle_cooldown([record], 7200) is None
+
+    def test_handle_cooldown_returns_cooldown_for_recent_fetch(self):
+        record = _record(Feature.POSITION, timedelta(minutes=30))
+
+        result = handle_cooldown([record], 7200)
+
+        assert result.code == FetchResultCode.COOLDOWN
+        assert 0 < result.details["wait"] <= 5400
+
+    def test_split_features_ignores_fetch_from_days_ago(self):
+        record = _record(Feature.POSITION, timedelta(days=21, minutes=30))
+
+        pending, result = split_features_by_cooldown([record], [Feature.POSITION], 7200)
+
+        assert pending == [Feature.POSITION]
+        assert result is None

@@ -12,6 +12,10 @@ from quart import Response, set_request
 from domain.exception.exceptions import (
     EntityNotFound,
     TransactionNotFound,
+    LabelNotFound,
+    LabelingRuleNotFound,
+    InvalidLabelingRule,
+    ExternalLabelingUnavailable,
     InvalidProvidedCredentials,
     InvalidUserCredentials,
     UnauthorizedToken,
@@ -147,6 +151,18 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, TransactionNotFound):
             status = 404
             data = {"code": "TX_NOT_FOUND", "message": str(e)}
+        elif isinstance(e, LabelNotFound):
+            status = 404
+            data = {"code": "LABEL_NOT_FOUND"}
+        elif isinstance(e, LabelingRuleNotFound):
+            status = 404
+            data = {"code": "LABELING_RULE_NOT_FOUND"}
+        elif isinstance(e, InvalidLabelingRule):
+            status = 400
+            data = {"code": "INVALID_LABELING_RULE", "message": e.details}
+        elif isinstance(e, ExternalLabelingUnavailable):
+            status = 502
+            data = {"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}
         elif isinstance(e, InvalidUserCredentials):
             status = 401
             data = {"code": "INVALID_CREDENTIALS", "message": str(e)}
