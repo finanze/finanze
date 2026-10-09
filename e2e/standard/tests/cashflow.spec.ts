@@ -394,7 +394,21 @@ test.describe('Cashflow', () => {
     }) => {
         await page.setViewportSize({ width: 1440, height: 1000 })
         await navigateToCashflow(page)
-        await page.getByRole('tab', { name: /Rules/ }).click()
+        await expect(
+            page.getByRole('tab', { name: 'Labels', exact: true }),
+        ).toBeVisible()
+        await expect(
+            page.getByRole('tab', { name: 'Rules', exact: true }),
+        ).toBeVisible()
+        await page.getByRole('tab', { name: 'Rules', exact: true }).click()
+        const rulesCountLine = page.getByTestId('rules-count-line')
+        await expect(
+            rulesCountLine.getByRole('heading', {
+                name: 'Rules',
+                exact: true,
+            }),
+        ).toBeVisible()
+        await expect(rulesCountLine.locator('span')).toHaveText(/^[0-9]+$/)
 
         await expectActionInTitleRow(page, 'New rule')
         await page
@@ -496,6 +510,37 @@ test.describe('Cashflow', () => {
             .getByTestId('rule-card')
             .filter({ hasText: ruleName })
         await expect(ruleCard).toBeVisible()
+        const editRuleDialog = page.getByTestId('rule-dialog')
+        await ruleCard
+            .getByRole('button', { name: ruleName, exact: true })
+            .click()
+        await expect(editRuleDialog).toBeVisible()
+        await expect(
+            editRuleDialog.getByRole('heading', {
+                name: 'Edit rule',
+                exact: true,
+            }),
+        ).toBeVisible()
+        await editRuleDialog
+            .getByRole('button', { name: 'Cancel', exact: true })
+            .click()
+        await expect(editRuleDialog).toBeHidden()
+
+        await ruleCard
+            .getByRole('button', { name: `Edit ${ruleName}`, exact: true })
+            .click()
+        await expect(editRuleDialog).toBeVisible()
+        await expect(
+            editRuleDialog.getByRole('heading', {
+                name: 'Edit rule',
+                exact: true,
+            }),
+        ).toBeVisible()
+        await editRuleDialog
+            .getByRole('button', { name: 'Cancel', exact: true })
+            .click()
+        await expect(editRuleDialog).toBeHidden()
+
         await ruleCard
             .getByRole('button', { name: 'Delete', exact: true })
             .click()

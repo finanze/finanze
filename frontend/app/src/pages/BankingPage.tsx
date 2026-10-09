@@ -604,6 +604,7 @@ export default function BankingPage() {
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+  const [showEmptyAccounts, setShowEmptyAccounts] = useState(false)
 
   const [accountOptions, setAccountOptions] = useState<AccountViewOptions>(
     () => {
@@ -620,6 +621,9 @@ export default function BankingPage() {
 
   const updateAccountOptions = useCallback(
     (patch: Partial<AccountViewOptions>) => {
+      if (patch.hideEmpty !== undefined) {
+        setShowEmptyAccounts(false)
+      }
       setAccountOptions(prev => {
         const next = { ...prev, ...patch }
         localStorage.setItem("bankingAccountOptions", JSON.stringify(next))
@@ -1224,6 +1228,8 @@ export default function BankingPage() {
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
           options={accountOptions}
+          showEmptyAccounts={showEmptyAccounts}
+          onShowEmptyAccounts={() => setShowEmptyAccounts(true)}
           onOptionsChange={updateAccountOptions}
           onSummaryChange={updateAccountsSummary}
           onFocusEntity={handleFocusEntity}
@@ -1315,6 +1321,8 @@ interface SectionCommonProps {
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
   options: AccountViewOptions
+  showEmptyAccounts: boolean
+  onShowEmptyAccounts: () => void
   onOptionsChange: (patch: Partial<AccountViewOptions>) => void
   onSummaryChange: (summary: AccountsSummary) => void
 }
@@ -1326,6 +1334,8 @@ function BankAccountsSection({
   defaultCurrency,
   exchangeRates,
   options,
+  showEmptyAccounts,
+  onShowEmptyAccounts,
   onOptionsChange,
   onSummaryChange,
   onFocusEntity,
@@ -1625,18 +1635,19 @@ function BankAccountsSection({
   )
 
   const sortedItems = useMemo(() => {
-    const base = options.hideEmpty
-      ? nonDeletedItems.filter(
-          item => (item.position.convertedTotal ?? 0) !== 0,
-        )
-      : nonDeletedItems
+    const base =
+      options.hideEmpty && !showEmptyAccounts
+        ? nonDeletedItems.filter(
+            item => (item.position.convertedTotal ?? 0) !== 0,
+          )
+        : nonDeletedItems
     const factor = options.sortOrder === "asc" ? 1 : -1
     return [...base].sort(
       (a, b) =>
         ((a.position.convertedTotal ?? 0) - (b.position.convertedTotal ?? 0)) *
         factor,
     )
-  }, [nonDeletedItems, options.hideEmpty, options.sortOrder])
+  }, [nonDeletedItems, options.hideEmpty, options.sortOrder, showEmptyAccounts])
 
   const groupedItems = useMemo(() => {
     if (!options.groupByEntity) return null
@@ -2086,18 +2097,20 @@ function BankAccountsSection({
                   </div>
                 </div>
               ))}
-              {options.hideEmpty && hiddenEmptyCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onOptionsChange({ hideEmpty: false })}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {t.banking.emptyCount.replace(
-                    "{count}",
-                    String(hiddenEmptyCount),
-                  )}
-                </button>
-              )}
+              {options.hideEmpty &&
+                !showEmptyAccounts &&
+                hiddenEmptyCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onShowEmptyAccounts}
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {t.banking.emptyCount.replace(
+                      "{count}",
+                      String(hiddenEmptyCount),
+                    )}
+                  </button>
+                )}
             </div>
           </TooltipProvider>
         ))}

@@ -1,7 +1,7 @@
 import { MoneyEventType, type ForecastResult } from "@/types"
 import { ProductType } from "@/types/position"
 import { getForecast, getMoneyEvents } from "@/services/api"
-import { useEffect, useRef, useState, useMemo } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 
@@ -118,6 +118,19 @@ export default function DashboardPage() {
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   )
+  const [transactionsRequestInFlight, setTransactionsRequestInFlight] =
+    useState(false)
+  const [transactionsFetchAttempted, setTransactionsFetchAttempted] = useState(
+    () => cachedLastTransactions !== null,
+  )
+  const [isNarrowViewport, setIsNarrowViewport] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches,
+  )
+  const transactionsFetchInFlightRef = useRef(false)
+  const transactionsRequestedForRef = useRef<(() => Promise<void>) | null>(null)
+  const recentTransactionsSectionRef = useRef<HTMLDivElement>(null)
 
   const [upcomingEventsRaw, setUpcomingEventsRaw] = useState<
     Array<{
@@ -183,10 +196,14 @@ export default function DashboardPage() {
     }
   }, [dashboardOptions])
 
-  const fetchTransactionsData = async () => {
-    if (cachedLastTransactions) {
+  const fetchTransactionsData = useCallback(async () => {
+    if (cachedLastTransactions || transactionsFetchInFlightRef.current) {
       return
     }
+
+    transactionsFetchInFlightRef.current = true
+    setTransactionsFetchAttempted(true)
+    setTransactionsRequestInFlight(true)
 
     // Only show loading spinner on very first load of the session
     // Not on cache invalidation or return visits to dashboard
@@ -202,11 +219,13 @@ export default function DashboardPage() {
       console.error("Error fetching transactions:", err)
       setTransactionsError(t.common.unexpectedError)
     } finally {
+      transactionsFetchInFlightRef.current = false
+      setTransactionsRequestInFlight(false)
       if (isFirstLoadEver) {
         setTransactionsLoading(false)
       }
     }
-  }
+  }, [cachedLastTransactions, fetchCachedTransactions, t])
 
   const projectsContainerRef = useRef<HTMLDivElement>(null)
 
@@ -296,8 +315,52 @@ export default function DashboardPage() {
   )
 
   useEffect(() => {
-    fetchTransactionsData()
-  }, [cachedLastTransactions, t])
+    const mediaQuery = window.matchMedia("(max-width: 639px)")
+    let observer: IntersectionObserver | null = null
+
+    const loadOnce = () => {
+      if (transactionsRequestedForRef.current === fetchTransactionsData) return
+      transactionsRequestedForRef.current = fetchTransactionsData
+      void fetchTransactionsData()
+    }
+
+    const loadWhenVisible = () => {
+      observer?.disconnect()
+      setIsNarrowViewport(mediaQuery.matches)
+
+      if (cachedLastTransactions) return
+      if (!mediaQuery.matches) {
+        loadOnce()
+        return
+      }
+      if (forecastMode || isInitialLoading) return
+
+      const section = recentTransactionsSectionRef.current
+      if (!section) return
+
+      observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer?.disconnect()
+          loadOnce()
+        }
+      })
+      observer.observe(section)
+    }
+
+    loadWhenVisible()
+    mediaQuery.addEventListener("change", loadWhenVisible)
+
+    return () => {
+      observer?.disconnect()
+      mediaQuery.removeEventListener("change", loadWhenVisible)
+    }
+  }, [
+    cachedLastTransactions,
+    fetchTransactionsData,
+    forecastMode,
+    isInitialLoading,
+    positionsData,
+  ])
 
   const targetCurrency = settings.general.defaultCurrency
 
@@ -1288,7 +1351,8 @@ export default function DashboardPage() {
     fetchUpcomingEvents()
   }, [forecastMode])
 
-  const isLoading = isInitialLoading || transactionsLoading
+  const isLoading =
+    isInitialLoading || (transactionsLoading && !isNarrowViewport)
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[70vh]">
@@ -1297,7 +1361,8 @@ export default function DashboardPage() {
     )
   }
 
-  const error = financialDataError || transactionsError
+  const error =
+    financialDataError || (!isNarrowViewport ? transactionsError : null)
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center">
@@ -3113,7 +3178,10 @@ export default function DashboardPage() {
                   delay={0.5}
                   className="lg:col-span-5"
                 >
-                  <div className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm">
+                  <div
+                    ref={recentTransactionsSectionRef}
+                    className="flex flex-col lg:rounded-lg lg:border lg:bg-card lg:text-card-foreground lg:shadow-sm"
+                  >
                     <div className="flex flex-col space-y-1.5 py-4 lg:p-6">
                       <div className="flex justify-between items-center">
                         <h3 className="text-lg font-bold flex items-center leading-none tracking-tight">
@@ -3140,6 +3208,24 @@ export default function DashboardPage() {
                           <p className="text-sm text-muted-foreground mb-1">
                             {t.forecast.notShowing}
                           </p>
+                        </div>
+                      ) : isNarrowViewport && transactionsError ? (
+                        <div className="flex flex-col items-center gap-3 py-6 text-center">
+                          <p className="text-sm text-muted-foreground">
+                            {transactionsError}
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void fetchTransactionsData()}
+                          >
+                            {t.common.retry}
+                          </Button>
+                        </div>
+                      ) : transactionsRequestInFlight ||
+                        !transactionsFetchAttempted ? (
+                        <div className="flex justify-center py-6">
+                          <LoadingSpinner size="sm" />
                         </div>
                       ) : Object.keys(recentTransactions).length > 0 ? (
                         <ul className="space-y-0">

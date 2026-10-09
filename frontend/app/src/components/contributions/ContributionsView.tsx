@@ -2224,34 +2224,42 @@ export function ContributionsView() {
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="frequency">
-                          {t.management.frequencyLabel}
-                        </Label>
-                        <select
-                          id="frequency"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={modalForm.frequency}
-                          onChange={event => {
-                            const value = event.target
-                              .value as ContributionFrequency
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    frequency: value,
-                                  }
-                                : prev,
-                            )
-                          }}
+                        <Label>{t.management.frequencyLabel}</Label>
+                        <div
+                          role="group"
+                          aria-label={t.management.frequencyLabel}
+                          data-testid="contribution-frequency-options"
+                          className="flex flex-wrap gap-1.5 rounded-md"
                         >
-                          {frequencyOptions.map(option => (
-                            <option key={option} value={option}>
-                              {(t.management.contributionFrequency as any)?.[
-                                option
-                              ] || option}
-                            </option>
-                          ))}
-                        </select>
+                          {frequencyOptions.map(option => {
+                            const selected = modalForm.frequency === option
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setModalForm(prev =>
+                                    prev
+                                      ? { ...prev, frequency: option }
+                                      : prev,
+                                  )
+                                }
+                                aria-pressed={selected}
+                                data-testid={`contribution-frequency-option-${option.toLowerCase()}`}
+                                className={cn(
+                                  "inline-flex min-h-8 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                  selected
+                                    ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                                    : "border-border bg-background text-foreground hover:bg-accent",
+                                )}
+                              >
+                                {(t.management.contributionFrequency as any)?.[
+                                  option
+                                ] || option}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label>{t.management.since}</Label>

@@ -57,15 +57,10 @@ const EDGE_CARD =
 
 interface LabelsManagerProps {
   tab: LabelsTab
-  onRulesCountChange?: (count: number) => void
   onActionChange?: (action: ReactNode | null) => void
 }
 
-export function LabelsManager({
-  tab,
-  onRulesCountChange,
-  onActionChange,
-}: LabelsManagerProps) {
+export function LabelsManager({ tab, onActionChange }: LabelsManagerProps) {
   const { t } = useI18n()
   const navigateWithReturn = useNavigateWithReturn(t.cashflow.title)
   const { showToast, entities } = useAppContext()
@@ -103,10 +98,6 @@ export function LabelsManager({
   useEffect(() => {
     void loadRules()
   }, [loadRules])
-
-  useEffect(() => {
-    if (rulesLoaded) onRulesCountChange?.(rules.length)
-  }, [rulesLoaded, rules.length, onRulesCountChange])
 
   const entityNames = useMemo(
     () => new Map((entities ?? []).map(entity => [entity.id, entity.name])),
@@ -327,6 +318,20 @@ export function LabelsManager({
 
       {tab === "rules" && (
         <>
+          {rulesLoaded && (
+            <div
+              className="flex items-center gap-2"
+              data-testid="rules-count-line"
+            >
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t.labels.tabs.rules}
+              </h2>
+              <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground">
+                {rules.length}
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          )}
           {!rulesLoaded ? (
             <div className="flex justify-center py-10">
               <LoadingSpinner />
@@ -344,6 +349,11 @@ export function LabelsManager({
               {rules.map(rule => {
                 const isTransfer = rule.kind === LabelingRuleKind.TRANSFER
                 const RuleIcon = isTransfer ? ArrowLeftRight : Wand2
+                const ruleName =
+                  rule.name ||
+                  (isTransfer
+                    ? t.labels.rules.transferUnnamed
+                    : t.labels.rules.unnamed)
                 return (
                   <Card
                     key={rule.id}
@@ -356,24 +366,29 @@ export function LabelsManager({
                     data-kind={rule.kind}
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div
+                      <button
+                        type="button"
+                        onClick={() => openEditRule(rule)}
+                        aria-label={`${t.common.edit} ${ruleName}`}
+                        title={`${t.common.edit} ${ruleName}`}
                         className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                           isTransfer
-                            ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                            : "bg-muted text-muted-foreground",
+                            ? "bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 dark:text-sky-400"
+                            : "bg-muted text-muted-foreground hover:bg-muted/70",
                         )}
                       >
-                        <RuleIcon className="h-4 w-4" />
-                      </div>
+                        <RuleIcon className="h-4 w-4" aria-hidden="true" />
+                      </button>
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium">
-                            {rule.name ||
-                              (isTransfer
-                                ? t.labels.rules.transferUnnamed
-                                : t.labels.rules.unnamed)}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openEditRule(rule)}
+                            className="text-left text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            {ruleName}
+                          </button>
                           {isTransfer && (
                             <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-300">
                               {t.labels.rules.kinds[LabelingRuleKind.TRANSFER]}

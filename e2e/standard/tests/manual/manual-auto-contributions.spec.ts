@@ -68,6 +68,22 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await expect(dialog.getByText('Add contribution')).toBeVisible({
             timeout: 5_000,
         })
+        const frequencyOptions = dialog.getByTestId(
+            'contribution-frequency-options',
+        )
+        const monthlyFrequency = dialog.getByTestId(
+            'contribution-frequency-option-monthly',
+        )
+        const biweeklyFrequency = dialog.getByTestId(
+            'contribution-frequency-option-biweekly',
+        )
+        await expect(frequencyOptions.getByRole('button')).toHaveCount(7)
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'true')
+        await biweeklyFrequency.click()
+        await expect(biweeklyFrequency).toHaveAttribute('aria-pressed', 'true')
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'false')
+        await monthlyFrequency.click()
+        await expect(monthlyFrequency).toHaveAttribute('aria-pressed', 'true')
         await selectEntity(page, 'Urbanitae', { inDialog: true })
         await dialog.locator('#name').fill(contributionName)
         await dialog.locator('#target').fill('IE00B4L5Y983')

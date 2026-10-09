@@ -445,7 +445,14 @@ const IconPicker = React.forwardRef<
             </Button>
           )}
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2">
+        <PopoverContent
+          className="w-64 p-2"
+          onOpenAutoFocus={event => {
+            if (window.matchMedia("(max-width: 639px)").matches) {
+              event.preventDefault()
+            }
+          }}
+        >
           {(value || selectedIcon) && clearable && (
             <div className="flex justify-end mb-2">
               <TooltipProvider>

@@ -44,8 +44,6 @@ import {
   ChevronRight,
   Clock,
   Edit,
-  Eye,
-  EyeOff,
   LayoutGrid,
   Lightbulb,
   LightbulbOff,
@@ -92,6 +90,18 @@ const RECURRING_TABS: readonly RecurringTab[] = [
   "earnings",
   "expenses",
   "investments",
+]
+const COMMON_FLOW_FREQUENCIES: readonly FlowFrequency[] = [
+  FlowFrequency.DAILY,
+  FlowFrequency.MONTHLY,
+  FlowFrequency.WEEKLY,
+  FlowFrequency.QUARTERLY,
+  FlowFrequency.YEARLY,
+]
+const LESS_COMMON_FLOW_FREQUENCIES: readonly FlowFrequency[] = [
+  FlowFrequency.BIWEEKLY,
+  FlowFrequency.EVERY_FOUR_MONTHS,
+  FlowFrequency.SEMIANNUALLY,
 ]
 const MOBILE_CATEGORY_LEGEND_PAGE_SIZE = 4
 
@@ -181,7 +191,6 @@ function CategoryFilterSelect({
             "h-4 w-4 shrink-0 transition-transform",
             isOpen && "rotate-180",
           )}
-          aria-hidden="true"
         />
       </button>
 
@@ -335,6 +344,7 @@ export default function RecurringMoneyPage() {
     }
   })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [showMoreFrequencies, setShowMoreFrequencies] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PeriodicFlow | null>(null)
   const [deletingFlow, setDeletingFlow] = useState<PeriodicFlow | null>(null)
@@ -350,7 +360,6 @@ export default function RecurringMoneyPage() {
   const [visibleExpensesLegendCount, setVisibleExpensesLegendCount] = useState(
     MOBILE_CATEGORY_LEGEND_PAGE_SIZE,
   )
-  const [showContributions, setShowContributions] = useState(true)
   const [remainingCashOpen, setRemainingCashOpen] = useState(false)
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [expandedFlows, setExpandedFlows] = useState<Record<string, boolean>>(
@@ -381,8 +390,7 @@ export default function RecurringMoneyPage() {
   }, [])
 
   // When category filter is active we suppress contributions per requirement
-  const effectiveShowContributions =
-    showContributions && !hasActiveCategoryFilter
+  const effectiveShowContributions = !hasActiveCategoryFilter
   const singleCategoryFiltered = categoryFilter.included.length === 1
   const showSavingsCard = !hasActiveCategoryFilter
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
@@ -727,7 +735,7 @@ export default function RecurringMoneyPage() {
       earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first (leftmost)
       expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first (rightmost)
       totalEarnings,
-      totalExpenses, // includes contributions when toggle on
+      totalExpenses,
       totalAmount,
       contributionsAmount: effectiveShowContributions ? totalContributions : 0,
     }
@@ -1088,11 +1096,13 @@ export default function RecurringMoneyPage() {
     })
     setEditingFlow(null)
     setValidationErrors([])
+    setShowMoreFrequencies(false)
   }
 
   const openEditDialog = (flow: PeriodicFlow) => {
     setEditingFlow(flow)
     setValidationErrors([])
+    setShowMoreFrequencies(!COMMON_FLOW_FREQUENCIES.includes(flow.frequency))
     setFormData({
       name: flow.name,
       amount: flow.amount,
@@ -1129,6 +1139,18 @@ export default function RecurringMoneyPage() {
     }
     return frequencyMap[frequency] || frequency
   }
+
+  const visibleFlowFrequencies = showMoreFrequencies
+    ? [...COMMON_FLOW_FREQUENCIES, ...LESS_COMMON_FLOW_FREQUENCIES]
+    : [
+        ...COMMON_FLOW_FREQUENCIES,
+        ...LESS_COMMON_FLOW_FREQUENCIES.filter(
+          frequency => frequency === formData.frequency,
+        ),
+      ]
+  const isFrequencyDisabled =
+    editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
+  const hasFrequencyError = validationErrors.includes("frequency")
 
   const getNextDateInfo = (nextDate: string | undefined) => {
     if (!nextDate) return null
@@ -1639,15 +1661,17 @@ export default function RecurringMoneyPage() {
       key: "earnings",
       label: t.management.tabs.earnings,
       Icon: BanknoteArrowUp,
-      count: periodicFlows.filter(flow => flow.flow_type === FlowType.EARNING)
-        .length,
+      count: periodicFlows.filter(
+        flow => flow.flow_type === FlowType.EARNING && flow.enabled,
+      ).length,
     },
     {
       key: "expenses",
       label: t.management.tabs.expenses,
       Icon: BanknoteArrowDown,
-      count: periodicFlows.filter(flow => flow.flow_type === FlowType.EXPENSE)
-        .length,
+      count: periodicFlows.filter(
+        flow => flow.flow_type === FlowType.EXPENSE && flow.enabled,
+      ).length,
     },
     {
       key: "investments",
@@ -1708,290 +1732,269 @@ export default function RecurringMoneyPage() {
           variants={fadeListItem}
           initial={runEntranceAnimation ? "hidden" : false}
           animate="show"
-          className={cn(
-            "grid grid-cols-1 gap-4",
-            showSavingsCard
-              ? "md:grid-cols-2 xl:grid-cols-3"
-              : "md:grid-cols-2",
-          )}
+          className="min-w-0"
         >
           <Card
-            className={cn(
-              "p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x cursor-pointer transition-colors hover:bg-accent/40",
-              tab === "earnings" && "ring-2 ring-green-500/50",
-            )}
-            onClick={() => setTab("earnings")}
-            data-testid="recurring-kpi-earnings"
+            className="-mx-6 overflow-hidden rounded-none border-x-0 md:mx-0 md:rounded-lg md:border-x"
+            data-testid="recurring-kpis"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <BanknoteArrowUp className="h-5 w-5 text-green-500" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t.management.monthlyRecurringEarnings}
-              </span>
-              <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="text-2xl font-bold text-green-600">
-              <Sensitive>
-                <FormattedMarketValue
-                  value={formatCurrency(
-                    monthlyAmounts.monthlyEarnings,
-                    locale,
-                    settings?.general?.defaultCurrency,
-                  )}
-                  locale={locale}
-                />
-              </Sensitive>
-            </div>
-            <div className="text-xs text-gray-500">
-              {sortedFlows.earnings.filter(flow => flow.enabled).length}{" "}
-              {sortedFlows.earnings.filter(flow => flow.enabled).length === 1
-                ? t.management.flowType.EARNING.toLowerCase()
-                : t.management.earnings.toLowerCase()}
-            </div>
-          </Card>
-
-          <Card
-            className={cn(
-              "p-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x cursor-pointer transition-colors hover:bg-accent/40",
-              tab === "expenses" && "ring-2 ring-red-500/50",
-            )}
-            onClick={() => setTab("expenses")}
-            data-testid="recurring-kpi-expenses"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <BanknoteArrowDown className="h-5 w-5 text-red-500" />
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t.management.monthlyRecurringExpenses}
-              </span>
-              <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold text-red-600">
-                <Sensitive>
-                  <FormattedMarketValue
-                    value={formatCurrency(
-                      monthlyAmounts.monthlyExpenses,
-                      locale,
-                      settings?.general?.defaultCurrency,
-                    )}
-                    locale={locale}
-                  />
-                </Sensitive>
-              </div>
-              {monthlyAmounts.monthlyEarnings > 0 &&
-                (() => {
-                  // Percentage intentionally excludes contributions per latest requirement
-                  const percent =
-                    (monthlyAmounts.monthlyExpenses /
-                      Math.max(monthlyAmounts.monthlyEarnings, 1)) *
-                    100
-                  const overrun = percent > 100
-                  return (
-                    <div
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-md font-semibold",
-                        getUtilizationBadgeClasses(percent),
-                        overrun && "animate-pulse",
+            <div className="grid grid-cols-2 gap-px bg-border xl:grid-cols-3">
+              <button
+                type="button"
+                className={cn(
+                  "flex min-w-0 w-full flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  tab === "earnings" && "ring-2 ring-inset ring-green-500/50",
+                )}
+                onClick={() => setTab("earnings")}
+                data-testid="recurring-kpi-earnings"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-green-500/10 text-green-600 dark:text-green-400">
+                    <BanknoteArrowUp className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate">
+                    {t.management.monthlyRecurringEarnings}
+                  </span>
+                  <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+                <div className="truncate text-lg font-semibold tabular-nums text-green-600 dark:text-green-400 sm:text-2xl">
+                  <Sensitive>
+                    <FormattedMarketValue
+                      value={formatCurrency(
+                        monthlyAmounts.monthlyEarnings,
+                        locale,
+                        settings?.general?.defaultCurrency,
                       )}
-                      title={
-                        overrun
-                          ? t.management.expensesOverrunMessage.replace(
-                              "{percentage}",
-                              (percent - 100).toFixed(1),
-                            )
-                          : undefined
-                      }
-                    >
-                      <Sensitive>{percent.toFixed(1)}%</Sensitive>
+                      locale={locale}
+                    />
+                  </Sensitive>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={cn(
+                  "flex min-w-0 w-full flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  tab === "expenses" && "ring-2 ring-inset ring-red-500/50",
+                )}
+                onClick={() => setTab("expenses")}
+                data-testid="recurring-kpi-expenses"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-red-600 dark:text-red-400">
+                    <BanknoteArrowDown className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate">
+                    {t.management.monthlyRecurringExpenses}
+                  </span>
+                  <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+                <div
+                  className="flex min-w-0 items-baseline gap-1.5"
+                  data-testid="recurring-expense-amount"
+                >
+                  <div className="min-w-0 flex-1 truncate text-lg font-semibold tabular-nums text-red-600 dark:text-red-400 sm:text-2xl">
+                    <Sensitive>
+                      <FormattedMarketValue
+                        value={formatCurrency(
+                          monthlyAmounts.monthlyExpenses,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )}
+                        locale={locale}
+                      />
+                    </Sensitive>
+                  </div>
+                  {monthlyAmounts.monthlyEarnings > 0 &&
+                    (() => {
+                      // Percentage intentionally excludes contributions per latest requirement
+                      const percent =
+                        (monthlyAmounts.monthlyExpenses /
+                          Math.max(monthlyAmounts.monthlyEarnings, 1)) *
+                        100
+                      const overrun = percent > 100
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1 py-0 text-[11px] font-medium tabular-nums",
+                            getUtilizationBadgeClasses(percent),
+                            overrun && "animate-pulse",
+                          )}
+                          data-testid="recurring-expense-rate"
+                          title={
+                            overrun
+                              ? t.management.expensesOverrunMessage.replace(
+                                  "{percentage}",
+                                  (percent - 100).toFixed(1),
+                                )
+                              : undefined
+                          }
+                        >
+                          <Sensitive>{percent.toFixed(1)}%</Sensitive>
+                        </span>
+                      )
+                    })()}
+                </div>
+              </button>
+              {showSavingsCard && (
+                <div
+                  className="col-span-2 grid grid-cols-2 gap-px bg-border xl:col-span-1"
+                  data-testid="recurring-kpi-savings"
+                >
+                  <div className="min-w-0 space-y-1 bg-card p-3">
+                    <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <PiggyBank className="h-3.5 w-3.5" />
+                      </span>
+                      <span
+                        className="truncate"
+                        data-testid="recurring-savable-title"
+                      >
+                        {t.management.savableAmount}
+                      </span>
                     </div>
-                  )
-                })()}
-            </div>
-            <div className="text-xs text-gray-500">
-              {sortedFlows.expenses.filter(flow => flow.enabled).length}{" "}
-              {sortedFlows.expenses.filter(flow => flow.enabled).length === 1
-                ? t.management.flowType.EXPENSE.toLowerCase()
-                : t.management.expenses.toLowerCase()}
-            </div>
-          </Card>
-          {showSavingsCard && (
-            <Card
-              className={cn(
-                "p-4 md:col-span-2 xl:col-span-1 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x",
-                tab === "investments" && "ring-2 ring-cyan-500/50",
-              )}
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <PiggyBank className="h-5 w-5 text-emerald-500" />
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.management.savableAmount}
-                    </span>
+                    <div className="flex min-w-0 flex-nowrap items-start gap-1.5">
+                      <div
+                        className={cn(
+                          "min-w-0 flex-1 truncate text-base font-semibold tabular-nums sm:text-2xl",
+                          savingsSummary.totalSavable >= 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400",
+                        )}
+                        data-testid="recurring-savable-amount"
+                      >
+                        <Sensitive>
+                          <FormattedMarketValue
+                            value={formatCurrency(
+                              savingsSummary.totalSavable,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}
+                            locale={locale}
+                          />
+                        </Sensitive>
+                      </div>
+                      <div
+                        className={cn(
+                          "shrink-0 self-center whitespace-nowrap rounded-full px-1 py-0 text-[11px] font-medium tabular-nums",
+                          savingsSummary.totalSavable >= 0
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+                        )}
+                        data-testid="recurring-savable-rate"
+                      >
+                        <Sensitive>
+                          {savingsSummary.totalPercent.toFixed(1)}%
+                        </Sensitive>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative flex min-w-0 flex-col bg-card">
                     <button
                       type="button"
                       onClick={() => setTab("investments")}
-                      className="ml-auto inline-flex shrink-0 items-center justify-center p-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
-                      aria-label={t.management.monthlyInvestedAmount}
-                      title={t.management.monthlyInvestedAmount}
+                      className={cn(
+                        "flex w-full min-w-0 flex-1 flex-col gap-1 bg-card p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        tab === "investments" &&
+                          "ring-2 ring-inset ring-cyan-500/50",
+                      )}
+                      data-testid="recurring-kpi-investments"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <div className="flex h-6 min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <span
+                          className="min-w-0 truncate"
+                          data-testid="recurring-invested-title"
+                        >
+                          {t.management.monthlyInvestedAmount}
+                        </span>
+                        <ChevronRight className="ml-auto h-4 w-4 shrink-0" />
+                      </div>
+                      <div className="flex min-w-0 flex-nowrap items-start gap-1.5">
+                        <span
+                          className="min-w-0 flex-1 truncate text-base font-semibold tabular-nums text-cyan-600 dark:text-cyan-300 sm:text-2xl"
+                          data-testid="recurring-invested-amount"
+                        >
+                          <Sensitive>
+                            <FormattedMarketValue
+                              value={formatCurrency(
+                                savingsSummary.investedAmount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                              locale={locale}
+                            />
+                          </Sensitive>
+                        </span>
+                        <span className="shrink-0 self-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                          <Sensitive>
+                            {savingsSummary.investedPercent.toFixed(1)}%
+                          </Sensitive>
+                        </span>
+                      </div>
                     </button>
                   </div>
-                  <div className="flex items-baseline gap-2">
-                    <div
-                      className={cn(
-                        "text-2xl font-bold",
-                        savingsSummary.totalSavable >= 0
-                          ? "text-emerald-600"
-                          : "text-red-600",
-                      )}
-                    >
-                      <Sensitive>
-                        <FormattedMarketValue
-                          value={formatCurrency(
-                            savingsSummary.totalSavable,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
-                          locale={locale}
-                        />
-                      </Sensitive>
-                    </div>
-                    <div
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-md font-semibold",
-                        savingsSummary.totalSavable >= 0
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-                      )}
-                    >
-                      <Sensitive>
-                        {savingsSummary.totalPercent.toFixed(1)}%
-                      </Sensitive>
-                    </div>
-                  </div>
                 </div>
-                <div className="space-y-1 sm:text-right min-w-0">
-                  <div className="flex items-center gap-2 sm:justify-end min-w-0">
-                    <span className="text-sm font-medium text-muted-foreground truncate min-w-0">
-                      {t.management.monthlyInvestedAmount}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowContributions(prev => !prev)}
-                      className={cn(
-                        "h-8 w-8 rounded-full border border-transparent transition-colors",
-                        showContributions
-                          ? "bg-cyan-600 text-white hover:bg-cyan-600/90 dark:bg-cyan-500 dark:text-black dark:hover:bg-cyan-500/90"
-                          : "text-muted-foreground hover:text-cyan-600 dark:hover:text-cyan-300",
-                      )}
-                      aria-pressed={showContributions}
-                      aria-label={t.management.contributionsShort}
-                      title={t.management.contributionsShort}
-                    >
-                      {showContributions ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">
-                        {t.management.contributionsShort}
-                      </span>
-                    </Button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setTab("investments")}
-                    className="flex items-baseline gap-2 sm:justify-end rounded-md transition-opacity hover:opacity-80"
-                    data-testid="recurring-kpi-investments"
-                  >
-                    <span className="text-lg font-semibold text-cyan-600 dark:text-cyan-300">
-                      <Sensitive>
-                        <FormattedMarketValue
-                          value={formatCurrency(
-                            savingsSummary.investedAmount,
-                            locale,
-                            settings?.general?.defaultCurrency,
-                          )}
-                          locale={locale}
-                        />
-                      </Sensitive>
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-md font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
-                      <Sensitive>
-                        {savingsSummary.investedPercent.toFixed(1)}%
-                      </Sensitive>
-                    </span>
-                    <ChevronRight className="hidden h-4 w-4 self-center text-muted-foreground sm:block" />
-                  </button>
-                </div>
-              </div>
-            </Card>
-          )}
+              )}
+            </div>
+          </Card>
         </motion.div>
 
-        {(hasActiveCategoryFilter || tab !== "investments") && (
-          <div className="flex flex-wrap items-center gap-2">
-            {hasActiveCategoryFilter && (
-              <div
-                className="flex flex-wrap items-center gap-2"
-                data-testid="recurring-category-filter"
+        <div className="flex flex-wrap items-center gap-2">
+          {hasActiveCategoryFilter && (
+            <div
+              className="flex flex-wrap items-center gap-2"
+              data-testid="recurring-category-filter"
+            >
+              <Tag size={14} className="text-muted-foreground" />
+              {selectedCategoryFilters.map(({ category, state }) => {
+                const excluded = state === "excluded"
+                const stateLabel = excluded
+                  ? t.management.categoryFilter.exclude
+                  : t.management.categoryFilter.include
+                return (
+                  <button
+                    key={`${state}-${category}`}
+                    type="button"
+                    title={`${stateLabel}: ${category}`}
+                    aria-label={`${t.common.clear} ${category}`}
+                    onClick={() => updateCategoryFilter(category, null)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
+                      excluded
+                        ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                        : getColorForName(category),
+                    )}
+                  >
+                    {excluded ? (
+                      <Ban className="h-3 w-3" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
+                    <span className={cn(excluded && "line-through")}>
+                      {category}
+                    </span>
+                    <X size={12} />
+                  </button>
+                )
+              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() =>
+                  setCategoryFilter({ included: [], excluded: [] })
+                }
               >
-                <Tag size={14} className="text-muted-foreground" />
-                {selectedCategoryFilters.map(({ category, state }) => {
-                  const excluded = state === "excluded"
-                  const stateLabel = excluded
-                    ? t.management.categoryFilter.exclude
-                    : t.management.categoryFilter.include
-                  return (
-                    <button
-                      key={`${state}-${category}`}
-                      type="button"
-                      title={`${stateLabel}: ${category}`}
-                      aria-label={`${t.common.clear} ${category}`}
-                      onClick={() => updateCategoryFilter(category, null)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
-                        excluded
-                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
-                          : getColorForName(category),
-                      )}
-                    >
-                      {excluded ? (
-                        <Ban className="h-3 w-3" />
-                      ) : (
-                        <Check className="h-3 w-3" />
-                      )}
-                      <span className={cn(excluded && "line-through")}>
-                        {category}
-                      </span>
-                      <X size={12} />
-                    </button>
-                  )
-                })}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() =>
-                    setCategoryFilter({ included: [], excluded: [] })
-                  }
-                >
-                  {t.common.clear}
-                </Button>
-              </div>
-            )}
-            {tab !== "investments" && (
-              <CategoryFilterSelect
-                options={categoryOptions}
-                value={categoryFilter}
-                onStateChange={updateCategoryFilter}
-              />
-            )}
-          </div>
-        )}
+                {t.common.clear}
+              </Button>
+            </div>
+          )}
+          <CategoryFilterSelect
+            options={categoryOptions}
+            value={categoryFilter}
+            onStateChange={updateCategoryFilter}
+          />
+        </div>
 
         <PageTabs
           tabs={recurringTabs}
@@ -3014,33 +3017,60 @@ export default function RecurringMoneyPage() {
                       {t.management.frequencyLabel}
                       <span className="text-red-500 ml-1">*</span>
                     </label>
-                    <select
-                      value={formData.frequency}
-                      onChange={e =>
-                        setFormData(prev => ({
-                          ...prev,
-                          frequency: e.target.value as FlowFrequency,
-                        }))
-                      }
-                      disabled={
-                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
-                      }
-                      className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${validationErrors.includes("frequency") ? "border-red-500" : ""}`}
+                    <div
+                      role="group"
+                      aria-label={t.management.frequencyLabel}
+                      aria-invalid={hasFrequencyError}
+                      data-testid="recurring-frequency-options"
+                      className={cn(
+                        "flex flex-wrap gap-1.5 rounded-md",
+                        hasFrequencyError && "ring-1 ring-red-500",
+                      )}
                     >
-                      {Object.values(FlowFrequency)
-                        .filter(
-                          freq =>
-                            ![
-                              FlowFrequency.BIWEEKLY,
-                              FlowFrequency.SEMIMONTHLY,
-                            ].includes(freq) || freq === formData.frequency,
+                      {visibleFlowFrequencies.map(frequency => {
+                        const selected = formData.frequency === frequency
+                        return (
+                          <button
+                            key={frequency}
+                            type="button"
+                            onClick={() =>
+                              setFormData(prev => ({ ...prev, frequency }))
+                            }
+                            disabled={isFrequencyDisabled}
+                            aria-pressed={selected}
+                            data-testid={`recurring-frequency-option-${frequency.toLowerCase()}`}
+                            className={cn(
+                              "inline-flex min-h-8 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                              selected
+                                ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                                : "border-border bg-background text-foreground hover:bg-accent",
+                            )}
+                          >
+                            {getFrequencyLabel(frequency)}
+                          </button>
                         )
-                        .map(freq => (
-                          <option key={freq} value={freq}>
-                            {getFrequencyLabel(freq)}
-                          </option>
-                        ))}
-                    </select>
+                      })}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowMoreFrequencies(showingMore => !showingMore)
+                        }
+                        disabled={isFrequencyDisabled}
+                        aria-expanded={showMoreFrequencies}
+                        data-testid="recurring-frequency-more"
+                        className="inline-flex min-h-8 items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {showMoreFrequencies
+                          ? t.common.showLess
+                          : t.common.more}
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            showMoreFrequencies && "rotate-180",
+                          )}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   <div>

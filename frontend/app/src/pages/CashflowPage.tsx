@@ -269,10 +269,8 @@ function InfoHint({ text }: { text: string }) {
 export default function CashflowPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const { labels, loaded } = useLabels()
   const [tab, setTab] = useTabSearchParam(CASHFLOW_TABS, "analysis")
   const [analysisVisited, setAnalysisVisited] = useState(tab === "analysis")
-  const [rulesCount, setRulesCount] = useState<number | null>(null)
   const [tabAction, setTabAction] = useState<ReactNode | null>(null)
 
   useEffect(() => {
@@ -281,18 +279,8 @@ export default function CashflowPage() {
 
   const tabs: PageTab<CashflowTab>[] = [
     { key: "analysis", label: t.cashflow.tabs.analysis, Icon: ChartPie },
-    {
-      key: "labels",
-      label: t.labels.tabs.labels,
-      Icon: Tags,
-      count: loaded ? labels.length : null,
-    },
-    {
-      key: "rules",
-      label: t.labels.tabs.rules,
-      Icon: Wand2,
-      count: rulesCount,
-    },
+    { key: "labels", label: t.labels.tabs.labels, Icon: Tags },
+    { key: "rules", label: t.labels.tabs.rules, Icon: Wand2 },
     { key: "automation", label: t.labels.tabs.automation, Icon: RefreshCcw },
   ]
 
@@ -339,11 +327,7 @@ export default function CashflowPage() {
       )}
 
       {tab !== "analysis" && (
-        <LabelsManager
-          tab={tab}
-          onRulesCountChange={setRulesCount}
-          onActionChange={setTabAction}
-        />
+        <LabelsManager tab={tab} onActionChange={setTabAction} />
       )}
     </motion.div>
   )
