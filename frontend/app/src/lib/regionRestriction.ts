@@ -1,5 +1,6 @@
 import { FFStatus, type FeatureFlags } from "@/types"
 import { isElectron, isNativeMobile } from "@/lib/platform"
+import { appConsole } from "@/lib/capacitor/appConsole"
 
 export const RESTRICTED_COUNTRIES_FLAG = "RESTRICTED_COUNTRIES"
 
@@ -111,12 +112,24 @@ export async function isDeviceInRestrictedRegion(
 ): Promise<boolean> {
   if (!isRegionCheckEnabled(flags)) return false
   const timezone = getDeviceTimezone()
-  if (!isRestrictedTimezone(timezone)) return false
+  let countryCodes: string[]
   try {
-    return isRegionRestricted(flags, timezone, await getDeviceCountryCodes())
-  } catch {
+    countryCodes = await getDeviceCountryCodes()
+  } catch (error) {
+    appConsole.debug("[RegionRestriction] Failed to detect device country", {
+      timezone,
+      error,
+    })
     return false
   }
+
+  const restricted = isRegionRestricted(flags, timezone, countryCodes)
+  appConsole.debug("[RegionRestriction] Detected device region", {
+    countryCodes,
+    timezone,
+    restricted,
+  })
+  return restricted
 }
 
 export function resetDeviceCountryCache(): void {

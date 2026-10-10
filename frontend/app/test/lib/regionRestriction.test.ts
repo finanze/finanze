@@ -91,9 +91,18 @@ describe("isDeviceInRestrictedRegion", () => {
   it("is not restricted with UK language outside UK timezone", async () => {
     mockTimezone("Europe/Madrid")
     mockLanguage("en-GB")
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {})
     const { isDeviceInRestrictedRegion } = await importModule()
 
     expect(await isDeviceInRestrictedRegion(FLAG_ON)).toBe(false)
+    expect(debug).toHaveBeenCalledWith(
+      "[RegionRestriction] Detected device region",
+      {
+        countryCodes: ["GB"],
+        timezone: "Europe/Madrid",
+        restricted: false,
+      },
+    )
   })
 
   it("prefers the Electron OS country over the language", async () => {
