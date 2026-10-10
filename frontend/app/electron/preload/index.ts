@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
   getAboutInfo: () => ipcRenderer.invoke("about-info") as Promise<AboutAppInfo>,
 
+  getLocaleCountryCode: () =>
+    ipcRenderer.invoke("locale-country-code") as Promise<string>,
+
   requestExternalLogin: async (
     id: string,
     request: ExternalLoginRequest = {},

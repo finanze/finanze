@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react"
 import {
@@ -13,12 +14,15 @@ import {
   changePassword as apiChangePassword,
 } from "@/services/api"
 import { AuthResultCode, type User } from "@/types"
-import { setFeatureFlags } from "@/context/featureFlagsStore"
+import { getFeatureFlags, setFeatureFlags } from "@/context/featureFlagsStore"
 import {
   hideSplashScreen,
   connectBackgroundWorker,
   disconnectBackgroundWorker,
+  waitForDeferredInit,
 } from "@/lib/mobile"
+import { isNativeMobile } from "@/lib/platform"
+import { isDeviceInRestrictedRegion } from "@/lib/regionRestriction"
 import { resetBackupStatusCache } from "@/hooks/useBackupStatus"
 
 interface AuthContextType {
@@ -56,6 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     string | null
   >(null)
   const [pendingRegister, setPendingRegister] = useState(false)
+  const deferredFlagsRef = useRef<Promise<void> | null>(null)
+
+  // Mobile core /status is served before feature flags are fetched (deferred init).
+  const loadDeferredFeatureFlags = (): Promise<void> => {
+    if (!isNativeMobile()) return Promise.resolve()
+    if (!deferredFlagsRef.current) {
+      deferredFlagsRef.current = waitForDeferredInit()
+        .then(() => checkStatus())
+        .then(({ features }) => setFeatureFlags(features))
+        .catch(error => {
+          console.error("Failed to load deferred feature flags:", error)
+          deferredFlagsRef.current = null
+        })
+    }
+    return deferredFlagsRef.current
+  }
+
+  const isRegionBlocked = async (): Promise<boolean> => {
+    await loadDeferredFeatureFlags()
+    return isDeviceInRestrictedRegion(getFeatureFlags())
+  }
 
   const syncStatus = async (): Promise<void> => {
     const {
@@ -83,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await syncStatus()
           setIsInitializing(false)
+          loadDeferredFeatureFlags()
           return
         } catch {
           await new Promise(resolve => setTimeout(resolve, retryDelay))
@@ -99,6 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<{ code: AuthResultCode; message?: string }> => {
     setIsLoading(true)
     try {
+      if (await isRegionBlocked()) {
+        return { code: AuthResultCode.REGION_RESTRICTED }
+      }
       const result = await apiLogin({ username, password })
       const isSuccess = result.code === AuthResultCode.SUCCESS
       setIsAuthenticated(isSuccess)
@@ -131,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<boolean> => {
     setIsLoading(true)
     try {
+      if (await isRegionBlocked()) return false
       const { success } = await apiSignup({ username, password })
       if (success) {
         // Signup automatically logs the user in, so set auth state
@@ -155,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const guestSignup = async (username: string): Promise<boolean> => {
     setIsLoading(true)
     try {
+      if (await isRegionBlocked()) return false
       const { success } = await apiSignup({ username, guest: true })
       if (success) {
         connectBackgroundWorker(username)
