@@ -68,6 +68,15 @@ export function triggerLazyInit() {
   })
 }
 
+export function waitForDeferredInit(): Promise<void> {
+  if (!__MOBILE__) return Promise.resolve()
+  if (!isNativeMobile()) return Promise.resolve()
+
+  return import("@/lib/pyodide/init").then(({ waitForDeferredInit }) =>
+    waitForDeferredInit(),
+  )
+}
+
 export function waitForLazyInit(): Promise<void> {
   if (!__MOBILE__) return Promise.resolve()
   if (!isNativeMobile()) return Promise.resolve()
