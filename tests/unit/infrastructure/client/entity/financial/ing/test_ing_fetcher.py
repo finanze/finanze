@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -7,12 +7,13 @@ import pytest
 from dateutil.tz import tzlocal
 
 from domain.dezimal import Dezimal
+from domain.entity_login import LoginConfirmationType, LoginResultCode, TwoFactor
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_record import DataSource
-from domain.fetch_result import FetchOptions
+from domain.fetch_result import FetchOptions, FetchStage
 from domain.global_position import ProductType
 from domain.native_entities import ING
-from domain.transactions import TxType
+from domain.transactions import ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS, TxType
 from infrastructure.client.entity.financial.ing import ing_fetcher as ing_module
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
 from infrastructure.client.entity.financial.ing.ing_fetcher import (
@@ -450,6 +451,256 @@ async def test_account_fetch_uses_calendar_months_at_month_end(account_fetcher):
     assert account_fetcher._client.get_account_transactions.await_args.args[1] == date(
         2025, 10, 31
     )
+
+
+def _old_txs_options():
+    return FetchOptions(two_factor_old_txs=True)
+
+
+def _old_stage_options():
+    return FetchOptions(two_factor_old_txs=True, stage=FetchStage.TWO_FACTOR_OLD_TXS)
+
+
+def _sca_documentation(process_id="sec-1", code=ing_module.SCA_CIPHER_REQUEST_CODE):
+    return {
+        "acceptanceMethods": [
+            {"code": code, "securityProcessId": process_id},
+        ]
+    }
+
+
+@pytest.fixture
+def sca_fetcher(account_fetcher, monkeypatch):
+    monkeypatch.setattr(ing_module, "SCA_POLL_INTERVAL_SECONDS", 0.01)
+    account_fetcher._client.supports_sca = MagicMock(return_value=True)
+    account_fetcher._client.start_sca.return_value = _sca_documentation()
+    account_fetcher._client.get_sca_status.return_value = {
+        "scaStatus": 3,
+        "resultCode": 0,
+    }
+    account_fetcher._client.synchronize_access_token.return_value = True
+    return account_fetcher
+
+
+async def _lock_older_movements(fetcher):
+    fetcher._client.get_account_transactions.side_effect = [
+        _account_page(
+            [_account_movement(1), _account_movement(2)],
+            total=2,
+            mayHasMoreElements=True,
+            moreSca=True,
+        )
+    ]
+    return await fetcher._fetch_account_txs(
+        [_account_product()], {}, set(), _old_txs_options()
+    )
+
+
+@pytest.mark.asyncio
+async def test_old_txs_option_fetches_max_lookback_and_stores_locked_cursor(
+    account_fetcher,
+):
+    txs = await _lock_older_movements(account_fetcher)
+
+    assert [tx.ref for tx in txs] == ["account-uuid:1", "account-uuid:2"]
+    account_fetcher._client.get_account_transactions.assert_awaited_once_with(
+        "account-uuid",
+        date(2026, 10, 4) - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS),
+        offset=0,
+        limit=100,
+        to_date=date(2026, 10, 4),
+    )
+    cursor = account_fetcher._old_txs_cursors["account-uuid"]
+    assert cursor.offset == 2
+    assert cursor.iban == "ES1234567890"
+
+
+@pytest.mark.asyncio
+async def test_more_sca_stops_paging_without_cursor_when_option_disabled(
+    account_fetcher,
+):
+    account_fetcher._client.get_account_transactions.side_effect = [
+        _account_page(
+            [_account_movement(1)], total=5, mayHasMoreElements=True, moreSca=True
+        )
+    ]
+
+    txs = await account_fetcher._fetch_account_txs(
+        [_account_product()], {}, set(), FetchOptions()
+    )
+
+    assert len(txs) == 1
+    account_fetcher._client.get_account_transactions.assert_awaited_once()
+    assert account_fetcher._old_txs_cursors == {}
+
+
+@pytest.mark.asyncio
+async def test_request_old_txs_code_skips_without_locked_cursors(sca_fetcher):
+    assert await sca_fetcher.request_old_txs_code() is None
+    sca_fetcher._client.start_sca.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_request_old_txs_code_skips_without_sca_session(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+    sca_fetcher._client.supports_sca.return_value = False
+
+    assert await sca_fetcher.request_old_txs_code() is None
+    sca_fetcher._client.start_sca.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_request_old_txs_code_returns_in_app_confirmation(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+
+    result = await sca_fetcher.request_old_txs_code()
+
+    assert result.code == LoginResultCode.CODE_REQUESTED
+    assert result.confirmation_type == LoginConfirmationType.IN_APP
+    assert result.process_id == "sec-1"
+
+
+@pytest.mark.asyncio
+async def test_request_old_txs_code_rejects_unsupported_method(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+    sca_fetcher._client.start_sca.return_value = _sca_documentation(code="otp")
+
+    with pytest.raises(ValueError, match="otp"):
+        await sca_fetcher.request_old_txs_code()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_waits_for_approval_and_refreshes_token(
+    sca_fetcher,
+):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    sca_fetcher._client.get_sca_status.side_effect = [
+        {"scaStatus": 1, "resultCode": 1},
+        {"scaStatus": 3, "resultCode": 0},
+    ]
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+
+    assert result.code == LoginResultCode.CREATED
+    assert sca_fetcher._client.get_sca_status.await_count == 2
+    sca_fetcher._client.get_sca_status.assert_awaited_with("sec-1")
+    sca_fetcher._client.confirm_sca.assert_awaited_once_with("sec-1")
+    sca_fetcher._client.synchronize_access_token.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_rejects_mismatched_process(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="other"))
+
+    assert result.code == LoginResultCode.NOT_LOGGED
+    sca_fetcher._client.get_sca_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_rejects_expired_request(sca_fetcher, monkeypatch):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    monkeypatch.setattr(ing_module, "OLD_TXS_SCA_TTL_SECONDS", -1)
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+
+    assert result.code == LoginResultCode.NOT_LOGGED
+    sca_fetcher._client.get_sca_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_times_out_without_approval(
+    sca_fetcher, monkeypatch
+):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    monkeypatch.setattr(ing_module, "SCA_APPROVAL_TIMEOUT_SECONDS", 0.03)
+    sca_fetcher._client.get_sca_status.return_value = {"scaStatus": 1}
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+
+    assert result.code == LoginResultCode.NOT_LOGGED
+    sca_fetcher._client.confirm_sca.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_stops_when_cancelled(sca_fetcher, monkeypatch):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    monkeypatch.setattr(ing_module, "SCA_POLL_INTERVAL_SECONDS", 5)
+
+    async def pending_status(_):
+        sca_fetcher.cancel_login()
+        return {"scaStatus": 1}
+
+    sca_fetcher._client.get_sca_status.side_effect = pending_status
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+
+    assert result.code == LoginResultCode.UNEXPECTED_ERROR
+    assert result.message == "Approval cancelled by user."
+    sca_fetcher._client.confirm_sca.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_old_txs_code_fails_without_new_access_token(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    sca_fetcher._client.synchronize_access_token.return_value = False
+
+    result = await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+
+    assert result.code == LoginResultCode.UNEXPECTED_ERROR
+    assert sca_fetcher._sca_unlocked is False
+
+
+@pytest.mark.asyncio
+async def test_old_stage_resumes_cursor_without_cache_and_keeps_remaining_lock(
+    sca_fetcher,
+):
+    await _lock_older_movements(sca_fetcher)
+    await sca_fetcher.request_old_txs_code()
+    await sca_fetcher.confirm_old_txs_code(TwoFactor(process_id="sec-1"))
+    sca_fetcher._client.get_account_transactions.reset_mock()
+    sca_fetcher._client.get_account_transactions.side_effect = [
+        _account_page(
+            [_account_movement(1), _account_movement(3, transactionDate="2025-01-10")],
+            total=4,
+            mayHasMoreElements=True,
+        ),
+        _account_page(
+            [_account_movement(4, transactionDate="2024-12-01")],
+            total=5,
+            mayHasMoreElements=True,
+            moreSca=True,
+        ),
+    ]
+
+    result = await sca_fetcher.transactions({"account-uuid:1"}, _old_stage_options())
+
+    assert result.investment == []
+    assert [tx.ref for tx in result.account] == ["account-uuid:3", "account-uuid:4"]
+    requests = sca_fetcher._client.get_account_transactions.await_args_list
+    assert [request.kwargs["offset"] for request in requests] == [2, 4]
+    assert all(request.kwargs["cache_read"] is False for request in requests)
+    sca_fetcher._client.get_position.assert_not_awaited()
+    assert sca_fetcher._old_txs_cursors["account-uuid"].offset == 5
+    assert sca_fetcher._sca_unlocked is False
+
+
+@pytest.mark.asyncio
+async def test_old_stage_without_approval_returns_no_transactions(sca_fetcher):
+    await _lock_older_movements(sca_fetcher)
+    sca_fetcher._client.get_account_transactions.reset_mock()
+
+    result = await sca_fetcher.transactions(set(), _old_stage_options())
+
+    assert result.account == []
+    sca_fetcher._client.get_account_transactions.assert_not_awaited()
 
 
 def test_map_movement_maps_transfer_out():

@@ -42,7 +42,22 @@ export function useRestoreReturnScroll(ready: boolean) {
     const storageKey = returnScrollKey(arrivalKey.current)
     const saved = sessionStorage.getItem(storageKey)
     if (saved === null) return
-    sessionStorage.removeItem(storageKey)
-    if (scrollRootRef.current) scrollRootRef.current.scrollTop = Number(saved)
+    const scrollRoot = scrollRootRef.current
+    if (!scrollRoot) return
+    const savedOffset = Number(saved)
+    let observer: ResizeObserver | null = null
+    const restore = () => {
+      scrollRoot.scrollTop = savedOffset
+      if (Math.abs(scrollRoot.scrollTop - savedOffset) < 1) {
+        sessionStorage.removeItem(storageKey)
+        observer?.disconnect()
+      }
+    }
+    restore()
+    if (sessionStorage.getItem(storageKey) !== null) {
+      observer = new ResizeObserver(restore)
+      observer.observe(scrollRoot.firstElementChild ?? scrollRoot)
+    }
+    return () => observer?.disconnect()
   }, [ready, scrollRootRef])
 }

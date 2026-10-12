@@ -71,3 +71,36 @@ async def test_account_movements_fails_without_token_grant():
 
     with pytest.raises(ValueError):
         await client.get_account_movements("003")
+
+
+@pytest.mark.asyncio
+async def test_simulate_movements_signature_returns_signature_data():
+    signature = {"coordenada": "**", "telefono": "******447", "referencia": "1"}
+    client = _logged_client(_response({"datosfirmaoper": signature}))
+
+    result = await client.simulate_movements_signature("003")
+
+    assert result == signature
+    call = client._session.request.call_args
+    assert call.args[1].endswith("/services/rest/api/cuentas/simulacionMovimientos")
+    assert call.kwargs["data"] == {"ppp": "003", "indProcedencia": "L"}
+    assert call.kwargs["headers"]["Referer"].endswith("/cuentas/003/movimientos")
+
+
+@pytest.mark.asyncio
+async def test_sign_movements_succeeds_on_ok_code():
+    client = _logged_client(_response({"codigoOK": "OK"}))
+
+    assert await client.sign_movements("003", "**", "282334")
+    call = client._session.request.call_args
+    assert call.args[1].endswith("/services/rest/api/cuentas/firmaMovimientos")
+    assert call.kwargs["data"] == {"coordenada": "**", "dobleCanal": "282334"}
+
+
+@pytest.mark.asyncio
+async def test_sign_movements_fails_on_error_response():
+    error = MagicMock(ok=False, status=400)
+    client = _logged_client(error, _response({"codigoOK": "KO"}))
+
+    assert not await client.sign_movements("003", "**", "000000")
+    assert not await client.sign_movements("003", "**", "000000")

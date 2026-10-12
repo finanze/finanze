@@ -114,6 +114,16 @@ export interface Entity {
   fetchable?: boolean
   allows_hd_wallet?: boolean | null
   accounts?: EntityAccountInfo[]
+  internal_features?: InternalFeature[]
+}
+
+export enum InternalFeature {
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
+}
+
+export enum FetchStage {
+  MAIN = "MAIN",
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
 }
 
 export enum EntitySessionCategory {
@@ -315,6 +325,8 @@ export interface FetchRequest {
   token?: string
   avoidNewLogin?: boolean
   deep?: boolean
+  twoFactorOldTxs?: boolean
+  stage?: FetchStage
   entityAccountId?: string
 }
 
@@ -352,6 +364,10 @@ export interface FetchResponse {
     credentials?: Record<string, string>
     failedFeatures?: Feature[]
     completedFeatures?: Feature[]
+    stage?: FetchStage
+    message?: string | null
+    pinLength?: number
+    pinChannel?: PinChannel
   }
 }
 

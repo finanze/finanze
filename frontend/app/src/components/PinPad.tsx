@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, Delete, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
+import { useAppContext } from "@/context/AppContext"
 import { useI18n } from "@/i18n"
+import { FetchStage } from "@/types"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -33,8 +35,11 @@ export function PinPad() {
     clearPendingScrapeParams,
     switchActivePinEntity,
     getPendingPinEntities,
+    processId,
   } = useEntityWorkflow()
+  const { showToast } = useAppContext()
   const pinByEntityRef = useRef<Map<string, string[]>>(new Map())
+  const processIdByEntityRef = useRef<Map<string, string | null>>(new Map())
   const otpInputRef = useRef<HTMLInputElement>(null)
   const [pin, setPin] = useState<string[]>([])
   const [showCancelDialog, setShowCancelDialog] = useState(false)
@@ -67,6 +72,15 @@ export function PinPad() {
     const storedPin = pinByEntityRef.current.get(selectedEntity.id)
     setPin(storedPin ?? [])
   }, [selectedEntity])
+
+  useEffect(() => {
+    if (!selectedEntity) return
+    const previous = processIdByEntityRef.current.get(selectedEntity.id)
+    processIdByEntityRef.current.set(selectedEntity.id, processId)
+    if (previous && previous !== processId) {
+      syncPinForEntity([])
+    }
+  }, [processId, selectedEntity, syncPinForEntity])
 
   useEffect(() => {
     if (!isIOS() || !selectedEntity) return
@@ -139,6 +153,8 @@ export function PinPad() {
           code: pinString,
           deep: optionsToUse.deep,
           avoidNewLogin: optionsToUse.avoidNewLogin,
+          twoFactorOldTxs: optionsToUse.twoFactorOldTxs,
+          stage: optionsToUse.stage,
         },
         pendingParams?.entityAccountId,
       )
@@ -193,6 +209,17 @@ export function PinPad() {
     }
 
     if (selectedEntity) {
+      const cancelledStage = getPendingScrapeParams(selectedEntity.id)?.options
+        .stage
+      if (cancelledStage === FetchStage.TWO_FACTOR_OLD_TXS) {
+        showToast(
+          t.features.twoFactorOldTxsSkipped.replace(
+            "{entity}",
+            selectedEntity.name,
+          ),
+          "warning",
+        )
+      }
       pinByEntityRef.current.delete(selectedEntity.id)
       clearPendingScrapeParams(selectedEntity.id)
     }
@@ -259,6 +286,16 @@ export function PinPad() {
   if (!selectedEntity) return null
 
   const pendingEntities = getPendingPinEntities()
+  const activePending = getPendingScrapeParams(selectedEntity.id)
+  const isOldTxsStage =
+    currentAction === "scrape" &&
+    activePending?.options.stage === FetchStage.TWO_FACTOR_OLD_TXS
+  const oldTxsHint = activePending?.message
+    ? t.pinpad.twoFactorOldTxsHintDestination.replace(
+        "{destination}",
+        activePending.message,
+      )
+    : t.pinpad.twoFactorOldTxsHint
   const idsRequiringCode = [
     selectedEntity.id,
     ...pendingEntities.map(p => p.id),
@@ -271,8 +308,9 @@ export function PinPad() {
   const cancelButtonLabel = isBackgroundFetch
     ? t.common.continueInBackground
     : t.common.cancel
-  const cancelMessage =
-    currentAction === "scrape"
+  const cancelMessage = isOldTxsStage
+    ? t.pinpad.cancelOldTxsDescription
+    : currentAction === "scrape"
       ? t.pinpad.cancelFetchDescription
       : t.pinpad.cancelLoginDescription
   const enterCodeText = t.pinpad.enterCode.replace(
@@ -290,6 +328,11 @@ export function PinPad() {
         <CardTitle className="text-center">
           {enterCodeText} {selectedEntity.name}
         </CardTitle>
+        {isOldTxsStage && (
+          <p className="text-center text-sm text-muted-foreground">
+            {oldTxsHint}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         {pendingEntities.length > 0 && (

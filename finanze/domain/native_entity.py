@@ -24,6 +24,10 @@ class PinDetails:
     pattern: Optional[str] = None
 
 
+class InternalFeature(str, Enum):
+    TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS"
+
+
 class CredentialType(str, Enum):
     ID = "ID"
     USER = "USER"
@@ -66,6 +70,7 @@ class NativeFinancialEntity(Entity):
     transaction_kinds: list[TransactionKind] = field(
         default_factory=lambda: [TransactionKind.INVESTMENT]
     )
+    internal_features: list[InternalFeature] = field(default_factory=list)
 
 
 @dataclass(eq=False)

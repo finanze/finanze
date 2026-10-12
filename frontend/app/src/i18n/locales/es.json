@@ -481,6 +481,7 @@
     "invalidPasswordFormat": "La clave de cifrado debe tener al menos 8 caracteres",
     "inAppConfirmationTitle": "Confirma el inicio de sesión en",
     "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión.",
+    "inAppOldTxsConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud para acceder a los movimientos antiguos.",
     "challengeTitle": "Verificación de seguridad de",
     "challengeMessage": "Por favor, completa la verificación de seguridad para continuar.",
     "cloudRestore": {
@@ -509,9 +510,12 @@
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
     "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
+    "twoFactorOldTxsHint": "Los datos principales ya se han obtenido. Introduce el código adicional para obtener también los movimientos antiguos de las cuentas.",
+    "twoFactorOldTxsHintDestination": "Los datos principales ya se han obtenido. Introduce el código adicional enviado a {destination} para obtener también los movimientos antiguos de las cuentas.",
     "cancelConfirmationTitle": "¿Cancelar verificación?",
     "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
     "cancelFetchDescription": "¿Quieres salir del proceso de actualización?",
+    "cancelOldTxsDescription": "Los datos principales ya están guardados. ¿Quieres omitir los movimientos antiguos de las cuentas?",
     "pendingRequests": "Otra entidad necesita código",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Código de verificación"
@@ -651,6 +655,9 @@
     "fetchSelected": "Obtener",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
+    "twoFactorOldTxs": "Incluir movimientos antiguos de cuentas",
+    "twoFactorOldTxsDescription": "Obtiene movimientos de cuentas más allá del límite habitual de 3 meses. Se pedirá un código de verificación adicional al final.",
+    "twoFactorOldTxsSkipped": "Se han omitido los movimientos antiguos de cuentas de {entity}",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",
     "supportedProducts": "Productos Soportados",

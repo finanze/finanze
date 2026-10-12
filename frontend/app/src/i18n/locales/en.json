@@ -483,6 +483,7 @@
     "invalidPasswordFormat": "Encryption key must be at least 8 characters",
     "inAppConfirmationTitle": "Confirm login in",
     "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "inAppOldTxsConfirmationMessage": "Open the financial institution app on your phone and confirm the request to access older transactions.",
     "challengeTitle": "Security verification for",
     "challengeMessage": "Please complete the security verification to continue.",
     "cloudRestore": {
@@ -511,9 +512,12 @@
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
     "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
+    "twoFactorOldTxsHint": "Main data is already fetched. Enter the extra code to also fetch older account transactions.",
+    "twoFactorOldTxsHintDestination": "Main data is already fetched. Enter the extra code sent to {destination} to also fetch older account transactions.",
     "cancelConfirmationTitle": "Cancel verification?",
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
+    "cancelOldTxsDescription": "Main data is already saved. Do you want to skip older account transactions?",
     "pendingRequests": "Other entities need a code",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Verification code"
@@ -653,6 +657,9 @@
     "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "twoFactorOldTxs": "Include older account transactions",
+    "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
+    "twoFactorOldTxsSkipped": "Older account transactions from {entity} were skipped",
     "advancedOptions": "Advanced options",
     "availableFeatures": "Available Features",
     "supportedProducts": "Supported Products",

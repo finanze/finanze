@@ -24,10 +24,11 @@ from domain.entity_login import (
     EntitySession,
     LoginConfirmationType,
     LoginResultCode,
+    TwoFactor,
 )
 from domain.fetch_record import DataSource, FetchRecord
 from domain.global_position import GlobalPosition, ProductType
-from domain.native_entities import ING, MY_INVESTOR
+from domain.native_entities import ING, MY_INVESTOR, UNICAJA
 from domain.transactions import AccountTx, Transactions, TxType
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
@@ -1233,3 +1234,161 @@ class TestIsolatedFeaturePersist:
         fetcher.transactions.assert_awaited_once()
         position_port.save.assert_not_awaited()
         transaction_port.save.assert_awaited_once()
+
+
+def _unicaja_tx(ref):
+    return AccountTx(
+        id=uuid.uuid4(),
+        ref=ref,
+        name=ref,
+        amount=Dezimal("10"),
+        currency="EUR",
+        type=TxType.TRANSFER_OUT,
+        date=datetime.now(timezone.utc),
+        entity=UNICAJA,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal("0"),
+        retentions=Dezimal("0"),
+    )
+
+
+class TestTwoFactorOldTxs:
+    @pytest.mark.asyncio
+    async def test_returns_400_on_invalid_stage(self, client, entity_account_port):
+        _setup_entity_account(entity_account_port)
+        response = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["TRANSACTIONS"],
+                "stage": "UNKNOWN",
+            },
+        )
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["message"] == "Invalid stage"
+
+    @pytest.mark.asyncio
+    async def test_fetch_then_confirm_older_transactions(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        transaction_port,
+        entity_account_port,
+        fetch_pointers_port,
+    ):
+        entity_account_port.get_by_id = AsyncMock(
+            return_value=EntityAccount(
+                id=uuid.UUID(ENTITY_ACCOUNT_ID),
+                entity_id=UNICAJA.id,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        fetcher = _setup_fetcher(
+            entity_fetchers,
+            UNICAJA,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+        fetcher.transactions = AsyncMock(
+            side_effect=[
+                Transactions(account=[_unicaja_tx("RECENT")], investment=[]),
+                Transactions(account=[_unicaja_tx("OLD")], investment=[]),
+            ]
+        )
+        fetcher.request_old_txs_code = AsyncMock(
+            side_effect=[
+                EntityLoginResult(
+                    LoginResultCode.CODE_REQUESTED,
+                    message="******447",
+                    process_id="088926",
+                    details={"pinLength": 6, "pinChannel": "SMS"},
+                ),
+                None,
+            ]
+        )
+        fetcher.confirm_old_txs_code = AsyncMock(
+            return_value=EntityLoginResult(LoginResultCode.CREATED)
+        )
+        transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        fetch_pointers_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        first = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["POSITION", "TRANSACTIONS"],
+                "twoFactorOldTxs": True,
+            },
+        )
+        first_body = await first.get_json()
+
+        assert first_body["code"] == "CODE_REQUESTED"
+        assert first_body["details"] == {
+            "completedFeatures": ["POSITION", "TRANSACTIONS"],
+            "stage": "TWO_FACTOR_OLD_TXS",
+            "message": "******447",
+            "processId": "088926",
+            "pinLength": 6,
+            "pinChannel": "SMS",
+        }
+        assert fetcher.transactions.await_args.args[1].two_factor_old_txs
+
+        second = await client.post(
+            FETCH_URL,
+            json={
+                "entityAccountId": ENTITY_ACCOUNT_ID,
+                "features": ["POSITION", "TRANSACTIONS"],
+                "twoFactorOldTxs": True,
+                "stage": "TWO_FACTOR_OLD_TXS",
+                "code": "282334",
+                "processId": "088926",
+            },
+        )
+        second_body = await second.get_json()
+
+        assert second_body["code"] == "COMPLETED"
+        assert second_body["details"] == {"completedFeatures": ["TRANSACTIONS"]}
+        assert fetcher.login.await_count == 1
+        assert fetcher.global_position.await_count == 1
+        fetcher.confirm_old_txs_code.assert_awaited_once_with(
+            TwoFactor(code="282334", process_id="088926")
+        )
+        saved = [
+            call.args[0].account[0].ref
+            for call in transaction_port.save.await_args_list
+        ]
+        assert saved == ["RECENT", "OLD"]
+
+    @pytest.mark.asyncio
+    async def test_available_sources_expose_internal_features(
+        self,
+        client,
+        entity_port,
+        credentials_port,
+        last_fetches_port,
+        virtual_import_registry,
+        entity_account_port,
+        external_integration_port,
+    ):
+        entity_port.get_all = AsyncMock(return_value=[UNICAJA, MY_INVESTOR])
+        credentials_port.get_available_entities = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        entity_account_port.get_by_ids = AsyncMock(return_value=[])
+        external_integration_port.get_payloads_by_type = AsyncMock(return_value={})
+
+        response = await client.get("/api/v1/entities")
+        assert response.status_code == 200
+        body = await response.get_json()
+        by_id = {e["id"]: e for e in body["entities"]}
+        assert by_id[str(UNICAJA.id)]["internal_features"] == ["TWO_FACTOR_OLD_TXS"]
+        assert by_id[str(MY_INVESTOR.id)]["internal_features"] == []

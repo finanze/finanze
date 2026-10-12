@@ -310,6 +310,36 @@ class UnicajaClient:
             f"/services/rest/api/cuentas/movimientos/detallemovimiento?ppp={ppp}&nummov={nummov}"
         )
 
+    def _movements_signature_headers(self, ppp: str) -> dict:
+        return {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": self.BASE_URL,
+            "Referer": self.MOVEMENTS_REFERER.format(ppp=ppp),
+        }
+
+    async def simulate_movements_signature(self, ppp: str) -> dict:
+        response = await self._post_request(
+            "/services/rest/api/cuentas/simulacionMovimientos",
+            {"ppp": ppp, "indProcedencia": "L"},
+            headers=self._movements_signature_headers(ppp),
+        )
+        return response.get("datosfirmaoper") or {}
+
+    async def sign_movements(self, ppp: str, coordinate: str, code: str) -> bool:
+        response = await self._post_request(
+            "/services/rest/api/cuentas/firmaMovimientos",
+            {"coordenada": coordinate, "dobleCanal": code},
+            raw=True,
+            headers=self._movements_signature_headers(ppp),
+        )
+        if not response.ok:
+            self._log.warning(
+                f"Unicaja movements signature failed with status {response.status}"
+            )
+            return False
+        body = await response.json()
+        return body.get("codigoOK") == "OK"
+
     async def get_cards(self):
         return await self._get_request("/services/rest/api/productos/listatarjetas")
 

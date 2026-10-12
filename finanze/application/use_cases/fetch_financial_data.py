@@ -32,8 +32,8 @@ from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
-from domain.native_entity import CredentialType
-from domain.entity_login import EntityLoginParams, LoginResultCode
+from domain.native_entity import CredentialType, InternalFeature
+from domain.entity_login import EntityLoginParams, LoginResultCode, TwoFactor
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_pointer import FetchPointerContext
@@ -44,6 +44,7 @@ from domain.fetch_result import (
     FetchRequest,
     FetchResult,
     FetchResultCode,
+    FetchStage,
 )
 from domain.global_position import (
     FactoringDetail,
@@ -259,6 +260,15 @@ class FetchFinancialDataImpl(FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
+            fetch_options = fetch_request.fetch_options or FetchOptions()
+            if fetch_options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+                return await self._fetch_two_factor_old_txs(
+                    entity,
+                    fetch_request.two_factor,
+                    fetch_options,
+                    entity_account_id,
+                )
+
             if not features:
                 features = DEFAULT_FEATURES
 
@@ -357,7 +367,12 @@ class FetchFinancialDataImpl(FetchFinancialData):
                         entity_account_id, entity.id, session
                     )
 
-            fetch_options = fetch_request.fetch_options or FetchOptions()
+            if fetch_options.two_factor_old_txs and (
+                Feature.TRANSACTIONS not in features
+                or not self._supports_two_factor_old_txs(entity)
+            ):
+                fetch_options.two_factor_old_txs = False
+
             if (
                 Feature.TRANSACTIONS in features
                 and entity in FETCH_POINTER_SUPPORTED_ENTITIES
@@ -469,9 +484,100 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 for feature, error in failures:
                     self._report(error, entity, tags={"feature": feature.value})
                 details["failedFeatures"] = [feature.value for feature in failed]
+
+            if transactions_ok and options.two_factor_old_txs:
+                old_txs_result = await self._request_old_txs_code(
+                    entity, specific_fetcher, data, details
+                )
+                if old_txs_result:
+                    return old_txs_result
+
+            if failed:
                 return FetchResult(
                     FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
                 )
+            return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
+        finally:
+            await self._close_fetcher(specific_fetcher)
+
+    @staticmethod
+    def _supports_two_factor_old_txs(entity: Entity) -> bool:
+        return Feature.TRANSACTIONS in entity.features and (
+            InternalFeature.TWO_FACTOR_OLD_TXS in entity.internal_features
+        )
+
+    async def _request_old_txs_code(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        data: FetchedData,
+        details: dict,
+    ) -> Optional[FetchResult]:
+        try:
+            result = await specific_fetcher.request_old_txs_code()
+        except Exception as e:
+            self._log.exception(e)
+            self._report(e, entity, tags={"stage": FetchStage.TWO_FACTOR_OLD_TXS.value})
+            return None
+
+        if not result or result.code != LoginResultCode.CODE_REQUESTED:
+            return None
+
+        old_txs_details = {
+            **details,
+            **(result.details or {}),
+            "stage": FetchStage.TWO_FACTOR_OLD_TXS.value,
+            "message": result.message,
+        }
+        if result.process_id:
+            old_txs_details["processId"] = result.process_id
+        return FetchResult(
+            FetchResultCode.CODE_REQUESTED,
+            data=data,
+            details=old_txs_details,
+            confirmation_type=result.confirmation_type,
+        )
+
+    async def _fetch_two_factor_old_txs(
+        self,
+        entity: Entity,
+        two_factor: Optional[TwoFactor],
+        options: FetchOptions,
+        entity_account_id: UUID,
+    ) -> FetchResult:
+        if not self._supports_two_factor_old_txs(entity):
+            return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
+
+        if not two_factor or not (two_factor.code or two_factor.process_id):
+            return FetchResult(FetchResultCode.INVALID_CODE)
+
+        specific_fetcher = self._entity_fetchers[entity]
+        try:
+            confirm_result = await specific_fetcher.confirm_old_txs_code(two_factor)
+            if confirm_result.code != LoginResultCode.CREATED:
+                return FetchResult(
+                    FETCH_BAD_LOGIN_CODES.get(
+                        confirm_result.code, FetchResultCode.UNEXPECTED_LOGIN_ERROR
+                    ),
+                    details={
+                        "message": confirm_result.message,
+                        "stage": FetchStage.TWO_FACTOR_OLD_TXS.value,
+                    },
+                )
+
+            options.deep = False
+            options.pointer_context = None
+            transactions = await self._fetch_and_store_transactions(
+                entity, specific_fetcher, options, entity_account_id
+            )
+
+            data = FetchedData(transactions=transactions)
+            details = {"completedFeatures": [Feature.TRANSACTIONS.value]}
+            old_txs_result = await self._request_old_txs_code(
+                entity, specific_fetcher, data, details
+            )
+            if old_txs_result:
+                return old_txs_result
             return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
         finally:
             await self._close_fetcher(specific_fetcher)

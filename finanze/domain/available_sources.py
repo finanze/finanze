@@ -15,6 +15,7 @@ from domain.native_entity import (
     CredentialType,
     EntitySetupLoginType,
     EntitySessionCategory,
+    InternalFeature,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
@@ -55,6 +56,7 @@ class AvailableSource(Entity):
     fetchable: bool = True
     allows_hd_wallet: Optional[bool] = None
     accounts: Optional[list[EntityAccountInfo]] = None
+    internal_features: list[InternalFeature] = field(default_factory=list)
 
 
 @dataclass

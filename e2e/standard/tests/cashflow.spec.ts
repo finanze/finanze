@@ -229,11 +229,7 @@ async function createManualTransaction(
 
 async function createExpectedExpense(page: Page, name: string, amount: string) {
     await page.getByRole('tab', { name: /^Expenses/ }).click()
-    await page
-        .getByRole('heading', { name: 'Expenses', exact: true })
-        .locator('../..')
-        .getByRole('button')
-        .click()
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
     const dialog = page.locator('.fixed.inset-0').last()
     await dialog.getByPlaceholder('Enter name').fill(name)
     await dialog.getByRole('textbox').nth(1).fill(amount)
@@ -301,11 +297,31 @@ async function selectCashflowPreset(
     page: Page,
     preset: 'thisMonth' | 'lastMonth' | 'last3Months',
 ) {
+    const today = new Date()
+    const monthOffset =
+        preset === 'last3Months' ? 2 : preset === 'lastMonth' ? 1 : 0
+    const fromDate = new Date(
+        today.getFullYear(),
+        today.getMonth() - monthOffset,
+        1,
+    )
+    const toDate =
+        preset === 'lastMonth'
+            ? new Date(today.getFullYear(), today.getMonth(), 0)
+            : today
+    const toIsoDate = (date: Date) =>
+        [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, '0'),
+            String(date.getDate()).padStart(2, '0'),
+        ].join('-')
     const summaryResponse = page.waitForResponse((response) => {
         const url = new URL(response.url())
         return (
             url.pathname.endsWith('/cashflow') &&
-            response.request().method() === 'GET'
+            response.request().method() === 'GET' &&
+            url.searchParams.get('from_date') === toIsoDate(fromDate) &&
+            url.searchParams.get('to_date') === toIsoDate(toDate)
         )
     })
     await page.getByTestId(`cashflow-preset-${preset}`).click()
@@ -544,6 +560,7 @@ test.describe('Cashflow', () => {
         ).toBeVisible()
 
         await navigateToCashflow(page)
+        await selectCashflowPreset(page, 'thisMonth')
         const breakdownRow = page
             .getByTestId('cashflow-label-row')
             .filter({ hasText: labelName })
@@ -698,6 +715,7 @@ test.describe('Cashflow', () => {
 
         await navigateToCashflow(page)
         await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        await selectCashflowPreset(page, 'last3Months')
         await expect
             .poll(() => readCashflowKpiAmount(page, 'kpi-income'))
             .toBeCloseTo(incomeBeforeLast3Months + 300, 2)
@@ -757,21 +775,34 @@ test.describe('Cashflow', () => {
         await selectCashflowPreset(page, 'thisMonth')
         const section = page.getByTestId('cashflow-budget')
         await expect(section).toBeVisible()
+        const budgetToggle = section.getByTestId('budget-details-toggle')
+        await expect(budgetToggle).toHaveAttribute('aria-expanded', 'false')
+        await expect(section.getByTestId('budget-details-content')).toHaveCount(
+            0,
+        )
+        await budgetToggle.click()
+        await expect(budgetToggle).toHaveAttribute('aria-expanded', 'true')
         await page.getByTestId('budget-label-details-toggle').click()
         const row = page.getByTestId(`budget-label-EXPENSE-${labelId}`)
         await expect(row).toHaveCount(1)
         await expect(row).toContainText('125%')
         await expect(row).toContainText('600.00')
         await expect(row).toContainText('750.00')
-        const budgetSavedActual = await page
-            .getByTestId('budget-saved')
+        const budgetNeedsActual = await section
+            .getByTestId('budget-needs')
             .locator('.grid > div')
             .first()
             .innerText()
-        expect(parseCashflowAmount(budgetSavedActual)).toBeCloseTo(
-            await readCashflowKpiAmount(page, 'kpi-net'),
-            2,
-        )
+        const budgetWantsActual = await section
+            .getByTestId('budget-wants')
+            .locator('.grid > div')
+            .first()
+            .innerText()
+        expect(
+            parseCashflowAmount(budgetNeedsActual) +
+                parseCashflowAmount(budgetWantsActual),
+        ).toBeCloseTo(await readCashflowKpiAmount(page, 'kpi-expenses'), 2)
+        await expect(section.getByTestId('budget-invested')).toBeVisible()
         for (const [width, height] of [
             [1440, 1000],
             [390, 844],
@@ -795,7 +826,11 @@ test.describe('Cashflow', () => {
             new Date().toLocaleDateString('en-CA').slice(0, 7) + '-01',
         )
         expect(drilldown.getAll('type')).toEqual(['OUTFLOW', 'FEE'])
-        await expect(page.getByText(actualName, { exact: true })).toBeVisible()
+        await expect(
+            page
+                .getByText(actualName, { exact: true })
+                .filter({ visible: true }),
+        ).toBeVisible()
         await page.getByTestId('return-to-origin').click()
         await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)
         await expect(section).toBeVisible()
@@ -867,6 +902,7 @@ test.describe('Cashflow', () => {
 
         await navigateToCashflow(page)
         await expect(page.getByTestId('cashflow-kpis')).toBeVisible()
+        await selectCashflowPreset(page, 'last3Months')
         const barsToggle = page.getByTestId('cashflow-evolution-bars')
         const heatmapToggle = page.getByTestId('cashflow-evolution-heatmap')
         await expect(barsToggle).toHaveAttribute('aria-pressed', 'true')
@@ -921,6 +957,7 @@ test.describe('Cashflow', () => {
         ).toBeVisible()
 
         await navigateToCashflow(page)
+        await selectCashflowPreset(page, 'last3Months')
         await expect(page.getByTestId('cashflow-heatmap')).toBeVisible()
         await barsToggle.click()
         await expect(barsToggle).toHaveAttribute('aria-pressed', 'true')
@@ -1038,9 +1075,7 @@ test.describe('Cashflow', () => {
         const trackedPayee = RECURRING_PAYEES[RECURRING_PAYEES.length - 1]
         const trackRow = activeRows.filter({ hasText: trackedPayee })
         await expect(trackRow).toBeVisible()
-        await trackRow
-            .getByRole('button', { name: 'Add to budget', exact: true })
-            .click()
+        await trackRow.getByRole('button', { name: 'Add', exact: true }).click()
         await expect(trackRow.getByTestId('tracked-badge')).toBeVisible({
             timeout: 15_000,
         })
@@ -1318,9 +1353,7 @@ test.describe('Cashflow', () => {
                         '/flows/periodic',
                     ) && response.request().method() === 'POST',
             )
-            await row
-                .getByRole('button', { name: 'Add to budget', exact: true })
-                .click()
+            await row.getByRole('button', { name: 'Add', exact: true }).click()
             if (entry.labels.length > 1) {
                 const picker = page.getByTestId('detected-budget-label-picker')
                 await expect(picker).toBeVisible()
@@ -1334,7 +1367,7 @@ test.describe('Cashflow', () => {
                 ).toHaveAttribute('aria-pressed', 'false')
                 await picker.getByTestId('label-option-subscriptions').click()
                 await picker
-                    .getByRole('button', { name: 'Add to budget', exact: true })
+                    .getByRole('button', { name: 'Add', exact: true })
                     .click()
             } else
                 await expect(

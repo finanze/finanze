@@ -16,6 +16,7 @@ from domain.native_entity import (
     CredentialType,
     EntitySetupLoginType,
     EntitySessionCategory,
+    InternalFeature,
     NativeFinancialEntity,
     NativeCryptoWalletEntity,
     NativeCryptoExchangeEntity,
@@ -65,6 +66,7 @@ UNICAJA = NativeFinancialEntity(
         "abck": CredentialType.INTERNAL,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 TRADE_REPUBLIC = NativeFinancialEntity(
@@ -217,8 +219,10 @@ ING = NativeFinancialEntity(
         "apiCookie": CredentialType.INTERNAL_TEMP,
         "apiAuth": CredentialType.INTERNAL_TEMP,
         "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
+        "genomaLoginCookie": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 CAJAMAR = NativeFinancialEntity(

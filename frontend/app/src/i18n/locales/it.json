@@ -482,6 +482,7 @@
     "invalidPasswordFormat": "La chiave di crittografia deve contenere almeno 8 caratteri",
     "inAppConfirmationTitle": "Conferma l'accesso su",
     "inAppConfirmationMessage": "Apri l'app dell'istituto finanziario sul tuo telefono e conferma la richiesta di accesso.",
+    "inAppOldTxsConfirmationMessage": "Apri l'app dell'istituto finanziario sul tuo telefono e conferma la richiesta di accesso ai movimenti più vecchi.",
     "challengeTitle": "Verifica di sicurezza per",
     "challengeMessage": "Completa la verifica di sicurezza per continuare.",
     "cloudRestore": {
@@ -510,9 +511,12 @@
   "pinpad": {
     "enterCode": "Inserisci il codice a {length} cifre per",
     "codeDelayTip": "Info: a volte il codice 2FA può metterci un po' ad arrivare",
+    "twoFactorOldTxsHint": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo per recuperare anche i movimenti più vecchi dei conti.",
+    "twoFactorOldTxsHintDestination": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo inviato a {destination} per recuperare anche i movimenti più vecchi dei conti.",
     "cancelConfirmationTitle": "Annullare la verifica?",
     "cancelLoginDescription": "Vuoi uscire dal processo di accesso?",
     "cancelFetchDescription": "Vuoi uscire dal processo di recupero?",
+    "cancelOldTxsDescription": "I dati principali sono già salvati. Vuoi saltare i movimenti più vecchi dei conti?",
     "pendingRequests": "Altre entità richiedono un codice",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Codice di verifica"
@@ -652,6 +656,9 @@
     "fetchSelected": "Recupera",
     "deepScrape": "Forza recupero completo",
     "deepScrapeDescription": "Recupera di nuovo i dati precedenti (potrebbe richiedere molto tempo, potresti essere bloccato e non è consigliato)",
+    "twoFactorOldTxs": "Includi movimenti più vecchi dei conti",
+    "twoFactorOldTxsDescription": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Alla fine verrà richiesto un codice di verifica aggiuntivo.",
+    "twoFactorOldTxsSkipped": "I movimenti più vecchi dei conti di {entity} sono stati saltati",
     "advancedOptions": "Opzioni avanzate",
     "availableFeatures": "Funzionalità Disponibili",
     "supportedProducts": "Prodotti Supportati",

@@ -28,7 +28,7 @@ export async function promptLogin(
     LoginWebView.removeAllListeners()
   }
 
-  function checkCompletion() {
+  async function checkCompletion() {
     console.debug(
       "ING checkCompletion: " +
         JSON.stringify({
@@ -46,6 +46,13 @@ export async function promptLogin(
       result.credentials.apiAuth &&
       result.credentials.apiExtendedSessionCtx
     ) {
+      if (completed) return
+      const genomaLoginCookie = await readNativeCookies(
+        "https://ing.ingdirect.es/genoma_login/rest/getScaStatus",
+      )
+      if (genomaLoginCookie) {
+        result.credentials.genomaLoginCookie = genomaLoginCookie
+      }
       result.success = true
       sendCompletion(result)
       setTimeout(() => {
@@ -107,7 +114,7 @@ export async function promptLogin(
           if (sessionId) {
             result.credentials.genomaSessionId = sessionId
           }
-          checkCompletion()
+          await checkCompletion()
         }
       }
 
@@ -133,7 +140,7 @@ export async function promptLogin(
         }
         await refreshGenomaCookie()
 
-        checkCompletion()
+        await checkCompletion()
       }
     })
 
@@ -154,7 +161,7 @@ export async function promptLogin(
           if (sessionId) {
             result.credentials.genomaSessionId = sessionId
           }
-          checkCompletion()
+          await checkCompletion()
         }
       }
 
@@ -165,7 +172,7 @@ export async function promptLogin(
           result.credentials.apiCookie = cookieHeader
         }
         await refreshGenomaCookie()
-        checkCompletion()
+        await checkCompletion()
       }
     })
 

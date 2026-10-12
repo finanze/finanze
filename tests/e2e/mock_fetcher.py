@@ -21,9 +21,10 @@ from domain.entity_login import (
     EntitySession,
     LoginConfirmationType,
     LoginResultCode,
+    TwoFactor,
 )
 from domain.fetch_record import DataSource
-from domain.fetch_result import FetchOptions
+from domain.fetch_result import FetchOptions, FetchStage
 from domain.global_position import (
     Account,
     AccountType,
@@ -331,6 +332,109 @@ class MockManualLoginReloginFetcher(MockFinancialEntityFetcher):
         return EntityLoginResult(
             code=LoginResultCode.CREATED,
             session=session,
+        )
+
+
+MOCK_OLD_TXS_PROCESS_ID = "mock-old-txs-1"
+MOCK_IN_APP_OLD_TXS_APPROVAL_SECONDS = 2
+
+
+def _mock_old_account_tx(entity) -> AccountTx:
+    return AccountTx(
+        id=uuid4(),
+        ref=f"mock-tx-old-account-{entity.id}",
+        name="Mock Old Account Tx",
+        amount=Dezimal("42.10"),
+        currency="EUR",
+        type=TxType.TRANSFER_OUT,
+        date=datetime.now(tzlocal()) - timedelta(days=400),
+        entity=entity,
+        source=DataSource.REAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal("0"),
+        retentions=Dezimal("0"),
+    )
+
+
+class MockManualLoginReloginOldTxsFetcher(MockManualLoginReloginFetcher):
+    def __init__(self, entity):
+        super().__init__(entity)
+        self._old_txs_locked = False
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        if options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+            return Transactions(
+                investment=[], account=[_mock_old_account_tx(self._entity)]
+            )
+
+        self._old_txs_locked = options.two_factor_old_txs
+        return await super().transactions(registered_txs, options)
+
+    async def request_old_txs_code(self) -> EntityLoginResult | None:
+        if not self._old_txs_locked:
+            return None
+        return EntityLoginResult(
+            code=LoginResultCode.CODE_REQUESTED,
+            message="******447",
+            process_id=MOCK_OLD_TXS_PROCESS_ID,
+            details={"pinLength": 6, "pinChannel": "SMS"},
+        )
+
+    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
+        if not self._old_txs_locked:
+            return EntityLoginResult(code=LoginResultCode.NOT_LOGGED)
+        if two_factor.code != MOCK_PIN_CODE:
+            return EntityLoginResult(code=LoginResultCode.INVALID_CODE)
+        self._old_txs_locked = False
+        return EntityLoginResult(code=LoginResultCode.CREATED)
+
+
+class MockManualLoginFullCredsInAppOldTxsFetcher(MockManualLoginFullCredsFetcher):
+    def __init__(self, entity):
+        super().__init__(entity)
+        self._old_txs_locked = False
+        self._cancel_event = asyncio.Event()
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        if options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+            return Transactions(
+                investment=[], account=[_mock_old_account_tx(self._entity)]
+            )
+
+        self._old_txs_locked = options.two_factor_old_txs
+        return await super().transactions(registered_txs, options)
+
+    def cancel_login(self) -> None:
+        self._cancel_event.set()
+
+    async def request_old_txs_code(self) -> EntityLoginResult | None:
+        if not self._old_txs_locked:
+            return None
+        self._cancel_event.clear()
+        return EntityLoginResult(
+            code=LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id=MOCK_OLD_TXS_PROCESS_ID,
+        )
+
+    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
+        if not self._old_txs_locked or two_factor.process_id != MOCK_OLD_TXS_PROCESS_ID:
+            return EntityLoginResult(code=LoginResultCode.NOT_LOGGED)
+        self._old_txs_locked = False
+        try:
+            await asyncio.wait_for(
+                self._cancel_event.wait(),
+                timeout=MOCK_IN_APP_OLD_TXS_APPROVAL_SECONDS,
+            )
+        except TimeoutError:
+            return EntityLoginResult(code=LoginResultCode.CREATED)
+        return EntityLoginResult(
+            code=LoginResultCode.UNEXPECTED_ERROR,
+            message="Approval cancelled by user.",
         )
 
 

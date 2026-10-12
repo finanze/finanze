@@ -68,6 +68,8 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await expect(dialog.getByText('Add contribution')).toBeVisible({
             timeout: 5_000,
         })
+        await expect(page.getByRole('button', { name: 'Done' })).toHaveCount(0)
+        await expect(dialog.locator('#targetName')).toHaveCount(0)
         const frequencyOptions = dialog.getByTestId(
             'contribution-frequency-options',
         )
@@ -87,6 +89,11 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await selectEntity(page, 'Urbanitae', { inDialog: true })
         await dialog.locator('#name').fill(contributionName)
         await dialog.locator('#target').fill('IE00B4L5Y983')
+        await dialog.getByRole('button', { name: 'Optional fields' }).click()
+        await expect(dialog.locator('#targetName')).toHaveAttribute(
+            'placeholder',
+            contributionName,
+        )
         await dialog.locator('#targetName').fill('E2E Quick Fund')
         await dialog.locator('#amount').fill('250')
         await dialog.getByRole('button', { name: 'Add' }).click()
@@ -97,7 +104,10 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await expect(page.getByText(contributionName)).toBeVisible({
             timeout: 10_000,
         })
-        await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Done' })).toHaveCount(0)
+        await expect(
+            page.getByRole('button', { name: 'Edit', exact: true }),
+        ).toBeVisible()
 
         await page.locator('button[aria-label="Settings"]').first().click()
         await expect(
@@ -115,6 +125,9 @@ test.describe('Manual Contributions - QUICK mode', () => {
         await expect(editDialog.getByText('Edit contribution')).toBeVisible({
             timeout: 5_000,
         })
+        await expect(editDialog.locator('#targetName')).toHaveValue(
+            'E2E Quick Fund',
+        )
         await editDialog.locator('#amount').fill('300')
         await editDialog.getByRole('button', { name: 'Save' }).click()
 

@@ -15,6 +15,7 @@ import {
   CredentialType,
   type Entity,
   type Feature,
+  type FetchResponse,
   FetchResultCode,
   LoginResultCode,
   LoginConfirmationType,
@@ -22,6 +23,7 @@ import {
   EntityStatus,
   EntityType,
   EntityOrigin,
+  FetchStage,
   PinChannel,
 } from "@/types"
 import {
@@ -51,6 +53,8 @@ export interface FetchOptions {
   code?: string
   token?: string
   silent?: boolean
+  twoFactorOldTxs?: boolean
+  stage?: FetchStage
 }
 
 interface ResetStateOptions {
@@ -74,6 +78,7 @@ export interface PendingScrapeParams {
   pinLength: number
   currentAction: "scrape" | "login"
   entityAccountId?: string
+  message?: string | null
 }
 
 interface EntityWorkflowContextValue {
@@ -86,6 +91,7 @@ interface EntityWorkflowContextValue {
   pinError: boolean
   clearPinError: () => void
   inAppConfirmation: boolean
+  inAppOldTxsConfirmation: boolean
   cancelInAppConfirmation: () => void
   challengeRequired: boolean
   challengeProcessId: string | null
@@ -250,6 +256,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   >("entities")
   const [pinError, setPinError] = useState(false)
   const [inAppConfirmation, setInAppConfirmation] = useState(false)
+  const [inAppOldTxsConfirmation, setInAppOldTxsConfirmation] = useState(false)
   const [challengeRequired, setChallengeRequired] = useState(false)
   const [challengeProcessId, setChallengeProcessId] = useState<string | null>(
     null,
@@ -285,6 +292,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         ...current,
         deep: pending.options.deep ?? DEFAULT_FETCH_OPTIONS.deep,
         avoidNewLogin: pending.options.avoidNewLogin,
+        twoFactorOldTxs: pending.options.twoFactorOldTxs,
+        stage: pending.options.stage,
       }))
       setProcessId(pending.processId)
       setPinLength(pending.pinLength)
@@ -317,6 +326,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     setPinRequired(false)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
+    setInAppOldTxsConfirmation(false)
     setChallengeRequired(false)
     setChallengeProcessId(null)
     setChallengeType(null)
@@ -851,6 +861,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               processId: processId || undefined,
               deep: options.deep,
               avoidNewLogin: options.avoidNewLogin,
+              twoFactorOldTxs: options.twoFactorOldTxs,
+              stage: options.stage,
               code: options.code,
               token: options.token,
               entityAccountId: accountId,
@@ -876,7 +888,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         }
 
         if (response.code === FetchResultCode.CODE_REQUESTED) {
-          if (silent) {
+          const isOldTxsStage =
+            response.details?.stage === FetchStage.TWO_FACTOR_OLD_TXS
+          if (silent && !isOldTxsStage) {
             if (entity) {
               recordAutoRefreshFailure(entity.id, response)
             }
@@ -895,6 +909,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 options: {
                   deep: options.deep,
                   avoidNewLogin: options.avoidNewLogin,
+                  twoFactorOldTxs: options.twoFactorOldTxs,
                 },
                 processId: processIdValue,
                 pinLength: entity.pin?.positions || 4,
@@ -924,6 +939,101 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 setView("entities")
               }
             }
+          } else if (
+            response.confirmationType === LoginConfirmationType.IN_APP &&
+            entity &&
+            isOldTxsStage
+          ) {
+            void stopSmsOtpListening()
+            const accountId =
+              entityAccountId ||
+              entity.accounts?.find(
+                account => account.status === EntityStatus.CONNECTED,
+              )?.id
+            const refreshAfterScrape = async () => {
+              if (!onScrapeCompletedRef.current) return
+              try {
+                await onScrapeCompletedRef.current(entity.id)
+              } catch (error) {
+                console.error(
+                  "Error refreshing financial data after scrape:",
+                  error,
+                )
+              }
+            }
+            setSelectedEntity(entity)
+            let stageResponse: FetchResponse | null = response
+            try {
+              while (
+                stageResponse?.code === FetchResultCode.CODE_REQUESTED &&
+                stageResponse.confirmationType ===
+                  LoginConfirmationType.IN_APP &&
+                stageResponse.details?.processId
+              ) {
+                if (stageResponse.details.failedFeatures?.length) {
+                  notify(
+                    formatPartialFetchMessage(
+                      t,
+                      entity.name,
+                      stageResponse.details.failedFeatures,
+                    ),
+                    "warning",
+                  )
+                }
+                updateEntityLastFetch(
+                  entity.id,
+                  featuresToStampLastFetch(
+                    stageResponse.details.completedFeatures,
+                    features,
+                  ),
+                )
+                await refreshAfterScrape()
+                setInAppOldTxsConfirmation(true)
+                setInAppConfirmation(true)
+                stageResponse = await fetchFinancialEntity({
+                  entity: entity.id,
+                  features: features,
+                  processId: stageResponse.details.processId,
+                  deep: options.deep,
+                  avoidNewLogin: options.avoidNewLogin,
+                  twoFactorOldTxs: true,
+                  stage: FetchStage.TWO_FACTOR_OLD_TXS,
+                  entityAccountId: accountId,
+                })
+              }
+            } catch {
+              stageResponse = null
+            } finally {
+              setInAppConfirmation(false)
+              setInAppOldTxsConfirmation(false)
+            }
+            if (
+              stageResponse?.code === FetchResultCode.COMPLETED ||
+              stageResponse?.code === FetchResultCode.PARTIALLY_COMPLETED
+            ) {
+              notify(
+                t.common.fetchSuccessEntity.replace("{entity}", entity.name),
+                "success",
+              )
+              updateEntityLastFetch(
+                entity.id,
+                featuresToStampLastFetch(
+                  stageResponse.details?.completedFeatures,
+                  features,
+                ),
+              )
+              await refreshAfterScrape()
+            } else {
+              notify(
+                t.features.twoFactorOldTxsSkipped.replace(
+                  "{entity}",
+                  entity.name,
+                ),
+                "warning",
+              )
+            }
+            resetState()
+            setView("entities")
           } else if (
             response.confirmationType === LoginConfirmationType.IN_APP &&
             entity
@@ -1038,25 +1148,67 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
           } else if (entity) {
             const processIdValue = response.details?.processId || null
-            const pinLen = entity.pin?.positions || 4
+            const pinLen = isOldTxsStage
+              ? response.details?.pinLength || entity.pin?.positions || 4
+              : entity.pin?.positions || 4
             const pendingPayload: PendingScrapeParams = {
               entity,
               features,
               options: {
                 deep: options.deep,
                 avoidNewLogin: options.avoidNewLogin,
+                twoFactorOldTxs: options.twoFactorOldTxs,
+                stage: isOldTxsStage
+                  ? FetchStage.TWO_FACTOR_OLD_TXS
+                  : undefined,
               },
               processId: processIdValue,
               pinLength: pinLen,
               currentAction: "scrape",
               entityAccountId,
+              message: isOldTxsStage ? response.details?.message : undefined,
             }
 
             const hadPendingBefore = pendingScrapeParamsRef.current.size > 0
+            const replacesOwnPending =
+              isOldTxsStage && pendingScrapeParamsRef.current.has(entity.id)
             pendingScrapeParamsRef.current.set(entity.id, pendingPayload)
 
-            if (!hadPendingBefore) {
+            if (!hadPendingBefore || replacesOwnPending) {
               activatePendingEntry(pendingPayload)
+            }
+
+            if (isOldTxsStage) {
+              if (response.details?.pinChannel === PinChannel.SMS) {
+                await startSmsOtpListening()
+              }
+              if (response.details?.failedFeatures?.length) {
+                notify(
+                  formatPartialFetchMessage(
+                    t,
+                    entity.name,
+                    response.details.failedFeatures,
+                  ),
+                  "warning",
+                )
+              }
+              updateEntityLastFetch(
+                entity.id,
+                featuresToStampLastFetch(
+                  response.details?.completedFeatures,
+                  features,
+                ),
+              )
+              if (onScrapeCompletedRef.current) {
+                try {
+                  await onScrapeCompletedRef.current(entity.id)
+                } catch (error) {
+                  console.error(
+                    "Error refreshing financial data after scrape:",
+                    error,
+                  )
+                }
+              }
             }
           }
         } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
@@ -1963,6 +2115,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         pinError,
         clearPinError,
         inAppConfirmation,
+        inAppOldTxsConfirmation,
         cancelInAppConfirmation,
         challengeRequired,
         challengeProcessId,

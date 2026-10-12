@@ -15,10 +15,21 @@ from application.use_cases.fetch_financial_data import (
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.entity_account import EntityAccount
-from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
+from domain.entity_login import (
+    EntityLoginResult,
+    EntitySession,
+    LoginConfirmationType,
+    LoginResultCode,
+    TwoFactor,
+)
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_record import DataSource, FetchRecord
-from domain.fetch_result import FetchOptions, FetchRequest, FetchResultCode
+from domain.fetch_result import (
+    FetchOptions,
+    FetchRequest,
+    FetchResultCode,
+    FetchStage,
+)
 from domain.global_position import (
     Account,
     AccountType,
@@ -34,7 +45,13 @@ from domain.global_position import (
     ProductType,
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
-from domain.native_entities import ING, MY_INVESTOR, TRADE_REPUBLIC, URBANITAE
+from domain.native_entities import (
+    ING,
+    MY_INVESTOR,
+    TRADE_REPUBLIC,
+    UNICAJA,
+    URBANITAE,
+)
 from domain.public_keychain import PublicKeychain
 from domain.transactions import AccountTx, Transactions, TxType
 
@@ -1121,3 +1138,321 @@ class TestCooldownElapsedDays:
 
         assert pending == [Feature.POSITION]
         assert result is None
+
+
+def _old_txs_code_requested(process_id="ref-1"):
+    return EntityLoginResult(
+        LoginResultCode.CODE_REQUESTED,
+        message="******447",
+        process_id=process_id,
+        details={"pinLength": 6, "pinChannel": "SMS"},
+    )
+
+
+async def _prepare_old_txs_execute(uc, entity=UNICAJA, last_fetches=None):
+    account_id = uuid4()
+    fetcher = await _prepare_logged_in_execute(
+        uc,
+        entity,
+        account_id,
+        last_fetches=last_fetches,
+        credentials={name: "value" for name in entity.credentials_template},
+    )
+    fetcher.transactions = AsyncMock(
+        return_value=Transactions(account=[_make_account_tx(entity)], investment=[])
+    )
+    fetcher.request_old_txs_code = AsyncMock(return_value=None)
+    uc._transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
+    return account_id, fetcher
+
+
+class TestTwoFactorOldTxs:
+    @pytest.mark.asyncio
+    async def test_main_fetch_requests_old_txs_code_after_transactions(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+        fetcher.request_old_txs_code.return_value = _old_txs_code_requested()
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.CODE_REQUESTED
+        assert result.details == {
+            "completedFeatures": [Feature.TRANSACTIONS.value],
+            "stage": FetchStage.TWO_FACTOR_OLD_TXS.value,
+            "message": "******447",
+            "processId": "ref-1",
+            "pinLength": 6,
+            "pinChannel": "SMS",
+        }
+        assert result.data.transactions is not None
+        uc._transaction_port.save.assert_awaited_once()
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_main_fetch_completes_when_no_older_txs_are_locked(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.request_old_txs_code.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_main_fetch_reports_code_request_failure_and_completes(self):
+        reporter = MagicMock()
+        uc, _, _, _ = _build_use_case(error_reporter=reporter)
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+        fetcher.request_old_txs_code.side_effect = RuntimeError("sim boom")
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        reporter.capture_exception.assert_called_once()
+        assert reporter.capture_exception.call_args.kwargs["tags"]["stage"] == (
+            FetchStage.TWO_FACTOR_OLD_TXS.value
+        )
+
+    @pytest.mark.asyncio
+    async def test_option_off_does_not_request_code(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.request_old_txs_code.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_option_ignored_for_unsupported_entity(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc, TRADE_REPUBLIC)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.request_old_txs_code.assert_not_awaited()
+        assert not fetcher.transactions.await_args.args[1].two_factor_old_txs
+
+    @pytest.mark.asyncio
+    async def test_option_ignored_without_transactions_feature(self):
+        uc, position_port, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+        fetcher.global_position = AsyncMock(return_value=_make_position())
+        position_port.get_latest_real_position_id = AsyncMock(return_value=None)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.POSITION],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        fetcher.request_old_txs_code.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_old_stage_fetches_without_login_or_cooldown(self):
+        uc, _, _, _ = _build_use_case()
+        recent = FetchRecord(
+            entity_id=UNICAJA.id,
+            feature=Feature.TRANSACTIONS,
+            date=datetime.now(tzlocal()),
+        )
+        account_id, fetcher = await _prepare_old_txs_execute(uc, last_fetches=[recent])
+        fetcher.confirm_old_txs_code = AsyncMock(
+            return_value=EntityLoginResult(LoginResultCode.CREATED)
+        )
+        two_factor = TwoFactor(code="282334", process_id="ref-1")
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                two_factor=two_factor,
+                fetch_options=FetchOptions(
+                    deep=True,
+                    two_factor_old_txs=True,
+                    stage=FetchStage.TWO_FACTOR_OLD_TXS,
+                ),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        assert result.details == {"completedFeatures": [Feature.TRANSACTIONS.value]}
+        fetcher.login.assert_not_awaited()
+        fetcher.confirm_old_txs_code.assert_awaited_once_with(two_factor)
+        options = fetcher.transactions.await_args.args[1]
+        assert options.stage == FetchStage.TWO_FACTOR_OLD_TXS
+        assert not options.deep
+        assert options.pointer_context is None
+        uc._transaction_port.save.assert_awaited_once()
+        uc._transaction_port.delete_by_entity_account_id.assert_not_awaited()
+        uc._fetch_pointers_port.save.assert_not_awaited()
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_old_stage_chains_next_code_request(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+        fetcher.confirm_old_txs_code = AsyncMock(
+            return_value=EntityLoginResult(LoginResultCode.CREATED)
+        )
+        fetcher.request_old_txs_code.return_value = _old_txs_code_requested("ref-2")
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                two_factor=TwoFactor(code="282334", process_id="ref-1"),
+                fetch_options=FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS),
+            )
+        )
+
+        assert result.code == FetchResultCode.CODE_REQUESTED
+        assert result.details["processId"] == "ref-2"
+        assert result.details["stage"] == FetchStage.TWO_FACTOR_OLD_TXS.value
+        assert result.confirmation_type is None
+
+    @pytest.mark.asyncio
+    async def test_main_fetch_propagates_in_app_confirmation(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc, ING)
+        fetcher.request_old_txs_code.return_value = EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id="sec-1",
+        )
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.CODE_REQUESTED
+        assert result.confirmation_type == LoginConfirmationType.IN_APP
+        assert result.details["processId"] == "sec-1"
+        assert result.details["stage"] == FetchStage.TWO_FACTOR_OLD_TXS.value
+
+    @pytest.mark.asyncio
+    async def test_old_stage_accepts_process_id_without_code(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc, ING)
+        fetcher.confirm_old_txs_code = AsyncMock(
+            return_value=EntityLoginResult(LoginResultCode.CREATED)
+        )
+        fetcher.request_old_txs_code.return_value = EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id="sec-2",
+        )
+        two_factor = TwoFactor(process_id="sec-1")
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                two_factor=two_factor,
+                fetch_options=FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS),
+            )
+        )
+
+        assert result.code == FetchResultCode.CODE_REQUESTED
+        assert result.confirmation_type == LoginConfirmationType.IN_APP
+        assert result.details["processId"] == "sec-2"
+        fetcher.confirm_old_txs_code.assert_awaited_once_with(two_factor)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "login_code, expected",
+        [
+            (LoginResultCode.INVALID_CODE, FetchResultCode.INVALID_CODE),
+            (LoginResultCode.NOT_LOGGED, FetchResultCode.NOT_LOGGED),
+        ],
+    )
+    async def test_old_stage_maps_rejected_code(self, login_code, expected):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+        fetcher.confirm_old_txs_code = AsyncMock(
+            return_value=EntityLoginResult(login_code)
+        )
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                two_factor=TwoFactor(code="000000", process_id="ref-1"),
+                fetch_options=FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS),
+            )
+        )
+
+        assert result.code == expected
+        assert result.details["stage"] == FetchStage.TWO_FACTOR_OLD_TXS.value
+        fetcher.transactions.assert_not_awaited()
+        fetcher.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_old_stage_requires_code(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS),
+            )
+        )
+
+        assert result.code == FetchResultCode.INVALID_CODE
+        fetcher.confirm_old_txs_code.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_old_stage_unsupported_entity(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc, TRADE_REPUBLIC)
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                two_factor=TwoFactor(code="282334"),
+                fetch_options=FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS),
+            )
+        )
+
+        assert result.code == FetchResultCode.FEATURE_NOT_SUPPORTED
+        fetcher.confirm_old_txs_code.assert_not_awaited()

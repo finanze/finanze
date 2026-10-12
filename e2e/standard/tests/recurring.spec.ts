@@ -54,11 +54,7 @@ async function createBudgetExpense(
     labelKey = 'groceries',
 ) {
     await page.getByRole('tab', { name: /^Expenses/ }).click()
-    await page
-        .getByRole('heading', { name: 'Expenses', exact: true })
-        .locator('../..')
-        .getByRole('button')
-        .click()
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
     const dialog = page.locator('.fixed.inset-0').last()
     await dialog.getByPlaceholder('Enter name').fill(name)
     await dialog.getByRole('textbox').nth(1).fill(amount)
@@ -185,6 +181,9 @@ test.describe('Budget', () => {
                         exact: true,
                     }),
                 })
+            const groceriesChipColor = await firstHeader
+                .getByTestId('label-chip')
+                .evaluate((element) => getComputedStyle(element).color)
             expect(
                 await firstHeader
                     .getByRole('button', { name: category, exact: true })
@@ -239,7 +238,7 @@ test.describe('Budget', () => {
                 await thirdHeader
                     .getByTestId('label-chip')
                     .evaluate((element) => getComputedStyle(element).color),
-            ).toBe(labelColor)
+            ).toBe(groceriesChipColor)
             await page.getByTestId('recurring-label-filter').click()
             const earnings = await page
                 .getByTestId('recurring-kpi-earnings')
@@ -412,11 +411,7 @@ test.describe('Budget', () => {
         await expect(page).toHaveURL(/\/management\/recurring$/)
         await page.getByRole('tab', { name: /Earnings/ }).click()
 
-        const earningsHeading = page.getByRole('heading', {
-            name: 'Earnings',
-            exact: true,
-        })
-        await earningsHeading.locator('../..').getByRole('button').click()
+        await page.getByRole('button', { name: 'Add', exact: true }).click()
 
         const flowDialog = page.locator('.fixed.inset-0').last()
         const iconPickerTrigger = flowDialog
@@ -447,11 +442,7 @@ test.describe('Budget', () => {
             .filter({ hasText: /^\d+$/ })
         const initialEarningsCount = Number(await earningsTabCount.innerText())
 
-        const earningsHeading = page.getByRole('heading', {
-            name: 'Earnings',
-            exact: true,
-        })
-        await earningsHeading.locator('../..').getByRole('button').click()
+        await page.getByRole('button', { name: 'Add', exact: true }).click()
 
         const flowDialog = page.locator('.fixed.inset-0').last()
         const monthlyFrequency = flowDialog.getByTestId(

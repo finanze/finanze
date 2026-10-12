@@ -104,6 +104,7 @@ export default function EntityIntegrationsPage() {
     pinRequired,
     challengeRequired,
     inAppConfirmation,
+    inAppOldTxsConfirmation,
     cancelInAppConfirmation,
     cancelChallenge,
     selectEntity,
@@ -991,7 +992,9 @@ export default function EntityIntegrationsPage() {
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-center text-muted-foreground">
-                    {t.login.inAppConfirmationMessage}
+                    {inAppOldTxsConfirmation
+                      ? t.login.inAppOldTxsConfirmationMessage
+                      : t.login.inAppConfirmationMessage}
                   </p>
                   <Button
                     variant="outline"
