@@ -1,4 +1,4 @@
-import type { FlowFrequency } from "."
+import type { FlowFrequency, FlowType } from "."
 import type { TxType } from "./transactions"
 
 export enum CashflowGranularity {
@@ -22,11 +22,17 @@ export interface CashflowTotals {
   savings_rate?: number | null
 }
 
+export interface CashflowLabelAmount {
+  label_id: string | null
+  amount: number
+}
+
 export interface CashflowPoint {
   period: string
   income: number
   expenses: number
   count: number
+  expenses_by_label?: CashflowLabelAmount[]
 }
 
 export interface CashflowLabelBreakdown {
@@ -44,6 +50,48 @@ export interface CashflowCounterparty {
   label_ids: string[]
 }
 
+export interface BudgetComparison {
+  expected: number
+  actual: number | null
+  ratio: number | null
+  difference: number | null
+}
+
+export interface BudgetLabelComparison {
+  label_id: string | null
+  flow_type: FlowType
+  comparison: BudgetComparison
+}
+
+export interface BudgetInvestmentBreakdown {
+  savings: number | null
+  transactions: number | null
+}
+
+export interface BudgetPoint {
+  period: string
+  needs: number
+  wants: number
+  invested: number
+  remainder: number
+}
+
+export interface BudgetSummary {
+  from_month: string
+  to_month: string
+  entry_count: number
+  missing_conversion_count: number
+  income: BudgetComparison
+  expenses: BudgetComparison
+  needs?: BudgetComparison
+  wants?: BudgetComparison
+  saved: BudgetComparison
+  invested: BudgetComparison
+  invested_breakdown?: BudgetInvestmentBreakdown
+  by_label: BudgetLabelComparison[]
+  series?: BudgetPoint[]
+}
+
 export interface CashflowSummary {
   currency: string
   from_date: string
@@ -54,6 +102,7 @@ export interface CashflowSummary {
   by_label: CashflowLabelBreakdown[]
   top_counterparties: CashflowCounterparty[]
   excluded_count: number
+  budget?: BudgetSummary | null
 }
 
 export interface RecurringMovementsQuery {

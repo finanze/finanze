@@ -134,9 +134,11 @@ function ordinal(day: number): string {
 
 async function selectDate(page: Page, date: Date, fieldLabel = 'Date') {
     const dialog = page.locator('.fixed.inset-0').last()
-    const dateField = dialog
-        .getByText(fieldLabel, { exact: true })
-        .locator('..')
+    const dateField = (
+        fieldLabel === 'Since'
+            ? dialog.locator('label').filter({ hasText: /^Since/ })
+            : dialog.getByText(fieldLabel, { exact: true })
+    ).locator('..')
     await dateField.getByRole('button').first().click()
 
     const calendar = page.locator('[data-radix-popper-content-wrapper]').last()
@@ -178,6 +180,7 @@ async function createManualTransaction(
     amount: string,
     date: Date,
     transactionType: 'Inflow' | 'Outflow',
+    labelKeys: string[] = [],
 ) {
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     const dialog = page.locator('.fixed.inset-0').last()
@@ -215,11 +218,60 @@ async function createManualTransaction(
     await dialog.locator('#transaction-amount').fill(amount)
     await dialog.locator('#transaction-currency').selectOption('EUR')
     await selectDate(page, date)
+    for (const key of labelKeys)
+        await dialog.getByTestId(`label-option-${key}`).click()
 
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(
         dialog.getByText('Add transaction', { exact: true }),
     ).toBeHidden({ timeout: 10_000 })
+}
+
+async function createExpectedExpense(page: Page, name: string, amount: string) {
+    await page.getByRole('tab', { name: /^Expenses/ }).click()
+    await page
+        .getByRole('heading', { name: 'Expenses', exact: true })
+        .locator('../..')
+        .getByRole('button')
+        .click()
+    const dialog = page.locator('.fixed.inset-0').last()
+    await dialog.getByPlaceholder('Enter name').fill(name)
+    await dialog.getByRole('textbox').nth(1).fill(amount)
+    await dialog.getByTestId('label-option-groceries').click()
+    await selectDate(page, daysAgo(0), 'Since')
+    const saved = page.waitForResponse(
+        (response) =>
+            new URL(response.url()).pathname.endsWith('/flows/periodic') &&
+            response.request().method() === 'POST',
+    )
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    const payload = (await saved).request().postDataJSON() as {
+        label_id: string
+    }
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+    return payload.label_id
+}
+
+async function deleteExpectedExpense(page: Page, name: string) {
+    const heading = page.getByRole('heading', { name, exact: true })
+    const header = page
+        .locator('div[role="button"][aria-expanded]')
+        .filter({ has: heading })
+    if ((await header.getAttribute('aria-expanded')) !== 'true')
+        await header.click()
+    await header
+        .locator('..')
+        .locator('[data-no-expand]')
+        .getByRole('button')
+        .nth(1)
+        .click()
+    await page
+        .locator('.fixed.inset-0')
+        .last()
+        .getByRole('button', { name: 'Delete', exact: true })
+        .click()
+    await expect(heading).toHaveCount(0)
 }
 
 async function readCashflowKpi(page: Page, testId: string): Promise<string> {
@@ -329,7 +381,7 @@ test.describe('Cashflow', () => {
             exact: true,
         })
         const recurring = navigation.getByRole('button', {
-            name: 'Recurring',
+            name: 'Budget',
             exact: true,
         })
         if ((await myMoney.getAttribute('aria-expanded')) === 'true') {
@@ -679,6 +731,83 @@ test.describe('Cashflow', () => {
             .toBeCloseTo(incomeBeforeLastMonth, 2)
     })
 
+    test('compares full budget targets and preserves dates in label drilldowns', async ({
+        authenticatedPage: page,
+    }, testInfo) => {
+        test.setTimeout(120_000)
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await ensureEditMode(page, 'QUICK')
+        await connectUrbanitaeIfNeeded(page)
+        await navigateToTransactions(page)
+        const actualName = `E2E Budget Grocery Actual ${RECURRING_RUN_ID}`
+        await createManualTransaction(
+            page,
+            actualName,
+            '750.00',
+            daysAgo(0),
+            'Outflow',
+            ['groceries'],
+        )
+        await navigateToMyMoneyPage(page, 'Budget')
+        const first = `E2E Budget Grocery First ${RECURRING_RUN_ID}`
+        const second = `E2E Budget Grocery Second ${RECURRING_RUN_ID}`
+        const labelId = await createExpectedExpense(page, first, '400')
+        await createExpectedExpense(page, second, '200')
+        await navigateToCashflow(page)
+        await selectCashflowPreset(page, 'thisMonth')
+        const section = page.getByTestId('cashflow-budget')
+        await expect(section).toBeVisible()
+        await page.getByTestId('budget-label-details-toggle').click()
+        const row = page.getByTestId(`budget-label-EXPENSE-${labelId}`)
+        await expect(row).toHaveCount(1)
+        await expect(row).toContainText('125%')
+        await expect(row).toContainText('600.00')
+        await expect(row).toContainText('750.00')
+        const budgetSavedActual = await page
+            .getByTestId('budget-saved')
+            .locator('.grid > div')
+            .first()
+            .innerText()
+        expect(parseCashflowAmount(budgetSavedActual)).toBeCloseTo(
+            await readCashflowKpiAmount(page, 'kpi-net'),
+            2,
+        )
+        for (const [width, height] of [
+            [1440, 1000],
+            [390, 844],
+        ]) {
+            await page.setViewportSize({ width, height })
+            await section.evaluate((element) =>
+                element.scrollIntoView({ block: 'center' }),
+            )
+            await expectNoHorizontalOverflow(page)
+            await section.screenshot({
+                path: testInfo.outputPath(`activity-budget-${width}.png`),
+            })
+        }
+        await row.click()
+        await expect(page).toHaveURL(/\/transactions\?/)
+        const browserUrl = new URL(page.url())
+        const drilldown = new URL(browserUrl.hash.slice(1), browserUrl.origin)
+            .searchParams
+        expect(drilldown.get('label')).toBe(labelId)
+        expect(drilldown.get('from_date')).toBe(
+            new Date().toLocaleDateString('en-CA').slice(0, 7) + '-01',
+        )
+        expect(drilldown.getAll('type')).toEqual(['OUTFLOW', 'FEE'])
+        await expect(page.getByText(actualName, { exact: true })).toBeVisible()
+        await page.getByTestId('return-to-origin').click()
+        await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)
+        await expect(section).toBeVisible()
+        await selectEntity(page, 'Urbanitae')
+        await expect(section).toHaveCount(0)
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await navigateToMyMoneyPage(page, 'Budget')
+        await page.getByRole('tab', { name: /^Expenses/ }).click()
+        await deleteExpectedExpense(page, first)
+        await deleteExpectedExpense(page, second)
+    })
+
     test('loads recurring movements on mobile when the section enters view', async ({
         authenticatedPage: page,
     }) => {
@@ -910,7 +1039,7 @@ test.describe('Cashflow', () => {
         const trackRow = activeRows.filter({ hasText: trackedPayee })
         await expect(trackRow).toBeVisible()
         await trackRow
-            .getByRole('button', { name: 'Track', exact: true })
+            .getByRole('button', { name: 'Add to budget', exact: true })
             .click()
         await expect(trackRow.getByTestId('tracked-badge')).toBeVisible({
             timeout: 15_000,
@@ -994,7 +1123,7 @@ test.describe('Cashflow', () => {
             persistedRecurring.getByTestId('ignored-recurring'),
         ).toHaveCount(0)
 
-        await navigateToMyMoneyPage(page, 'Recurring')
+        await navigateToMyMoneyPage(page, 'Budget')
         await page.getByRole('tab', { name: /Expenses/ }).click()
         const trackedFlowHeading = page.getByRole('heading', {
             name: trackedPayee,
@@ -1059,7 +1188,7 @@ test.describe('Cashflow', () => {
         await expect(allIgnoredRows).toHaveCount(allSeriesCount)
 
         await page.setViewportSize({ width: 768, height: 844 })
-        await navigateToMyMoneyPage(page, 'Recurring')
+        await navigateToMyMoneyPage(page, 'Budget')
         await page.setViewportSize({ width: 390, height: 844 })
         await navigateToMobileCashflow(page)
         const mobileRecurring = page.getByTestId('recurring-movements')
@@ -1124,5 +1253,122 @@ test.describe('Cashflow', () => {
         await expect(
             cleanupRecurring.getByTestId('recurring-movement'),
         ).toHaveCount(Math.min(allSeriesCount, 8))
+    })
+    test('adds detected movements to budget with zero, one, or several eligible labels', async ({
+        authenticatedPage: page,
+    }) => {
+        test.setTimeout(180_000)
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await ensureEditMode(page, 'QUICK')
+        await connectUrbanitaeIfNeeded(page)
+        await navigateToTransactions(page)
+        const cases = [
+            {
+                name: `E2E Budget Unassigned Birch ${RECURRING_RUN_ID}`,
+                amount: '121.23',
+                labels: [],
+            },
+            {
+                name: `E2E Budget Housing Oak ${RECURRING_RUN_ID}`,
+                amount: '234.56',
+                labels: ['housing'],
+            },
+            {
+                name: `E2E Budget Choice Pine ${RECURRING_RUN_ID}`,
+                amount: '345.67',
+                labels: ['groceries', 'subscriptions'],
+            },
+        ]
+        for (const entry of cases) {
+            for (const days of [62, 32, 2])
+                await createManualTransaction(
+                    page,
+                    entry.name,
+                    entry.amount,
+                    daysAgo(days),
+                    'Outflow',
+                    entry.labels,
+                )
+        }
+        let summaryRequests = 0
+        page.on('request', (request) => {
+            if (
+                new URL(request.url()).pathname.endsWith('/cashflow') &&
+                request.method() === 'GET'
+            )
+                summaryRequests += 1
+        })
+        await navigateToCashflow(page)
+        const section = page.getByTestId('recurring-movements')
+        await section.scrollIntoViewIfNeeded()
+        const showMore = section.getByRole('button', {
+            name: 'Show more',
+            exact: true,
+        })
+        if (await showMore.isVisible()) await showMore.click()
+        for (const entry of cases) {
+            const row = section
+                .getByTestId('recurring-movement')
+                .filter({ hasText: entry.name })
+            await expect(row).toBeVisible()
+            const before = summaryRequests
+            const created = page.waitForResponse(
+                (response) =>
+                    new URL(response.url()).pathname.endsWith(
+                        '/flows/periodic',
+                    ) && response.request().method() === 'POST',
+            )
+            await row
+                .getByRole('button', { name: 'Add to budget', exact: true })
+                .click()
+            if (entry.labels.length > 1) {
+                const picker = page.getByTestId('detected-budget-label-picker')
+                await expect(picker).toBeVisible()
+                await expect(
+                    picker.getByTestId('label-option-savings_investment'),
+                ).toHaveCount(0)
+                await picker.getByTestId('label-option-groceries').click()
+                await picker.getByTestId('detected-budget-no-label').click()
+                await expect(
+                    picker.getByTestId('label-option-groceries'),
+                ).toHaveAttribute('aria-pressed', 'false')
+                await picker.getByTestId('label-option-subscriptions').click()
+                await picker
+                    .getByRole('button', { name: 'Add to budget', exact: true })
+                    .click()
+            } else
+                await expect(
+                    page.getByTestId('detected-budget-label-picker'),
+                ).toHaveCount(0)
+            const payload = (await created).request().postDataJSON() as {
+                label_id: string | null
+                amount: string
+                since: string
+            }
+            expect(payload).not.toHaveProperty('category')
+            expect(Number(payload.amount)).toBe(Number(entry.amount))
+            if (entry.labels.length === 0) expect(payload.label_id).toBeNull()
+            else expect(payload.label_id).toBeTruthy()
+            await expect(row.getByTestId('tracked-badge')).toHaveText(
+                'Budgeted',
+            )
+            await expect.poll(() => summaryRequests).toBe(before + 1)
+            await row.getByTestId('tracked-badge').click()
+            const matched = page
+                .locator('[data-radix-popper-content-wrapper]')
+                .last()
+            if (entry.labels.length === 1)
+                await expect(matched.getByTestId('label-chip')).toHaveText(
+                    'Housing',
+                )
+            if (entry.labels.length > 1)
+                await expect(matched.getByTestId('label-chip')).toHaveText(
+                    'Subscriptions',
+                )
+            await row.getByTestId('tracked-badge').click()
+        }
+        await navigateToMyMoneyPage(page, 'Budget')
+        await page.getByRole('tab', { name: /^Expenses/ }).click()
+        for (const entry of cases) await deleteExpectedExpense(page, entry.name)
     })
 })

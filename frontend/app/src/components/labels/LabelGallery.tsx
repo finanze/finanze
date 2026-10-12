@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { EyeOff, Pencil, Search, SearchX, Trash2 } from "lucide-react"
+import { EyeOff, Lock, Pencil, Search, SearchX, Trash2 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { LabelCategory, type Label } from "@/types/labeling"
@@ -117,14 +117,14 @@ function LabelTile({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onEdit}
+      role={label.protected ? undefined : "button"}
+      tabIndex={label.protected ? undefined : 0}
+      onClick={label.protected ? undefined : onEdit}
       onKeyDown={event => {
-        if (event.key === "Enter") onEdit()
+        if (!label.protected && event.key === "Enter") onEdit()
       }}
       data-testid={`label-card-${label.key ?? label.id}`}
-      className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`flex items-center gap-3 rounded-xl border bg-card p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring${label.protected ? "" : " cursor-pointer"}`}
       style={{ borderColor: hexToRgba(color, 0.6) }}
     >
       <div
@@ -164,30 +164,39 @@ function LabelTile({
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          onClick={event => {
-            event.stopPropagation()
-            onEdit()
-          }}
-          aria-label={t.common.edit}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      {label.protected ? (
+        <span
+          className="shrink-0 text-muted-foreground"
+          title={t.labels.protectedLabel}
         >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={event => {
-            event.stopPropagation()
-            onDelete()
-          }}
-          aria-label={t.common.delete}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600 dark:hover:text-red-400"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </div>
+          <Lock className="h-3.5 w-3.5" aria-label={t.labels.protectedLabel} />
+        </span>
+      ) : (
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation()
+              onEdit()
+            }}
+            aria-label={t.common.edit}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation()
+              onDelete()
+            }}
+            aria-label={t.common.delete}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600 dark:hover:text-red-400"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

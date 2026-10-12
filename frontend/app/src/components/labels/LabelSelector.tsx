@@ -3,6 +3,7 @@ import { Check, Search } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useLabels } from "@/context/LabelsContext"
 import { cn } from "@/lib/utils"
+import type { Label } from "@/types/labeling"
 import { LabelIcon, getLabelColor, hexToRgba } from "./LabelChip"
 
 interface LabelSelectorProps {
@@ -10,6 +11,8 @@ interface LabelSelectorProps {
   onChange: (value: string[]) => void
   disabled?: boolean
   className?: string
+  mode?: "single" | "multiple"
+  options?: Label[]
 }
 
 export function LabelSelector({
@@ -17,25 +20,30 @@ export function LabelSelector({
   onChange,
   disabled,
   className,
+  mode = "multiple",
+  options,
 }: LabelSelectorProps) {
   const { t } = useI18n()
   const { labels, getLabelName } = useLabels()
   const [query, setQuery] = useState("")
 
   const filtered = useMemo(() => {
+    const available = options ?? labels
     const normalized = query.trim().toLocaleLowerCase()
-    if (!normalized) return labels
-    return labels.filter(label =>
+    if (!normalized) return available
+    return available.filter(label =>
       getLabelName(label).toLocaleLowerCase().includes(normalized),
     )
-  }, [labels, getLabelName, query])
+  }, [labels, options, getLabelName, query])
 
   const toggle = (labelId: string) => {
     if (disabled) return
     onChange(
       value.includes(labelId)
         ? value.filter(id => id !== labelId)
-        : [...value, labelId],
+        : mode === "single"
+          ? [labelId]
+          : [...value, labelId],
     )
   }
 

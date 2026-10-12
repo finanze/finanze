@@ -140,6 +140,7 @@ class TestCreateRealEstate:
         pf_id = uuid4()
         pf = _make_periodic_flow(id=pf_id)
         existing_pf = _make_periodic_flow(id=pf_id)
+        existing_pf.label_id = uuid4()
         pf_port.get_by_id.return_value = existing_pf
 
         flow = _make_flow(periodic_flow_id=pf_id, periodic_flow=pf)
@@ -150,6 +151,7 @@ class TestCreateRealEstate:
 
         pf_port.get_by_id.assert_awaited_once_with(pf_id)
         pf_port.update.assert_awaited_once_with(pf)
+        assert pf.label_id == existing_pf.label_id
         pf_port.save.assert_not_awaited()
 
     @pytest.mark.asyncio

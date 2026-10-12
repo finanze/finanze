@@ -44,10 +44,10 @@ async function connectEntityIfNeeded(page: Page, entityName: string) {
 }
 
 async function navigateToContributions(page: Page) {
-    await navigateToMyMoneyPage(page, 'Recurring')
+    await navigateToMyMoneyPage(page, 'Budget')
     await page.getByRole('tab', { name: /^Investments/ }).click()
     await expect(
-        page.getByRole('heading', { name: 'Recurring', exact: true }),
+        page.getByRole('heading', { name: 'Budget', exact: true }),
     ).toBeVisible({ timeout: 10_000 })
 }
 

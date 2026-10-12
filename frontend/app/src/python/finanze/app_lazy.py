@@ -602,8 +602,8 @@ class LazyComponents:
         )
         self.disconn_integration = DisconnectExternalIntegrationImpl(d.ext_int_repo)
 
-        self.save_periodic = SavePeriodicFlowImpl(d.period_repo)
-        self.up_periodic = UpdatePeriodicFlowImpl(d.period_repo)
+        self.save_periodic = SavePeriodicFlowImpl(d.period_repo, label_repo)
+        self.up_periodic = UpdatePeriodicFlowImpl(d.period_repo, label_repo)
         self.del_periodic = DeletePeriodicFlowImpl(d.period_repo)
         self.save_pending = SavePendingFlowImpl(d.pending_repo)
         self.up_pending = UpdatePendingFlowImpl(d.pending_repo)
@@ -740,7 +740,12 @@ class LazyComponents:
         self.get_labels = GetLabelsImpl(label_repo)
         self.get_labeling_rules = GetLabelingRulesImpl(labeling_rule_repo)
         self.get_cashflow = GetCashflowSummaryImpl(
-            d.tx_repo, label_repo, d.entity_repo, d.ex_storage
+            d.tx_repo,
+            label_repo,
+            d.entity_repo,
+            d.ex_storage,
+            d.period_repo,
+            d.auto_repo,
         )
         self.get_recurring = GetRecurringMovementsImpl(
             d.tx_repo,

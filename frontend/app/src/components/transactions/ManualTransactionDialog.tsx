@@ -12,9 +12,12 @@ import {
   Bitcoin,
   ArrowLeftRight,
   Repeat,
+  Loader2,
+  Sparkles,
 } from "lucide-react"
 import { EntitySelector } from "@/components/EntitySelector"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
 import {
   Card,
   CardContent,
@@ -1217,6 +1220,16 @@ export function ManualTransactionDialog({
 }: ManualTransactionDialogProps) {
   const { t, locale } = useI18n()
   const { positionsData } = useFinancialData()
+  const { settings, externalIntegrations, fetchExternalIntegrations } =
+    useAppContext()
+  const externalSettings = settings.labeling?.external
+  const externalEnabled = Boolean(externalSettings?.enabled)
+  const externalAutoRun = Boolean(externalSettings?.autoRun)
+  const externalProvider = externalSettings?.provider ?? ""
+  const externalProviderName =
+    externalIntegrations.find(
+      integration => integration.id === externalProvider,
+    )?.name ?? externalProvider
   const [formState, setFormState] = useState<ManualTransactionFormState>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
     const productType = SUPPORTED_PRODUCT_TYPES[0]
@@ -1240,6 +1253,7 @@ export function ManualTransactionDialog({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [labelIds, setLabelIds] = useState<string[]>([])
   const [labelsTouched, setLabelsTouched] = useState(false)
+  const [externalLabeling, setExternalLabeling] = useState(externalAutoRun)
   const sharesPriceEditedRef = useRef(false)
   const [originMoreOpen, setOriginMoreOpen] = useState(false)
   const [destMoreOpen, setDestMoreOpen] = useState(false)
@@ -1248,6 +1262,19 @@ export function ManualTransactionDialog({
   const isTransferCreate = mode === "create" && isTransferUiType(formState.type)
   const isSwapCreate = mode === "create" && isSwapUiType(formState.type)
   const isPairedCreate = isTransferCreate || isSwapCreate
+  const showExternalLabelingToggle =
+    externalEnabled &&
+    formState.productType === ProductType.ACCOUNT &&
+    !isPairedCreate &&
+    labelIds.length === 0
+
+  useEffect(() => {
+    if (isOpen) setExternalLabeling(externalAutoRun)
+  }, [isOpen, externalAutoRun])
+
+  useEffect(() => {
+    if (isOpen && externalEnabled) void fetchExternalIntegrations()
+  }, [isOpen, externalEnabled, fetchExternalIntegrations])
   const lockProductAndType =
     mode === "edit" &&
     isDomainTxType(formState.type) &&
@@ -2507,6 +2534,9 @@ export function ManualTransactionDialog({
               : labelsTouched
                 ? labelIds
                 : undefined,
+          external_labeling: showExternalLabelingToggle
+            ? externalLabeling
+            : undefined,
         }
         return payload
       }
@@ -3539,6 +3569,28 @@ export function ManualTransactionDialog({
                         <p className="text-xs text-muted-foreground">
                           {t.labels.manualLabelsHint}
                         </p>
+                        {showExternalLabelingToggle && (
+                          <div className="flex items-center justify-between gap-3">
+                            <Label
+                              htmlFor="manual-tx-external-labeling"
+                              className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 shrink-0 text-fuchsia-500" />
+                              {t.labels.relabel.includeExternal.replace(
+                                "{provider}",
+                                externalProviderName,
+                              )}
+                            </Label>
+                            <Switch
+                              id="manual-tx-external-labeling"
+                              size="sm"
+                              checked={externalLabeling}
+                              onCheckedChange={setExternalLabeling}
+                              disabled={isSubmitting}
+                              className="bg-origin-border data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-violet-500 data-[state=checked]:via-fuchsia-500 data-[state=checked]:to-amber-400"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                 </CardContent>
@@ -3561,7 +3613,11 @@ export function ManualTransactionDialog({
                     title={isSubmitting ? t.common.saving : t.common.save}
                     className="h-9 w-9 p-0"
                   >
-                    <Save className="h-4 w-4" />
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                   </Button>
                 </CardFooter>
               </form>

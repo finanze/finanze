@@ -1,11 +1,15 @@
 import { useEffect, useState, type CSSProperties } from "react"
 import {
   Check,
+  ChevronDown,
   EyeOff,
   ImagePlus,
   Loader2,
   Pencil,
   Save,
+  ShieldCheck,
+  Sparkles,
+  PiggyBank,
   TrendingDown,
   TrendingUp,
   X,
@@ -20,7 +24,7 @@ import { Label as FieldLabel } from "@/components/ui/Label"
 import { Icon, IconPicker, type IconName } from "@/components/ui/icon-picker"
 import { createLabel, updateLabel } from "@/services/api"
 import { cn } from "@/lib/utils"
-import { LabelCategory, type Label } from "@/types/labeling"
+import { LabelCategory, LabelSubcategory, type Label } from "@/types/labeling"
 import { LabelingModal } from "./LabelingModal"
 import { hexToRgba } from "./LabelChip"
 
@@ -65,6 +69,25 @@ const CATEGORY_OPTIONS: {
   },
 ]
 
+const SUBCATEGORY_OPTIONS = {
+  [LabelSubcategory.NEED]: ShieldCheck,
+  [LabelSubcategory.WANTS]: Sparkles,
+  [LabelSubcategory.SAVINGS]: PiggyBank,
+  [LabelSubcategory.NONE]: EyeOff,
+}
+
+const subcategoriesFor = (category: LabelCategory) =>
+  category === LabelCategory.EXPENSE
+    ? [LabelSubcategory.NEED, LabelSubcategory.WANTS]
+    : category === LabelCategory.EXCLUDED
+      ? [LabelSubcategory.SAVINGS, LabelSubcategory.NONE]
+      : [LabelSubcategory.NONE]
+
+const defaultSubcategory = (category: LabelCategory) =>
+  category === LabelCategory.EXPENSE
+    ? LabelSubcategory.NEED
+    : LabelSubcategory.NONE
+
 interface LabelDialogProps {
   isOpen: boolean
   label: Label | null
@@ -80,6 +103,8 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
   const [color, setColor] = useState(PRESET_COLORS[0])
   const [icon, setIcon] = useState<IconName | undefined>(undefined)
   const [category, setCategory] = useState<LabelCategory>(LabelCategory.EXPENSE)
+  const [subcategory, setSubcategory] = useState(LabelSubcategory.NEED)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [nameError, setNameError] = useState(false)
 
@@ -93,6 +118,11 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
     setColor(label?.color ?? PRESET_COLORS[0])
     setIcon((label?.icon as IconName | undefined) ?? undefined)
     setCategory(label?.category ?? LabelCategory.EXPENSE)
+    setSubcategory(
+      label?.subcategory ??
+        defaultSubcategory(label?.category ?? LabelCategory.EXPENSE),
+    )
+    setShowAdvanced(false)
     setNameError(false)
   }, [isOpen, label])
 
@@ -102,6 +132,7 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
   }
 
   const handleSave = async () => {
+    if (label?.protected) return
     const trimmedName = name.trim()
     if (!isBase && !trimmedName) {
       setNameError(true)
@@ -114,6 +145,7 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
       color,
       icon: icon ?? null,
       category,
+      subcategory,
     }
     try {
       if (label) {
@@ -137,7 +169,7 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
 
   return (
     <LabelingModal
-      isOpen={isOpen}
+      isOpen={isOpen && !label?.protected}
       title={label ? t.labels.editLabel : t.labels.newLabel}
       onClose={handleClose}
       testId="label-dialog"
@@ -309,7 +341,12 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
                 type="button"
                 role="radio"
                 aria-checked={active}
-                onClick={() => setCategory(option)}
+                onClick={() => {
+                  setCategory(option)
+                  if (!subcategoriesFor(option).includes(subcategory)) {
+                    setSubcategory(defaultSubcategory(option))
+                  }
+                }}
                 disabled={saving}
                 data-testid={`label-category-${option.toLowerCase()}`}
                 className={cn(
@@ -329,6 +366,61 @@ export function LabelDialog({ isOpen, label, onClose }: LabelDialogProps) {
           {t.labels.categoryHints[category]}
         </p>
       </div>
+
+      {category !== LabelCategory.INCOME && (
+        <div className="space-y-3 border-t pt-3">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(value => !value)}
+            aria-expanded={showAdvanced}
+            disabled={saving}
+            className="flex w-full items-center justify-between gap-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {t.labels.advanced}
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 transition-transform",
+                showAdvanced && "rotate-180",
+              )}
+            />
+          </button>
+          {showAdvanced && (
+            <div className="space-y-2">
+              <FieldLabel>{t.labels.subcategory}</FieldLabel>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-label={t.labels.subcategory}
+              >
+                {subcategoriesFor(category).map(option => {
+                  const SubcategoryIcon = SUBCATEGORY_OPTIONS[option]
+                  const active = subcategory === option
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setSubcategory(option)}
+                      disabled={saving}
+                      data-testid={`label-subcategory-${option.toLowerCase()}`}
+                      className={cn(
+                        "flex items-center justify-center gap-2 rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors disabled:opacity-50",
+                        active
+                          ? "border-foreground bg-muted/50 text-foreground"
+                          : "border-border text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+                      )}
+                    >
+                      <SubcategoryIcon className="h-4 w-4 shrink-0" />
+                      {t.labels.subcategories[option]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </LabelingModal>
   )
 }

@@ -19,6 +19,10 @@ async def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
         if until_date and isinstance(until_date, str):
             until_date = date.fromisoformat(until_date)
 
+        label_id = body.get("label_id")
+        if label_id is not None and not isinstance(label_id, str):
+            raise TypeError("label_id must be a UUID string or null")
+
         flow = PeriodicFlow(
             id=UUID(body["id"]),
             name=body["name"],
@@ -32,9 +36,10 @@ async def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
             until=until_date,
             icon=body.get("icon"),
             max_amount=Dezimal(body["max_amount"]) if body.get("max_amount") else None,
+            label_id=UUID(label_id) if label_id is not None else None,
         )
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
-    await update_periodic_flow_uc.execute(flow)
+    await update_periodic_flow_uc.execute(flow, label_id_provided="label_id" in body)
     return "", 204

@@ -857,8 +857,12 @@ class FinanzeServer:
             crypto_asset_info_client, entity_repository
         )
 
-        save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
-        update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
+        save_periodic_flow = SavePeriodicFlowImpl(
+            periodic_flow_repository, label_repository
+        )
+        update_periodic_flow = UpdatePeriodicFlowImpl(
+            periodic_flow_repository, label_repository
+        )
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
         get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
         save_pending_flow = SavePendingFlowImpl(pending_flow_repository)
@@ -1071,6 +1075,8 @@ class FinanzeServer:
             label_repository,
             entity_repository,
             exchange_rate_storage,
+            periodic_flow_repository,
+            auto_contrib_repository,
         )
         get_recurring_movements = GetRecurringMovementsImpl(
             transaction_repository,

@@ -1934,6 +1934,15 @@
     "color": "Colore",
     "customColor": "Colore personalizzato",
     "category": "Tipo",
+    "advanced": "Avanzate",
+    "subcategory": "Sottocategoria",
+    "protectedLabel": "Etichetta protetta",
+    "subcategories": {
+      "NEED": "Necessità",
+      "WANTS": "Desiderio",
+      "SAVINGS": "Risparmio",
+      "NONE": "Nessuna"
+    },
     "categoryHints": {
       "EXPENSE": "Raggruppata con le tue etichette di spesa.",
       "INCOME": "Raggruppata con le tue etichette di entrata.",
@@ -2124,6 +2133,8 @@
     "expenses": "Spese",
     "net": "Netto",
     "savingsRate": "Tasso di risparmio",
+    "targetShort": "obiettivo",
+    "expensesToIncomeRatio": "Spese come % delle entrate",
     "vsPrevious": "Variazione vs periodo precedente",
     "movementsCount": "{count} movimenti",
     "excludedCount": "{count} esclusi",
@@ -2131,7 +2142,23 @@
     "evolution": "Andamento",
     "evolutionViews": {
       "bars": "Grafico a barre",
+      "composition": "Composizione della spesa",
       "heatmap": "Mappa di calore giornaliera"
+    },
+    "evolutionViewLabels": {
+      "bars": "Spesa",
+      "composition": "Spese",
+      "heatmap": "Giornaliera"
+    },
+    "composition": {
+      "modes": {
+        "labels": "Etichette",
+        "budget": "Necessità, desideri e risparmio"
+      },
+      "otherLabels": "Altre etichette",
+      "remainder": "Resto",
+      "spending": "Spesa",
+      "savings": "Risparmio"
     },
     "heatmap": {
       "hint": "Passa il mouse o tocca un giorno per vederne i movimenti",
@@ -2149,6 +2176,30 @@
     "byLabel": "Per etichetta",
     "overlapHint": "I movimenti con più etichette vengono conteggiati in ciascuna.",
     "topCounterparties": "Movimenti principali",
+    "budget": {
+      "title": "Andamento del budget",
+      "saved": "Risparmiato",
+      "needs": "Necessità",
+      "wants": "Desideri",
+      "targetInfo": "Obiettivi per mesi interi dal budget attuale, in base alle date attive di ogni voce. Gli importi effettivi coprono le date selezionate in Attività. Le spese per necessità e desideri seguono le sottocategorie delle etichette di spesa. Le spese senza etichetta sono considerate necessarie; quelle con entrambe le sottocategorie vengono contate una sola volta come desideri. L'importo investito include i movimenti netti etichettati come risparmio più acquisti e investimenti meno vendite e rimborsi di capitale. I movimenti di denaro collegati a investimenti sono conteggiati solo tramite l'operazione di investimento.",
+      "investedBreakdown": "Dettaglio investimenti",
+      "savingsMovements": "Movimenti di risparmio",
+      "investmentTransactions": "Operazioni di investimento",
+      "actual": "Effettivo",
+      "notSet": "Non impostato",
+      "noTarget": "Nessun obiettivo",
+      "noLabelTargets": "Nessun obiettivo per etichetta",
+      "incompleteTarget": "Incompleto",
+      "incomplete": "Alcuni importi del budget non hanno un tasso di cambio. Il confronto è incompleto.",
+      "unlinked": "Non collegato",
+      "empty": "Nessuna voce di budget per questi mesi",
+      "openBudget": "Apri budget",
+      "difference": "Differenza",
+      "available": "Disponibile",
+      "exceeded": "Superato",
+      "remaining": "Rimanente",
+      "extra": "Extra"
+    },
     "recurring": {
       "title": "Storico dei movimenti ricorrenti",
       "description": "Movimenti ricorrenti rilevati in tutto lo storico disponibile, indipendentemente dall'intervallo selezionato.",
@@ -2157,11 +2208,13 @@
       "next": "Prossimo {date}",
       "occurrences": "{count} volte",
       "upTo": "fino a {amount}",
-      "track": "Monitora",
-      "tracked": "Aggiunto al denaro ricorrente",
-      "trackedBadge": "Monitorato",
-      "trackedAs": "Denaro ricorrente associato",
-      "openRecurring": "Apri denaro ricorrente",
+      "track": "Aggiungi",
+      "tracked": "Aggiunto al budget",
+      "trackedBadge": "Nel budget",
+      "trackedAs": "Voce di budget",
+      "openRecurring": "Apri budget",
+      "budgetLabel": "Etichetta del budget",
+      "noLabel": "Nessuna etichetta",
       "showMore": "Mostra di più",
       "ignore": "Ignora",
       "ignoredToast": "Movimento ignorato",
@@ -2568,9 +2621,9 @@
   },
   "management": {
     "title": "I miei soldi",
-    "recurring": "Ricorrente",
+    "recurring": "Budget",
     "pending": "In sospeso",
-    "recurringMoney": "Ricorrente",
+    "recurringMoney": "Budget",
     "recurringMoneyDescription": "Le tue entrate, uscite e investimenti ricorrenti",
     "pendingMoney": "In sospeso",
     "pendingMoneyDescription": "Gestisci le tue entrate e uscite occasionali",
@@ -2615,6 +2668,11 @@
       "showMore": "Mostra +{count}"
     },
     "categoryPlaceholder": "Inserisci la categoria",
+    "budgetLabel": {
+      "title": "Etichetta",
+      "help": "Collega un'etichetta per confrontare questo budget con le spese e le entrate in Attività.",
+      "unassigned": "Non assegnato"
+    },
     "iconLabel": "Icona",
     "frequencyLabel": "Frequenza",
     "flowSubtype": "Tipo",
@@ -2640,6 +2698,7 @@
     "deleteError": "Errore nell'eliminazione dell'elemento",
     "loadError": "Errore nel caricamento dei dati",
     "optional": "Opzionale",
+    "recommended": "Consigliato",
     "flowType": {
       "EARNING": "Entrata",
       "EXPENSE": "Uscita"
@@ -2742,9 +2801,7 @@
     "goToIntegrations": "Vai alle Integrazioni",
     "contributionsDistribution": "Distribuzione dei contributi",
     "other": "Altro",
-    "monthlyPerTarget": "Mensile per destinazione",
-    "activeContributions": "Contributi attivi",
-    "monthlyAverageContribution": "Media mensile contributo",
+    "monthlyAverageContribution": "Mensile",
     "source": "Fonte",
     "manualContributions": {
       "unnamed": "Contributo manuale",
@@ -2753,8 +2810,9 @@
       "editTitle": "Modifica contributo",
       "entity": "Entità",
       "targetName": "Nome destinazione",
-      "targetNameHelper": "Nome amichevole opzionale mostrato nell'elenco",
-      "targetHelper": "ISIN, IBAN o identificatore",
+      "targetNameHelper": "Lascia vuoto per usare il nome",
+      "optionalFields": "Campi opzionali",
+      "cryptoTargetIdentifier": "Simbolo o indirizzo del contratto",
       "currency": "Valuta",
       "suggestions": "Suggerimenti",
       "noSuggestions": "Nessun suggerimento disponibile",

@@ -775,20 +775,17 @@ class TransactionSQLRepository(TransactionPort):
             return datetime.fromisoformat(row[0])
 
     async def get_investment_txs_in_range(
-        self, entity_ids: list[UUID], from_date: date, to_date: date
+        self, entity_ids: Optional[list[UUID]], from_date: date, to_date: date
     ) -> list[BaseInvestmentTx]:
-        if not entity_ids:
+        if entity_ids == []:
             return []
-        query = (
-            TransactionQueries.INVESTMENT_SELECT_BASE.value
-            + f" AND it.entity_id IN ({sql_placeholders(entity_ids)})"
-            + " AND it.date >= ? AND it.date < ?"
-            + " ORDER BY it.date ASC"
-        )
-        params = [str(e) for e in entity_ids] + [
-            from_date.isoformat(),
-            _day_after(to_date),
-        ]
+        query = TransactionQueries.INVESTMENT_SELECT_BASE.value
+        params = []
+        if entity_ids is not None:
+            query += f" AND it.entity_id IN ({sql_placeholders(entity_ids)})"
+            params.extend(str(entity_id) for entity_id in entity_ids)
+        query += " AND it.date >= ? AND it.date < ? ORDER BY it.date ASC"
+        params.extend([from_date.isoformat(), _day_after(to_date)])
         async with self._db_client.read() as cursor:
             await cursor.execute(query, tuple(params))
             return [_map_investment_row(row) for row in await cursor.fetchall()]

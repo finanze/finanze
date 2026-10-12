@@ -108,10 +108,12 @@ class AddManualTransactionImpl(AddManualTransaction):
             for entity_id in {item.entity.id for item in resolved}:
                 await self._helper.refresh(entity_id, has_transactions=True)
 
-        if account_txs:
+        if account_txs and request.external_labeling is not False:
             await self._transaction_labeler.classify_external(
                 AccountTxSelection(ids=[tx.id for tx in account_txs]),
-                LabelingTrigger.AUTO,
+                LabelingTrigger.MANUAL
+                if request.external_labeling
+                else LabelingTrigger.AUTO,
             )
 
         return resolved[0].id

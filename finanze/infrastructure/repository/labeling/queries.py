@@ -3,13 +3,13 @@ from enum import Enum
 
 class LabelQueries(str, Enum):
     GET_ALL = """
-        SELECT id, key, name, description, color, icon, category
+        SELECT id, key, name, description, color, icon, category, subcategory
         FROM labels
         ORDER BY key IS NULL, created_at, name
     """
 
     GET_BY_ID = """
-        SELECT id, key, name, description, color, icon, category
+        SELECT id, key, name, description, color, icon, category, subcategory
         FROM labels
         WHERE id = ?
     """
@@ -21,13 +21,13 @@ class LabelQueries(str, Enum):
     """
 
     INSERT = """
-        INSERT INTO labels (id, key, name, description, color, icon, category, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO labels (id, key, name, description, color, icon, category, subcategory, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     UPDATE = """
         UPDATE labels
-        SET name = ?, description = ?, color = ?, icon = ?, category = ?
+        SET name = ?, description = ?, color = ?, icon = ?, category = ?, subcategory = ?
         WHERE id = ?
     """
 

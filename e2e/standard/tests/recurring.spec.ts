@@ -46,7 +46,259 @@ async function selectTodayAsSinceDate(page: Page) {
     await dayCell.getByRole('button').click()
 }
 
-test.describe('Recurring money', () => {
+async function createBudgetExpense(
+    page: Page,
+    name: string,
+    amount: string,
+    category: string,
+    labelKey = 'groceries',
+) {
+    await page.getByRole('tab', { name: /^Expenses/ }).click()
+    await page
+        .getByRole('heading', { name: 'Expenses', exact: true })
+        .locator('../..')
+        .getByRole('button')
+        .click()
+    const dialog = page.locator('.fixed.inset-0').last()
+    await dialog.getByPlaceholder('Enter name').fill(name)
+    await dialog.getByRole('textbox').nth(1).fill(amount)
+    await dialog.getByPlaceholder('Enter category').fill(category)
+    await dialog.getByTestId(`label-option-${labelKey}`).click()
+    await selectTodayAsSinceDate(page)
+    const saved = page.waitForResponse(
+        (response) =>
+            new URL(response.url()).pathname.endsWith('/flows/periodic') &&
+            response.request().method() === 'POST',
+    )
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    const request = (await saved).request().postDataJSON() as {
+        label_id: string
+    }
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+    return request.label_id
+}
+
+async function deleteBudgetEntry(page: Page, name: string) {
+    const heading = page.getByRole('heading', { name, exact: true })
+    const header = page
+        .locator('div[role="button"][aria-expanded]')
+        .filter({ has: heading })
+    if ((await header.getAttribute('aria-expanded')) !== 'true')
+        await header.click()
+    await header
+        .locator('..')
+        .locator('[data-no-expand]')
+        .getByRole('button')
+        .nth(1)
+        .click()
+    await page
+        .locator('.fixed.inset-0')
+        .last()
+        .getByRole('button', { name: 'Delete', exact: true })
+        .click()
+    await expect(heading).toHaveCount(0)
+}
+
+test.describe('Budget', () => {
+    test('uses categories before labels for chart groups and entry colors', async ({
+        authenticatedPage: page,
+    }, testInfo) => {
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        await navigateToMyMoneyPage(page, 'Budget')
+        const first = 'E2E Budget Grocery Base'
+        const second = 'E2E Budget Grocery Extras'
+        const third = 'E2E Budget Uncategorised Base'
+        const fourth = 'E2E Budget Uncategorised Extras'
+        const category = 'E2E Budget Basics'
+        const labelId = await createBudgetExpense(page, first, '400', category)
+        await createBudgetExpense(page, second, '200', category, 'salary')
+        await createBudgetExpense(page, third, '120', '')
+        await createBudgetExpense(page, fourth, '80', '')
+        for (const [width, height] of [
+            [1440, 1000],
+            [390, 844],
+        ]) {
+            await page.setViewportSize({ width, height })
+            await page.getByRole('tab', { name: /^Overview/ }).click()
+            await expect(
+                page.getByTestId('recurring-category-select'),
+            ).toHaveCount(0)
+            const categoryGroup = page.getByTestId(
+                `budget-category-expense-${category}`,
+            )
+            const labelGroup = page.getByTestId(
+                `budget-label-expense-${labelId}`,
+            )
+            await expect(categoryGroup).toHaveCount(1)
+            await expect(categoryGroup).toContainText(/600[.,]?00/)
+            await expect(labelGroup).toHaveCount(1)
+            await expect(labelGroup).toContainText(/200[.,]?00/)
+            const categoryColor = await categoryGroup
+                .locator('div')
+                .first()
+                .evaluate(
+                    (element) => getComputedStyle(element).backgroundColor,
+                )
+            const labelColor = await labelGroup
+                .locator('div')
+                .first()
+                .evaluate(
+                    (element) => getComputedStyle(element).backgroundColor,
+                )
+            await page.screenshot({
+                path: testInfo.outputPath(`budget-overview-${width}.png`),
+                fullPage: true,
+            })
+            await categoryGroup.click()
+            await expect(
+                page.getByRole('tab', { name: /^Expenses/ }),
+            ).toHaveAttribute('aria-selected', 'true')
+            await expect(
+                page.getByTestId('recurring-category-filter'),
+            ).toContainText(category)
+            await expect(
+                page.getByTestId('recurring-label-filter'),
+            ).toHaveCount(0)
+            await expect(
+                page.getByRole('heading', { name: first, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: second, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: third, exact: true }),
+            ).toHaveCount(0)
+            const firstHeader = page
+                .locator('div[role="button"][aria-expanded]')
+                .filter({
+                    has: page.getByRole('heading', {
+                        name: first,
+                        exact: true,
+                    }),
+                })
+            const secondHeader = page
+                .locator('div[role="button"][aria-expanded]')
+                .filter({
+                    has: page.getByRole('heading', {
+                        name: second,
+                        exact: true,
+                    }),
+                })
+            expect(
+                await firstHeader
+                    .getByRole('button', { name: category, exact: true })
+                    .evaluate((element) =>
+                        element.nextElementSibling?.getAttribute('data-testid'),
+                    ),
+            ).toBe('label-chip')
+            for (const header of [firstHeader, secondHeader]) {
+                expect(
+                    await header
+                        .locator('..')
+                        .evaluate(
+                            (element) =>
+                                getComputedStyle(element).borderLeftColor,
+                        ),
+                ).toBe(categoryColor)
+            }
+            await page
+                .getByTestId('recurring-category-filter')
+                .getByRole('button', { name: 'Clear', exact: true })
+                .click()
+            await page.getByRole('tab', { name: /^Overview/ }).click()
+            await labelGroup.click()
+            await expect(
+                page.getByTestId('recurring-label-filter'),
+            ).toContainText('Groceries')
+            await expect(
+                page.getByRole('heading', { name: third, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: fourth, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: first, exact: true }),
+            ).toHaveCount(0)
+            const thirdHeader = page
+                .locator('div[role="button"][aria-expanded]')
+                .filter({
+                    has: page.getByRole('heading', {
+                        name: third,
+                        exact: true,
+                    }),
+                })
+            expect(
+                await thirdHeader
+                    .locator('..')
+                    .evaluate(
+                        (element) => getComputedStyle(element).borderLeftColor,
+                    ),
+            ).toBe(labelColor)
+            expect(
+                await thirdHeader
+                    .getByTestId('label-chip')
+                    .evaluate((element) => getComputedStyle(element).color),
+            ).toBe(labelColor)
+            await page.getByTestId('recurring-label-filter').click()
+            const earnings = await page
+                .getByTestId('recurring-kpi-earnings')
+                .innerText()
+            const expenses = await page
+                .getByTestId('recurring-kpi-expenses')
+                .innerText()
+            await page.getByTestId('recurring-category-select').click()
+            await page
+                .getByTestId('recurring-category-option-E2E Budget Basics')
+                .getByRole('button', {
+                    name: 'Include category: E2E Budget Basics',
+                    exact: true,
+                })
+                .click()
+            await page.getByTestId('recurring-category-select').click()
+            await expect(
+                page.getByRole('heading', { name: first, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: second, exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('heading', { name: third, exact: true }),
+            ).toHaveCount(0)
+            await expect(page.getByTestId('recurring-kpi-earnings')).toHaveText(
+                earnings,
+                { useInnerText: true },
+            )
+            await expect(page.getByTestId('recurring-kpi-expenses')).toHaveText(
+                expenses,
+                { useInnerText: true },
+            )
+            await expect(
+                page.getByTestId('recurring-kpi-savings'),
+            ).toBeVisible()
+            await page.getByTestId('recurring-invested-title').click()
+            await expect(
+                page.getByRole('tab', { name: /^Investments/ }),
+            ).toHaveAttribute('aria-selected', 'true')
+            await expect(
+                page.getByTestId('recurring-category-select'),
+            ).toHaveCount(0)
+            const overflow = await page.evaluate(
+                () => document.documentElement.scrollWidth > window.innerWidth,
+            )
+            expect(overflow).toBe(false)
+        }
+        await page.getByRole('tab', { name: /^Expenses/ }).click()
+        await page
+            .getByTestId('recurring-category-filter')
+            .getByRole('button', { name: 'Clear', exact: true })
+            .click()
+        await deleteBudgetEntry(page, first)
+        await deleteBudgetEntry(page, second)
+        await deleteBudgetEntry(page, third)
+        await deleteBudgetEntry(page, fourth)
+    })
+
     test('shows compact KPI cards in two columns on mobile', async ({
         authenticatedPage: page,
     }) => {
@@ -55,9 +307,7 @@ test.describe('Recurring money', () => {
             .getByRole('button', { name: 'My Money', exact: true })
             .click()
         await expect(page).toHaveURL(/\/management$/)
-        await page
-            .getByRole('heading', { name: 'Recurring', exact: true })
-            .click()
+        await page.getByRole('heading', { name: 'Budget', exact: true }).click()
         await expect(page).toHaveURL(/\/management\/recurring$/)
 
         const earnings = page.getByTestId('recurring-kpi-earnings')
@@ -158,9 +408,7 @@ test.describe('Recurring money', () => {
             .getByRole('button', { name: 'My Money', exact: true })
             .click()
         await expect(page).toHaveURL(/\/management$/)
-        await page
-            .getByRole('heading', { name: 'Recurring', exact: true })
-            .click()
+        await page.getByRole('heading', { name: 'Budget', exact: true }).click()
         await expect(page).toHaveURL(/\/management\/recurring$/)
         await page.getByRole('tab', { name: /Earnings/ }).click()
 
@@ -188,9 +436,9 @@ test.describe('Recurring money', () => {
         authenticatedPage: page,
     }) => {
         await page.setViewportSize({ width: 1440, height: 1000 })
-        await navigateToMyMoneyPage(page, 'Recurring')
+        await navigateToMyMoneyPage(page, 'Budget')
         await expect(
-            page.getByRole('heading', { name: /^Recurring/ }),
+            page.getByRole('heading', { name: /^Budget/ }),
         ).toBeVisible()
         await page.getByRole('tab', { name: /Earnings/ }).click()
         const earningsTab = page.getByRole('tab', { name: /^Earnings/ })
@@ -228,6 +476,14 @@ test.describe('Recurring money', () => {
         const fields = flowDialog.getByRole('textbox')
         await fields.nth(0).fill(createdFlowName)
         await fields.nth(1).fill('83.50')
+        await flowDialog
+            .getByPlaceholder('Enter category')
+            .fill('E2E Household')
+        const labelOptions = flowDialog
+            .getByTestId('label-selector')
+            .getByRole('button')
+        const firstLabelName = (await labelOptions.nth(0).innerText()).trim()
+        await labelOptions.nth(0).click()
         await selectTodayAsSinceDate(page)
         await flowDialog
             .getByRole('button', { name: 'Save', exact: true })
@@ -245,6 +501,10 @@ test.describe('Recurring money', () => {
         let flowHeader = page
             .locator('div[role="button"][aria-expanded]')
             .filter({ has: createdHeading })
+        await expect(flowHeader.getByTestId('label-chip')).toHaveText(
+            firstLabelName,
+        )
+        await expect(flowHeader).toContainText('E2E Household')
         if ((await flowHeader.getAttribute('aria-expanded')) !== 'true') {
             await flowHeader.click()
         }
@@ -258,6 +518,25 @@ test.describe('Recurring money', () => {
 
         const editDialog = page.locator('.fixed.inset-0').last()
         await editDialog.getByRole('textbox').nth(0).fill(updatedFlowName)
+        const editLabelOptions = editDialog
+            .getByTestId('label-selector')
+            .getByRole('button')
+        await expect(editLabelOptions.nth(0)).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        )
+        const secondLabelName = (
+            await editLabelOptions.nth(1).innerText()
+        ).trim()
+        await editLabelOptions.nth(1).click()
+        await expect(editLabelOptions.nth(0)).toHaveAttribute(
+            'aria-pressed',
+            'false',
+        )
+        await expect(editLabelOptions.nth(1)).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        )
         await editDialog.getByRole('switch').click()
         await editDialog
             .getByRole('button', { name: 'Save', exact: true })
@@ -273,6 +552,10 @@ test.describe('Recurring money', () => {
         flowHeader = page
             .locator('div[role="button"][aria-expanded]')
             .filter({ has: updatedHeading })
+        await expect(flowHeader.getByTestId('label-chip')).toHaveText(
+            secondLabelName,
+        )
+        await expect(flowHeader).toContainText('E2E Household')
         if ((await flowHeader.getAttribute('aria-expanded')) !== 'true') {
             await flowHeader.click()
         }
@@ -282,6 +565,19 @@ test.describe('Recurring money', () => {
             .locator('[data-no-expand]')
             .getByRole('button')
         await expect(flowActions).toHaveCount(2)
+        await flowActions.nth(0).click()
+        const clearDialog = page.locator('.fixed.inset-0').last()
+        await clearDialog
+            .getByTestId('label-selector')
+            .getByRole('button')
+            .nth(1)
+            .click()
+        await clearDialog
+            .getByRole('button', { name: 'Save', exact: true })
+            .click()
+        await expect(clearDialog).toBeHidden()
+        await expect(flowHeader.getByTestId('label-chip')).toHaveCount(0)
+        await expect(flowHeader).toContainText('E2E Household')
         await flowActions.nth(1).click()
 
         const confirmation = page.locator('.fixed.inset-0').last()

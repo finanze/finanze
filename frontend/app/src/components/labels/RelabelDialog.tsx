@@ -44,8 +44,13 @@ export function RelabelDialog({
   onDone,
 }: RelabelDialogProps) {
   const { t } = useI18n()
-  const { entities, settings, showToast, externalIntegrations } =
-    useAppContext()
+  const {
+    entities,
+    settings,
+    showToast,
+    externalIntegrations,
+    fetchExternalIntegrations,
+  } = useAppContext()
   const labelOptions = useLabelOptions()
   const externalSettings = settings.labeling?.external
   const externalEnabled = Boolean(externalSettings?.enabled)
@@ -83,6 +88,10 @@ export function RelabelDialog({
     setMatched(null)
     setResult(null)
   }, [isOpen, initial, externalAutoRun])
+
+  useEffect(() => {
+    if (isOpen && externalEnabled) void fetchExternalIntegrations()
+  }, [isOpen, externalEnabled, fetchExternalIntegrations])
 
   const entityOptions = useMemo(
     () =>

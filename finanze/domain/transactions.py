@@ -260,3 +260,10 @@ class TxClassification:
 class AddManualTransactionRequest:
     txs: list[BaseTx]
     historic_entry_id: Optional[UUID] = None
+    external_labeling: Optional[bool] = None
+
+
+@dataclass
+class UpdateManualTransactionRequest:
+    tx: BaseTx
+    external_labeling: Optional[bool] = None

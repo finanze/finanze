@@ -112,9 +112,10 @@ export function CashflowHeatmap({
     )
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = containerRef.current
     if (!element) return
+    setWidth(element.getBoundingClientRect().width)
     const observer = new ResizeObserver(entries =>
       setWidth(entries[0].contentRect.width),
     )

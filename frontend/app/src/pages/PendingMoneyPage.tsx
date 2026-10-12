@@ -26,7 +26,8 @@ import {
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
   Ban,
   Banknote,
   BanknoteArrowDown,
@@ -997,9 +998,9 @@ export default function PendingMoneyPage() {
             }
           >
             {sortOrder === SortOrder.ASC ? (
-              <ArrowRight size={16} className="rotate-[-90deg]" />
+              <ArrowUpNarrowWide size={16} />
             ) : (
-              <ArrowRight size={16} className="rotate-90" />
+              <ArrowDownWideNarrow size={16} />
             )}
           </button>
         </div>

@@ -85,6 +85,6 @@ class TransactionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def get_investment_txs_in_range(
-        self, entity_ids: list[UUID], from_date: date, to_date: date
+        self, entity_ids: Optional[list[UUID]], from_date: date, to_date: date
     ) -> list[BaseInvestmentTx]:
         raise NotImplementedError

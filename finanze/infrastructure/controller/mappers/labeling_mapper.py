@@ -9,6 +9,7 @@ from domain.labeling import (
     LabelingRule,
     LabelingRuleConditions,
     LabelingRuleKind,
+    LabelSubcategory,
     RelabelRequest,
     TextCondition,
     TextMatchField,
@@ -69,6 +70,9 @@ def map_label(body: dict, label_id: Optional[UUID] = None) -> Label:
         color=_optional_str(body.get("color")),
         icon=_optional_str(body.get("icon")),
         category=LabelCategory(body.get("category") or LabelCategory.EXPENSE),
+        subcategory=LabelSubcategory(body["subcategory"])
+        if "subcategory" in body
+        else None,
     )
 
 

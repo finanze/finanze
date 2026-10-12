@@ -498,8 +498,8 @@ async def app(tmp_path):
     )
     list_real_estate_uc = ListRealEstateImpl(real_estate_repo, position_port)
 
-    save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo)
-    update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
+    save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo, label_port)
+    update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo, label_port)
     delete_periodic_flow_uc = DeletePeriodicFlowImpl(periodic_flow_repo)
     get_periodic_flows_uc = GetPeriodicFlowsImpl(periodic_flow_repo)
     save_pending_flow_uc = SavePendingFlowImpl(pending_flow_repo)
@@ -745,6 +745,7 @@ async def app(tmp_path):
         historic_port,
         fetch_pointers_port,
         transaction_handler_port,
+        transaction_labeler,
     )
 
     await db_client.silent_close()
@@ -800,6 +801,11 @@ async def fetch_pointers_port(app):
 @pytest_asyncio.fixture
 async def transaction_handler_port(app):
     return app[33]
+
+
+@pytest_asyncio.fixture
+async def transaction_labeler(app):
+    return app[34]
 
 
 @pytest_asyncio.fixture

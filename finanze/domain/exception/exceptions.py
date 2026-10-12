@@ -187,6 +187,14 @@ class LabelNotFound(Exception):
     pass
 
 
+class ProtectedLabel(Exception):
+    pass
+
+
+class InvalidBudgetLabel(Exception):
+    pass
+
+
 class LabelingRuleNotFound(Exception):
     pass
 

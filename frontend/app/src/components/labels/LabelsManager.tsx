@@ -184,6 +184,7 @@ export function LabelsManager({ tab, onActionChange }: LabelsManagerProps) {
   }, [])
 
   const openEditLabel = (label: Label) => {
+    if (label.protected) return
     setEditingLabel(label)
     setLabelDialogOpen(true)
   }
@@ -263,7 +264,7 @@ export function LabelsManager({ tab, onActionChange }: LabelsManagerProps) {
   }
 
   const handleConfirmDeleteLabel = async () => {
-    if (!labelToDelete) return
+    if (!labelToDelete || labelToDelete.protected) return
     setDeleting(true)
     try {
       await deleteLabel(labelToDelete.id)

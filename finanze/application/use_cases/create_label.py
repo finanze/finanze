@@ -10,6 +10,7 @@ class CreateLabelImpl(CreateLabel):
     async def execute(self, label: Label) -> Label:
         label.id = None
         label.key = None
+        label.protected = False
         label.name = label.name.strip() if label.name else None
         validate_label(label)
         return await self._label_port.save(label)

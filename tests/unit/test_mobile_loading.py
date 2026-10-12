@@ -124,6 +124,7 @@ async def test_feature_services_are_created_only_in_lazy(
     assert lazy.get_cashflow._label_port is label_repo
     assert lazy.get_recurring._label_port is label_repo
     assert lazy.get_cashflow._transaction_port is deferred.tx_repo
+    assert lazy.get_cashflow._auto_contributions_port is deferred.auto_repo
     assert lazy.get_recurring._periodic_flow_port is deferred.period_repo
     assert lazy.get_recurring._exchange_rate_storage is deferred.ex_storage
 

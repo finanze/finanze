@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from dataclasses import field
 from datetime import date
 from enum import Enum
 from functools import lru_cache
@@ -37,6 +38,21 @@ class LabelCategory(str, Enum):
     EXCLUDED = "EXCLUDED"
 
 
+class LabelSubcategory(str, Enum):
+    NEED = "NEED"
+    WANTS = "WANTS"
+    SAVINGS = "SAVINGS"
+    NONE = "NONE"
+
+
+LABEL_SUBCATEGORIES = {
+    LabelCategory.INCOME: {LabelSubcategory.NONE},
+    LabelCategory.EXPENSE: {LabelSubcategory.NEED, LabelSubcategory.WANTS},
+    LabelCategory.EXCLUDED: {LabelSubcategory.SAVINGS, LabelSubcategory.NONE},
+}
+PROTECTED_LABEL_KEYS = {"internal_transfer"}
+
+
 class TextMatchOperator(str, Enum):
     CONTAINS = "CONTAINS"
     STARTS_WITH = "STARTS_WITH"
@@ -60,6 +76,17 @@ class Label:
     icon: Optional[str] = None
     category: LabelCategory = LabelCategory.EXPENSE
     usage: Optional[int] = None
+    subcategory: Optional[LabelSubcategory] = None
+    protected: bool = field(init=False, default=False)
+
+    def __post_init__(self):
+        if self.subcategory is None:
+            self.subcategory = (
+                LabelSubcategory.NEED
+                if self.category == LabelCategory.EXPENSE
+                else LabelSubcategory.NONE
+            )
+        self.protected = self.key in PROTECTED_LABEL_KEYS
 
 
 @dataclass
@@ -305,6 +332,8 @@ def validate_label(label: Label):
         raise InvalidLabelingRule("Label name is too long")
     if label.description and len(label.description) > MAX_LABEL_DESCRIPTION_LENGTH:
         raise InvalidLabelingRule("Label description is too long")
+    if label.subcategory not in LABEL_SUBCATEGORIES[label.category]:
+        raise InvalidLabelingRule("Subcategory is not allowed for this label category")
 
 
 def _text_matches(condition: TextCondition, candidates: list[str]) -> bool:

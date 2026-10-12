@@ -11,11 +11,13 @@ import {
 import { getLabels } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { LabelCategory, type Label } from "@/types/labeling"
+import { useFinancialData } from "./FinancialDataContext"
 
 interface LabelsContextType {
   labels: Label[]
   loaded: boolean
   loading: boolean
+  revision: number
   ensureLoaded: () => void
   refreshLabels: () => Promise<void>
   getLabel: (labelId: string) => Label | undefined
@@ -27,18 +29,24 @@ const LabelsContext = createContext<LabelsContextType | undefined>(undefined)
 
 export function LabelsProvider({ children }: { children: ReactNode }) {
   const { t, locale } = useI18n()
+  const { invalidateFlowsCache } = useFinancialData()
   const [labels, setLabels] = useState<Label[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [revision, setRevision] = useState(0)
   const inflightRef = useRef<Promise<void> | null>(null)
+  const initialLoadDone = useRef(false)
 
   const refreshLabels = useCallback(async () => {
     if (inflightRef.current) return inflightRef.current
     setLoading(true)
     const request = getLabels()
       .then(response => {
+        if (initialLoadDone.current) invalidateFlowsCache()
+        initialLoadDone.current = true
         setLabels(response.labels)
         setLoaded(true)
+        setRevision(value => value + 1)
       })
       .catch(error => {
         console.error("Error fetching labels:", error)
@@ -49,7 +57,7 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
       })
     inflightRef.current = request
     return request
-  }, [])
+  }, [invalidateFlowsCache])
 
   const ensureLoaded = useCallback(() => {
     if (!loaded && !inflightRef.current) {
@@ -103,6 +111,7 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
       labels: sortedLabels,
       loaded,
       loading,
+      revision,
       ensureLoaded,
       refreshLabels,
       getLabel,
@@ -113,6 +122,7 @@ export function LabelsProvider({ children }: { children: ReactNode }) {
       sortedLabels,
       loaded,
       loading,
+      revision,
       ensureLoaded,
       refreshLabels,
       getLabel,

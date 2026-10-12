@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from application.ports.label_port import LabelPort
 from dateutil.tz import tzlocal
-from domain.labeling import Label, LabelCategory
+from domain.labeling import Label, LabelCategory, LabelSubcategory
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.labeling.queries import LabelQueries
 
@@ -18,6 +18,7 @@ def _map_label_row(row) -> Label:
         color=row["color"],
         icon=row["icon"],
         category=LabelCategory(row["category"]),
+        subcategory=LabelSubcategory(row["subcategory"]),
     )
 
 
@@ -58,6 +59,7 @@ class LabelRepository(LabelPort):
                     label.color,
                     label.icon,
                     label.category.value,
+                    label.subcategory.value,
                     datetime.now(tzlocal()).isoformat(),
                 ),
             )
@@ -73,6 +75,7 @@ class LabelRepository(LabelPort):
                     label.color,
                     label.icon,
                     label.category.value,
+                    label.subcategory.value,
                     str(label.id),
                 ),
             )

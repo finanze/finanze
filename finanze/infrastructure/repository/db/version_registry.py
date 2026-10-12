@@ -212,6 +212,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_1_openai_integration imp
 from infrastructure.repository.db.versions.v0.v11.v0110_2_ignored_recurring_movements import (
     V01102IgnoredRecurringMovements,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_3_periodic_flow_budget_label import (
+    V01103PeriodicFlowBudgetLabel,
+)
 
 versions = [
     V0Genesis(),
@@ -296,4 +299,5 @@ versions = [
     V01100AccountTxLabeling(),
     V01101OpenAIIntegration(),
     V01102IgnoredRecurringMovements(),
+    V01103PeriodicFlowBudgetLabel(),
 ]

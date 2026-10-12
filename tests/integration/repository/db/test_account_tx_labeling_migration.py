@@ -9,6 +9,9 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.versions.v0.v11.v0110_0_account_tx_labeling import (
     V01100AccountTxLabeling,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_3_periodic_flow_budget_label import (
+    V01103PeriodicFlowBudgetLabel,
+)
 
 _SCHEMA = """
     CREATE TABLE account_transactions (
@@ -22,6 +25,9 @@ _SCHEMA = """
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         status TEXT NOT NULL
+    );
+    CREATE TABLE periodic_flows (
+        id TEXT PRIMARY KEY
     );
 """
 
@@ -127,3 +133,52 @@ async def test_account_transactions_get_movement_columns(setup):
     }
 
     assert {"counterparty", "iban", "linked_tx", "labels_locked"} <= columns
+
+
+@pytest.mark.asyncio
+async def test_label_subcategories_migrate_defaults_and_preserve_existing_categories(
+    setup,
+):
+    setup.execute("UPDATE labels SET category = 'INCOME' WHERE key = 'shopping'")
+    setup.execute(
+        "UPDATE labels SET category = 'INCOME' WHERE key = 'internal_transfer'"
+    )
+    setup.execute(
+        "INSERT INTO labels (id, name, category, created_at) VALUES (?, ?, ?, ?)",
+        ("custom-label", "Custom expense", "EXPENSE", "2026-10-11T12:00:00+02:00"),
+    )
+    setup.commit()
+    async with DBClient(setup).tx(skip_last_update=True) as cursor:
+        await V01103PeriodicFlowBudgetLabel().upgrade(
+            cursor, DatasourceInitContext(config=None)
+        )
+    assert "label_id" in {
+        row["name"] for row in setup.execute("PRAGMA table_info(periodic_flows)")
+    }
+    assert "idx_periodic_flows_label_id" in {
+        row["name"] for row in setup.execute("PRAGMA index_list(periodic_flows)")
+    }
+    labels = {
+        row["key"] or row["id"]: (row["category"], row["subcategory"])
+        for row in setup.execute("SELECT id, key, category, subcategory FROM labels")
+    }
+
+    assert labels["groceries"] == ("EXPENSE", "NEED")
+    assert labels["restaurants"] == ("EXPENSE", "WANTS")
+    assert labels["salary"] == ("INCOME", "NONE")
+    assert labels["shopping"] == ("INCOME", "NONE")
+    assert labels["internal_transfer"] == ("EXCLUDED", "NONE")
+    assert labels["savings_investment"] == ("EXCLUDED", "SAVINGS")
+    assert labels["custom-label"] == ("EXPENSE", "NEED")
+    assert {
+        key for key, (_, subcategory) in labels.items() if subcategory == "SAVINGS"
+    } == {"savings_investment"}
+    for category, subcategory in labels.values():
+        assert (
+            subcategory
+            in {
+                "EXPENSE": {"NEED", "WANTS"},
+                "INCOME": {"NONE"},
+                "EXCLUDED": {"SAVINGS", "NONE"},
+            }[category]
+        )

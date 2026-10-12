@@ -97,7 +97,7 @@ async function fetchEntityAllFeatures(page: Page, entityName: string) {
 }
 
 async function navigateToAutoContributions(page: Page) {
-    await navigateToMyMoneyPage(page, 'Recurring')
+    await navigateToMyMoneyPage(page, 'Budget')
     await page.getByRole('tab', { name: /^Investments/ }).click()
 }
 

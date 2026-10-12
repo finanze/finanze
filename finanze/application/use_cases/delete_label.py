@@ -3,7 +3,7 @@ from uuid import UUID
 from application.ports.label_port import LabelPort
 from application.ports.labeling_rule_port import LabelingRulePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
-from domain.exception.exceptions import LabelNotFound
+from domain.exception.exceptions import LabelNotFound, ProtectedLabel
 from domain.use_cases.delete_label import DeleteLabel
 
 
@@ -22,6 +22,8 @@ class DeleteLabelImpl(DeleteLabel):
         existing = await self._label_port.get_by_id(label_id)
         if existing is None:
             raise LabelNotFound()
+        if existing.protected:
+            raise ProtectedLabel()
 
         async with self._transaction_handler_port.start():
             await self._label_port.delete(label_id)

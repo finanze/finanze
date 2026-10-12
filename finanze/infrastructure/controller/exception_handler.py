@@ -16,6 +16,7 @@ from domain.exception.exceptions import (
     IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
+    InvalidBudgetLabel,
     InvalidLabelingRule,
     InvalidProvidedCredentials,
     InvalidTemplateDefaultValue,
@@ -28,6 +29,7 @@ from domain.exception.exceptions import (
     UnauthorizedToken,
     NoUserLogged,
     PermissionDenied,
+    ProtectedLabel,
     InvalidUserCredentials,
 )
 
@@ -64,6 +66,14 @@ def handle_tx_not_found(e):
 
 def handle_label_not_found(e):
     return jsonify({"code": "LABEL_NOT_FOUND"}), 404
+
+
+def handle_protected_label(e):
+    return jsonify({"code": "PROTECTED_LABEL"}), 403
+
+
+def handle_invalid_budget_label(e):
+    return jsonify({"code": "INVALID_BUDGET_LABEL"}), 400
 
 
 def handle_labeling_rule_not_found(e):
@@ -169,6 +179,8 @@ def register_exception_handlers(
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
     app.register_error_handler(LabelNotFound, handle_label_not_found)
+    app.register_error_handler(ProtectedLabel, handle_protected_label)
+    app.register_error_handler(InvalidBudgetLabel, handle_invalid_budget_label)
     app.register_error_handler(LabelingRuleNotFound, handle_labeling_rule_not_found)
     app.register_error_handler(InvalidLabelingRule, handle_invalid_labeling_rule)
     app.register_error_handler(

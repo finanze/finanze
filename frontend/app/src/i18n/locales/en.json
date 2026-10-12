@@ -1939,6 +1939,15 @@
     "color": "Color",
     "customColor": "Custom color",
     "category": "Type",
+    "advanced": "Advanced",
+    "subcategory": "Subcategory",
+    "protectedLabel": "Protected label",
+    "subcategories": {
+      "NEED": "Need",
+      "WANTS": "Wants",
+      "SAVINGS": "Savings",
+      "NONE": "None"
+    },
     "categoryHints": {
       "EXPENSE": "Grouped with your spending labels.",
       "INCOME": "Grouped with your income labels.",
@@ -2129,6 +2138,8 @@
     "expenses": "Expenses",
     "net": "Net",
     "savingsRate": "Savings rate",
+    "targetShort": "target",
+    "expensesToIncomeRatio": "Expenses as % of income",
     "vsPrevious": "Change vs previous period",
     "movementsCount": "{count} movements",
     "excludedCount": "{count} excluded",
@@ -2136,7 +2147,23 @@
     "evolution": "Evolution",
     "evolutionViews": {
       "bars": "Bar chart",
+      "composition": "Spending composition",
       "heatmap": "Daily heatmap"
+    },
+    "evolutionViewLabels": {
+      "bars": "Spending",
+      "composition": "Expenses",
+      "heatmap": "Daily"
+    },
+    "composition": {
+      "modes": {
+        "labels": "Labels",
+        "budget": "Needs, wants & savings"
+      },
+      "otherLabels": "Other labels",
+      "remainder": "Remainder",
+      "spending": "Spending",
+      "savings": "Savings"
     },
     "heatmap": {
       "hint": "Hover or tap a day to see its movements",
@@ -2154,6 +2181,30 @@
     "byLabel": "By label",
     "overlapHint": "Movements with several labels count in each of them.",
     "topCounterparties": "Main movements",
+    "budget": {
+      "title": "Budget performance",
+      "saved": "Saved",
+      "needs": "Needs",
+      "wants": "Wants",
+      "targetInfo": "Full calendar-month targets from the current budget, using each entry's active dates. Actual amounts cover the selected Activity dates. Needs and Wants follow expense label subcategories. Unlabeled expenses count as Needs; movements with both subcategories count once as Wants. Invested includes net SAVINGS-labeled movements plus purchases and investments minus sales and principal repayments. Linked investment cash movements are counted only through the investment transaction.",
+      "investedBreakdown": "Invested breakdown",
+      "savingsMovements": "Savings movements",
+      "investmentTransactions": "Investment transactions",
+      "actual": "Actual",
+      "notSet": "Not set",
+      "noTarget": "No target",
+      "noLabelTargets": "No label targets",
+      "incompleteTarget": "Incomplete",
+      "incomplete": "Some budget amounts have no exchange rate. Comparisons are incomplete.",
+      "unlinked": "Not linked",
+      "empty": "No budget entries for these months",
+      "openBudget": "Open budget",
+      "difference": "Difference",
+      "available": "Available",
+      "exceeded": "Exceeded",
+      "remaining": "Remaining",
+      "extra": "Extra"
+    },
     "recurring": {
       "title": "Historic recurring movements",
       "description": "Recurring movements detected across all available history, regardless of the selected date range.",
@@ -2162,11 +2213,13 @@
       "next": "Next {date}",
       "occurrences": "{count} times",
       "upTo": "up to {amount}",
-      "track": "Track",
-      "tracked": "Added to recurring money",
-      "trackedBadge": "Tracked",
-      "trackedAs": "Matched recurring money",
-      "openRecurring": "Open recurring money",
+      "track": "Add",
+      "tracked": "Added to budget",
+      "trackedBadge": "Budgeted",
+      "trackedAs": "Budget entry",
+      "openRecurring": "Open budget",
+      "budgetLabel": "Budget label",
+      "noLabel": "No label",
       "showMore": "Show more",
       "ignore": "Ignore",
       "ignoredToast": "Movement ignored",
@@ -2573,9 +2626,9 @@
   },
   "management": {
     "title": "My Money",
-    "recurring": "Recurring",
+    "recurring": "Budget",
     "pending": "Pending",
-    "recurringMoney": "Recurring",
+    "recurringMoney": "Budget",
     "recurringMoneyDescription": "Your recurring earnings, expenses and investments",
     "pendingMoney": "Pending",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
@@ -2620,6 +2673,11 @@
       "showMore": "Show +{count}"
     },
     "categoryPlaceholder": "Enter category",
+    "budgetLabel": {
+      "title": "Label",
+      "help": "Link a label to compare this budget with spending and income in Activity.",
+      "unassigned": "Unassigned"
+    },
     "iconLabel": "Icon",
     "frequencyLabel": "Frequency",
     "flowSubtype": "Type",
@@ -2645,6 +2703,7 @@
     "deleteError": "Error deleting item",
     "loadError": "Error loading data",
     "optional": "Optional",
+    "recommended": "Recommended",
     "flowType": {
       "EARNING": "Earning",
       "EXPENSE": "Expense"
@@ -2747,9 +2806,7 @@
     "goToIntegrations": "Go to Integrations",
     "contributionsDistribution": "Contribution distribution",
     "other": "Other",
-    "monthlyPerTarget": "Monthly by target",
-    "activeContributions": "Active contributions",
-    "monthlyAverageContribution": "Monthly avg. contribution",
+    "monthlyAverageContribution": "Monthly",
     "source": "Source",
     "manualContributions": {
       "unnamed": "Manual contribution",
@@ -2758,8 +2815,9 @@
       "editTitle": "Edit contribution",
       "entity": "Entity",
       "targetName": "Target name",
-      "targetNameHelper": "Optional friendly name shown in the list",
-      "targetHelper": "ISIN, IBAN or identifier",
+      "targetNameHelper": "Leave empty to use the name",
+      "optionalFields": "Optional fields",
+      "cryptoTargetIdentifier": "Symbol or contract address",
       "currency": "Currency",
       "suggestions": "Suggestions",
       "noSuggestions": "No suggestions available",

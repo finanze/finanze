@@ -900,6 +900,7 @@ export interface PeriodicFlow {
   } | null
   next_date?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface PendingFlow {
@@ -927,6 +928,7 @@ export interface CreatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface UpdatePeriodicFlowRequest {
@@ -942,6 +944,7 @@ export interface UpdatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface CreatePendingFlowRequest {

@@ -23,6 +23,7 @@ from domain.transactions import (
     BaseTx,
     Transactions,
     TxClassification,
+    UpdateManualTransactionRequest,
 )
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
 
@@ -46,7 +47,8 @@ class UpdateManualTransactionImpl(UpdateManualTransaction):
         self._transaction_labeler = transaction_labeler
         self._helper = ManualTransactionVirtualImportHelper(virtual_import_registry)
 
-    async def execute(self, tx: BaseTx):
+    async def execute(self, request: UpdateManualTransactionRequest):
+        tx = request.tx
         if tx.id is None:
             raise ValueError("Transaction ID required for update")
 
@@ -94,9 +96,12 @@ class UpdateManualTransactionImpl(UpdateManualTransaction):
 
             await self._helper.refresh(tx.entity.id, has_transactions=True)
 
-        if is_account:
+        if is_account and request.external_labeling is not False:
             await self._transaction_labeler.classify_external(
-                AccountTxSelection(ids=[tx.id]), LabelingTrigger.AUTO
+                AccountTxSelection(ids=[tx.id]),
+                LabelingTrigger.MANUAL
+                if request.external_labeling
+                else LabelingTrigger.AUTO,
             )
 
     async def _restore_classification(self, tx: AccountTx, existing: BaseTx):

@@ -21,6 +21,7 @@ from domain.transactions import (
     StockTx,
     TxLabel,
     TxType,
+    UpdateManualTransactionRequest,
     is_valid_iban_format,
     normalize_iban,
 )
@@ -320,6 +321,24 @@ def _historic_entry_id_from_item(item: dict) -> Optional[UUID]:
     return UUID(raw_historic_id) if raw_historic_id else None
 
 
+def _external_labeling_from_item(item: dict) -> Optional[bool]:
+    value = item.get("external_labeling")
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ValueError("external_labeling must be a boolean")
+    return value
+
+
+def map_update_manual_transaction(
+    body: dict, tx_id: UUID
+) -> UpdateManualTransactionRequest:
+    return UpdateManualTransactionRequest(
+        tx=map_manual_transaction(body, tx_id=tx_id),
+        external_labeling=_external_labeling_from_item(body),
+    )
+
+
 def map_add_manual_transaction(body) -> AddManualTransactionRequest:
     if isinstance(body, list):
         if not body:
@@ -333,15 +352,25 @@ def map_add_manual_transaction(body) -> AddManualTransactionRequest:
             ),
             None,
         )
+        external_labeling = next(
+            (
+                _external_labeling_from_item(item)
+                for item in body
+                if isinstance(item, dict) and item.get("external_labeling") is not None
+            ),
+            None,
+        )
         return AddManualTransactionRequest(
             txs=txs,
             historic_entry_id=historic_entry_id,
+            external_labeling=external_labeling,
         )
 
     if isinstance(body, dict):
         return AddManualTransactionRequest(
             txs=[map_manual_transaction(body)],
             historic_entry_id=_historic_entry_id_from_item(body),
+            external_labeling=_external_labeling_from_item(body),
         )
 
     raise ValueError("Body must be a JSON object or array")

@@ -42,6 +42,7 @@ interface FinancialDataContextType {
   refreshEntity: (entityId: string) => Promise<void>
   refreshFlows: () => Promise<void>
   refreshFlowsIfStale: (maxAgeMs?: number) => Promise<void>
+  invalidateFlowsCache: () => void
   refreshPendingFlows: () => Promise<void>
   ensureContributions: () => Promise<void>
   ensurePeriodicFlows: () => Promise<void>
@@ -161,6 +162,10 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       console.error("Error refreshing flows:", err)
       setError("Failed to refresh flows. Please try again.")
     }
+  }, [])
+
+  const invalidateFlowsCache = useCallback(() => {
+    flowsLastFetchedAt.current = 0
   }, [])
 
   const refreshFlowsIfStale = useCallback(async (maxAgeMs = 15_000) => {
@@ -488,6 +493,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         refreshEntity,
         refreshFlows,
         refreshFlowsIfStale,
+        invalidateFlowsCache,
         refreshPendingFlows,
         ensureContributions,
         ensurePeriodicFlows,

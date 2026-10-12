@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -24,10 +25,19 @@ from application.use_cases.relabel_transactions import RelabelTransactionsImpl
 from application.use_cases.restore_recurring_movement import (
     RestoreRecurringMovementImpl,
 )
+from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
+from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_label import UpdateLabelImpl
 from application.use_cases.update_labeling_rule import UpdateLabelingRuleImpl
 from application.use_cases.update_transaction_labels import (
     UpdateTransactionLabelsImpl,
+)
+from domain.auto_contributions import (
+    AutoContributions,
+    ContributionFrequency,
+    ContributionTargetType,
+    PeriodicContribution,
 )
 from domain.data_init import DatasourceInitContext
 from domain.dezimal import Dezimal
@@ -35,7 +45,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.settings import AssetConfig, CryptoAssetConfig, Settings
-from domain.transactions import AccountTx, Transactions, TxType
+from domain.transactions import AccountTx, FundTx, Transactions, TxType
 from infrastructure.controller.config import quart
 from infrastructure.controller.exception_handler import register_exception_handlers
 from infrastructure.controller.routes.cashflow_summary import cashflow_summary
@@ -49,6 +59,9 @@ from infrastructure.controller.routes.delete_labeling_rule import (
 )
 from infrastructure.controller.routes.get_labeling_rules import get_labeling_rules
 from infrastructure.controller.routes.get_labels import get_labels
+from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
+from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
+from infrastructure.controller.routes.update_periodic_flow import update_periodic_flow
 from infrastructure.controller.routes.ignore_recurring_movement import (
     ignore_recurring_movement,
 )
@@ -74,6 +87,9 @@ from infrastructure.controller.routes.update_transaction_labels import (
 )
 from infrastructure.labeling.transaction_labeler_adapter import (
     TransactionLabelerAdapter,
+)
+from infrastructure.repository.auto_contributions.auto_contributions_repository import (
+    AutoContributionsSQLRepository,
 )
 from infrastructure.repository.cashflow.ignored_recurring_movement_repository import (
     IgnoredRecurringMovementRepository,
@@ -126,10 +142,11 @@ def _tx(name, amount, tx_type, day: date, counterparty=None):
 
 
 class _Ctx:
-    def __init__(self, client, tx_repo, label_repo, test_client):
+    def __init__(self, client, tx_repo, label_repo, contribution_repo, test_client):
         self.client = client
         self.tx_repo = tx_repo
         self.label_repo = label_repo
+        self.contribution_repo = contribution_repo
         self.http = test_client
 
     async def save(self, *txs):
@@ -156,6 +173,7 @@ async def ctx(tmp_path):
     label_repo = LabelRepository(client)
     entity_repo = EntitySQLRepository(client)
     flow_repo = PeriodicFlowRepository(client)
+    contribution_repo = AutoContributionsSQLRepository(client)
     ignored_repo = IgnoredRecurringMovementRepository(client)
     handler = TransactionHandler(client)
     await entity_repo.insert(ENTITY)
@@ -200,18 +218,38 @@ async def ctx(tmp_path):
     )
     get_transactions_uc = GetTransactionsImpl(tx_repo, enabled_entities)
     cashflow_uc = GetCashflowSummaryImpl(
-        tx_repo, label_repo, enabled_entities, exchange_rates
+        tx_repo,
+        label_repo,
+        enabled_entities,
+        exchange_rates,
+        flow_repo,
+        contribution_repo,
     )
     recurring_uc = GetRecurringMovementsImpl(
         tx_repo, label_repo, enabled_entities, flow_repo, exchange_rates, ignored_repo
     )
     ignore_recurring_uc = IgnoreRecurringMovementImpl(ignored_repo)
     restore_recurring_uc = RestoreRecurringMovementImpl(ignored_repo)
+    save_flow_uc = SavePeriodicFlowImpl(flow_repo, label_repo)
+    update_flow_uc = UpdatePeriodicFlowImpl(flow_repo, label_repo)
+    get_flows_uc = GetPeriodicFlowsImpl(flow_repo)
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
     app = quart(static_dir)
     register_exception_handlers(app)
+
+    @app.route("/api/v1/flows/periodic", methods=["POST"])
+    async def save_flow_route():
+        return await save_periodic_flow(save_flow_uc)
+
+    @app.route("/api/v1/flows/periodic", methods=["PUT"])
+    async def update_flow_route():
+        return await update_periodic_flow(update_flow_uc)
+
+    @app.route("/api/v1/flows/periodic", methods=["GET"])
+    async def get_flows_route():
+        return await get_periodic_flows(get_flows_uc)
 
     @app.route("/api/v1/labels", methods=["GET"])
     async def get_labels_route():
@@ -277,12 +315,395 @@ async def ctx(tmp_path):
     async def restore_recurring_route(ignored_id: str):
         return await restore_recurring_movement(restore_recurring_uc, ignored_id)
 
-    yield _Ctx(client, tx_repo, label_repo, app.test_client())
+    yield _Ctx(client, tx_repo, label_repo, contribution_repo, app.test_client())
     connection.close()
 
 
 def _tx_names(payload):
     return sorted(tx["name"] for tx in payload["transactions"])
+
+
+def _budget_payload(**overrides):
+    return {
+        "name": "Budget groceries",
+        "amount": "600",
+        "currency": "EUR",
+        "flow_type": "EXPENSE",
+        "frequency": "MONTHLY",
+        "category": "Household essentials",
+        "enabled": True,
+        "since": "2025-01-01",
+        **overrides,
+    }
+
+
+@pytest.mark.asyncio
+async def test_budget_label_roundtrip_replace_preserve_and_clear(ctx):
+    labels = (await (await ctx.http.get("/api/v1/labels")).get_json())["labels"]
+    eligible = [label for label in labels if label["category"] == "EXPENSE"]
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic", json=_budget_payload(label_id=eligible[0]["id"])
+    )
+    assert response.status_code == 201
+    flows = await (await ctx.http.get("/api/v1/flows/periodic")).get_json()
+    assert flows[0]["label_id"] == eligible[0]["id"]
+    assert flows[0]["category"] == "Household essentials"
+    flow_id = flows[0]["id"]
+
+    for fields, expected in [
+        ({"label_id": eligible[1]["id"]}, eligible[1]["id"]),
+        ({}, eligible[1]["id"]),
+        ({"label_id": None}, None),
+    ]:
+        response = await ctx.http.put(
+            "/api/v1/flows/periodic", json=_budget_payload(id=flow_id, **fields)
+        )
+        assert response.status_code == 204
+        flows = await (await ctx.http.get("/api/v1/flows/periodic")).get_json()
+        assert flows[0]["label_id"] == expected
+        assert flows[0]["category"] == "Household essentials"
+
+
+@pytest.mark.asyncio
+async def test_deleting_label_preserves_budget_entry(ctx):
+    response = await ctx.http.post("/api/v1/labels", json={"name": "Budget food"})
+    label_id = (await response.get_json())["id"]
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic", json=_budget_payload(label_id=label_id)
+    )
+    assert response.status_code == 201
+    response = await ctx.http.delete(f"/api/v1/labels/{label_id}")
+    assert response.status_code == 204
+    flows = await (await ctx.http.get("/api/v1/flows/periodic")).get_json()
+    assert len(flows) == 1
+    assert flows[0]["label_id"] is None
+    assert Dezimal(flows[0]["amount"]) == Dezimal("600")
+    assert flows[0]["category"] == "Household essentials"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label_id", ["invalid", [], [str(uuid4())], 1])
+async def test_budget_rejects_invalid_label_id(ctx, label_id):
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic", json=_budget_payload(label_id=label_id)
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_budget_rejects_unknown_and_excluded_labels(ctx):
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic", json=_budget_payload(label_id=str(uuid4()))
+    )
+    assert response.status_code == 404
+    labels = (await (await ctx.http.get("/api/v1/labels")).get_json())["labels"]
+    excluded = next(label for label in labels if label["category"] == "EXCLUDED")
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic", json=_budget_payload(label_id=excluded["id"])
+    )
+    assert response.status_code == 400
+    assert (await response.get_json())["code"] == "INVALID_BUDGET_LABEL"
+
+
+@pytest.mark.asyncio
+async def test_cashflow_budget_compares_full_month_and_groups_label_targets(ctx):
+    label_id = await ctx.label_id("groceries")
+    for amount in ("400", "200"):
+        response = await ctx.http.post(
+            "/api/v1/flows/periodic",
+            json=_budget_payload(amount=amount, label_id=label_id),
+        )
+        assert response.status_code == 201
+    tx = _tx("Food", "750", TxType.OUTFLOW, date(2025, 3, 5))
+    await ctx.save(tx)
+    response = await ctx.http.put(
+        f"/api/v1/transactions/{tx.id}/labels", json={"labels": [label_id]}
+    )
+    assert response.status_code == 204
+    query = "/api/v1/cashflow?currency=EUR&from_date=2025-03-01&to_date=2025-03-11"
+    response = await ctx.http.get(query)
+    assert response.status_code == 200
+    result = await response.get_json()
+    budget = result["budget"]
+    assert budget["entry_count"] == 2
+    assert Dezimal(budget["expenses"]["expected"]) == Dezimal("600")
+    assert Dezimal(budget["expenses"]["actual"]) == Dezimal("750")
+    assert Dezimal(budget["expenses"]["ratio"]) == Dezimal("1.25")
+    assert budget["needs"] == budget["expenses"]
+    assert Dezimal(budget["wants"]["expected"]) == 0
+    assert Dezimal(budget["wants"]["actual"]) == 0
+    assert budget["wants"]["ratio"] is None
+    assert len(budget["by_label"]) == 1
+    assert budget["by_label"][0]["label_id"] == label_id
+    assert Dezimal(budget["by_label"][0]["comparison"]["actual"]) == Dezimal("750")
+    assert budget["saved"]["actual"] == result["totals"]["net"]
+
+    wants_label_id = await ctx.label_id("restaurants")
+    response = await ctx.http.post(
+        "/api/v1/flows/periodic",
+        json=_budget_payload(name="Dining", amount="200", label_id=wants_label_id),
+    )
+    assert response.status_code == 201
+    mixed = _tx("Dining", "50", TxType.OUTFLOW, date(2025, 3, 5))
+    await ctx.save(mixed)
+    response = await ctx.http.put(
+        f"/api/v1/transactions/{mixed.id}/labels",
+        json={"labels": [label_id, wants_label_id]},
+    )
+    assert response.status_code == 204
+    response = await ctx.http.get(query)
+    assert response.status_code == 200
+    result = await response.get_json()
+    budget = result["budget"]
+    assert budget["entry_count"] == 3
+    assert Dezimal(budget["needs"]["expected"]) == Dezimal("600")
+    assert Dezimal(budget["needs"]["actual"]) == Dezimal("750")
+    assert Dezimal(budget["wants"]["expected"]) == Dezimal("200")
+    assert Dezimal(budget["wants"]["actual"]) == Dezimal("50")
+    assert Dezimal(budget["wants"]["ratio"]) == Dezimal("0.25")
+    assert Dezimal(budget["wants"]["difference"]) == Dezimal("-150")
+    assert Dezimal(result["totals"]["expenses"]) == Dezimal("800")
+
+    response = await ctx.http.put(
+        f"/api/v1/labels/{label_id}",
+        json={"name": "Groceries", "category": "EXPENSE", "subcategory": "WANTS"},
+    )
+    assert response.status_code == 204
+    response = await ctx.http.get(query)
+    assert response.status_code == 200
+    budget = (await response.get_json())["budget"]
+    assert Dezimal(budget["needs"]["expected"]) == 0
+    assert Dezimal(budget["needs"]["actual"]) == 0
+    assert Dezimal(budget["wants"]["expected"]) == Dezimal("800")
+    assert Dezimal(budget["wants"]["actual"]) == Dezimal("800")
+    assert Dezimal(budget["wants"]["ratio"]) == Dezimal(1)
+
+    filtered = await ctx.http.get(f"{query}&entity={ENTITY.id}")
+    assert (await filtered.get_json())["budget"] is None
+
+
+@pytest.mark.asyncio
+async def test_cashflow_budget_compares_net_investing_without_counting_cash_legs(ctx):
+    savings_label_id = await ctx.label_id("savings_investment")
+    contribution = PeriodicContribution(
+        id=uuid4(),
+        alias=None,
+        target="Fund",
+        target_name="Fund",
+        target_type=ContributionTargetType.FUND,
+        amount=Dezimal("400"),
+        currency="EUR",
+        since=date(2025, 3, 31),
+        until=None,
+        frequency=ContributionFrequency.MONTHLY,
+        active=True,
+        source=DataSource.REAL,
+    )
+    await ctx.contribution_repo.save(
+        ENTITY.id, AutoContributions(periodic=[contribution]), DataSource.REAL
+    )
+    purchase = FundTx(
+        id=uuid4(),
+        ref=str(uuid4()),
+        name="Fund purchase",
+        amount=Dezimal("300"),
+        currency="EUR",
+        type=TxType.BUY,
+        date=datetime(2025, 3, 5, 12, tzinfo=tzlocal()),
+        entity=ENTITY,
+        source=DataSource.REAL,
+        product_type=ProductType.FUND,
+        price=Dezimal("1"),
+        shares=Dezimal("300"),
+        fees=Dezimal(0),
+        net_amount=Dezimal("300"),
+        retentions=Dezimal(0),
+    )
+    sale = replace(
+        purchase,
+        id=uuid4(),
+        ref=str(uuid4()),
+        name="Fund sale",
+        type=TxType.SELL,
+        date=datetime(2025, 3, 6, 12, tzinfo=tzlocal()),
+    )
+    rebuy = replace(
+        purchase,
+        id=uuid4(),
+        ref=str(uuid4()),
+        name="Fund rebuy",
+        date=datetime(2025, 3, 7, 12, tzinfo=tzlocal()),
+    )
+    await ctx.tx_repo.save(Transactions(investment=[purchase, sale, rebuy]))
+    cash_leg = _tx("Fund purchase", "300", TxType.OUTFLOW, date(2025, 3, 5))
+    cash_leg.linked_tx = purchase.ref
+    sale_cash_leg = _tx("Fund sale", "300", TxType.INFLOW, date(2025, 3, 6))
+    sale_cash_leg.linked_tx = sale.ref
+    rebuy_cash_leg = _tx("Fund rebuy", "300", TxType.OUTFLOW, date(2025, 3, 7))
+    rebuy_cash_leg.linked_tx = rebuy.ref
+    savings_movement = _tx(
+        "Savings allocation", "150", TxType.OUTFLOW, date(2025, 3, 8)
+    )
+    savings_return = _tx("Savings return", "50", TxType.INFLOW, date(2025, 3, 9))
+    await ctx.save(
+        _tx("Salary", "1000", TxType.INFLOW, date(2025, 3, 1)),
+        _tx("Expense", "600", TxType.OUTFLOW, date(2025, 3, 5)),
+        cash_leg,
+        sale_cash_leg,
+        rebuy_cash_leg,
+        savings_movement,
+        savings_return,
+    )
+    for movement in [
+        savings_movement,
+        savings_return,
+        cash_leg,
+        sale_cash_leg,
+        rebuy_cash_leg,
+    ]:
+        response = await ctx.http.put(
+            f"/api/v1/transactions/{movement.id}/labels",
+            json={"labels": [savings_label_id]},
+        )
+        assert response.status_code == 204
+    response = await ctx.http.get(
+        "/api/v1/cashflow?currency=EUR&from_date=2025-03-01&to_date=2025-03-11"
+    )
+    assert response.status_code == 200
+    result = await response.get_json()
+    invested = result["budget"]["invested"]
+    assert Dezimal(invested["expected"]) == Dezimal("400")
+    assert Dezimal(invested["actual"]) == Dezimal("400")
+    assert Dezimal(invested["ratio"]) == Dezimal(1)
+    assert Dezimal(invested["difference"]) == Dezimal(0)
+    assert Dezimal(result["budget"]["invested_breakdown"]["savings"]) == Dezimal("100")
+    assert Dezimal(result["budget"]["invested_breakdown"]["transactions"]) == Dezimal(
+        "300"
+    )
+    assert Dezimal(result["totals"]["expenses"]) == Dezimal("600")
+    assert Dezimal(result["budget"]["needs"]["actual"]) == Dezimal("600")
+    assert Dezimal(result["budget"]["wants"]["actual"]) == 0
+    assert Dezimal(result["budget"]["saved"]["actual"]) == Dezimal("400")
+    assert result["budget"]["by_label"] == []
+    assert (
+        await ctx.tx_repo.get_investment_txs_in_range(
+            [], date(2025, 3, 1), date(2025, 3, 11)
+        )
+        == []
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "category,subcategory,valid",
+    [
+        ("EXPENSE", "NEED", True),
+        ("EXPENSE", "WANTS", True),
+        ("EXPENSE", "SAVINGS", False),
+        ("EXPENSE", "NONE", False),
+        ("EXCLUDED", "SAVINGS", True),
+        ("EXCLUDED", "NONE", True),
+        ("EXCLUDED", "NEED", False),
+        ("EXCLUDED", "WANTS", False),
+        ("INCOME", "NONE", True),
+        ("INCOME", "NEED", False),
+        ("INCOME", "WANTS", False),
+        ("INCOME", "SAVINGS", False),
+    ],
+)
+async def test_label_subcategory_category_contract(ctx, category, subcategory, valid):
+    response = await ctx.http.post(
+        "/api/v1/labels",
+        json={
+            "name": "Classified label",
+            "category": category,
+            "subcategory": subcategory,
+            "protected": True,
+        },
+    )
+    assert response.status_code == (201 if valid else 400)
+    result = await response.get_json()
+    if valid:
+        assert result["subcategory"] == subcategory
+        assert result["protected"] is False
+        persisted = await ctx.label_repo.get_by_id(result["id"])
+        assert persisted.subcategory.value == subcategory
+    else:
+        assert result["code"] == "INVALID_LABELING_RULE"
+
+
+@pytest.mark.asyncio
+async def test_label_subcategory_update_preserves_omitted_and_resets_category(ctx):
+    response = await ctx.http.post(
+        "/api/v1/labels",
+        json={"name": "Savings", "category": "EXCLUDED", "subcategory": "SAVINGS"},
+    )
+    label_id = (await response.get_json())["id"]
+    response = await ctx.http.put(
+        f"/api/v1/labels/{label_id}",
+        json={"name": "Renamed savings", "category": "EXCLUDED"},
+    )
+    assert response.status_code == 204
+    assert (await ctx.label_repo.get_by_id(label_id)).subcategory.value == "SAVINGS"
+
+    response = await ctx.http.put(
+        f"/api/v1/labels/{label_id}",
+        json={"name": "Income", "category": "INCOME"},
+    )
+    assert response.status_code == 204
+    assert (await ctx.label_repo.get_by_id(label_id)).subcategory.value == "NONE"
+
+    response = await ctx.http.put(
+        f"/api/v1/labels/{label_id}",
+        json={"name": "Expense", "category": "EXPENSE"},
+    )
+    assert response.status_code == 204
+    assert (await ctx.label_repo.get_by_id(label_id)).subcategory.value == "NEED"
+
+    response = await ctx.http.put(
+        f"/api/v1/labels/{label_id}",
+        json={
+            "name": "Invalid expense",
+            "category": "EXPENSE",
+            "subcategory": "SAVINGS",
+        },
+    )
+    assert response.status_code == 400
+    assert (await ctx.label_repo.get_by_id(label_id)).subcategory.value == "NEED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("subcategory", [None, "OTHER", [], 1])
+async def test_label_rejects_malformed_subcategory(ctx, subcategory):
+    response = await ctx.http.post(
+        "/api/v1/labels",
+        json={"name": "Malformed", "subcategory": subcategory},
+    )
+    assert response.status_code == 400
+    assert (await response.get_json())["code"] == "INVALID_REQUEST"
+
+
+@pytest.mark.asyncio
+async def test_internal_transfer_label_is_protected(ctx):
+    response = await ctx.http.get("/api/v1/labels")
+    labels = (await response.get_json())["labels"]
+    transfer = next(label for label in labels if label["key"] == "internal_transfer")
+    assert transfer["protected"] is True
+    assert transfer["subcategory"] == "NONE"
+
+    response = await ctx.http.put(
+        f"/api/v1/labels/{transfer['id']}",
+        json={"name": "Changed transfer", "category": "INCOME"},
+    )
+    assert response.status_code == 403
+    assert (await response.get_json())["code"] == "PROTECTED_LABEL"
+
+    response = await ctx.http.delete(f"/api/v1/labels/{transfer['id']}")
+    assert response.status_code == 403
+    assert (await response.get_json())["code"] == "PROTECTED_LABEL"
+    persisted = await ctx.label_repo.get_by_id(transfer["id"])
+    assert persisted.key == "internal_transfer"
+    assert persisted.category.value == "EXCLUDED"
 
 
 @pytest.mark.asyncio

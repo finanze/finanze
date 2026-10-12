@@ -12,5 +12,5 @@ async def update_label(update_label_uc: UpdateLabel, label_id: str):
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
-    await update_label_uc.execute(label)
+    await update_label_uc.execute(label, subcategory_provided="subcategory" in body)
     return "", 204

@@ -21,6 +21,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Rectangle,
+  type RectangleProps,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -33,6 +35,7 @@ import {
   BarChart3,
   CalendarDays,
   CalendarSync,
+  ChartArea,
   ChartPie,
   ChevronDown,
   Check,
@@ -56,6 +59,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useLabels } from "@/context/LabelsContext"
+import { Badge } from "@/components/ui/Badge"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
@@ -77,8 +81,11 @@ import {
 import { Icon, type IconName } from "@/components/ui/icon-picker"
 import { EntitySelector } from "@/components/EntitySelector"
 import { LabelChip } from "@/components/labels/LabelChip"
+import { LabelSelector } from "@/components/labels/LabelSelector"
 import { LabelsManager } from "@/components/labels/LabelsManager"
 import { CashflowHeatmap } from "@/components/cashflow/CashflowHeatmap"
+import { CashflowComposition } from "@/components/cashflow/CashflowComposition"
+import { BudgetPerformance } from "@/components/cashflow/BudgetPerformance"
 import {
   useNavigateWithReturn,
   useRestoreReturnScroll,
@@ -92,8 +99,13 @@ import {
 } from "@/services/api"
 import { formatCompactCurrency, formatCurrency } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
+import {
+  getMonthlyFlowTotals,
+  getSavingsTargetRate,
+} from "@/utils/savingsTarget"
 import { DataDisplayMode, EntityType, FlowType } from "@/types"
 import { TxType } from "@/types/transactions"
+import type { Label } from "@/types/labeling"
 import {
   CashflowGranularity,
   type CashflowLabelBreakdown,
@@ -113,9 +125,18 @@ type PeriodPreset =
 
 type CashflowTab = "analysis" | "labels" | "rules" | "automation"
 
-type EvolutionView = "bars" | "heatmap"
+type EvolutionView = "bars" | "composition" | "heatmap"
 
-const EVOLUTION_VIEWS: readonly EvolutionView[] = ["bars", "heatmap"]
+const EVOLUTION_VIEWS: readonly EvolutionView[] = [
+  "bars",
+  "composition",
+  "heatmap",
+]
+const EVOLUTION_VIEW_ICONS: Record<EvolutionView, typeof BarChart3> = {
+  bars: BarChart3,
+  composition: ChartArea,
+  heatmap: Grid3x3,
+}
 const EVOLUTION_VIEW_KEY = "cashflowEvolutionView"
 
 const CASHFLOW_TABS: readonly CashflowTab[] = [
@@ -134,12 +155,12 @@ const PRESETS: Exclude<PeriodPreset, "custom">[] = [
   "ytd",
 ]
 
-const DEFAULT_PRESET: PeriodPreset = "last3Months"
+const DEFAULT_PRESET: PeriodPreset = "lastMonth"
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const DAILY_GRANULARITY_MAX_DAYS = 62
 const MAX_VISIBLE_RECURRING_MOVEMENTS = 8
-const MAX_COUNTERPARTY_LABEL_DOTS = 4
+const MAX_COUNTERPARTY_LABELS = 4
 const INCOME_COLOR = "#16a34a"
 const EXPENSE_COLOR = "#ef4444"
 
@@ -153,6 +174,37 @@ const KPI_ICON_TONES: Record<KpiTone, string> = {
   expenses: "bg-red-500/10 text-red-600 dark:text-red-400",
   net: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
   savings: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+}
+
+type ExpenseBarProps = RectangleProps & {
+  payload?: { expenses: number; expenseLimit?: number }
+}
+
+const renderExpenseBar = (shapeProps: unknown) => {
+  const props = shapeProps as ExpenseBarProps
+  const { x = 0, y = 0, width = 0, height = 0, payload } = props
+  const expenses = payload?.expenses ?? 0
+  const limit = payload?.expenseLimit
+  const limitY =
+    limit !== undefined && expenses > 0
+      ? y + height * (1 - limit / expenses)
+      : null
+  return (
+    <g>
+      <Rectangle {...props} />
+      {limitY !== null && (
+        <line
+          x1={x - 2}
+          x2={x + width + 2}
+          y1={limitY}
+          y2={limitY}
+          className="stroke-foreground"
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+      )}
+    </g>
+  )
 }
 
 const toIso = (date: Date) => format(date, "yyyy-MM-dd")
@@ -339,11 +391,29 @@ function CashflowAnalysis() {
   const navigate = useNavigate()
   const navigateWithReturn = useNavigateWithReturn(t.cashflow.title)
   const [searchParams, setSearchParams] = useSearchParams()
-  const { settings, entities, showToast } = useAppContext()
-  const { getLabel, getLabelName } = useLabels()
+  const { settings, entities, showToast, exchangeRates } = useAppContext()
+  const {
+    getLabel,
+    getLabelName,
+    excludedLabelIds,
+    revision: labelsRevision,
+  } = useLabels()
+  const previousLabelsRevision = useRef(labelsRevision)
   const { periodicFlows, ensurePeriodicFlows, refreshFlows } =
     useFinancialData()
   const currency = settings.general.defaultCurrency
+  const savingsTargetRate = useMemo(
+    () =>
+      getSavingsTargetRate(
+        getMonthlyFlowTotals(
+          periodicFlows,
+          excludedLabelIds,
+          currency,
+          exchangeRates,
+        ),
+      ),
+    [periodicFlows, excludedLabelIds, currency, exchangeRates],
+  )
 
   const [initialFilters] = useState(() => filtersFromParams(searchParams))
   const [preset, setPreset] = useState<PeriodPreset>(initialFilters.preset)
@@ -354,9 +424,10 @@ function CashflowAnalysis() {
   const [summary, setSummary] = useState<CashflowSummary | null>(null)
   const [summaryGranularity, setSummaryGranularity] =
     useState<CashflowGranularity | null>(null)
-  const [evolutionView, setEvolutionView] = useState<EvolutionView>(() =>
-    localStorage.getItem(EVOLUTION_VIEW_KEY) === "heatmap" ? "heatmap" : "bars",
-  )
+  const [evolutionView, setEvolutionView] = useState<EvolutionView>(() => {
+    const stored = localStorage.getItem(EVOLUTION_VIEW_KEY)
+    return EVOLUTION_VIEWS.find(view => view === stored) ?? "bars"
+  })
   const [loading, setLoading] = useState(false)
   const [summarySettled, setSummarySettled] = useState(false)
   const [chartWidth, setChartWidth] = useState(0)
@@ -369,12 +440,26 @@ function CashflowAnalysis() {
   const [showAllRecurring, setShowAllRecurring] = useState(false)
   const [showIgnoredRecurring, setShowIgnoredRecurring] = useState(false)
   const [trackingKey, setTrackingKey] = useState<string | null>(null)
+  const [budgetMovement, setBudgetMovement] =
+    useState<RecurringMovement | null>(null)
+  const [budgetLabelId, setBudgetLabelId] = useState<string | null>(null)
 
   const granularity =
     evolutionView === "heatmap" ||
     daysBetween(fromDate, toDate) <= DAILY_GRANULARITY_MAX_DAYS
       ? CashflowGranularity.DAY
       : CashflowGranularity.MONTH
+
+  const heatmapSeries = useMemo(
+    () =>
+      summary &&
+      summaryGranularity === CashflowGranularity.DAY &&
+      summary.from_date === fromDate &&
+      summary.to_date === toDate
+        ? summary.series
+        : [],
+    [summary, summaryGranularity, fromDate, toDate],
+  )
 
   const changeEvolutionView = (view: EvolutionView) => {
     setEvolutionView(view)
@@ -455,6 +540,15 @@ function CashflowAnalysis() {
   }, [loadSummary])
 
   useEffect(() => {
+    const changed = previousLabelsRevision.current !== labelsRevision
+    previousLabelsRevision.current = labelsRevision
+    if (!changed || labelsRevision <= 1) return
+    void loadSummary()
+    void refreshFlows()
+    if (recurringRequestedFor.current === loadRecurring) void loadRecurring()
+  }, [labelsRevision, loadSummary, loadRecurring, refreshFlows])
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 639px)")
     let observer: IntersectionObserver | null = null
 
@@ -520,12 +614,15 @@ function CashflowAnalysis() {
   const money = (value: number, target = currency) =>
     formatCurrency(value, locale, currency, target)
 
-  const txLink = (params: Record<string, string>) => {
+  const txLink = (params: Record<string, string | string[]>) => {
     const search = new URLSearchParams({
       scope: "account",
       from_date: fromDate,
       to_date: toDate,
-      ...params,
+    })
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach(item => search.append(key, item))
+      else search.set(key, value)
     })
     entityIds.forEach(id => search.append("entity", id))
     return `/transactions?${search.toString()}`
@@ -549,9 +646,15 @@ function CashflowAnalysis() {
                 }).format(date),
           income: point.income,
           expenses: point.expenses,
+          expenseLimit:
+            summaryGranularity === CashflowGranularity.MONTH &&
+            savingsTargetRate !== null &&
+            point.income > 0
+              ? point.income * (1 - savingsTargetRate)
+              : undefined,
         }
       }),
-    [summary, summaryGranularity, locale],
+    [summary, summaryGranularity, locale, savingsTargetRate],
   )
 
   const breakdown = useMemo(() => {
@@ -569,9 +672,31 @@ function CashflowAnalysis() {
     }))
   }, [summary, breakdownSide])
 
-  const handleTrack = async (movement: RecurringMovement) => {
+  const movementBudgetLabels = (movement: RecurringMovement) =>
+    Array.from(new Set(movement.label_ids))
+      .map(id => getLabel(id))
+      .filter(
+        (label): label is Label =>
+          label !== undefined && !excludedLabelIds.has(label.id),
+      )
+
+  const handleTrack = async (
+    movement: RecurringMovement,
+    labelId?: string | null,
+  ) => {
+    const eligibleLabels = movementBudgetLabels(movement)
+    if (labelId === undefined && eligibleLabels.length > 1) {
+      setBudgetLabelId(null)
+      setBudgetMovement(movement)
+      return
+    }
+    const selectedLabelId =
+      labelId === undefined ? (eligibleLabels[0]?.id ?? null) : labelId
+    const selectedLabel = selectedLabelId
+      ? getLabel(selectedLabelId)
+      : undefined
+    setBudgetMovement(null)
     setTrackingKey(recurringMovementId(movement))
-    const firstLabel = movement.label_ids.map(id => getLabel(id)).find(Boolean)
     try {
       await createPeriodicFlow({
         name: movement.name,
@@ -581,13 +706,13 @@ function CashflowAnalysis() {
         flow_type:
           movement.type === TxType.INFLOW ? FlowType.EARNING : FlowType.EXPENSE,
         frequency: movement.frequency,
-        category: firstLabel ? getLabelName(firstLabel) : undefined,
-        icon: firstLabel?.icon ?? undefined,
+        label_id: selectedLabelId,
+        icon: selectedLabel?.icon ?? undefined,
         enabled: true,
         since: movement.last_date,
       })
       showToast(t.cashflow.recurring.tracked, "success")
-      await Promise.all([loadRecurring(), refreshFlows()])
+      await Promise.all([loadRecurring(), refreshFlows(), loadSummary()])
     } catch (error) {
       console.error("Error tracking recurring movement:", error)
       showToast(t.management.saveError, "error")
@@ -725,10 +850,21 @@ function CashflowAnalysis() {
           ) : (
             "—"
           )}
+          {savingsTargetRate !== null && (
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              <Sensitive>
+                {t.cashflow.targetShort}{" "}
+                {(savingsTargetRate * 100).toLocaleString(locale, {
+                  maximumFractionDigits: 1,
+                })}
+                %
+              </Sensitive>
+            </span>
+          )}
         </div>
         <div className="flex h-5 items-center">
           {mode !== DataDisplayMode.PRIVATE && (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
               {rate != null && (
                 <div
                   className={cn(
@@ -736,6 +872,15 @@ function CashflowAnalysis() {
                     rate >= 0 ? "bg-violet-500" : "bg-red-500",
                   )}
                   style={{ width: `${Math.min(Math.abs(rate) * 100, 100)}%` }}
+                />
+              )}
+              {savingsTargetRate !== null && (
+                <div
+                  className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-foreground/70"
+                  style={{
+                    left: `${Math.min(savingsTargetRate * 100, 100)}%`,
+                  }}
+                  data-testid="kpi-savings-rate-target"
                 />
               )}
             </div>
@@ -763,13 +908,21 @@ function CashflowAnalysis() {
         data-testid="cashflow-label-row"
       >
         <div className="flex items-center justify-between gap-3">
-          {label ? (
-            <LabelChip label={label} name={getLabelName(label)} />
-          ) : (
-            <span className="text-xs font-medium text-muted-foreground">
-              {t.labels.unlabeled}
-            </span>
-          )}
+          <div className="flex min-w-0 items-center gap-2">
+            {label ? (
+              <LabelChip label={label} name={getLabelName(label)} />
+            ) : (
+              <span className="text-xs font-medium text-muted-foreground">
+                {t.labels.unlabeled}
+              </span>
+            )}
+            <Badge
+              variant="secondary"
+              className="shrink-0 px-1.5 py-0 text-[10px] font-medium"
+            >
+              x{row.count}
+            </Badge>
+          </div>
           <span className="text-sm font-medium">
             <Sensitive>{money(amount)}</Sensitive>
           </span>
@@ -925,6 +1078,30 @@ function CashflowAnalysis() {
             </div>
           </Card>
 
+          {entityIds.length === 0 && summary.budget && (
+            <BudgetPerformance
+              budget={summary.budget}
+              currency={currency}
+              loading={loading}
+              className={EDGE_CARD}
+              onOpenBudget={() => navigate("/management/recurring")}
+              onTargetClick={section =>
+                navigate(`/management/recurring?tab=${section}`)
+              }
+              onLabelClick={(labelId, flowType) =>
+                navigateWithReturn(
+                  txLink({
+                    label: labelId,
+                    type:
+                      flowType === FlowType.EARNING
+                        ? [TxType.INFLOW, TxType.INTEREST]
+                        : [TxType.OUTFLOW, TxType.FEE],
+                  }),
+                )
+              }
+            />
+          )}
+
           {chartData.length === 0 ? (
             <Card className={EDGE_CARD}>
               <EmptyState
@@ -955,50 +1132,57 @@ function CashflowAnalysis() {
                     {loading && <LoadingSpinner size="sm" />}
                     <div className="inline-flex rounded-md border border-input p-0.5">
                       {EVOLUTION_VIEWS.map(view => {
-                        const ViewIcon = view === "bars" ? BarChart3 : Grid3x3
+                        const ViewIcon = EVOLUTION_VIEW_ICONS[view]
                         return (
                           <button
                             key={view}
                             type="button"
                             data-testid={`cashflow-evolution-${view}`}
-                            aria-label={t.cashflow.evolutionViews[view]}
+                            aria-label={t.cashflow.evolutionViewLabels[view]}
                             title={t.cashflow.evolutionViews[view]}
                             aria-pressed={evolutionView === view}
                             onClick={() => changeEvolutionView(view)}
                             className={cn(
-                              "rounded px-2 py-1",
+                              "inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-1",
                               evolutionView === view
                                 ? "bg-foreground text-background"
                                 : "text-muted-foreground hover:text-foreground",
                             )}
                           >
                             <ViewIcon className="h-4 w-4" />
+                            <span className="hidden text-sm md:inline">
+                              {t.cashflow.evolutionViewLabels[view]}
+                            </span>
                           </button>
                         )
                       })}
                     </div>
                   </div>
                 </div>
-                <Card className={cn(EDGE_CARD, "p-4")}>
+                <Card className={cn(EDGE_CARD, "select-none p-4")}>
                   {evolutionView === "heatmap" ? (
+                    <CashflowHeatmap
+                      series={heatmapSeries}
+                      fromDate={fromDate}
+                      toDate={toDate}
+                      formatAmount={value => money(value)}
+                      onOpenDay={date =>
+                        navigateWithReturn(
+                          txLink({ from_date: date, to_date: date }),
+                        )
+                      }
+                    />
+                  ) : evolutionView === "composition" &&
                     summary &&
-                    summaryGranularity === CashflowGranularity.DAY ? (
-                      <CashflowHeatmap
-                        series={summary.series}
-                        fromDate={fromDate}
-                        toDate={toDate}
-                        formatAmount={value => money(value)}
-                        onOpenDay={date =>
-                          navigateWithReturn(
-                            txLink({ from_date: date, to_date: date }),
-                          )
-                        }
-                      />
-                    ) : (
-                      <div className="flex h-64 items-center justify-center">
-                        <LoadingSpinner />
-                      </div>
-                    )
+                    summaryGranularity ? (
+                    <CashflowComposition
+                      series={summary.series}
+                      budgetSeries={summary.budget?.series}
+                      granularity={summaryGranularity}
+                      fromDate={summary.from_date}
+                      toDate={summary.to_date}
+                      currency={currency}
+                    />
                   ) : (
                     <div className="h-64">
                       <ResponsiveContainer
@@ -1062,6 +1246,19 @@ function CashflowAnalysis() {
                                     {t.cashflow.expenses}:{" "}
                                     <Sensitive>{money(row.expenses)}</Sensitive>
                                   </p>
+                                  {summaryGranularity ===
+                                    CashflowGranularity.MONTH &&
+                                    row.income > 0 && (
+                                      <p className="text-muted-foreground">
+                                        {t.cashflow.expensesToIncomeRatio}:{" "}
+                                        <Sensitive>
+                                          {new Intl.NumberFormat(locale, {
+                                            style: "percent",
+                                            maximumFractionDigits: 1,
+                                          }).format(row.expenses / row.income)}
+                                        </Sensitive>
+                                      </p>
+                                    )}
                                 </div>
                               )
                             }}
@@ -1077,6 +1274,7 @@ function CashflowAnalysis() {
                             fill={EXPENSE_COLOR}
                             radius={[3, 3, 0, 0]}
                             maxBarSize={28}
+                            shape={renderExpenseBar}
                           />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1172,19 +1370,23 @@ function CashflowAnalysis() {
                                 {counterparty.label_ids
                                   .map(labelId => getLabel(labelId))
                                   .filter(label => label !== undefined)
-                                  .slice(0, MAX_COUNTERPARTY_LABEL_DOTS)
-                                  .map(label => (
-                                    <span
-                                      key={label.id}
-                                      data-testid="counterparty-label-dot"
-                                      title={getLabelName(label)}
-                                      className="h-2 w-2 shrink-0 rounded-full"
-                                      style={{
-                                        backgroundColor:
-                                          label.color ?? "#9ca3af",
-                                      }}
-                                    />
-                                  ))}
+                                  .slice(0, MAX_COUNTERPARTY_LABELS)
+                                  .map(label => {
+                                    const labelName = getLabelName(label)
+                                    return (
+                                      <span
+                                        key={label.id}
+                                        data-testid="counterparty-label-dot"
+                                        title={labelName}
+                                      >
+                                        <LabelChip
+                                          label={label}
+                                          name={labelName}
+                                          iconOnly
+                                        />
+                                      </span>
+                                    )
+                                  })}
                               </div>
                             </div>
                             <div className="shrink-0 text-right text-sm">
@@ -1382,6 +1584,16 @@ function CashflowAnalysis() {
                                               ? ` · ${flow.category}`
                                               : ""}
                                           </div>
+                                          {flow.label_id &&
+                                            getLabel(flow.label_id) && (
+                                              <LabelChip
+                                                label={getLabel(flow.label_id)}
+                                                name={getLabelName(
+                                                  getLabel(flow.label_id),
+                                                )}
+                                                className="mt-1"
+                                              />
+                                            )}
                                         </div>
                                         <div className="shrink-0 text-sm font-semibold tabular-nums">
                                           <Sensitive>
@@ -1420,18 +1632,82 @@ function CashflowAnalysis() {
                             </Popover>
                           ) : (
                             <div className="flex items-center gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 gap-1.5 rounded-full border-border bg-muted/60 px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                                onClick={() => handleTrack(movement)}
-                                disabled={
-                                  trackingKey === recurringMovementId(movement)
+                              <Popover
+                                open={
+                                  budgetMovement !== null &&
+                                  recurringMovementId(budgetMovement) ===
+                                    recurringMovementId(movement)
                                 }
+                                onOpenChange={open => {
+                                  if (!open) setBudgetMovement(null)
+                                }}
                               >
-                                <Plus className="h-3 w-3" />
-                                {t.cashflow.recurring.track}
-                              </Button>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 gap-1.5 rounded-full border-border bg-muted/60 px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    onClick={() => handleTrack(movement)}
+                                    title={t.cashflow.recurring.track}
+                                    aria-label={t.cashflow.recurring.track}
+                                    disabled={
+                                      trackingKey ===
+                                      recurringMovementId(movement)
+                                    }
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span className="hidden sm:inline">
+                                      {t.cashflow.recurring.track}
+                                    </span>
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="end"
+                                  className="w-80 max-w-[calc(100vw-2rem)] space-y-3"
+                                  data-testid="detected-budget-label-picker"
+                                >
+                                  <h3 className="text-sm font-medium">
+                                    {t.cashflow.recurring.budgetLabel}
+                                  </h3>
+                                  <LabelSelector
+                                    mode="single"
+                                    options={movementBudgetLabels(movement)}
+                                    value={budgetLabelId ? [budgetLabelId] : []}
+                                    onChange={ids =>
+                                      setBudgetLabelId(ids[0] ?? null)
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-pressed={budgetLabelId === null}
+                                    onClick={() => setBudgetLabelId(null)}
+                                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                                    data-testid="detected-budget-no-label"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "h-3.5 w-3.5",
+                                        budgetLabelId !== null && "invisible",
+                                      )}
+                                    />
+                                    {t.cashflow.recurring.noLabel}
+                                  </button>
+                                  <Button
+                                    size="sm"
+                                    className="w-full gap-1.5"
+                                    onClick={() =>
+                                      handleTrack(movement, budgetLabelId)
+                                    }
+                                    disabled={
+                                      trackingKey ===
+                                      recurringMovementId(movement)
+                                    }
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    {t.cashflow.recurring.track}
+                                  </Button>
+                                </PopoverContent>
+                              </Popover>
                               <Button
                                 variant="ghost"
                                 size="icon"

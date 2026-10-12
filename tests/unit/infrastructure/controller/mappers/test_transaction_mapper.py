@@ -8,9 +8,11 @@ from domain.transactions import (
     AddManualTransactionRequest,
     FundTx,
     TxType,
+    UpdateManualTransactionRequest,
 )
 from infrastructure.controller.mappers.transaction_mapper import (
     map_add_manual_transaction,
+    map_update_manual_transaction,
 )
 
 ENTITY_ID = "e0000000-0000-0000-0000-000000000001"
@@ -137,3 +139,31 @@ def test_map_account_iban_is_normalized():
 def test_map_account_invalid_iban_raises():
     with pytest.raises(ValueError, match="Invalid IBAN"):
         map_add_manual_transaction(_account_body(iban="ES76-0001"))
+
+
+def test_map_external_labeling_defaults_to_none():
+    assert map_add_manual_transaction(_account_body()).external_labeling is None
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_map_external_labeling(value):
+    request = map_add_manual_transaction(_account_body(external_labeling=value))
+    assert request.external_labeling is value
+
+
+def test_map_external_labeling_invalid_raises():
+    with pytest.raises(ValueError, match="external_labeling must be a boolean"):
+        map_add_manual_transaction(_account_body(external_labeling="yes"))
+
+
+def test_map_update_manual_transaction():
+    tx_id = UUID("b0000000-0000-0000-0000-000000000001")
+    request = map_update_manual_transaction(
+        _account_body(external_labeling=False), tx_id
+    )
+    assert isinstance(request, UpdateManualTransactionRequest)
+    assert request.tx.id == tx_id
+    assert request.external_labeling is False
+
+    request = map_update_manual_transaction(_account_body(), tx_id)
+    assert request.external_labeling is None

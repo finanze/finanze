@@ -6,6 +6,13 @@ export enum LabelCategory {
   EXCLUDED = "EXCLUDED",
 }
 
+export enum LabelSubcategory {
+  NEED = "NEED",
+  WANTS = "WANTS",
+  SAVINGS = "SAVINGS",
+  NONE = "NONE",
+}
+
 export interface Label {
   id: string
   key?: string | null
@@ -15,6 +22,8 @@ export interface Label {
   icon?: string | null
   category: LabelCategory
   usage?: number | null
+  subcategory?: LabelSubcategory
+  protected?: boolean
 }
 
 export interface LabelsResponse {
@@ -27,6 +36,7 @@ export interface SaveLabelRequest {
   color?: string | null
   icon?: string | null
   category: LabelCategory
+  subcategory?: LabelSubcategory
 }
 
 export enum TextMatchOperator {

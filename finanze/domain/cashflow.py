@@ -1,11 +1,13 @@
 import re
 from collections import Counter, defaultdict
+from dataclasses import field
 from datetime import date, timedelta
 from enum import Enum
 from statistics import median_low
 from typing import Callable, Optional
 from uuid import UUID
 
+from domain.budget import BudgetSummary
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
 from domain.exchange_rate import ExchangeRates
@@ -68,11 +70,18 @@ class CashflowTotals:
 
 
 @dataclass
+class CashflowLabelAmount:
+    label_id: Optional[UUID]
+    amount: Dezimal
+
+
+@dataclass
 class CashflowPoint:
     period: date
     income: Dezimal
     expenses: Dezimal
     count: int
+    expenses_by_label: list[CashflowLabelAmount] = field(default_factory=list)
 
 
 @dataclass
@@ -103,6 +112,7 @@ class CashflowSummary:
     by_label: list[CashflowLabelBreakdown]
     top_counterparties: list[CashflowCounterparty]
     excluded_count: int = 0
+    budget: Optional[BudgetSummary] = None
 
 
 @dataclass
@@ -202,7 +212,7 @@ def _display_name(tx: AccountTx) -> str:
     return " ".join((tx.counterparty or tx.name or "").split())
 
 
-def _period_start(day: date, granularity: CashflowGranularity) -> date:
+def period_start(day: date, granularity: CashflowGranularity) -> date:
     if granularity == CashflowGranularity.DAY:
         return day
     return day.replace(day=1)
@@ -267,12 +277,16 @@ def aggregate_cashflow(
         else:
             expenses += amount
 
-        period = _period_start(tx.date.date(), query.granularity)
-        point = series.setdefault(period, [Dezimal(0), Dezimal(0), 0])
+        period = period_start(tx.date.date(), query.granularity)
+        point = series.setdefault(period, [Dezimal(0), Dezimal(0), 0, {}])
         point[0 if incoming else 1] += amount
         point[2] += 1
 
         label_ids = list(dict.fromkeys(label.label_id for label in tx.labels or []))
+        if not incoming:
+            share = amount / len(label_ids or [None])
+            for label_id in label_ids or [None]:
+                point[3][label_id] = point[3].get(label_id, Dezimal(0)) + share
         for label_id in label_ids or [None]:
             bucket = by_label.setdefault(label_id, [Dezimal(0), Dezimal(0), 0])
             bucket[0 if incoming else 1] += amount
@@ -301,6 +315,12 @@ def aggregate_cashflow(
             income=round(values[0], 2),
             expenses=round(values[1], 2),
             count=values[2],
+            expenses_by_label=[
+                CashflowLabelAmount(label_id=label_id, amount=round(amount, 2))
+                for label_id, amount in sorted(
+                    values[3].items(), key=lambda item: item[1].val, reverse=True
+                )
+            ],
         )
         for period, values in sorted(series.items())
     ]
