@@ -15,6 +15,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
 
 import me.finanze.plugins.BackupProcessorPlugin;
+import me.finanze.plugins.DeviceCountryPlugin;
 import me.finanze.plugins.FileTransferPlugin;
 import me.finanze.plugins.ImageProcessorPlugin;
 import me.finanze.plugins.NativeCookiesPlugin;
@@ -25,6 +26,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackupProcessorPlugin.class);
+        registerPlugin(DeviceCountryPlugin.class);
         registerPlugin(FileTransferPlugin.class);
         registerPlugin(ImageProcessorPlugin.class);
         registerPlugin(NativeCookiesPlugin.class);

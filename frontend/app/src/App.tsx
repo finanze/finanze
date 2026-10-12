@@ -25,6 +25,8 @@ import CashflowPage from "./pages/CashflowPage"
 import CalculationsPage from "./pages/CalculationsPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
+import { RestrictedRegionScreen } from "./components/auth/RestrictedRegionScreen"
+import { useRegionRestriction } from "./hooks/useRegionRestriction"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
 import { LabelsProvider } from "./context/LabelsContext"
 import { PinnedShortcutsProvider } from "./context/PinnedShortcutsContext"
@@ -50,6 +52,7 @@ function LegacyLabelsRedirect() {
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
+  const regionRestricted = useRegionRestriction()
   const [showReleaseModal, setShowReleaseModal] = useState(false)
   const releaseModalDismissedRef = useRef(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
@@ -132,6 +135,12 @@ function App() {
   }
 
   if (!isAuthenticated) {
+    if (regionRestricted === null) {
+      return <SplashScreen />
+    }
+    if (regionRestricted) {
+      return <RestrictedRegionScreen />
+    }
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
