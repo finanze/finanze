@@ -169,24 +169,18 @@ async function saveDraftAndPersist(page: Page) {
     ).toBeVisible({ timeout: 10_000 })
 }
 
-/**
- * Expand a manual position card and click the delete button (Trash2 icon),
- * then confirm in the dialog and save to server.
- */
+/** Expand and delete a manual position, then confirm and save it. */
 async function deleteManualPosition(page: Page, positionName: string) {
-    // Enter edit mode
-    await page.getByRole('button', { name: 'Edit' }).click()
-    await page.waitForTimeout(300)
-
     // Expand the position card (click the card row with role=button)
     await page.getByText(positionName).first().click()
     await page.waitForTimeout(500)
 
-    // Click the Trash2 button (icon-only, text-red-500)
-    await page
-        .locator('button.text-red-500')
-        .filter({ has: page.locator('.lucide-trash-2') })
-        .click()
+    const deleteButton = page.getByRole('button', {
+        name: 'Delete',
+        exact: true,
+    })
+    await expect(deleteButton).toBeVisible({ timeout: 3_000 })
+    await deleteButton.click()
 
     // Confirmation dialog
     await expect(page.getByText('Delete manual position')).toBeVisible({

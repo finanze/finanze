@@ -64,6 +64,7 @@ import {
   ManualPositionsManager,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   mergeManualDisplayItems,
@@ -145,7 +146,6 @@ function FundsInvestmentPageContent({
   const portfolioManual = portfolioContext
   const {
     drafts,
-    isEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -966,7 +966,7 @@ function FundsInvestmentPageContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 const infoSheetUrl = position.infoSheetUrl?.trim()
                 const isExpanded = expandedCards[item.key] ?? false
@@ -1372,14 +1372,11 @@ function FundsInvestmentPageContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1388,15 +1385,7 @@ function FundsInvestmentPageContent({
                                         editByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1407,9 +1396,7 @@ function FundsInvestmentPageContent({
                                         deleteByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>
