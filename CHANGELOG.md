@@ -1,3 +1,12 @@
+## [0.10.2] - 2026-10-13
+
+### 🚀 Features
+
+- Add region restriction (#201)
+
+### 🐛 Bug Fixes
+
+- Take Urbanitae rent project term from the opening line (#199)
 ## [0.10.1] - 2026-09-28
 
 ### 🚀 Features

@@ -410,7 +410,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.10.200;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -440,7 +440,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.10.200;
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -591,7 +591,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.10.200;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -621,7 +621,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.10.200;
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
