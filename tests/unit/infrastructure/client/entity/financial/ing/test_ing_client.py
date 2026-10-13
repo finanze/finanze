@@ -1,6 +1,7 @@
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 
 from infrastructure.client.entity.financial.ing import ing_client as ing_client_module
@@ -118,6 +119,31 @@ async def test_get_sca_status_polls_genoma_login_session():
         headers=None,
         timeout=ing_client_module.SCA_STATUS_TIMEOUT,
     )
+
+
+@pytest.mark.asyncio
+async def test_get_sca_status_returns_empty_on_transport_error():
+    client = INGAPIClient()
+    client._genoma_login_session = _session()
+    client._genoma_login_session.request = AsyncMock(
+        side_effect=RuntimeError("TlsHttp error")
+    )
+
+    assert await client.get_sca_status("sec-1") == {}
+
+
+@pytest.mark.asyncio
+async def test_get_sca_status_propagates_http_status_errors():
+    client = INGAPIClient()
+    client._genoma_login_session = _session()
+    client._genoma_login_session.request = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "unauthorized", request=MagicMock(), response=MagicMock(status_code=401)
+        )
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.get_sca_status("sec-1")
 
 
 @pytest.mark.asyncio

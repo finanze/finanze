@@ -189,19 +189,26 @@ class INGAPIClient:
         )
 
     async def get_sca_status(self, security_process_id: str) -> dict:
-        return await self._send(
-            self._genoma_login_session,
-            "GET",
-            self.GENOMA_LOGIN_BASE_URL + "/getScaStatus",
-            params={
-                "secProcessId": security_process_id,
-                "isLogin": "false",
-                "device": "false",
-                "model": "false",
-                "version": "false",
-            },
-            timeout=SCA_STATUS_TIMEOUT,
-        )
+        try:
+            return await self._send(
+                self._genoma_login_session,
+                "GET",
+                self.GENOMA_LOGIN_BASE_URL + "/getScaStatus",
+                params={
+                    "secProcessId": security_process_id,
+                    "isLogin": "false",
+                    "device": "false",
+                    "model": "false",
+                    "version": "false",
+                },
+                timeout=SCA_STATUS_TIMEOUT,
+            )
+        except httpx.HTTPStatusError:
+            raise
+        # curl_cffi (desktop) and TlsHttp (mobile) raise their own transport errors
+        except Exception as e:
+            self._log.warning(f"ING SCA status request failed: {e}")
+            return {}
 
     async def confirm_sca(self, security_process_id: str) -> dict:
         headers = {"X-Ing-Securityprocessid": security_process_id}

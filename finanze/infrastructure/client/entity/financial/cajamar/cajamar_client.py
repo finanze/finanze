@@ -1,8 +1,11 @@
+import json
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 import time
+
+import httpx
 from dateutil.tz import tzlocal
 
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
@@ -293,13 +296,49 @@ class CajamarClient:
         return await self._post_request(self.API_VERSION + "/account/" + account_id)
 
     async def get_account_txs(
-        self, account_id: str, page_num: int = 1, page_size: int = 16
+        self,
+        account_id: str,
+        page_num: int = 1,
+        page_size: int = 16,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
     ):
-        params = {"pageNumber": page_num, "pageSize": page_size}
+        if date_from and date_to:
+            params = {"dateFrom": date_from.isoformat(), "dateTo": date_to.isoformat()}
+            if page_num > 1:
+                params["pageSize"] = page_size
+                params["pageNumber"] = page_num
+        else:
+            params = {"pageNumber": page_num, "pageSize": page_size}
         return await self._post_request(
             self.API_VERSION + f"/account/{account_id}/transactions",
             params=params,
         )
+
+    async def sign_account_txs(self, account_id: str, optk: str) -> Optional[dict]:
+        try:
+            response = await self._post_request(
+                self.API_VERSION + f"/account/{account_id}/transactions/signature",
+                body={"optk": optk},
+                raw=True,
+            )
+        except (httpx.TransportError, TimeoutError) as e:
+            self._log.warning(f"Cajamar movements signature request failed: {e}")
+            return None
+
+        body_text = await response.text()
+        if response.ok:
+            try:
+                body = json.loads(body_text)
+            except ValueError:
+                body = None
+            if isinstance(body, dict) and "accountTransactionsPagination" in body:
+                return body
+
+        self._log.warning(
+            f"Cajamar movements signature not ready ({response.status}): {body_text}"
+        )
+        return None
 
     async def get_account_direct_debits(self, account_id: str):
         return await self._post_request(

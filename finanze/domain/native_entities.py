@@ -246,6 +246,7 @@ CAJAMAR = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 DEGIRO = NativeFinancialEntity(
