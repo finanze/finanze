@@ -1,7 +1,5 @@
-import asyncio
 import hashlib
 import logging
-import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -13,13 +11,11 @@ from domain.dezimal import Dezimal
 from domain.entity_login import (
     EntityLoginParams,
     EntityLoginResult,
-    LoginConfirmationType,
     LoginResultCode,
-    TwoFactor,
 )
 from domain.fetch_pointer import FetchPointer
 from domain.fetch_record import DataSource
-from domain.fetch_result import FetchOptions, FetchStage
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
     Accounts,
@@ -44,7 +40,10 @@ from domain.transactions import (
     TxType,
     normalize_iban,
 )
-from infrastructure.client.entity.financial.cajamar.cajamar_client import CajamarClient
+from infrastructure.client.entity.financial.cajamar.cajamar_client import (
+    CajamarClient,
+    CajamarSignatureRequired,
+)
 
 _FIDIS_TYPE = "CR"
 _CONFIRMING_TYPE = "CF"
@@ -54,9 +53,7 @@ ACCOUNT_TXS_POINTER = "account_txs"
 ACCOUNT_TXS_PAGE_SIZE = 16
 MAX_ACCOUNT_TX_PAGES = 100
 
-OLD_TXS_SIGNATURE_TTL_SECONDS = 300
-SIGNATURE_APPROVAL_TIMEOUT_SECONDS = 120
-SIGNATURE_POLL_INTERVAL_SECONDS = 3
+OLD_TXS_MAIN_DEVICE_SIGNATURE = "MAIN_DEVICE_SIGNATURE"
 
 
 @dataclass(frozen=True)
@@ -67,20 +64,10 @@ class _OldTxsAccount:
     date_to: date
 
 
-@dataclass(frozen=True)
-class _PendingSignature:
-    account: _OldTxsAccount
-    optk: str
-    requested_at: float
-
-
 class CajamarFetcher(FinancialEntityFetcher):
     def __init__(self):
         self._client = CajamarClient()
-        self._old_txs_accounts: list[_OldTxsAccount] = []
-        self._pending_signature: Optional[_PendingSignature] = None
-        self._signed_page: Optional[tuple[_OldTxsAccount, dict]] = None
-        self._cancel_event = asyncio.Event()
+        self._old_txs_signature_required = False
         self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
@@ -88,16 +75,8 @@ class CajamarFetcher(FinancialEntityFetcher):
         username, password = credentials["user"], credentials["password"]
         result = await self._client.login(username, password, login_params.session)
         if result.code == LoginResultCode.CREATED:
-            self._reset_old_txs_state()
+            self._old_txs_signature_required = False
         return result
-
-    def cancel_login(self) -> None:
-        self._cancel_event.set()
-
-    def _reset_old_txs_state(self):
-        self._old_txs_accounts = []
-        self._pending_signature = None
-        self._signed_page = None
 
     def _build_accounts(
         self, raw_position: dict
@@ -504,15 +483,10 @@ class CajamarFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        if options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
-            return Transactions(
-                investment=[],
-                account=await self._fetch_old_account_txs(registered_txs),
-            )
-
-        self._reset_old_txs_state()
+        self._old_txs_signature_required = False
         raw_position = await self._client.get_position() or {}
         account_txs = []
+        old_txs_accounts = []
         today = date.today()
         for account in raw_position.get("accounts") or []:
             if not account.get("id"):
@@ -521,7 +495,7 @@ class CajamarFetcher(FinancialEntityFetcher):
                 account, registered_txs, options
             )
             if options.two_factor_old_txs:
-                self._old_txs_accounts.append(
+                old_txs_accounts.append(
                     _OldTxsAccount(
                         account_id=account["id"],
                         iban=normalize_iban(account.get("iban")),
@@ -531,87 +505,25 @@ class CajamarFetcher(FinancialEntityFetcher):
                     )
                 )
 
-        if self._old_txs_accounts:
+        if old_txs_accounts:
             skip_refs = set(registered_txs) | {tx.ref for tx in account_txs}
-            account_txs += await self._advance_old_txs(skip_refs)
+            account_txs += await self._fetch_old_txs(old_txs_accounts, skip_refs)
         return Transactions(investment=[], account=account_txs)
 
     async def request_old_txs_code(self) -> Optional[EntityLoginResult]:
-        pending = self._pending_signature
-        if not pending:
+        if not self._old_txs_signature_required:
             return None
-        self._cancel_event.clear()
+        self._old_txs_signature_required = False
         return EntityLoginResult(
-            LoginResultCode.CODE_REQUESTED,
-            confirmation_type=LoginConfirmationType.IN_APP,
-            process_id=pending.optk,
+            LoginResultCode.NOT_LOGGED,
+            details={"oldTxsRequirement": OLD_TXS_MAIN_DEVICE_SIGNATURE},
         )
 
-    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
-        pending = self._pending_signature
-        self._pending_signature = None
-        if (
-            not pending
-            or time.monotonic() - pending.requested_at > OLD_TXS_SIGNATURE_TTL_SECONDS
-            or (two_factor.process_id and two_factor.process_id != pending.optk)
-        ):
-            self._old_txs_accounts = []
-            return EntityLoginResult(
-                LoginResultCode.NOT_LOGGED,
-                message="Cajamar older movements signature expired or not requested",
-            )
-
-        page = await self._wait_for_signature(pending)
-        if self._cancel_event.is_set():
-            self._old_txs_accounts = []
-            return EntityLoginResult(
-                LoginResultCode.UNEXPECTED_ERROR,
-                message="Approval cancelled by user.",
-            )
-        if not page:
-            self._old_txs_accounts = []
-            return EntityLoginResult(
-                LoginResultCode.NOT_LOGGED,
-                message="Cajamar older movements signature timed out",
-            )
-
-        self._signed_page = (pending.account, page)
-        return EntityLoginResult(LoginResultCode.CREATED)
-
-    async def _wait_for_signature(self, pending: _PendingSignature) -> Optional[dict]:
-        deadline = time.monotonic() + SIGNATURE_APPROVAL_TIMEOUT_SECONDS
-        while time.monotonic() < deadline:
-            try:
-                await asyncio.wait_for(
-                    self._cancel_event.wait(), timeout=SIGNATURE_POLL_INTERVAL_SECONDS
-                )
-                return None
-            except TimeoutError:
-                pass
-            page = await self._client.sign_account_txs(
-                pending.account.account_id, pending.optk
-            )
-            if self._cancel_event.is_set():
-                return None
-            if page:
-                return page
-        return None
-
-    async def _fetch_old_account_txs(self, registered_txs: set[str]) -> list[AccountTx]:
-        if not self._signed_page:
-            return []
-        account, page = self._signed_page
-        self._signed_page = None
-
-        skip_refs = set(registered_txs)
-        txs = await self._page_old_account_txs(account, page, skip_refs)
-        txs += await self._advance_old_txs(skip_refs)
-        return txs
-
-    async def _advance_old_txs(self, skip_refs: set[str]) -> list[AccountTx]:
+    async def _fetch_old_txs(
+        self, accounts: list[_OldTxsAccount], skip_refs: set[str]
+    ) -> list[AccountTx]:
         txs = []
-        while self._old_txs_accounts:
-            account = self._old_txs_accounts.pop(0)
+        for account in accounts:
             try:
                 response = (
                     await self._client.get_account_txs(
@@ -623,20 +535,20 @@ class CajamarFetcher(FinancialEntityFetcher):
                     )
                     or {}
                 )
+            except CajamarSignatureRequired:
+                self._old_txs_signature_required = True
+                break
             except Exception:
                 self._log.exception(
                     f"Error requesting Cajamar older movements for {account.iban}"
                 )
                 continue
 
-            optk = response.get("optk")
-            if optk and "accountTransactionsPagination" not in response:
+            if response.get("optk") and "accountTransactionsPagination" not in response:
                 self._log.info(
                     f"Cajamar older movements signature requested ({response.get('type')})"
                 )
-                self._pending_signature = _PendingSignature(
-                    account=account, optk=optk, requested_at=time.monotonic()
-                )
+                self._old_txs_signature_required = True
                 break
 
             txs += await self._page_old_account_txs(account, response, skip_refs)

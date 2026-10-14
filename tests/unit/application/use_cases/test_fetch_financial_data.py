@@ -46,6 +46,7 @@ from domain.global_position import (
 )
 from domain.loan_calculator import LoanCalculationParams, LoanCalculationResult
 from domain.native_entities import (
+    CAJAMAR,
     ING,
     MY_INVESTOR,
     TRADE_REPUBLIC,
@@ -1209,6 +1210,29 @@ class TestTwoFactorOldTxs:
 
         assert result.code == FetchResultCode.COMPLETED
         fetcher.request_old_txs_code.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_main_fetch_completes_with_old_txs_requirement_details(self):
+        uc, _, _, _ = _build_use_case()
+        account_id, fetcher = await _prepare_old_txs_execute(uc, CAJAMAR)
+        fetcher.request_old_txs_code.return_value = EntityLoginResult(
+            LoginResultCode.NOT_LOGGED,
+            details={"oldTxsRequirement": "MAIN_DEVICE_SIGNATURE"},
+        )
+
+        result = await uc.execute(
+            FetchRequest(
+                entity_account_id=account_id,
+                features=[Feature.TRANSACTIONS],
+                fetch_options=FetchOptions(two_factor_old_txs=True),
+            )
+        )
+
+        assert result.code == FetchResultCode.COMPLETED
+        assert result.details == {
+            "completedFeatures": [Feature.TRANSACTIONS.value],
+            "oldTxsRequirement": "MAIN_DEVICE_SIGNATURE",
+        }
 
     @pytest.mark.asyncio
     async def test_main_fetch_reports_code_request_failure_and_completes(self):

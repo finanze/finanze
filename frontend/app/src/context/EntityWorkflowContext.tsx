@@ -24,6 +24,7 @@ import {
   EntityType,
   EntityOrigin,
   FetchStage,
+  OldTxsRequirement,
   PinChannel,
 } from "@/types"
 import {
@@ -150,6 +151,8 @@ const EntityWorkflowContext = createContext<
 const DEFAULT_FETCH_OPTIONS: FetchOptions = {
   deep: false,
 }
+
+const OLD_TXS_REQUIREMENT_TOAST_DURATION_MS = 15000
 
 const formatEntityError = (
   message: string | undefined,
@@ -775,7 +778,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       const notify = (
         message: string,
         type: "success" | "error" | "warning",
-        options?: { reportable?: boolean },
+        options?: { reportable?: boolean; duration?: number },
       ) => {
         if (!silent) {
           showToast(message, type, options)
@@ -1274,6 +1277,20 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             response.details?.failedFeatures,
           )
           notify(warningMessage, "warning")
+          if (
+            entity &&
+            response.details?.oldTxsRequirement ===
+              OldTxsRequirement.MAIN_DEVICE_SIGNATURE
+          ) {
+            notify(
+              t.errors.OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED.replace(
+                /\{entity\}/g,
+                entity.name,
+              ),
+              "warning",
+              { duration: OLD_TXS_REQUIREMENT_TOAST_DURATION_MS },
+            )
+          }
 
           let advancedToNext = false
 
@@ -1348,6 +1365,20 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             successMessage = `${t.common.fetchSuccess}: ${t.common.crypto}`
           }
           notify(successMessage, "success")
+          if (
+            entity &&
+            response.details?.oldTxsRequirement ===
+              OldTxsRequirement.MAIN_DEVICE_SIGNATURE
+          ) {
+            notify(
+              t.errors.OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED.replace(
+                /\{entity\}/g,
+                entity.name,
+              ),
+              "warning",
+              { duration: OLD_TXS_REQUIREMENT_TOAST_DURATION_MS },
+            )
+          }
 
           if (onScrapeCompletedRef.current) {
             try {

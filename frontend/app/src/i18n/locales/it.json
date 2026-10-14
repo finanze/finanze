@@ -543,6 +543,7 @@
     "LINK_EXPIRED": "Il link di connessione è scaduto. Ricollega l'entità per continuare.",
     "PARTIALLY_COMPLETED": "Non tutte le fonti sono state caricate correttamente per {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "Alcune funzionalità non sono state caricate per {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} non ha consentito di recuperare i movimenti più vecchi di 3 mesi. Richiedili prima nell'app di {entity} sul tuo dispositivo principale, approva la firma lì e aggiorna di nuovo.",
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
@@ -662,6 +663,9 @@
     "deepScrapeDescription": "Recupera di nuovo i dati precedenti (potrebbe richiedere molto tempo, potresti essere bloccato e non è consigliato)",
     "twoFactorOldTxs": "Includi movimenti più vecchi dei conti",
     "twoFactorOldTxsDescription": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Alla fine verrà richiesto un codice di verifica aggiuntivo.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Prima di aggiornare, richiedi i movimenti più vecchi di 3 mesi nell'app di Cajamar sul tuo dispositivo principale e approva la firma lì."
+    },
     "twoFactorOldTxsSkipped": "I movimenti più vecchi dei conti di {entity} sono stati saltati",
     "advancedOptions": "Opzioni avanzate",
     "availableFeatures": "Funzionalità Disponibili",

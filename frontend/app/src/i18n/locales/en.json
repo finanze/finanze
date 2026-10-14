@@ -544,6 +544,7 @@
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} did not allow fetching movements older than 3 months. Request them first in the {entity} app on your main device, approve the signature there and fetch again.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
@@ -663,6 +664,9 @@
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
     "twoFactorOldTxs": "Include older account transactions",
     "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Fetch account transactions beyond the usual 3-month limit. Before fetching, request movements older than 3 months in the Cajamar app on your main device and approve the signature there."
+    },
     "twoFactorOldTxsSkipped": "Older account transactions from {entity} were skipped",
     "advancedOptions": "Advanced options",
     "availableFeatures": "Available Features",

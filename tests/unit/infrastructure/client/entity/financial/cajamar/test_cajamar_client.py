@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from infrastructure.client.entity.financial.cajamar.cajamar_client import CajamarClient
+from infrastructure.client.entity.financial.cajamar.cajamar_client import (
+    CajamarClient,
+    CajamarSignatureRequired,
+)
 
 
 def _client():
@@ -136,48 +139,48 @@ def _raw_response(status, body):
     response.text = AsyncMock(
         return_value=body if isinstance(body, str) else json.dumps(body)
     )
+    response.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            f"HTTP {status}", request=MagicMock(), response=MagicMock()
+        )
+    )
     return response
 
 
-@pytest.mark.asyncio
-async def test_sign_account_txs_returns_signed_page():
+def _session_client(response):
     client = _client()
-    page = {"accountTransactionsPagination": {"dataList": [], "pagination": {}}}
-    client._post_request = AsyncMock(return_value=_raw_response(200, page))
+    del client._post_request
+    client._session = MagicMock()
+    client._session.request = AsyncMock(return_value=response)
+    return client
 
-    result = await client.sign_account_txs("acc-1", "optk-1")
 
-    assert result == page
-    client._post_request.assert_awaited_once_with(
-        CajamarClient.API_VERSION + "/account/acc-1/transactions/signature",
-        body={"optk": "optk-1"},
-        raw=True,
+@pytest.mark.asyncio
+async def test_get_account_txs_raises_signature_required_on_sgn000():
+    client = _session_client(
+        _raw_response(
+            500,
+            {
+                "code": "SGN000",
+                "message": "Please activate PhoneSign",
+                "errorId": None,
+            },
+        )
     )
+
+    with pytest.raises(CajamarSignatureRequired):
+        await client.get_account_txs(
+            "acc-1", 1, 16, date_from=date(2024, 10, 14), date_to=date(2026, 10, 14)
+        )
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "response",
-    [
-        _raw_response(200, {"type": "PIN", "optk": "optk-1"}),
-        _raw_response(200, "not json"),
-        _raw_response(403, {"code": "E0001"}),
-    ],
+    [_raw_response(500, {"code": "E0001"}), _raw_response(500, "not json")],
 )
-async def test_sign_account_txs_returns_none_when_not_signed(response):
-    client = _client()
-    client._post_request = AsyncMock(return_value=response)
+async def test_get_account_txs_raises_http_error_on_other_failures(response):
+    client = _session_client(response)
 
-    assert await client.sign_account_txs("acc-1", "optk-1") is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "error",
-    [httpx.ReadTimeout("timeout"), httpx.NetworkError("CapacitorHttp error")],
-)
-async def test_sign_account_txs_returns_none_on_transport_error(error):
-    client = _client()
-    client._post_request = AsyncMock(side_effect=error)
-
-    assert await client.sign_account_txs("acc-1", "optk-1") is None
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.get_account_txs("acc-1", 1, 16)

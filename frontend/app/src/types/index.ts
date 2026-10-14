@@ -126,6 +126,10 @@ export enum FetchStage {
   TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
 }
 
+export enum OldTxsRequirement {
+  MAIN_DEVICE_SIGNATURE = "MAIN_DEVICE_SIGNATURE",
+}
+
 export enum EntitySessionCategory {
   // No session requiring human action to re-create or minutes-long session
   NONE = "NONE",
@@ -369,6 +373,7 @@ export interface FetchResponse {
     message?: string | null
     pinLength?: number
     pinChannel?: PinChannel
+    oldTxsRequirement?: OldTxsRequirement
   }
 }
 

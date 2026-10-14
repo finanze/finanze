@@ -192,7 +192,12 @@ export function FeatureSelector() {
                   {t.features.twoFactorOldTxs}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {t.features.twoFactorOldTxsDescription}
+                  {(
+                    t.features.twoFactorOldTxsEntityDescription as Record<
+                      string,
+                      string
+                    >
+                  )[selectedEntity.id] ?? t.features.twoFactorOldTxsDescription}
                 </div>
               </label>
               <Switch

@@ -91,6 +91,34 @@ async def test_paginates_until_no_more_movements_and_maps_sign():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "balance, expected",
+    [(1498.0, "1498"), (-12.0, "-12"), (194.27, "194.27"), (300, "300")],
+)
+async def test_page_cursor_formats_balance_like_web_app(balance, expected):
+    today = date.today()
+    fetcher = _fetcher(
+        [
+            {
+                "movimientos": [_movement(10, today, "-25.50")],
+                "masMovimientos": {
+                    "indMasMovimientos": "S",
+                    "indOTP": "N",
+                    "ultimoSaldo": {"cantidad": balance},
+                    "numUltimoMovimiento": "1401",
+                },
+            },
+            {"movimientos": [], "masMovimientos": {"indMasMovimientos": "N"}},
+        ]
+    )
+
+    await fetcher.transactions(set(), _options())
+
+    second_call = fetcher._client.get_account_movements.await_args_list[1]
+    assert second_call.args == ("001", expected, "1401")
+
+
+@pytest.mark.asyncio
 async def test_stops_when_otp_is_required():
     today = date.today()
     fetcher = _fetcher(

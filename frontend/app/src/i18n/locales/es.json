@@ -542,6 +542,7 @@
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "No se pudieron cargar algunas características de {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} no ha permitido obtener movimientos de más de 3 meses. Solicítalos primero en la app de {entity} de tu dispositivo principal, aprueba la firma allí y vuelve a actualizar.",
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
     "DISABLED": "Importación de datos deshabilitada en configuración.",
     "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
@@ -661,6 +662,9 @@
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "twoFactorOldTxs": "Incluir movimientos antiguos de cuentas",
     "twoFactorOldTxsDescription": "Obtiene movimientos de cuentas más allá del límite habitual de 3 meses. Se pedirá un código de verificación adicional al final.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Obtiene movimientos de cuentas más allá del límite habitual de 3 meses. Antes de actualizar, solicita los movimientos de más de 3 meses en la app de Cajamar de tu dispositivo principal y aprueba la firma allí."
+    },
     "twoFactorOldTxsSkipped": "Se han omitido los movimientos antiguos de cuentas de {entity}",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",

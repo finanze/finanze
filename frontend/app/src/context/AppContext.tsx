@@ -107,7 +107,7 @@ interface AppContextType {
   showToast: (
     message: React.ReactNode,
     type: "success" | "error" | "warning" | "info",
-    options?: { reportable?: boolean },
+    options?: { reportable?: boolean; duration?: number },
   ) => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
@@ -291,6 +291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null)
   const silentRatesInFlightRef = useRef<Promise<void> | null>(null)
   const onTrackedUpdateCompletedRef = useRef<
     ((entityIds: string[]) => Promise<void>) | null
@@ -307,20 +308,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       message: React.ReactNode,
       type: "success" | "error" | "warning" | "info",
       // Expected outcomes such as form validation opt out of being reportable.
-      options?: { reportable?: boolean },
+      options?: { reportable?: boolean; duration?: number },
     ) => {
       setToast({ message, type, reportable: options?.reportable ?? true })
-      setTimeout(
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current)
+      }
+      toastTimerRef.current = setTimeout(
         () => {
+          toastTimerRef.current = null
           setToast(null)
         },
-        type === "success" ? 3000 : 5000,
+        options?.duration ?? (type === "success" ? 3000 : 5000),
       )
     },
     [],
   )
 
   const hideToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
     setToast(null)
   }, [])
 

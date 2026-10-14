@@ -520,7 +520,11 @@ class FetchFinancialDataImpl(FetchFinancialData):
             self._report(e, entity, tags={"stage": FetchStage.TWO_FACTOR_OLD_TXS.value})
             return None
 
-        if not result or result.code != LoginResultCode.CODE_REQUESTED:
+        if not result:
+            return None
+        if result.code != LoginResultCode.CODE_REQUESTED:
+            if result.details:
+                details.update(result.details)
             return None
 
         old_txs_details = {

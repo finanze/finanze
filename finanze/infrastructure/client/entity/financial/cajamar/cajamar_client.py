@@ -5,7 +5,6 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 import time
 
-import httpx
 from dateutil.tz import tzlocal
 
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
@@ -20,6 +19,12 @@ DEVICE_ID_LENGTH = 25
 
 ACCESS_TOKEN_LIFETIME = 15 * 60  # 20 minutes (but set to 15)
 REFRESH_TOKEN_LIFETIME = 4 * 30 - 1  # Days
+
+SIGNATURE_REQUIRED_CODE = "SGN000"
+
+
+class CajamarSignatureRequired(Exception):
+    pass
 
 
 def _calculate_c_digit(base: str) -> str:
@@ -230,6 +235,14 @@ class CajamarClient:
             return await response.json()
 
         body_text = await response.text()
+        try:
+            error_code = json.loads(body_text).get("code")
+        except (ValueError, AttributeError):
+            error_code = None
+        if error_code == SIGNATURE_REQUIRED_CODE:
+            self._log.warning(f"Cajamar signature required: {body_text}")
+            raise CajamarSignatureRequired(body_text)
+
         self._log.error("Error Response Body: " + body_text)
         response.raise_for_status()
         return {}
@@ -314,31 +327,6 @@ class CajamarClient:
             self.API_VERSION + f"/account/{account_id}/transactions",
             params=params,
         )
-
-    async def sign_account_txs(self, account_id: str, optk: str) -> Optional[dict]:
-        try:
-            response = await self._post_request(
-                self.API_VERSION + f"/account/{account_id}/transactions/signature",
-                body={"optk": optk},
-                raw=True,
-            )
-        except (httpx.TransportError, TimeoutError) as e:
-            self._log.warning(f"Cajamar movements signature request failed: {e}")
-            return None
-
-        body_text = await response.text()
-        if response.ok:
-            try:
-                body = json.loads(body_text)
-            except ValueError:
-                body = None
-            if isinstance(body, dict) and "accountTransactionsPagination" in body:
-                return body
-
-        self._log.warning(
-            f"Cajamar movements signature not ready ({response.status}): {body_text}"
-        )
-        return None
 
     async def get_account_direct_debits(self, account_id: str):
         return await self._post_request(

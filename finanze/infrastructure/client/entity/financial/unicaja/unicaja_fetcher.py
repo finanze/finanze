@@ -321,7 +321,11 @@ class UnicajaFetcher(FinancialEntityFetcher):
 
     @staticmethod
     def _page_cursor(more: dict) -> tuple[str, str]:
-        last_balance = str((more.get("ultimoSaldo") or {}).get("cantidad"))
+        balance = (more.get("ultimoSaldo") or {}).get("cantidad")
+        # Unicaja matches the cursor as the web app (JS) formats it: 1498.0 -> "1498"
+        if isinstance(balance, float) and balance.is_integer():
+            balance = int(balance)
+        last_balance = str(balance)
         last_movement = str(more.get("numUltimoMovimiento"))
         return last_balance, last_movement
 
