@@ -160,6 +160,13 @@ const formatCardNumber = (ending?: string | null) =>
 const isFiniteNumber = (value: number | null | undefined): value is number =>
   typeof value === "number" && Number.isFinite(value)
 
+const MANUAL_POSITION_ICON_ACTION_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+const MANUAL_POSITION_DELETE_ACTION_CLASS = cn(
+  MANUAL_POSITION_ICON_ACTION_CLASS,
+  "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400",
+)
+
 type AccountDraft = ManualPositionDraft<Account>
 type CardDraft = ManualPositionDraft<CardModel>
 type LoanDraft = ManualPositionDraft<Loan>
@@ -2053,11 +2060,12 @@ function BankAccountsSection({
                             )}
 
                             {showActions && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex items-center gap-1"
+                              <div className="flex justify-end gap-0.5">
+                                <button
+                                  type="button"
+                                  aria-label={t.common.edit}
+                                  title={t.common.edit}
+                                  className={MANUAL_POSITION_ICON_ACTION_CLASS}
                                   onClick={() => {
                                     if (manualDraft?.originalId) {
                                       editByOriginalId(manualDraft.originalId)
@@ -2069,12 +2077,14 @@ function BankAccountsSection({
                                   }}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
-                                  {t.common.edit}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={t.common.delete}
+                                  title={t.common.delete}
+                                  className={
+                                    MANUAL_POSITION_DELETE_ACTION_CLASS
+                                  }
                                   onClick={() => {
                                     if (manualDraft?.originalId) {
                                       deleteByOriginalId(manualDraft.originalId)
@@ -2086,8 +2096,7 @@ function BankAccountsSection({
                                   }}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
-                                  {t.common.delete}
-                                </Button>
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2649,10 +2658,12 @@ function BankCardsSection({
                             </p>
                           )}
                           {showActions && (
-                            <div className="mt-auto flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
+                            <div className="mt-auto flex justify-end gap-0.5">
+                              <button
+                                type="button"
+                                aria-label={t.common.edit}
+                                title={t.common.edit}
+                                className={MANUAL_POSITION_ICON_ACTION_CLASS}
                                 onClick={() => {
                                   if (manualDraft?.originalId) {
                                     editByOriginalId(manualDraft.originalId)
@@ -2662,15 +2673,14 @@ function BankCardsSection({
                                     editByOriginalId(item.originalId)
                                   }
                                 }}
-                                className="flex items-center gap-1"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
-                                {t.common.edit}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={t.common.delete}
+                                title={t.common.delete}
+                                className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                                 onClick={() => {
                                   if (manualDraft?.originalId) {
                                     deleteByOriginalId(manualDraft.originalId)
@@ -2682,8 +2692,7 @@ function BankCardsSection({
                                 }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
-                                {t.common.delete}
-                              </Button>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -3366,10 +3375,12 @@ function BankLoansSection({
                   )}
 
                   {showActions && (
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <div className="mt-4 flex justify-end gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={t.common.edit}
+                        title={t.common.edit}
+                        className={MANUAL_POSITION_ICON_ACTION_CLASS}
                         onClick={() => {
                           if (manualDraft?.originalId) {
                             editByOriginalId(manualDraft.originalId)
@@ -3379,15 +3390,14 @@ function BankLoansSection({
                             editByOriginalId(item.originalId)
                           }
                         }}
-                        className="flex items-center gap-1"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t.common.delete}
+                        title={t.common.delete}
+                        className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                         onClick={() => {
                           if (manualDraft?.originalId) {
                             deleteByOriginalId(manualDraft.originalId)
@@ -3399,8 +3409,7 @@ function BankLoansSection({
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        {t.common.delete}
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </Card>
@@ -3618,10 +3627,12 @@ function BankLoansSection({
                   )}
 
                   {showCreditActions && creditEditHandlers && (
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <div className="mt-4 flex justify-end gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={t.common.edit}
+                        title={t.common.edit}
+                        className={MANUAL_POSITION_ICON_ACTION_CLASS}
                         onClick={() => {
                           if (creditDraft?.originalId) {
                             creditEditHandlers.editByOriginalId(
@@ -3637,15 +3648,14 @@ function BankLoansSection({
                             )
                           }
                         }}
-                        className="flex items-center gap-1"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t.common.delete}
+                        title={t.common.delete}
+                        className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                         onClick={() => {
                           if (creditDraft?.originalId) {
                             creditEditHandlers.deleteByOriginalId(
@@ -3663,8 +3673,7 @@ function BankLoansSection({
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        {t.common.delete}
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </Card>

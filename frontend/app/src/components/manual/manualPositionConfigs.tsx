@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
+import { Slider } from "@/components/ui/Slider"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import {
@@ -214,9 +215,17 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     inputClassName?: string
     autoUpperCase?: boolean
     allowNegative?: boolean
+    slider?: { min: number; max: number; step?: number }
   },
 ) => {
   const isNumeric = options?.type === "number"
+  const handleChange = (value: string) => {
+    props.updateField(field, value)
+    props.clearError(field)
+    if (options?.onValueChange) {
+      options.onValueChange(value, props)
+    }
+  }
   return (
     <div className="space-y-1.5">
       <Label htmlFor={String(field)}>{label}</Label>
@@ -232,13 +241,7 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
             value={(props.form[field] as string) ?? ""}
             disabled={options?.disabled}
             allowNegative={options?.allowNegative}
-            onStringChange={value => {
-              props.updateField(field, value)
-              props.clearError(field)
-              if (options?.onValueChange) {
-                options.onValueChange(value, props)
-              }
-            }}
+            onStringChange={handleChange}
           />
         ) : (
           <Input
@@ -253,14 +256,11 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
             value={(props.form[field] as string) ?? ""}
             disabled={options?.disabled}
             onChange={event => {
-              const value = options?.autoUpperCase
-                ? event.target.value.toUpperCase()
-                : event.target.value
-              props.updateField(field, value)
-              props.clearError(field)
-              if (options?.onValueChange) {
-                options.onValueChange(value, props)
-              }
+              handleChange(
+                options?.autoUpperCase
+                  ? event.target.value.toUpperCase()
+                  : event.target.value,
+              )
             }}
           />
         )}
@@ -270,6 +270,18 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
           </span>
         )}
       </div>
+      {options?.slider && (
+        <Slider
+          value={parseNumberInput((props.form[field] as string) ?? "")}
+          onValueChange={value => handleChange(String(value))}
+          min={options.slider.min}
+          max={options.slider.max}
+          step={options.slider.step}
+          disabled={options.disabled}
+          showValue={false}
+          aria-label={label}
+        />
+      )}
       {props.errors[field] && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
           {props.errors[field]}
@@ -3282,7 +3294,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "interest",
           props.t("management.manualPositions.bankAccounts.fields.interest"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 5, step: 0.05 },
+          },
         )}
         {renderTextInput(
           "retained",
@@ -3878,7 +3896,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "interest_rate",
             props.t("management.manualPositions.bankLoans.fields.interestRate"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              suffix: "%",
+              slider: { min: 0, max: 10, step: 0.05 },
+            },
           )}
           {renderBadgeSelector(
             "interest_type",
@@ -3889,7 +3913,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               label: props.t(`enums.interestType.${value}`) || value,
             })),
           )}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "installment_frequency",
             props.t(
               "management.manualPositions.bankLoans.fields.installmentFrequency",
@@ -3900,14 +3924,24 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 value: InstallmentFrequency.WEEKLY,
                 label: props.t("enums.installmentFrequency.WEEKLY"),
               },
-              {
-                value: InstallmentFrequency.BIWEEKLY,
-                label: props.t("enums.installmentFrequency.BIWEEKLY"),
-              },
-              {
-                value: InstallmentFrequency.SEMIMONTHLY,
-                label: props.t("enums.installmentFrequency.SEMIMONTHLY"),
-              },
+              ...(props.form.installment_frequency ===
+              InstallmentFrequency.BIWEEKLY
+                ? [
+                    {
+                      value: InstallmentFrequency.BIWEEKLY,
+                      label: props.t("enums.installmentFrequency.BIWEEKLY"),
+                    },
+                  ]
+                : []),
+              ...(props.form.installment_frequency ===
+              InstallmentFrequency.SEMIMONTHLY
+                ? [
+                    {
+                      value: InstallmentFrequency.SEMIMONTHLY,
+                      label: props.t("enums.installmentFrequency.SEMIMONTHLY"),
+                    },
+                  ]
+                : []),
               {
                 value: InstallmentFrequency.MONTHLY,
                 label: props.t("enums.installmentFrequency.MONTHLY"),
@@ -3936,7 +3970,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               "fixed_years",
               props.t("management.manualPositions.bankLoans.fields.fixedYears"),
               props,
-              { type: "number", step: "1", inputMode: "numeric" },
+              {
+                type: "number",
+                step: "1",
+                inputMode: "numeric",
+                slider: { min: 1, max: 30 },
+              },
             )}
           {showFixedInterestRateField &&
             renderTextInput(
@@ -3950,6 +3989,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 step: "0.01",
                 inputMode: "decimal",
                 suffix: "%",
+                slider: { min: 0, max: 10, step: 0.05 },
               },
             )}
           {renderDateInput(
@@ -4226,7 +4266,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "interest_rate",
           props.t("management.manualPositions.bankCredits.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 25, step: 0.1 },
+          },
         )}
         {renderTextInput(
           "pledged_amount",
@@ -6007,7 +6053,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "interest_rate",
           props.t("management.manualPositions.deposits.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 6, step: 0.05 },
+          },
         )}
         {renderDateInput(
           "creation",

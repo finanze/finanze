@@ -8,7 +8,14 @@ import {
   XIcon,
 } from "lucide-react"
 import { DayPicker } from "react-day-picker"
-import { format, parse } from "date-fns"
+import { addMonths, format, parse } from "date-fns"
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  type Transition,
+} from "framer-motion"
 import { enUS, es, it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Button } from "./Button"
@@ -31,6 +38,19 @@ const localeMap = {
   "it-IT": it,
 }
 
+type SwipeState = {
+  x: number
+  y: number
+  time: number
+  axis: "x" | "y" | null
+}
+
+const SWIPE_LOCK_DISTANCE = 8
+const SWIPE_MIN_DISTANCE = 50
+const SWIPE_COMMIT_RATIO = 0.25
+const SWIPE_MIN_VELOCITY = 0.3
+const SWIPE_TRANSITION: Transition = { duration: 0.2, ease: [0, 0, 0.58, 0.8] }
+
 function DatePicker({
   value = "",
   onChange,
@@ -49,6 +69,40 @@ function DatePicker({
     return new Date()
   })
   const [showYearPicker, setShowYearPicker] = React.useState(false)
+  const dragX = useMotionValue(0)
+  const gridRef = React.useRef<HTMLTableElement>(null)
+  const swipe = React.useRef<SwipeState | null>(null)
+  const isSliding = React.useRef(false)
+  const reducedMotion = useReducedMotion()
+  const swipeTransition: Transition = reducedMotion
+    ? { duration: 0 }
+    : SWIPE_TRANSITION
+  const SwipeMonthGrid = React.useMemo(() => {
+    /* eslint-disable react/prop-types */
+    function SwipeGrid({
+      role,
+      className,
+      style,
+      children,
+      "aria-label": ariaLabel,
+      "aria-multiselectable": ariaMultiselectable,
+    }: React.TableHTMLAttributes<HTMLTableElement>) {
+      return (
+        <motion.table
+          ref={gridRef}
+          role={role}
+          aria-label={ariaLabel}
+          aria-multiselectable={ariaMultiselectable}
+          className={cn(className, "touch-pan-y")}
+          style={{ ...style, x: dragX }}
+        >
+          {children}
+        </motion.table>
+      )
+    }
+    /* eslint-enable react/prop-types */
+    return SwipeGrid
+  }, [dragX])
   const dateLocale = localeMap[locale as keyof typeof localeMap] || enUS
   const selectedDate = value
     ? parse(value, "yyyy-MM-dd", new Date())
@@ -72,6 +126,63 @@ function DatePicker({
     newDate.setFullYear(year)
     setCurrentMonth(newDate)
     setShowYearPicker(false)
+  }
+
+  const slideMonth = async (step: number, width: number) => {
+    await animate(dragX, -step * width, swipeTransition)
+    setCurrentMonth(month => addMonths(month, step))
+    dragX.set(step * width)
+    await animate(dragX, 0, swipeTransition)
+    isSliding.current = false
+  }
+
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    if (isSliding.current || !gridRef.current?.contains(e.target as Node))
+      return
+    const touch = e.touches[0]
+    swipe.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+      axis: null,
+    }
+  }
+
+  const handleSwipeMove = (e: React.TouchEvent) => {
+    const start = swipe.current
+    if (!start) return
+    const touch = e.touches[0]
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (!start.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_LOCK_DISTANCE) return
+      start.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y"
+    }
+    if (start.axis === "x") dragX.set(dx)
+  }
+
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    const start = swipe.current
+    swipe.current = null
+    if (start?.axis !== "x") return
+    const dx = e.changedTouches[0].clientX - start.x
+    const distance = Math.abs(dx)
+    const width = gridRef.current?.offsetWidth ?? 0
+    const velocity = distance / Math.max(Date.now() - start.time, 1)
+    const commit =
+      distance > width * SWIPE_COMMIT_RATIO ||
+      (distance > SWIPE_MIN_DISTANCE && velocity > SWIPE_MIN_VELOCITY)
+    if (commit) {
+      isSliding.current = true
+      slideMonth(dx < 0 ? 1 : -1, width)
+    } else {
+      animate(dragX, 0, swipeTransition)
+    }
+  }
+
+  const handleSwipeCancel = () => {
+    if (swipe.current?.axis === "x") animate(dragX, 0, swipeTransition)
+    swipe.current = null
   }
 
   const generateYearRange = () => {
@@ -118,7 +229,14 @@ function DatePicker({
         )}
 
         <PopoverContent
-          className={cn("z-[18000] w-auto p-4", contentClassName)}
+          className={cn(
+            "z-[18000] w-auto overflow-hidden p-4",
+            contentClassName,
+          )}
+          onTouchStart={handleSwipeStart}
+          onTouchMove={handleSwipeMove}
+          onTouchEnd={handleSwipeEnd}
+          onTouchCancel={handleSwipeCancel}
         >
           {showYearPicker ? (
             <div className="space-y-2">
@@ -178,6 +296,7 @@ function DatePicker({
                 disabled: "text-muted-foreground opacity-50",
               }}
               components={{
+                MonthGrid: SwipeMonthGrid,
                 // eslint-disable-next-line react/prop-types
                 CaptionLabel: ({ children, ...props }) => (
                   <span
