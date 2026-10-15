@@ -466,7 +466,10 @@ test.describe('Manual Positions - QUICK mode', () => {
             'false',
         )
 
-        await page.getByRole('button', { name: 'Edit' }).click()
+        await page
+            .getByRole('button', { name: 'Edit', exact: true })
+            .filter({ hasText: 'Edit' })
+            .click()
         await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
         await page.getByText(depositName).first().click()
         await page.waitForTimeout(300)
@@ -491,12 +494,16 @@ test.describe('Manual Positions - QUICK mode', () => {
         ).not.toBeVisible()
 
         await page.getByRole('button', { name: 'Done' }).click()
-        await page.getByRole('button', { name: 'Edit' }).click()
+        await page
+            .getByRole('button', { name: 'Edit', exact: true })
+            .filter({ hasText: 'Edit' })
+            .click()
         await page.getByText(depositName).first().click()
         await page.waitForTimeout(300)
         await page
-            .locator('button.text-red-500')
-            .filter({ has: page.locator('.lucide-trash-2') })
+            .locator('.border-l-4')
+            .filter({ hasText: depositName })
+            .getByRole('button', { name: 'Delete', exact: true })
             .click()
         await expect(page.getByText('Delete manual position')).toBeVisible({
             timeout: 3_000,
