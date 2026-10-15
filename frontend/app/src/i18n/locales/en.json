@@ -505,6 +505,10 @@
       "guestCreationFailed": "Failed to prepare account. Please try again.",
       "loginAfterRestoreFailed": "Data restored but login failed. Please try logging in manually.",
       "backToSignup": "Back to sign up"
+    },
+    "regionRestricted": {
+      "title": "Not available in your country",
+      "description": "Finanze cannot be used in your current country or region. We are sorry for the inconvenience."
     }
   },
   "pinpad": {

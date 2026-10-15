@@ -503,6 +503,10 @@
       "guestCreationFailed": "Error al preparar la cuenta. Inténtalo de nuevo.",
       "loginAfterRestoreFailed": "Datos restaurados pero el inicio de sesión falló. Intenta iniciar sesión manualmente.",
       "backToSignup": "Volver al registro"
+    },
+    "regionRestricted": {
+      "title": "No disponible en tu país",
+      "description": "Finanze no se puede usar en tu país o región actual. Disculpa las molestias."
     }
   },
   "pinpad": {

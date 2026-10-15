@@ -504,6 +504,10 @@
       "guestCreationFailed": "Impossibile preparare l'account. Riprova.",
       "loginAfterRestoreFailed": "Dati ripristinati ma l'accesso non è riuscito. Prova ad accedere manualmente.",
       "backToSignup": "Torna alla registrazione"
+    },
+    "regionRestricted": {
+      "title": "Non disponibile nel tuo paese",
+      "description": "Finanze non può essere utilizzata nel tuo paese o regione attuale. Ci scusiamo per l'inconveniente."
     }
   },
   "pinpad": {
