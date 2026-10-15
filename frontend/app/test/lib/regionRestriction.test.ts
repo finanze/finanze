@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, renderHook, waitFor } from "@testing-library/react"
-import { FFStatus } from "@/types"
+import { createElement } from "react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { FFStatus, type FeatureFlags } from "@/types"
 
 const platform = vi.hoisted(() => ({ electron: false }))
 
@@ -145,8 +154,31 @@ describe("isDeviceInRestrictedRegion", () => {
 })
 
 describe("useRegionRestriction", () => {
+  async function setupPendingRegionCheck(flags: FeatureFlags = {}) {
+    mockTimezone("Europe/London")
+    mockLanguage("en-GB")
+    platform.electron = true
+    const countryCode = Promise.withResolvers<string>()
+    const getLocaleCountryCode = vi.fn(() => countryCode.promise)
+    ;(window as any).ipcAPI = { getLocaleCountryCode }
+    vi.resetModules()
+    const { setFeatureFlags } = await import("@/context/featureFlagsStore")
+    const { useRegionRestriction } =
+      await import("@/hooks/useRegionRestriction")
+    setFeatureFlags(flags)
+    return {
+      countryCode,
+      getLocaleCountryCode,
+      setFeatureFlags,
+      useRegionRestriction,
+    }
+  }
+
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
+    platform.electron = false
+    delete (window as { ipcAPI?: unknown }).ipcAPI
   })
 
   it("reacts to the feature flag being enabled after startup", async () => {
@@ -164,5 +196,116 @@ describe("useRegionRestriction", () => {
     act(() => setFeatureFlags(FLAG_ON))
 
     await waitFor(() => expect(result.current).toBe(true))
+  })
+
+  it("preserves the login input while a late region check resolves", async () => {
+    const {
+      countryCode,
+      getLocaleCountryCode,
+      setFeatureFlags,
+      useRegionRestriction,
+    } = await setupPendingRegionCheck()
+
+    function LoginGate() {
+      const restricted = useRegionRestriction()
+      if (restricted === null) return createElement("div", null, "Checking")
+      if (restricted) return createElement("div", null, "Restricted")
+      return createElement("input", {
+        type: "password",
+        "aria-label": "Encryption key",
+      })
+    }
+
+    render(createElement(LoginGate))
+    const input = screen.getByLabelText("Encryption key")
+    fireEvent.change(input, { target: { value: "typed-password" } })
+    expect(getLocaleCountryCode).not.toHaveBeenCalled()
+
+    act(() => setFeatureFlags(FLAG_ON))
+
+    expect(screen.getByLabelText("Encryption key")).toBe(input)
+    expect(input).toHaveValue("typed-password")
+
+    await act(async () => countryCode.resolve("ES"))
+
+    expect(screen.getByLabelText("Encryption key")).toBe(input)
+    expect(input).toHaveValue("typed-password")
+  })
+
+  it("still restricts the device after a late check confirms its country", async () => {
+    const { countryCode, setFeatureFlags, useRegionRestriction } =
+      await setupPendingRegionCheck()
+    const { result } = renderHook(() => useRegionRestriction())
+
+    act(() => setFeatureFlags(FLAG_ON))
+
+    expect(result.current).toBe(false)
+
+    await act(async () => countryCode.resolve("GB"))
+
+    expect(result.current).toBe(true)
+  })
+
+  it.each(["GB", "ES"])(
+    "waits for country %s when the flag is enabled on initial mount",
+    async country => {
+      const { countryCode, useRegionRestriction } =
+        await setupPendingRegionCheck(FLAG_ON)
+      const { result } = renderHook(() => useRegionRestriction())
+
+      expect(result.current).toBeNull()
+
+      await act(async () => countryCode.resolve(country))
+
+      expect(result.current).toBe(country === "GB")
+    },
+  )
+
+  it("ignores a pending restriction result after the flag is disabled", async () => {
+    const { countryCode, setFeatureFlags, useRegionRestriction } =
+      await setupPendingRegionCheck(FLAG_ON)
+    const { result } = renderHook(() => useRegionRestriction())
+    expect(result.current).toBeNull()
+
+    act(() => setFeatureFlags({ RESTRICTED_COUNTRIES: FFStatus.OFF }))
+
+    expect(result.current).toBe(false)
+
+    await act(async () => countryCode.resolve("GB"))
+
+    expect(result.current).toBe(false)
+  })
+
+  it("clears a previous restriction before checking a re-enabled flag", async () => {
+    const { countryCode, setFeatureFlags, useRegionRestriction } =
+      await setupPendingRegionCheck(FLAG_ON)
+    const { result } = renderHook(() => useRegionRestriction())
+
+    await act(async () => countryCode.resolve("GB"))
+
+    expect(result.current).toBe(true)
+
+    act(() => setFeatureFlags({ RESTRICTED_COUNTRIES: FFStatus.OFF }))
+
+    expect(result.current).toBe(false)
+
+    act(() => setFeatureFlags(FLAG_ON))
+
+    expect(result.current).toBe(false)
+
+    await waitFor(() => expect(result.current).toBe(true))
+  })
+
+  it("allows access when the country lookup fails without a fallback region", async () => {
+    const { countryCode, useRegionRestriction } =
+      await setupPendingRegionCheck(FLAG_ON)
+    mockLanguage("en")
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const { result } = renderHook(() => useRegionRestriction())
+    expect(result.current).toBeNull()
+
+    await act(async () => countryCode.reject(new Error("Country unavailable")))
+
+    expect(result.current).toBe(false)
   })
 })

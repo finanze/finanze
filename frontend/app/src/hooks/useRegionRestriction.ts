@@ -8,18 +8,21 @@ import {
   isRegionCheckEnabled,
 } from "@/lib/regionRestriction"
 
-// null while the device check is still resolving.
 export function useRegionRestriction(): boolean | null {
   const [flags, setFlags] = useState(getFeatureFlags)
-  const [restricted, setRestricted] = useState<boolean | null>(null)
   const enabled = isRegionCheckEnabled(flags)
+  const [restricted, setRestricted] = useState<boolean | null>(
+    enabled ? null : false,
+  )
 
   useEffect(() => subscribeFeatureFlags(setFlags), [])
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) {
+      setRestricted(false)
+      return
+    }
     let cancelled = false
-    setRestricted(null)
     isDeviceInRestrictedRegion(getFeatureFlags()).then(result => {
       if (!cancelled) setRestricted(result)
     })
