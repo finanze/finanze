@@ -100,25 +100,11 @@ class TestOpenAIClientSetup:
 
 
 class TestOpenAIClientFeatures:
-    def test_supports_generation_only(self):
-        assert OpenAIClient().features() == {AIClientFeature.GENERATION}
-
-    @pytest.mark.asyncio
-    async def test_decide_is_unsupported(self):
-        client = _client()
-        with pytest.raises(AIProviderError) as error:
-            await client.decide(
-                AIDecisionRequest(
-                    model="gpt-6-luna",
-                    state={},
-                    questions=[
-                        AIChoiceQuestion(id="q", instructions="Pick", options=["a"])
-                    ],
-                ),
-                CREDENTIALS,
-            )
-        assert error.value.code == AIProviderErrorCode.UNSUPPORTED_OPERATION
-        client._session.request.assert_not_called()
+    def test_supports_generation_and_decisions(self):
+        assert OpenAIClient().features() == {
+            AIClientFeature.GENERATION,
+            AIClientFeature.DECISIONS,
+        }
 
     @pytest.mark.asyncio
     async def test_model_providers_are_unsupported(self):
@@ -129,12 +115,44 @@ class TestOpenAIClientFeatures:
 
 class TestOpenAIClientGetModel:
     @pytest.mark.asyncio
-    async def test_text_model_supports_structured_output(self):
-        client = _client((200, {"id": "gpt-6-luna", "object": "model"}))
+    async def test_decision_capable_model_is_detected_by_probe(self):
+        client = _client(
+            (200, {"id": "gpt-6-luna", "object": "model"}),
+            (200, {"answers": [{"type": "predicate", "name": "probe"}]}),
+        )
         model = await client.get_model("gpt-6-luna", CREDENTIALS)
         assert model.id == "gpt-6-luna"
-        assert model.capabilities == {AIModelCapability.STRUCTURED_OUTPUT}
+        assert model.capabilities == {
+            AIModelCapability.STRUCTURED_OUTPUT,
+            AIModelCapability.DECISIONS,
+        }
         assert _sent(client)[1] == "https://api.openai.com/v1/models/gpt-6-luna"
+        method, url, kwargs = _sent(client, 1)
+        assert method == "POST"
+        assert url == "https://api.openai.com/v1/decisions"
+        assert kwargs["json"]["model"] == "gpt-6-luna"
+        assert kwargs["json"]["questions"][0]["type"] == "predicate"
+
+    @pytest.mark.parametrize("status", [400, 404, 422])
+    @pytest.mark.asyncio
+    async def test_text_model_without_decisions_supports_structured_output(
+        self, status
+    ):
+        client = _client(
+            (200, {"id": "gpt-6", "object": "model"}),
+            (status, {"error": {"message": "Model not supported"}}),
+        )
+        model = await client.get_model("gpt-6", CREDENTIALS)
+        assert model.capabilities == {AIModelCapability.STRUCTURED_OUTPUT}
+
+    @pytest.mark.asyncio
+    async def test_decisions_probe_quota_error_is_raised(self):
+        client = _client(
+            (200, {"id": "gpt-6-luna", "object": "model"}), (429, QUOTA_ERROR)
+        )
+        with pytest.raises(AIProviderError) as error:
+            await client.get_model("gpt-6-luna", CREDENTIALS)
+        assert error.value.code == AIProviderErrorCode.INSUFFICIENT_FUNDS
 
     @pytest.mark.parametrize(
         "model_id",
@@ -247,6 +265,84 @@ class TestOpenAIClientGenerate:
             await client.generate(_request(upstream_provider="azure"), CREDENTIALS)
         assert error.value.code == AIProviderErrorCode.UNSUPPORTED_OPERATION
         client._session.request.assert_not_called()
+
+
+def _decision_request() -> AIDecisionRequest:
+    return AIDecisionRequest(
+        model="gpt-6-luna",
+        state={"categories": {"food": "Comida", "none": "No category"}},
+        questions=[
+            AIChoiceQuestion(id="m1", instructions="Pick m1", options=["food", "none"]),
+            AIChoiceQuestion(id="m2", instructions="Pick m2", options=["food", "none"]),
+        ],
+    )
+
+
+class TestOpenAIClientDecide:
+    @pytest.mark.asyncio
+    async def test_builds_decisions_body(self):
+        client = _client((200, {"answers": []}))
+        await client.decide(_decision_request(), CREDENTIALS)
+        method, url, kwargs = _sent(client)
+        assert method == "POST"
+        assert url == "https://api.openai.com/v1/decisions"
+        assert kwargs["json"] == {
+            "model": "gpt-6-luna",
+            "input": '{"categories": {"food": "Comida", "none": "No category"}}',
+            "questions": [
+                {
+                    "type": "choice",
+                    "name": "m1",
+                    "instructions": "Pick m1",
+                    "choices": [{"value": "food"}, {"value": "none"}],
+                },
+                {
+                    "type": "choice",
+                    "name": "m2",
+                    "instructions": "Pick m2",
+                    "choices": [{"value": "food"}, {"value": "none"}],
+                },
+            ],
+        }
+
+    @pytest.mark.asyncio
+    async def test_maps_choice_answers_and_skips_refusals(self):
+        client = _client(
+            (
+                200,
+                {
+                    "answers": [
+                        {
+                            "type": "choice",
+                            "name": "m1",
+                            "choice": "food",
+                            "probabilities": [
+                                {"value": "food", "probability": 0.9},
+                                {"value": "none", "probability": 0.1},
+                            ],
+                            "confidence": 0.85,
+                        },
+                        {"type": "refusal", "name": "m2"},
+                    ]
+                },
+            )
+        )
+        result = await client.decide(_decision_request(), CREDENTIALS)
+        assert set(result.answers) == {"m1"}
+        answer = result.answers["m1"]
+        assert answer.choice == "food"
+        assert answer.confidence == Dezimal("0.85")
+        assert answer.probabilities == {
+            "food": Dezimal("0.9"),
+            "none": Dezimal("0.1"),
+        }
+
+    @pytest.mark.asyncio
+    async def test_insufficient_quota_raises(self):
+        client = _client((429, QUOTA_ERROR))
+        with pytest.raises(AIProviderError) as error:
+            await client.decide(_decision_request(), CREDENTIALS)
+        assert error.value.code == AIProviderErrorCode.INSUFFICIENT_FUNDS
 
 
 class TestOpenAIClientErrors:

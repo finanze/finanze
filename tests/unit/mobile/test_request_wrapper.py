@@ -1,3 +1,4 @@
+import json
 import sys
 from datetime import date
 from importlib.util import module_from_spec, spec_from_file_location
@@ -9,7 +10,10 @@ from uuid import uuid4
 
 import pytest
 
+from domain.budget import BudgetComparison, BudgetLabelComparison
 from domain.cashflow import CashflowGranularity
+from domain.dezimal import Dezimal
+from domain.earnings_expenses import FlowType
 from domain.use_cases.get_cashflow_summary import GetCashflowSummary
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -102,7 +106,7 @@ async def test_cashflow_request_through_mobile_router(mobile_transport, with_ent
     )
 
     assert response["status"] == 200
-    assert response["data"] == {"currency": "EUR"}
+    assert json.loads(response["json"]) == {"currency": "EUR"}
     assert response["headers"]["Content-Type"] == "application/json"
     use_case.execute.assert_awaited_once()
     query = use_case.execute.await_args.args[0]
@@ -138,5 +142,69 @@ async def test_invalid_cashflow_dates_return_400_on_mobile(mobile_transport, dat
     )
 
     assert response["status"] == 400
-    assert response["data"]["code"] == "INVALID_REQUEST"
+    assert json.loads(response["json"])["code"] == "INVALID_REQUEST"
     use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_json_responses_keep_nulls_and_drop_non_finite_numbers(
+    mobile_transport,
+):
+    comparison = BudgetComparison(
+        expected=Dezimal("300"), actual=None, ratio=None, difference=None
+    )
+    row = BudgetLabelComparison(
+        label_id=None, flow_type=FlowType.EXPENSE, comparison=comparison
+    )
+
+    async def route(_request):
+        return {"rows": [row], "nan": float("nan"), "inf": Dezimal("Infinity")}
+
+    mobile_transport.router.add("GET", "/api/v1/budget", route)
+
+    response = await mobile_transport.router.handle("GET", "/api/v1/budget", None, {})
+
+    assert "data" not in response
+    assert json.loads(response["json"]) == {
+        "rows": [
+            {
+                "label_id": None,
+                "flow_type": "EXPENSE",
+                "comparison": {
+                    "expected": 300.0,
+                    "actual": None,
+                    "ratio": None,
+                    "difference": None,
+                },
+            }
+        ],
+        "nan": None,
+        "inf": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_binary_and_unserializable_responses_keep_raw_data(mobile_transport):
+    quart = sys.modules["quart"]
+    payload = b"\x89PNG"
+
+    async def image(_request):
+        return quart.Response(data=payload, mimetype="image/png")
+
+    async def nested_bytes(_request):
+        return {"content": payload}
+
+    mobile_transport.router.add("GET", "/api/v1/image", image)
+    mobile_transport.router.add("GET", "/api/v1/nested", nested_bytes)
+
+    image_response = await mobile_transport.router.handle(
+        "GET", "/api/v1/image", None, {}
+    )
+    nested_response = await mobile_transport.router.handle(
+        "GET", "/api/v1/nested", None, {}
+    )
+
+    assert image_response["data"] == payload
+    assert "json" not in image_response
+    assert nested_response["data"] == {"content": payload}
+    assert "json" not in nested_response

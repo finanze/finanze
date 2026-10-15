@@ -14,7 +14,7 @@ DDL = """
       SET subcategory = CASE
           WHEN category = 'EXPENSE' AND key IN (
               'restaurants', 'shopping', 'subscriptions', 'leisure', 'travel',
-              'personal_care', 'gifts_donations', 'bank_fees'
+              'personal_care', 'gifts_donations', 'bank_fees', 'other_expense'
           ) THEN 'WANTS'
           WHEN category = 'EXPENSE' THEN 'NEED'
           WHEN category = 'EXCLUDED' AND key = 'savings_investment' THEN 'SAVINGS'

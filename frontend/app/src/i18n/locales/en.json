@@ -2104,7 +2104,7 @@
       "connectProvider": "Configure it in integrations",
       "connectRequired": "Connect the provider or turn off external suggestions to save.",
       "model": "Model",
-      "confidenceScores": "Confidence scores",
+      "decisionModel": "Decision model",
       "customModel": "Other model",
       "customModelPlaceholder": "openai/gpt-6-luna",
       "customModelPlaceholders": {

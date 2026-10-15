@@ -561,7 +561,13 @@ def _contribution(amount="120", frequency=ContributionFrequency.MONTHLY, **kwarg
     )
 
 
-def _investment_tx(amount, tx_type, day=date(2025, 3, 5), currency="EUR"):
+def _investment_tx(
+    amount,
+    tx_type,
+    day=date(2025, 3, 5),
+    currency="EUR",
+    product_type=ProductType.FUND,
+):
     return BaseInvestmentTx(
         id=uuid4(),
         ref=str(uuid4()),
@@ -572,8 +578,44 @@ def _investment_tx(amount, tx_type, day=date(2025, 3, 5), currency="EUR"):
         date=datetime(day.year, day.month, day.day, 12, tzinfo=tzlocal()),
         entity=ENTITY,
         source=DataSource.REAL,
-        product_type=ProductType.FUND,
+        product_type=product_type,
     )
+
+
+def test_budget_investing_ignores_deposit_transactions():
+    deposit = ProductType.DEPOSIT
+    txs = [_tx("1000", TxType.INFLOW, date(2025, 3, 1))]
+    convert = rate_converter(RATES, "EUR")
+    query = CashflowQuery(
+        currency="EUR", from_date=date(2025, 3, 1), to_date=date(2025, 3, 31)
+    )
+    summary = aggregate_cashflow(txs, [], set(), convert, query)
+
+    result = compare_budget(
+        [],
+        query.from_date,
+        query.to_date,
+        summary.totals.income,
+        summary.totals.expenses,
+        {},
+        set(),
+        convert,
+        investment_txs=[
+            _investment_tx("20000", TxType.INVESTMENT, product_type=deposit),
+            _investment_tx("15000", TxType.BUY, product_type=deposit),
+            _investment_tx("5000", TxType.REPAYMENT, product_type=deposit),
+            _investment_tx("300", TxType.BUY),
+        ],
+        account_txs=txs,
+        period_of=lambda day: period_start(day, query.granularity),
+        income_by_period={point.period: point.income for point in summary.series},
+    )
+
+    assert result.invested.actual == Dezimal("300")
+    assert result.invested_breakdown.transactions == Dezimal("300")
+    assert [(p.invested, p.remainder) for p in result.series] == [
+        (Dezimal(300), Dezimal(700))
+    ]
 
 
 def test_budget_investing_nets_purchases_and_sales_without_reducing_operating_savings():
@@ -999,6 +1041,28 @@ def test_ignored_movement_matches_same_series_within_amount_band():
     by_amount = {m.amount.val: m for m in movements}
     assert by_amount[Dezimal("10.99").val].ignored_id == ignored.id
     assert by_amount[Dezimal("2.99").val].ignored_id is None
+
+
+def test_ignored_movement_matches_key_truncated_at_a_space():
+    name = (
+        "IMPUESTO DE RENTAS DE CAPITAL (I.R.C) REMUNERACIÓN CAP. SOCIAL "
+        "LIQ SEMESTR SOCIO: 0002310847"
+    )
+    txs = _monthly(name, ["0.11"] * 4, TxType.OUTFLOW, date(2025, 6, 2))
+    ignored = IgnoredRecurringMovement(
+        id=uuid4(),
+        key="impuesto de rentas de capital i r c remuneracion cap social",
+        type=TxType.OUTFLOW,
+        currency="EUR",
+        amount=Dezimal("0.11"),
+    )
+
+    movements = detect_recurring(
+        txs, set(), date(2025, 6, 10), [], rate_converter(RATES, "EUR"), [ignored]
+    )
+
+    assert [m.key for m in movements] == [ignored.key]
+    assert movements[0].ignored_id == ignored.id
 
 
 def test_ignored_movement_is_not_matched_to_tracked_flows():

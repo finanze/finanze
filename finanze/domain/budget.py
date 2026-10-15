@@ -8,6 +8,7 @@ from pydantic.dataclasses import dataclass
 from domain.auto_contributions import ContributionFrequency, PeriodicContribution
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
+from domain.global_position import ProductType
 from domain.transactions import AccountTx, BaseInvestmentTx, TxType
 
 MONTHLY_MULTIPLIERS = {
@@ -200,7 +201,7 @@ def compare_budget(
     invested_actual_complete = True
     for tx in investment_txs or []:
         direction = INVESTMENT_DIRECTIONS.get(tx.type)
-        if direction is None:
+        if direction is None or tx.product_type == ProductType.DEPOSIT:
             continue
         if not from_date <= tx.date.date() <= to_date:
             continue

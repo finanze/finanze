@@ -548,12 +548,26 @@ async def test_classify_external_errors_are_swallowed(env):
     env.provider.label.assert_awaited_once()
 
 
-def _openai_session(category: str) -> AsyncMock:
+def _openai_session(category: str, decisions: bool = False) -> AsyncMock:
     async def request(method, url, **kwargs):
         if method == "GET":
             return HttpResponse(
                 httpx.Response(200, json={"id": "gpt-6-luna", "object": "model"})
             )
+        if url.endswith("/decisions"):
+            if not decisions:
+                return HttpResponse(httpx.Response(404, json={"error": {}}))
+            answers = [
+                {
+                    "type": "choice",
+                    "name": question["name"],
+                    "choice": category,
+                    "probabilities": [{"value": category, "probability": 0.95}],
+                    "confidence": 0.95,
+                }
+                for question in kwargs["json"]["questions"]
+            ]
+            return HttpResponse(httpx.Response(200, json={"answers": answers}))
         movements = json.loads(kwargs["json"]["input"][0]["content"])
         results = [
             {"id": movement_id, "category": category, "confidence": 0.95}
@@ -636,23 +650,60 @@ async def test_classify_external_with_openai_provider(env):
 
 
 @pytest.mark.asyncio
+async def test_classify_external_with_openai_decisions(env):
+    restaurants = await env.label_id("restaurants")
+    client = OpenAIClient()
+    client._session = _openai_session("restaurants", decisions=True)
+    labeler = TransactionLabelerAdapter(
+        transaction_port=env.tx_repo,
+        transaction_label_port=env.tx_label_repo,
+        labeling_rule_port=env.rule_repo,
+        label_port=env.label_repo,
+        config_port=env.config_port,
+        external_integration_port=env.integration_port,
+        providers={
+            ExternalIntegrationId.OPENAI: AILabelingProvider(
+                client, LABELING_PRESETS[ExternalIntegrationId.OPENAI]
+            )
+        },
+        transaction_handler_port=env.handler,
+    )
+    env.config_port.load = AsyncMock(
+        return_value=_settings(
+            ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
+        )
+    )
+    tx = env.account_tx("Burger place", "15")
+    await env.save(tx)
+
+    result = await labeler.classify_external(
+        AccountTxSelection(ids=[tx.id]), LabelingTrigger.MANUAL
+    )
+
+    assert result.external_labeled == 1
+    stored = await env.labels_of(tx.id)
+    assert stored[0].label_id == restaurants
+    assert stored[0].confidence == Dezimal("0.95")
+    urls = [call.args[1] for call in client._session.request.call_args_list]
+    assert urls[-1] == "https://api.openai.com/v1/decisions"
+    assert "https://api.openai.com/v1/responses" not in urls
+
+
+@pytest.mark.asyncio
 async def test_relabel_reports_openai_quota_error_details(env):
+    quota_error = {
+        "error": {
+            "message": "You exceeded your current quota",
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+        }
+    }
     client = OpenAIClient()
     client._session = AsyncMock()
     client._session.request.side_effect = [
         HttpResponse(httpx.Response(200, json={"id": "gpt-6-luna"})),
-        HttpResponse(
-            httpx.Response(
-                429,
-                json={
-                    "error": {
-                        "message": "You exceeded your current quota",
-                        "type": "insufficient_quota",
-                        "code": "insufficient_quota",
-                    }
-                },
-            )
-        ),
+        HttpResponse(httpx.Response(429, json=quota_error)),
+        HttpResponse(httpx.Response(429, json=quota_error)),
     ]
     labeler = TransactionLabelerAdapter(
         transaction_port=env.tx_repo,

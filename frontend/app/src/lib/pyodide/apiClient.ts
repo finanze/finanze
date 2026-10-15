@@ -21,6 +21,19 @@ function logDebug(message: string, data?: any) {
   appConsole.debug(`[PyodideApiClient] ${message}`, data)
 }
 
+interface PythonResponse {
+  status: number
+  data?: any
+  json?: string
+  headers: Record<string, string>
+}
+
+function responseBody(response: PythonResponse): any {
+  return typeof response.json === "string"
+    ? JSON.parse(response.json)
+    : response.data
+}
+
 export class PyodideApiClient implements ApiClient {
   async getApiServerInfo(): Promise<ApiServerInfo> {
     return {
@@ -89,16 +102,18 @@ export class PyodideApiClient implements ApiClient {
     await ensureInitialized(initMethod, fullPath)
 
     try {
-      const response = await callPythonFunction<{
-        status: number
-        data: any
-        headers: Record<string, string>
-      }>("controller", "handle", body ? "POST" : "GET", fullPath, body, {})
+      const response = await callPythonFunction<PythonResponse>(
+        "controller",
+        "handle",
+        body ? "POST" : "GET",
+        fullPath,
+        body,
+        {},
+      )
+      const data = responseBody(response)
 
       if (response.status >= 400) {
-        const error: any = new Error(
-          response.data?.message || "Download failed",
-        )
+        const error: any = new Error(data?.message || "Download failed")
         error.status = response.status
         throw error
       }
@@ -110,31 +125,31 @@ export class PyodideApiClient implements ApiClient {
       // - Object with numeric keys like {0: 110, 1: 97, ...} (common case)
       // - String
       let blob: Blob
-      if (response.data instanceof Uint8Array) {
-        blob = new Blob([response.data as BlobPart])
-      } else if (response.data instanceof ArrayBuffer) {
-        blob = new Blob([response.data])
-      } else if (typeof response.data === "string") {
-        blob = new Blob([response.data], { type: "text/plain;charset=utf-8" })
+      if (data instanceof Uint8Array) {
+        blob = new Blob([data as BlobPart])
+      } else if (data instanceof ArrayBuffer) {
+        blob = new Blob([data])
+      } else if (typeof data === "string") {
+        blob = new Blob([data], { type: "text/plain;charset=utf-8" })
       } else if (
-        response.data &&
-        typeof response.data === "object" &&
-        "0" in response.data
+        typeof response.json !== "string" &&
+        data &&
+        typeof data === "object" &&
+        "0" in data
       ) {
         // Pyodide converts Python bytes to an object with numeric keys {0: val, 1: val, ...}
         // Find the length by checking for the highest numeric key
-        const keys = Object.keys(response.data)
+        const keys = Object.keys(data)
           .filter(k => /^\d+$/.test(k))
           .map(Number)
         const maxIndex = Math.max(...keys)
         const uint8Array = new Uint8Array(maxIndex + 1)
         for (let i = 0; i <= maxIndex; i++) {
-          uint8Array[i] = response.data[i] ?? 0
+          uint8Array[i] = data[i] ?? 0
         }
         blob = new Blob([uint8Array as BlobPart])
       } else {
-        // For other objects, stringify them
-        blob = new Blob([JSON.stringify(response.data)], {
+        blob = new Blob([response.json ?? JSON.stringify(data)], {
           type: "application/json",
         })
       }
@@ -249,19 +264,23 @@ export class PyodideApiClient implements ApiClient {
     const headers = options?.headers || {}
 
     try {
-      const response = await callPythonFunction<{
-        status: number
-        data: any
-        headers: Record<string, string>
-      }>("controller", "handle", method, fullPath, payload, headers)
+      const response = await callPythonFunction<PythonResponse>(
+        "controller",
+        "handle",
+        method,
+        fullPath,
+        payload,
+        headers,
+      )
+      const data = responseBody(response)
 
       logDebug(`${path} Response status: ${response.status}`)
 
       if (response.status >= 400) {
-        const error: any = new Error(response.data?.message || "Request failed")
+        const error: any = new Error(data?.message || "Request failed")
         error.status = response.status
-        error.code = response.data?.code
-        error.details = response.data?.details
+        error.code = data?.code
+        error.details = data?.details
         throw error
       }
 
@@ -269,7 +288,7 @@ export class PyodideApiClient implements ApiClient {
         return null as unknown as T
       }
 
-      return response.data as T
+      return data as T
     } catch (e: any) {
       appConsole.error(`[PyodideApiClient] ${method} ${path}:`, e)
 

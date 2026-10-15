@@ -161,7 +161,7 @@ class TestRecommendedModels:
         )
         models = provider.get_recommended_models()
         assert [m.id for m in models] == ["gpt-6-luna"]
-        assert models[0].probabilistic is False
+        assert models[0].probabilistic is True
 
     def test_upstream_support_depends_on_client_features(self):
         assert _provider(FakeAIClient()).supports_upstream_providers()
@@ -321,6 +321,17 @@ class TestLabel:
             client, LABELING_PRESETS[ExternalIntegrationId.OPENROUTER]
         ).label(_request("~typesafe/jev-latest"), CREDENTIALS)
         assert len(client.decide_requests) == 1
+
+    @pytest.mark.asyncio
+    async def test_openai_preset_uses_decisions_without_model_info(self):
+        client = FakeAIClient(
+            features={AIClientFeature.GENERATION, AIClientFeature.DECISIONS}
+        )
+        await _provider(client, LABELING_PRESETS[ExternalIntegrationId.OPENAI]).label(
+            _request("gpt-6-luna"), CREDENTIALS
+        )
+        assert len(client.decide_requests) == 1
+        assert client.generate_requests == []
 
     @pytest.mark.asyncio
     async def test_falls_back_to_generation_without_model_info(self):

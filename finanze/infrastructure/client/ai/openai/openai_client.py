@@ -1,8 +1,12 @@
+import json
 from typing import Optional
 from urllib.parse import quote
 
 from domain.ai import (
     AIClientFeature,
+    AIDecisionAnswer,
+    AIDecisionRequest,
+    AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
     AIGenerationStatus,
@@ -18,10 +22,20 @@ from domain.exception.exceptions import (
     TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationPayload
-from infrastructure.client.ai.http_ai_client import REASONING_EFFORTS, HttpAIClient
+from infrastructure.client.ai.http_ai_client import (
+    REASONING_EFFORTS,
+    HttpAIClient,
+    to_dezimal,
+)
 from infrastructure.client.http.http_response import HttpResponse
 
 INSUFFICIENT_QUOTA = "insufficient_quota"
+DECISIONS_UNSUPPORTED_STATUSES = (400, 404, 422)
+DECISIONS_PROBE_QUESTION = {
+    "type": "predicate",
+    "name": "probe",
+    "instructions": "Is the input text non-empty?",
+}
 
 NON_TEXT_MODEL_PREFIXES = (
     "text-embedding",
@@ -52,7 +66,7 @@ class OpenAIClient(HttpAIClient):
     BASE_URL = "https://api.openai.com/v1"
 
     def features(self) -> set[AIClientFeature]:
-        return {AIClientFeature.GENERATION}
+        return {AIClientFeature.GENERATION, AIClientFeature.DECISIONS}
 
     async def setup(self, payload: ExternalIntegrationPayload):
         response = await self._request("GET", "/models", payload)
@@ -74,12 +88,75 @@ class OpenAIClient(HttpAIClient):
             return None
         await self._check(response)
         data = await response.json()
-        capabilities = (
-            {AIModelCapability.STRUCTURED_OUTPUT} if _is_text_model(model_id) else set()
-        )
+        capabilities = set()
+        if _is_text_model(model_id):
+            capabilities.add(AIModelCapability.STRUCTURED_OUTPUT)
+            if await self._supports_decisions(model_id, credentials):
+                capabilities.add(AIModelCapability.DECISIONS)
         return AIModel(
             id=data.get("id") or model_id, name=model_id, capabilities=capabilities
         )
+
+    async def decide(
+        self, request: AIDecisionRequest, credentials: ExternalIntegrationPayload
+    ) -> AIDecisionResult:
+        body = {
+            "model": request.model,
+            "input": json.dumps(request.state, ensure_ascii=False),
+            "questions": [
+                {
+                    "type": "choice",
+                    "name": question.id,
+                    "instructions": question.instructions,
+                    "choices": [{"value": option} for option in question.options],
+                }
+                for question in request.questions
+            ],
+        }
+        response = await self._send("POST", "/decisions", credentials, json=body)
+
+        answers = {}
+        refused = 0
+        for answer in response.get("answers") or []:
+            if not isinstance(answer, dict) or not answer.get("name"):
+                continue
+            if answer.get("type") == "refusal":
+                refused += 1
+                continue
+            if answer.get("type") != "choice":
+                continue
+            probabilities = {
+                str(item.get("value")): probability
+                for item in answer.get("probabilities") or []
+                if isinstance(item, dict)
+                and (probability := to_dezimal(item.get("probability"))) is not None
+            }
+            answers[answer["name"]] = AIDecisionAnswer(
+                choice=answer.get("choice"),
+                confidence=to_dezimal(answer.get("confidence")),
+                probabilities=probabilities,
+            )
+        if refused:
+            self._log.warning(f"OpenAI refused {refused} decision questions")
+        return AIDecisionResult(answers=answers)
+
+    async def _supports_decisions(
+        self, model_id: str, credentials: Optional[ExternalIntegrationPayload]
+    ) -> bool:
+        response = await self._request(
+            "POST",
+            "/decisions",
+            credentials,
+            json={
+                "model": model_id,
+                "input": "ping",
+                "questions": [DECISIONS_PROBE_QUESTION],
+            },
+        )
+        if response.status in DECISIONS_UNSUPPORTED_STATUSES:
+            return False
+        await self._check(response)
+        return True
 
     async def generate(
         self, request: AIGenerationRequest, credentials: ExternalIntegrationPayload

@@ -2099,7 +2099,7 @@
       "connectProvider": "Configuralo nelle integrazioni",
       "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
       "model": "Modello",
-      "confidenceScores": "Livello di confidenza",
+      "decisionModel": "Modello decisionale",
       "customModel": "Altro modello",
       "customModelPlaceholder": "openai/gpt-6-luna",
       "customModelPlaceholders": {

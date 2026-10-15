@@ -4,6 +4,7 @@ from typing import Optional
 
 from application.ports.ai_client import AIClient
 from domain.ai import AIReasoningEffort
+from domain.dezimal import Dezimal
 from domain.exception.exceptions import (
     AIProviderError,
     AIProviderErrorCode,
@@ -20,6 +21,15 @@ REASONING_EFFORTS = {
     AIReasoningEffort.HIGH: "high",
     AIReasoningEffort.EXTRA_HIGH: "xhigh",
 }
+
+
+def to_dezimal(value) -> Optional[Dezimal]:
+    if value is None:
+        return None
+    try:
+        return Dezimal(str(value))
+    except ValueError:
+        return None
 
 
 class HttpAIClient(AIClient):

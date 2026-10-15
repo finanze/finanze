@@ -28,7 +28,8 @@ LABELING_PRESETS: dict[ExternalIntegrationId, list[AILabelingPreset]] = {
             model=ExternalLabelingModel(
                 id="gpt-6-luna",
                 name="GPT-6 Luna",
-                description="Fast and low cost OpenAI model",
+                description="Fast and low cost OpenAI decision model, returns calibrated probabilities",
+                probabilistic=True,
             ),
             reasoning_effort=AIReasoningEffort.NONE,
         ),

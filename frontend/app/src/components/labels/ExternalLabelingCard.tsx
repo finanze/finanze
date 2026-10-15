@@ -415,7 +415,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                           {model.name}
                           {model.probabilistic && (
                             <Badge variant="outline" className="text-[10px]">
-                              {t.labels.external.confidenceScores}
+                              {t.labels.external.decisionModel}
                             </Badge>
                           )}
                         </div>

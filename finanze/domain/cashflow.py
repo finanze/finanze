@@ -205,7 +205,7 @@ def counterparty_key(tx: AccountTx) -> str:
     text = normalize_text(tx.counterparty or tx.name)
     text = re.sub(r"[0-9]+", " ", text)
     text = re.sub(r"[^\w\s]", " ", text)
-    return " ".join(text.split())[:60]
+    return " ".join(text.split())[:60].rstrip()
 
 
 def _display_name(tx: AccountTx) -> str:

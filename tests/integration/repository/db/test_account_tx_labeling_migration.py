@@ -165,6 +165,7 @@ async def test_label_subcategories_migrate_defaults_and_preserve_existing_catego
 
     assert labels["groceries"] == ("EXPENSE", "NEED")
     assert labels["restaurants"] == ("EXPENSE", "WANTS")
+    assert labels["other_expense"] == ("EXPENSE", "WANTS")
     assert labels["salary"] == ("INCOME", "NONE")
     assert labels["shopping"] == ("INCOME", "NONE")
     assert labels["internal_transfer"] == ("EXCLUDED", "NONE")

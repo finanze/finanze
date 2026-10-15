@@ -221,7 +221,7 @@ export function CashflowComposition({
                   if (!active || !payload?.length) return null
                   const row = payload[0].payload as Record<string, number>
                   const items = chart.series
-                    .filter(item => row[item.key])
+                    .filter(item => mode === "budget" || row[item.key])
                     .reverse()
                   const total = chart.series.reduce(
                     (sum, item) => sum + (row[item.key] ?? 0),
@@ -234,6 +234,14 @@ export function CashflowComposition({
                       </p>
                       {items.map(item => {
                         const { name, color } = describe(item)
+                        const value = row[item.key] ?? 0
+                        const percentage =
+                          mode === "budget" && total > 0
+                            ? new Intl.NumberFormat(locale, {
+                                style: "percent",
+                                maximumFractionDigits: 1,
+                              }).format(value / total)
+                            : null
                         return (
                           <p
                             key={item.key}
@@ -246,7 +254,14 @@ export function CashflowComposition({
                               />
                               <span className="truncate">{name}</span>
                             </span>
-                            <Sensitive>{money(row[item.key])}</Sensitive>
+                            <Sensitive>
+                              {money(value)}
+                              {percentage && (
+                                <span className="ml-1.5 text-muted-foreground">
+                                  ({percentage})
+                                </span>
+                              )}
+                            </Sensitive>
                           </p>
                         )
                       })}

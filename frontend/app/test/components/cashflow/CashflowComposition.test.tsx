@@ -53,7 +53,32 @@ vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children?: ReactNode }) => (
     <div>{children}</div>
   ),
-  Tooltip: () => null,
+  Tooltip: ({
+    content,
+  }: {
+    content?: (props: {
+      active: boolean
+      payload: Array<{ payload: Record<string, number | string> }>
+      label: string
+    }) => ReactNode
+  }) =>
+    content?.({
+      active: true,
+      payload: [
+        {
+          payload: {
+            period: "2025-03-01",
+            label0: 120,
+            unlabeled: 30,
+            needs: 150,
+            wants: 0,
+            invested: 900,
+            remainder: -50,
+          },
+        },
+      ],
+      label: "2025-03-01",
+    }) ?? null,
   XAxis: () => null,
   YAxis: ({ tick }: { tick: unknown }) => (
     <div data-testid="y-axis" data-tick={JSON.stringify(tick)} />
@@ -142,6 +167,17 @@ describe("CashflowComposition", () => {
       screen.getByTestId("composition-legend-remainder"),
     ).toHaveTextContent(en.cashflow.composition.remainder)
     expect(screen.getByTestId("zero-line")).toBeInTheDocument()
+  })
+
+  it("shows each budget bucket as a percentage of period income", () => {
+    renderComposition()
+
+    fireEvent.click(screen.getByTestId("composition-mode-budget"))
+
+    expect(screen.getByText("(15%)")).toBeInTheDocument()
+    expect(screen.getByText("(0%)")).toBeInTheDocument()
+    expect(screen.getByText("(90%)")).toBeInTheDocument()
+    expect(screen.getByText("(-5%)")).toBeInTheDocument()
   })
 
   it("falls back to labels without budget groups when filtered by entity", () => {

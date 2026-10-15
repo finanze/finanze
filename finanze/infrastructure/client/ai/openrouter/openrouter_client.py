@@ -14,7 +14,6 @@ from domain.ai import (
     AIModelProvider,
     AIUsage,
 )
-from domain.dezimal import Dezimal
 from domain.exception.exceptions import (
     AIProviderError,
     AIProviderErrorCode,
@@ -23,7 +22,11 @@ from domain.exception.exceptions import (
     TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationPayload
-from infrastructure.client.ai.http_ai_client import REASONING_EFFORTS, HttpAIClient
+from infrastructure.client.ai.http_ai_client import (
+    REASONING_EFFORTS,
+    HttpAIClient,
+    to_dezimal,
+)
 from infrastructure.client.http.http_response import HttpResponse
 
 APP_TITLE = "Finanze"
@@ -44,15 +47,6 @@ def _capabilities(supported_parameters: list, text_output: bool = True) -> set:
     if "reasoning" in supported:
         capabilities.add(AIModelCapability.REASONING)
     return capabilities
-
-
-def _to_dezimal(value) -> Optional[Dezimal]:
-    if value is None:
-        return None
-    try:
-        return Dezimal(str(value))
-    except ValueError:
-        return None
 
 
 class OpenRouterClient(HttpAIClient):
@@ -207,11 +201,11 @@ class OpenRouterClient(HttpAIClient):
             probabilities = {
                 option: probability
                 for option, value in (answer.get("probabilities") or {}).items()
-                if (probability := _to_dezimal(value)) is not None
+                if (probability := to_dezimal(value)) is not None
             }
             answers[question_id] = AIDecisionAnswer(
                 choice=answer.get("choice"),
-                confidence=_to_dezimal(answer.get("confidence")),
+                confidence=to_dezimal(answer.get("confidence")),
                 probabilities=probabilities,
             )
         return AIDecisionResult(answers=answers)
