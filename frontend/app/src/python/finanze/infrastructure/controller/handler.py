@@ -253,7 +253,7 @@ async def handle_request(router, method, path, body, headers):
         router.logger.exception(f"Error handling {method} {path}")
 
         reporter = getattr(router, "error_reporter", None)
-        if reporter is not None:
+        if reporter is not None and data["code"] == "UNEXPECTED_ERROR":
             reporter.capture_exception(
                 original, tags={"http_method": method, "route": clean_path}
             )

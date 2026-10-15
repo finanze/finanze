@@ -4,7 +4,7 @@ from datetime import date
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -13,6 +13,7 @@ import pytest
 from domain.budget import BudgetComparison, BudgetLabelComparison
 from domain.cashflow import CashflowGranularity
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import InvalidLabelingRule
 from domain.earnings_expenses import FlowType
 from domain.use_cases.get_cashflow_summary import GetCashflowSummary
 
@@ -208,3 +209,48 @@ async def test_binary_and_unserializable_responses_keep_raw_data(mobile_transpor
     assert "json" not in image_response
     assert nested_response["data"] == {"content": payload}
     assert "json" not in nested_response
+
+
+@pytest.mark.asyncio
+async def test_invalid_labeling_rule_is_not_reported(mobile_transport):
+    reporter = Mock()
+    mobile_transport.router.error_reporter = reporter
+
+    async def route(_request):
+        raise InvalidLabelingRule("Invalid regular expression: bad escape")
+
+    mobile_transport.router.add("POST", "/api/v1/labeling-rules/preview", route)
+
+    response = await mobile_transport.router.handle(
+        "POST", "/api/v1/labeling-rules/preview", {}, {}
+    )
+
+    assert response["status"] == 400
+    assert json.loads(response["json"]) == {
+        "code": "INVALID_LABELING_RULE",
+        "message": "Invalid regular expression: bad escape",
+    }
+    reporter.capture_exception.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_mobile_exception_is_reported(mobile_transport):
+    reporter = Mock()
+    mobile_transport.router.error_reporter = reporter
+    error = RuntimeError("unexpected failure")
+
+    async def route(_request):
+        raise error
+
+    mobile_transport.router.add("GET", "/api/v1/unexpected", route)
+
+    response = await mobile_transport.router.handle(
+        "GET", "/api/v1/unexpected", None, {}
+    )
+
+    assert response["status"] == 500
+    assert json.loads(response["json"])["code"] == "UNEXPECTED_ERROR"
+    reporter.capture_exception.assert_called_once_with(
+        error,
+        tags={"http_method": "GET", "route": "/api/v1/unexpected"},
+    )
