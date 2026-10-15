@@ -166,7 +166,8 @@ _SCHEMA = """
         id CHAR(36) PRIMARY KEY,
         global_position_id CHAR(36),
         currency CHAR(3),
-        used TEXT
+        used TEXT,
+        type VARCHAR(32)
     );
     CREATE TABLE loan_positions (
         id CHAR(36) PRIMARY KEY,

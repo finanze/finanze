@@ -1,5 +1,5 @@
 import type React from "react"
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useLayoutEffect } from "react"
 import { Sidebar } from "./Sidebar"
 import { FloatingBottomNav } from "./FloatingBottomNav"
 import { Toast } from "@/components/ui/Toast"
@@ -117,10 +117,11 @@ function LayoutContent({ children }: LayoutProps) {
   }, [])
 
   const isRouteChange = prevPathnameRef.current !== location.pathname
-  if (isRouteChange) {
+  useLayoutEffect(() => {
+    if (prevPathnameRef.current === location.pathname) return
     prevPathnameRef.current = location.pathname
     resetScroll()
-  }
+  }, [location.pathname, resetScroll])
 
   return (
     <>

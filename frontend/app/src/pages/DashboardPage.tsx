@@ -62,7 +62,7 @@ import {
   computeForecastKpis,
   filterRealEstateByOptions,
   getTotalCash,
-  getTotalCardUsed,
+  getTotalCreditCardUsed,
   getTotalCreditDrawn,
   getUnlinkedLoansOutstanding,
   getRealEstateOwnedEquityTotal,
@@ -403,7 +403,7 @@ export default function DashboardPage() {
     if (investmentEquity) breakdown["REAL_ESTATE"] = investmentEquity
     if (residenceEquity) breakdown["REAL_ESTATE_RESIDENCE"] = residenceEquity
 
-    const cardUsed = getTotalCardUsed(
+    const cardUsed = getTotalCreditCardUsed(
       positionsData,
       targetCurrency,
       exchangeRates,
@@ -471,7 +471,7 @@ export default function DashboardPage() {
     if (investmentEquity) breakdown["REAL_ESTATE"] = investmentEquity
     if (residenceEquity) breakdown["REAL_ESTATE_RESIDENCE"] = residenceEquity
 
-    const cardUsed = getTotalCardUsed(
+    const cardUsed = getTotalCreditCardUsed(
       effectivePositionsData,
       targetCurrency,
       exchangeRates,

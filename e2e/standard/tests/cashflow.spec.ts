@@ -1018,6 +1018,7 @@ test.describe('Cashflow', () => {
         const mobileRow = page
             .getByTestId('cashflow-counterparty-row')
             .filter({ hasText: transactionName })
+        await mobileRow.scrollIntoViewIfNeeded()
         await mobileRow.evaluate((element) =>
             element.scrollIntoView({ block: 'center' }),
         )
@@ -1032,6 +1033,32 @@ test.describe('Cashflow', () => {
         await expect
             .poll(() => scrollRoot.evaluate((element) => element.scrollTop))
             .toBeLessThan(scrollTop)
+
+        await expect(
+            page.getByText(transactionName, { exact: true }).last(),
+        ).toBeVisible()
+        await expect
+            .poll(() =>
+                scrollRoot.evaluate((element) => {
+                    const gestureRoot = element.firstElementChild
+                    const content = gestureRoot?.firstElementChild
+                    if (!gestureRoot || !content) return false
+                    const bounds = element.getBoundingClientRect()
+                    const touchY = bounds.bottom - 128
+                    const target = document.elementFromPoint(
+                        bounds.left + 10,
+                        touchY,
+                    )
+                    return (
+                        gestureRoot.getBoundingClientRect().height + 1 >=
+                            element.clientHeight &&
+                        content.getBoundingClientRect().bottom < touchY &&
+                        target !== null &&
+                        gestureRoot.contains(target)
+                    )
+                }),
+            )
+            .toBe(true)
 
         await page.getByTestId('return-to-origin').click()
         await expect(page).toHaveURL(/\/management\/cashflow\?period=thisMonth/)

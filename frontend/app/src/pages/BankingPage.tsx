@@ -130,7 +130,8 @@ interface AccountsSummary {
 }
 
 interface CardsSummary {
-  totalUsed: number
+  totalCreditUsed: number
+  creditCount: number
   count: number
 }
 
@@ -684,7 +685,8 @@ export default function BankingPage() {
     count: 0,
   })
   const [cardsSummary, setCardsSummary] = useState<CardsSummary>({
-    totalUsed: 0,
+    totalCreditUsed: 0,
+    creditCount: 0,
     count: 0,
   })
   const [loansSummary, setLoansSummary] = useState<LoansSummary>({
@@ -1004,7 +1006,9 @@ export default function BankingPage() {
 
   const updateCardsSummary = useCallback((summary: CardsSummary) => {
     setCardsSummary(prev =>
-      prev.totalUsed === summary.totalUsed && prev.count === summary.count
+      prev.totalCreditUsed === summary.totalCreditUsed &&
+      prev.creditCount === summary.creditCount &&
+      prev.count === summary.count
         ? prev
         : summary,
     )
@@ -1033,7 +1037,7 @@ export default function BankingPage() {
   }, [])
 
   const totalAccountBalance = accountsSummary.totalBalance
-  const totalCardUsed = cardsSummary.totalUsed
+  const totalCreditCardUsed = cardsSummary.totalCreditUsed
   const totalLoanDebt = loansSummary.totalDebt + creditsSummary.totalDrawn
   const totalMonthlyPayments = loansSummary.totalMonthlyPayments
   const combinedDebtCount = loansSummary.count + creditsSummary.count
@@ -1140,19 +1144,19 @@ export default function BankingPage() {
             </Card>
           )}
 
-          {cardsSummary.count > 0 && (
+          {cardsSummary.creditCount > 0 && (
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-orange-500" />
                 <span className="text-sm font-medium text-muted-foreground">
-                  {t.banking.totalCardUsed}
+                  {t.banking.totalCreditCardUsed}
                 </span>
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
                   <FormattedMarketValue
                     value={formatCurrency(
-                      totalCardUsed,
+                      totalCreditCardUsed,
                       locale,
                       settings.general.defaultCurrency,
                     )}
@@ -1161,8 +1165,10 @@ export default function BankingPage() {
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {cardsSummary.count}{" "}
-                {cardsSummary.count === 1 ? t.banking.card : t.banking.cards}
+                {cardsSummary.creditCount}{" "}
+                {cardsSummary.creditCount === 1
+                  ? t.banking.card
+                  : t.banking.cards}
               </div>
             </Card>
           )}
@@ -2336,15 +2342,19 @@ function BankCardsSection({
           return accumulator
         }
 
-        accumulator.total += item.position.convertedUsed ?? 0
+        if (item.position.type === CardType.CREDIT) {
+          accumulator.total += item.position.convertedUsed ?? 0
+          accumulator.creditCount += 1
+        }
         accumulator.count += 1
         return accumulator
       },
-      { total: 0, count: 0 },
+      { total: 0, creditCount: 0, count: 0 },
     )
 
     return {
-      totalUsed: totals.total,
+      totalCreditUsed: totals.total,
+      creditCount: totals.creditCount,
       count: totals.count,
     }
   }, [displayItems, isEntryDeleted])

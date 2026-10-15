@@ -91,6 +91,9 @@ export function LayoutScrollProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resetScroll = useCallback(() => {
+    if (scrollRootRef.current) {
+      scrollRootRef.current.scrollTop = 0
+    }
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current)
       scrollTimeoutRef.current = null

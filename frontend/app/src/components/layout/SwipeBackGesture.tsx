@@ -162,7 +162,7 @@ export function SwipeBackGesture({ children }: SwipeBackGestureProps) {
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="relative min-h-full"
       style={{ touchAction: "pan-y" }}
     >
       {enabled && offsetX > 0 && (
