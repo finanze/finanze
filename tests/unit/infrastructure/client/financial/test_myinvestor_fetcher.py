@@ -7,7 +7,9 @@ import pytest
 from domain.dezimal import Dezimal
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
 from domain.fetch_result import FetchOptions
+from domain.transactions import TxType
 from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_fetcher import (
+    ACCOUNT_TXS_POINTER,
     DEPOSIT_TXS_POINTER,
     FUND_ORDERS_POINTER,
     MyInvestorFetcherV2,
@@ -195,6 +197,154 @@ async def test_account_movement_pointer_is_unchanged_when_fetch_fails():
         )
 
     assert options.pointer_context.pointers[pointer.key].threshold == previous_threshold
+
+
+def _movement(reference, tx_date, amount, operation_class="TRANSFERENCIAS", **extra):
+    return {
+        "reference": reference,
+        "operationClass": operation_class,
+        "operationType": extra.pop("operation_type", "TRANSFERENCIA"),
+        "operationDate": f"{tx_date.isoformat()}T12:00:00.000Z",
+        "currency": "EUR",
+        "concept": extra.pop("concept", f"Concept {reference}"),
+        "amount": amount,
+        **extra,
+    }
+
+
+@pytest.mark.asyncio
+async def test_generic_cash_account_movements_are_mapped_by_sign():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    recent = date.today() - timedelta(days=2)
+    fetcher._client.get_account_movements = AsyncMock(
+        return_value={
+            "flowList": [
+                _movement("in-1", recent, "1500.00", concept=" Nomina "),
+                _movement("out-1", recent, "-45.20", concept="Supermercado"),
+                _movement("zero-1", recent, "0"),
+                _movement(
+                    "int-1",
+                    recent,
+                    "1.00",
+                    operation_class="0",
+                    operation_type="INTERESES S/F",
+                ),
+                _movement(
+                    "ret-1",
+                    recent,
+                    "-0.19",
+                    operation_class="ME",
+                    operation_type="RETE.LIQUIDA",
+                ),
+            ]
+        }
+    )
+    options = _pointer_options()
+
+    result = await fetcher._classify_account_txs(
+        {
+            "accountId": "account-id",
+            "accountType": "CASH_ACCOUNT",
+            "iban": "ES12 1544 0000 0000 0000 0001",
+        },
+        set(),
+        None,
+        date.today() - timedelta(days=10),
+        options,
+    )
+
+    movements = {tx.ref: tx for tx in result["movements"]}
+    assert set(movements) == {"in-1", "out-1"}
+    assert {tx.iban for tx in result["movements"] + result["interests"]} == {
+        "ES1215440000000000000001"
+    }
+    assert movements["in-1"].type == TxType.INFLOW
+    assert movements["in-1"].amount == Dezimal("1500.00")
+    assert movements["in-1"].name == "Nomina"
+    assert movements["out-1"].type == TxType.OUTFLOW
+    assert movements["out-1"].amount == Dezimal("45.20")
+    assert [tx.ref for tx in result["interests"]] == ["int-1"]
+    assert (
+        options.pointer_context.pointers[f"{ACCOUNT_TXS_POINTER}:account-id"].threshold
+        == recent
+    )
+
+
+@pytest.mark.asyncio
+async def test_generic_movements_skip_registered_refs_without_stopping():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    recent = date.today() - timedelta(days=1)
+    fetcher._client.get_account_movements = AsyncMock(
+        return_value={
+            "flowList": [
+                _movement("known", recent, "-10"),
+                _movement("new", recent, "-20"),
+            ]
+        }
+    )
+
+    result = await fetcher._classify_account_txs(
+        {"accountId": "account-id", "accountType": "CASH_ACCOUNT"},
+        {"known"},
+        None,
+        date.today() - timedelta(days=5),
+        _pointer_options(),
+    )
+
+    assert [tx.ref for tx in result["movements"]] == ["new"]
+
+
+@pytest.mark.asyncio
+async def test_generic_movements_lookback_is_capped_to_two_years():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    old = date.today() - timedelta(days=3 * 365)
+    fetcher._client.get_account_movements = AsyncMock(
+        return_value={"flowList": [_movement("old", old, "-10")]}
+    )
+    deposit_pointer = FetchPointer(
+        entity_id=uuid4(),
+        entity_account_id=uuid4(),
+        key=f"{DEPOSIT_TXS_POINTER}:account-id",
+        threshold=date.today(),
+    )
+
+    result = await fetcher._classify_account_txs(
+        {"accountId": "account-id", "accountType": "CASH_ACCOUNT"},
+        set(),
+        None,
+        date(2018, 1, 1),
+        _pointer_options(deposit_pointer),
+    )
+
+    first_from = min(
+        call.args[1] for call in fetcher._client.get_account_movements.await_args_list
+    )
+    assert first_from >= date.today() - timedelta(days=2 * 366)
+    assert result["movements"] == []
+
+
+@pytest.mark.asyncio
+async def test_portfolio_account_does_not_emit_generic_movements():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_security_account_details = AsyncMock(return_value={})
+    recent = date.today() - timedelta(days=1)
+    fetcher._client.get_account_movements = AsyncMock(
+        return_value={"flowList": [_movement("transfer", recent, "100")]}
+    )
+
+    result = await fetcher._classify_account_txs(
+        {"accountId": "account-id", "accountType": "CASH_PORTFOLIO"},
+        set(),
+        "security-id",
+        date.today() - timedelta(days=5),
+        _pointer_options(),
+    )
+
+    assert result["movements"] == []
 
 
 def _complete_fund_order(reference, order_date="2025-01-01"):

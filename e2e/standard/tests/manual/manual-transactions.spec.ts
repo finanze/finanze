@@ -117,6 +117,7 @@ async function createManualTransaction(
     page: Page,
     name: string,
     amount: string,
+    iban?: string,
 ) {
     await page.getByRole('button', { name: 'Add' }).click()
     await expect(page.getByText('Add transaction')).toBeVisible({
@@ -130,6 +131,9 @@ async function createManualTransaction(
     await selectCustomDropdown(page, 'transaction-type', 'Interest')
     await page.locator('#transaction-amount').fill(amount)
     await page.locator('#transaction-currency').selectOption('EUR')
+    if (iban) {
+        await page.locator('#transaction-iban').fill(iban)
+    }
 
     const dialog = page.locator('.fixed.inset-0').last()
     await dialog.getByRole('button', { name: 'Save' }).click()
@@ -166,6 +170,39 @@ test.describe('Manual Transactions', () => {
         await navigateToTransactions(page)
 
         await createManualTransaction(page, 'E2E Manual Tx', '500.75')
+    })
+
+    test('manual account movement shows its IBAN in the details', async ({
+        authenticatedPage: page,
+    }) => {
+        await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
+        await navigateToTransactions(page)
+
+        await createManualTransaction(
+            page,
+            'E2E IBAN Tx',
+            '12.34',
+            'es76 2100 0418 4502 0005 1332',
+        )
+        await page.waitForTimeout(2_000)
+
+        const txVisible = await page
+            .getByText('E2E IBAN Tx')
+            .first()
+            .isVisible({ timeout: 3_000 })
+            .catch(() => false)
+        if (!txVisible) {
+            await page.getByRole('button', { name: 'Integrations' }).click()
+            await page
+                .getByRole('heading', { name: 'Integrations' })
+                .waitFor({ timeout: 10_000 })
+            await navigateToTransactions(page)
+        }
+
+        await expandTransaction(page, 'E2E IBAN Tx')
+        await expect(page.getByTestId('tx-iban').first()).toHaveText(
+            'ES76 2100 0418 4502 0005 1332',
+        )
     })
 
     test('edit a manual transaction', async ({ authenticatedPage: page }) => {
@@ -206,7 +243,7 @@ test.describe('Manual Transactions', () => {
         await expandTransaction(page, 'E2E Edit Tx')
 
         // Wait for Edit button to be visible, then click using accessible name
-        await page.getByRole('button', { name: 'Edit' }).click()
+        await page.getByRole('button', { name: 'Edit', exact: true }).click()
 
         await expect(page.getByText('Edit transaction')).toBeVisible({
             timeout: 5_000,
@@ -523,7 +560,7 @@ test.describe('Manual Transactions', () => {
         await expandTransaction(page, name)
         await expect(splitRow).toContainText(/Split ratio:\s*4/)
 
-        await page.getByRole('button', { name: 'Edit' }).click()
+        await page.getByRole('button', { name: 'Edit', exact: true }).click()
         await expect(page.getByText('Edit transaction')).toBeVisible({
             timeout: 5_000,
         })

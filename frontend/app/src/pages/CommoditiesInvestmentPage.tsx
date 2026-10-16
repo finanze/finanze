@@ -6,12 +6,10 @@ import {
   ArrowLeft,
   Plus,
   Save,
-  Edit3,
   Trash2,
   X,
   Layers,
   Scale,
-  MoreVertical,
   ChevronDown,
   Pencil,
   Loader2,
@@ -52,12 +50,8 @@ import { formatCurrency } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { InvestmentPerformanceIndicator } from "@/components/ui/InvestmentPerformanceIndicator"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
@@ -114,7 +108,6 @@ export default function CommoditiesInvestmentPage() {
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
     {},
   )
-  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   useModalBackHandler(showAddForm, () => setShowAddForm(false))
@@ -1167,53 +1160,6 @@ export default function CommoditiesInvestmentPage() {
                                 )}
                               </div>
                               <div className="flex flex-col items-center">
-                                <div data-no-expand>
-                                  <Popover
-                                    open={openPopoverId === c.id}
-                                    onOpenChange={open =>
-                                      setOpenPopoverId(open ? c.id : null)
-                                    }
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                        type="button"
-                                      >
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      align="end"
-                                      sideOffset={8}
-                                      className="w-44 p-2 space-y-1"
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setOpenPopoverId(null)
-                                          setEditingCommodityId(c.id)
-                                        }}
-                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left transition-colors hover:bg-accent hover:text-accent-foreground"
-                                      >
-                                        <Edit3 className="h-3.5 w-3.5" />
-                                        {t.common.edit}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setOpenPopoverId(null)
-                                          requestDeleteCommodity(c)
-                                        }}
-                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                        {t.common.delete}
-                                      </button>
-                                    </PopoverContent>
-                                  </Popover>
-                                </div>
                                 <ChevronDown
                                   className={cn(
                                     "h-4 w-4 text-muted-foreground transition-transform duration-200",
@@ -1292,6 +1238,15 @@ export default function CommoditiesInvestmentPage() {
                                     "{type}",
                                     t.common.commodities.toLowerCase(),
                                   )}
+                                </div>
+                                <div
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <ManualPositionActions
+                                    onEdit={() => setEditingCommodityId(c.id)}
+                                    onDelete={() => requestDeleteCommodity(c)}
+                                  />
                                 </div>
                               </div>
                             </motion.div>

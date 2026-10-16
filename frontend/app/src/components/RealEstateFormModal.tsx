@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
+import { Slider } from "@/components/ui/Slider"
+import { parseNumberInput } from "@/utils/manualData"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -1866,6 +1868,21 @@ export function RealEstateFormModal({
                                           className="text-sm"
                                         />
                                       </div>
+                                      <Slider
+                                        className="mt-2"
+                                        value={parseNumberInput(tempPercentage)}
+                                        onValueChange={v =>
+                                          setTempPercentage(String(v))
+                                        }
+                                        min={0}
+                                        max={15}
+                                        step={0.1}
+                                        showValue={false}
+                                        aria-label={
+                                          t.realEstate.purchase
+                                            .percentageOfPurchasePrice
+                                        }
+                                      />
                                     </div>
                                     <div className="text-xs text-gray-500">
                                       {tempPercentage &&
@@ -2059,6 +2076,26 @@ export function RealEstateFormModal({
                           %
                         </span>
                       </div>
+                      <Slider
+                        className="mt-1"
+                        value={
+                          typeof formData.valuation_info.annual_appreciation ===
+                          "number"
+                            ? formData.valuation_info.annual_appreciation * 100
+                            : null
+                        }
+                        onValueChange={v =>
+                          handleInputChange(
+                            "valuation_info.annual_appreciation",
+                            v / 100,
+                          )
+                        }
+                        min={-5}
+                        max={10}
+                        step={0.1}
+                        showValue={false}
+                        aria-label={t.realEstate.valuation.annualAppreciation}
+                      />
                     </div>
 
                     <div>
@@ -2853,6 +2890,22 @@ export function RealEstateFormModal({
                                                 className="text-sm"
                                               />
                                             </div>
+                                            <Slider
+                                              className="mt-2"
+                                              value={parseNumberInput(
+                                                tempLoanPercentage,
+                                              )}
+                                              onValueChange={v =>
+                                                setTempLoanPercentage(String(v))
+                                              }
+                                              min={0}
+                                              max={100}
+                                              showValue={false}
+                                              aria-label={
+                                                t.realEstate.purchase
+                                                  .percentageOfPurchasePrice
+                                              }
+                                            />
                                           </div>
                                           <div className="flex gap-2">
                                             {[70, 80, 90].map(pct => (
@@ -3106,6 +3159,30 @@ export function RealEstateFormModal({
                                       %
                                     </span>
                                   </div>
+                                  <Slider
+                                    className="mt-1"
+                                    value={
+                                      Math.round(
+                                        (loanPayload.interest_rate || 0) *
+                                          10000,
+                                      ) / 100
+                                    }
+                                    onValueChange={v =>
+                                      updateFlowPayload(
+                                        originalIndex,
+                                        "interest_rate",
+                                        Math.round(v * 100) / 10000,
+                                      )
+                                    }
+                                    min={0}
+                                    max={10}
+                                    step={0.05}
+                                    disabled={isLinked}
+                                    showValue={false}
+                                    aria-label={
+                                      t.realEstate.loans.interestRateLabel
+                                    }
+                                  />
                                 </div>
                                 {loanPayload.interest_type === "VARIABLE" ||
                                 loanPayload.interest_type === "MIXED" ? (
@@ -3157,6 +3234,24 @@ export function RealEstateFormModal({
                                       disabled={isLinked}
                                       className={isLinked ? "opacity-60" : ""}
                                     />
+                                    <Slider
+                                      className="mt-1"
+                                      value={loanPayload.fixed_years ?? null}
+                                      onValueChange={v =>
+                                        updateFlowPayload(
+                                          originalIndex,
+                                          "fixed_years",
+                                          v,
+                                        )
+                                      }
+                                      min={1}
+                                      max={30}
+                                      disabled={isLinked}
+                                      showValue={false}
+                                      aria-label={
+                                        t.realEstate.loans.fixedYearsLabel
+                                      }
+                                    />
                                   </div>
                                 ) : null}
                                 {loanPayload.interest_type === "MIXED" ? (
@@ -3192,6 +3287,33 @@ export function RealEstateFormModal({
                                         %
                                       </span>
                                     </div>
+                                    <Slider
+                                      className="mt-1"
+                                      value={
+                                        loanPayload.fixed_interest_rate != null
+                                          ? Math.round(
+                                              loanPayload.fixed_interest_rate *
+                                                10000,
+                                            ) / 100
+                                          : null
+                                      }
+                                      onValueChange={v =>
+                                        updateFlowPayload(
+                                          originalIndex,
+                                          "fixed_interest_rate",
+                                          Math.round(v * 100) / 10000,
+                                        )
+                                      }
+                                      min={0}
+                                      max={10}
+                                      step={0.05}
+                                      disabled={isLinked}
+                                      showValue={false}
+                                      aria-label={
+                                        t.realEstate.loans
+                                          .fixedInterestRateLabel
+                                      }
+                                    />
                                   </div>
                                 ) : null}
                               </div>
@@ -3869,6 +3991,22 @@ export function RealEstateFormModal({
                                                 className="text-sm"
                                               />
                                             </div>
+                                            <Slider
+                                              className="mt-2"
+                                              value={parseNumberInput(
+                                                tempRentPercentage,
+                                              )}
+                                              onValueChange={v =>
+                                                setTempRentPercentage(String(v))
+                                              }
+                                              min={0}
+                                              max={100}
+                                              showValue={false}
+                                              aria-label={
+                                                t.realEstate.costs
+                                                  .percentageOfTotalRent
+                                              }
+                                            />
                                           </div>
                                           <div className="text-xs text-gray-500">
                                             {tempRentPercentage &&
@@ -4601,6 +4739,26 @@ export function RealEstateFormModal({
                               %
                             </span>
                           </div>
+                          <Slider
+                            className="mt-1"
+                            value={
+                              typeof formData.rental_data?.vacancy_rate ===
+                              "number"
+                                ? formData.rental_data.vacancy_rate * 100
+                                : null
+                            }
+                            onValueChange={v =>
+                              handleInputChange(
+                                "rental_data.vacancy_rate",
+                                v / 100,
+                              )
+                            }
+                            min={0}
+                            max={50}
+                            step={0.5}
+                            showValue={false}
+                            aria-label={t.realEstate.rent.vacancyRate}
+                          />
                         </div>
                       </div>
 

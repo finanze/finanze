@@ -8,12 +8,14 @@ from domain.crypto import CryptoWallet
 from domain.entity import (
     Entity,
     Feature,
+    TransactionKind,
 )
 from domain.native_entity import (
     PinDetails,
     CredentialType,
     EntitySetupLoginType,
     EntitySessionCategory,
+    InternalFeature,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
@@ -37,6 +39,7 @@ class EntityAccountInfo:
 class AvailableSource(Entity):
     features: list[Feature]
     last_fetch: dict[Feature, datetime]
+    transaction_kinds: Optional[list[TransactionKind]] = None
     setup_login_type: Optional[EntitySetupLoginType] = None
     session_category: Optional[EntitySessionCategory] = None
     credentials_template: Optional[dict[str, CredentialType]] = None
@@ -53,6 +56,7 @@ class AvailableSource(Entity):
     fetchable: bool = True
     allows_hd_wallet: Optional[bool] = None
     accounts: Optional[list[EntityAccountInfo]] = None
+    internal_features: list[InternalFeature] = field(default_factory=list)
 
 
 @dataclass

@@ -20,6 +20,7 @@ interface InvestmentFiltersProps {
   entityImageOverride?: (entity: Entity) => string | null | undefined
   showEntityFilter?: boolean
   showWalletFilter?: boolean
+  showClearFilters?: boolean
   hideLabelOnMobile?: boolean
 }
 
@@ -37,6 +38,7 @@ export function InvestmentFilters({
   entityImageOverride,
   showEntityFilter = true,
   showWalletFilter = true,
+  showClearFilters = true,
   hideLabelOnMobile = false,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
@@ -108,18 +110,19 @@ export function InvestmentFilters({
             <div className="flex items-center gap-2">{extraFilters}</div>
           )}
         </div>
-        {(selectedEntities.length > 0 ||
-          (selectedWallets && selectedWallets.length > 0)) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClearFilters}
-            className="flex items-center gap-2"
-          >
-            <FilterX size={16} />
-            {t.transactions.clear}
-          </Button>
-        )}
+        {showClearFilters &&
+          (selectedEntities.length > 0 ||
+            (selectedWallets && selectedWallets.length > 0)) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              className="flex items-center gap-2"
+            >
+              <FilterX size={16} />
+              {t.transactions.clear}
+            </Button>
+          )}
       </div>
     </div>
   )

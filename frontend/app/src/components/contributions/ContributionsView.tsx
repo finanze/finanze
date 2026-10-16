@@ -8,12 +8,9 @@ import {
 } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
-import { useNavigate } from "react-router-dom"
 import {
-  Info,
   PiggyBank,
   CalendarDays,
-  ArrowLeft,
   TrendingUp,
   Folder,
   BarChart3,
@@ -25,7 +22,6 @@ import {
   AlertCircle,
   Loader2,
   Bitcoin,
-  Layers,
   ChevronDown,
   Check,
   ListFilter,
@@ -35,7 +31,6 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
-import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Card,
   CardContent,
@@ -53,7 +48,7 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { Label } from "@/components/ui/Label"
-import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
+import { SourceBadge } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
@@ -67,7 +62,6 @@ import {
 } from "@/utils/dashboardUtils"
 import { EntitySelector } from "@/components/EntitySelector"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import {
   ContributionFrequency,
   ContributionTargetType,
@@ -137,6 +131,9 @@ interface TargetSuggestion {
   issuer?: string | null
   iconUrls?: string[] | null
 }
+
+const CONTRIBUTION_ICON_ACTION_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 
 const isValidIsin = (value: string) => {
   const normalized = value.trim().toUpperCase()
@@ -258,12 +255,11 @@ function SuggestionIcon({
   return null
 }
 
-export default function AutoContributionsPage() {
+export function ContributionsView() {
   const { t, locale } = useI18n()
   const { settings, entities, exchangeRates, showToast } = useAppContext()
   const { contributions, positionsData, refreshData, ensureContributions } =
     useFinancialData()
-  const navigate = useNavigate()
   const defaultCurrency = settings.general.defaultCurrency
   const isQuickMode = settings.general.editMode === EditMode.QUICK
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -287,6 +283,34 @@ export default function AutoContributionsPage() {
   }, [periodicByEntity])
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+  const [expandedContributionKeys, setExpandedContributionKeys] = useState<
+    Set<string>
+  >(new Set())
+  const toggleContributionExpansion = useCallback((cardKey: string) => {
+    setExpandedContributionKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(cardKey)) {
+        next.delete(cardKey)
+      } else {
+        next.add(cardKey)
+      }
+      return next
+    })
+  }, [])
+  const [hoveredContributionIndex, setHoveredContributionIndex] = useState<
+    number | null
+  >(null)
+  const clampChartTooltip = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return
+    node.style.transform = ""
+    const rect = node.getBoundingClientRect()
+    const margin = 8
+    if (rect.right > window.innerWidth - margin) {
+      node.style.transform = `translateX(${window.innerWidth - margin - rect.right}px)`
+    } else if (rect.left < margin) {
+      node.style.transform = `translateX(${margin - rect.left}px)`
+    }
+  }, [])
 
   const filteredEntities = useMemo(() => {
     const entityIds = new Set(flatContributions.map(c => c.entityId))
@@ -297,25 +321,6 @@ export default function AutoContributionsPage() {
     if (selectedEntities.length === 0) return flatContributions
     return flatContributions.filter(c => selectedEntities.includes(c.entityId))
   }, [flatContributions, selectedEntities])
-
-  const monthlyTotal = useMemo(() => {
-    return filteredContributions.reduce((acc, { contribution }) => {
-      if (!contribution.active) {
-        return acc
-      }
-
-      const normalized =
-        contribution.amount * monthlyMultiplier(contribution.frequency)
-      const converted = convertCurrency(
-        normalized,
-        contribution.currency,
-        defaultCurrency,
-        exchangeRates,
-      )
-
-      return acc + converted
-    }, 0)
-  }, [filteredContributions, exchangeRates, defaultCurrency])
 
   const grouped = useMemo(() => {
     const map: Record<string, PeriodicContribution[]> = {}
@@ -341,11 +346,6 @@ export default function AutoContributionsPage() {
 
   const freqLabel = (f: ContributionFrequency) =>
     (t.management.contributionFrequency as any)?.[f] || f
-
-  const activeCount = useMemo(
-    () => filteredContributions.filter(c => c.contribution.active).length,
-    [filteredContributions],
-  )
 
   const colors = [
     "#6366F1",
@@ -438,16 +438,29 @@ export default function AutoContributionsPage() {
     return m
   }, [distributionData])
 
-  const chartData = useMemo(
-    () =>
-      distributionData.map((d, i) => ({
-        name: d.name,
-        value: d.value,
-        color: colors[i % colors.length],
-        percentage: d.percentage,
-      })),
-    [distributionData],
-  )
+  const chartData = useMemo(() => {
+    const data = distributionData.map((d, i) => ({
+      name: d.name,
+      value: d.value,
+      color: colors[i % colors.length],
+      percentage: d.percentage,
+    }))
+    if (data.length > 0 || filteredContributions.length === 0) return data
+
+    const contribution = filteredContributions[0].contribution
+    return [
+      {
+        name:
+          contribution.target_name ||
+          contribution.target ||
+          (t.enums?.productType as any)?.[contribution.target_type] ||
+          contribution.target_type,
+        value: 0,
+        color: colors[0],
+        percentage: 0,
+      },
+    ]
+  }, [distributionData, filteredContributions, t])
 
   const manualEntriesFromData = useMemo<ManualContributionDraft[]>(() => {
     const fallbackName = t.management.manualContributions.unnamed
@@ -485,6 +498,7 @@ export default function AutoContributionsPage() {
   const [modalMode, setModalMode] = useState<"create" | "edit">("create")
   const [modalForm, setModalForm] =
     useState<ManualContributionFormState | null>(null)
+  const [showOptionalFields, setShowOptionalFields] = useState(false)
   const [formErrors, setFormErrors] = useState<ManualContributionErrors>({})
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showModalDiscardConfirm, setShowModalDiscardConfirm] = useState(false)
@@ -724,7 +738,7 @@ export default function AutoContributionsPage() {
         entity_id: form.entity_id,
         name: form.name.trim(),
         target: normalizedTarget,
-        target_name: form.target_name.trim() ? form.target_name.trim() : null,
+        target_name: form.target_name.trim() || form.name.trim() || null,
         target_type: form.target_type,
         target_subtype:
           form.target_type === ContributionTargetType.FUND_PORTFOLIO ||
@@ -968,37 +982,29 @@ export default function AutoContributionsPage() {
   }, [])
 
   const handleOpenCreateModal = useCallback(() => {
-    if (!isEditMode) {
-      handleEnterEditMode()
-      setManualDrafts(manualEntriesFromData)
-      setHasLocalChanges(false)
-    }
     const form = createEmptyFormState()
     modalInitialSnapshotRef.current = { ...form }
     setModalMode("create")
+    setShowOptionalFields(false)
     setModalForm(form)
     setFormErrors({})
     setIsModalOpen(true)
-  }, [
-    createEmptyFormState,
-    handleEnterEditMode,
-    isEditMode,
-    manualEntriesFromData,
-  ])
+  }, [createEmptyFormState])
 
   const handleEditManual = useCallback(
     (draft: ManualContributionDraft) => {
-      if (!isEditMode) {
-        handleEnterEditMode()
-      }
       const formState = draftToFormState(draft)
       modalInitialSnapshotRef.current = { ...formState }
       setModalMode("edit")
+      setShowOptionalFields(
+        Boolean(formState.target_name) &&
+          formState.target_name !== formState.name,
+      )
       setModalForm(formState)
       setFormErrors({})
       setIsModalOpen(true)
     },
-    [draftToFormState, handleEnterEditMode, isEditMode],
+    [draftToFormState],
   )
 
   const handleDeleteManual = useCallback(
@@ -1007,6 +1013,7 @@ export default function AutoContributionsPage() {
       if (isQuickMode) {
         queueQuickSave()
       } else {
+        setIsEditMode(true)
         setHasLocalChanges(true)
       }
     },
@@ -1068,6 +1075,7 @@ export default function AutoContributionsPage() {
       if (isQuickMode) {
         queueQuickSave()
       } else {
+        setIsEditMode(true)
         setHasLocalChanges(true)
       }
       closeModal()
@@ -1086,7 +1094,7 @@ export default function AutoContributionsPage() {
     async (options?: { preserveEditMode?: boolean }) => {
       const preserveEditMode = options?.preserveEditMode ?? false
 
-      if (isSaving || !isEditMode) return
+      if (isSaving) return
       if (!hasLocalChanges && !preserveEditMode) {
         setIsEditMode(false)
         return
@@ -1134,7 +1142,6 @@ export default function AutoContributionsPage() {
     },
     [
       hasLocalChanges,
-      isEditMode,
       isSaving,
       manualDrafts,
       refreshData,
@@ -1237,7 +1244,6 @@ export default function AutoContributionsPage() {
     const active = contribution?.active ?? true
     const nextInfo = active ? getNextDateInfo(contribution?.next_date) : null
     const source = contribution?.source ?? DataSource.MANUAL
-    const SourceIcon = getSourceIcon(source)
     const target = manualDraft?.target ?? contribution?.target ?? ""
     const targetName =
       manualDraft?.target_name ?? contribution?.target_name ?? null
@@ -1260,22 +1266,31 @@ export default function AutoContributionsPage() {
     const productTypeBadgeClass = getProductTypeColor(
       targetType as unknown as ProductType,
     )
+    const isExpanded = expandedContributionKeys.has(key)
 
     return (
       <Card
         key={key}
         className={cn(
-          "px-5 py-4 flex flex-col transition-shadow hover:shadow-md border-border/60 dark:border-border/60 h-full",
+          "px-5 py-4 flex flex-col transition-shadow hover:shadow-md border-border/60 dark:border-border/60",
           !active && "opacity-50",
           isDirty &&
             "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
         )}
       >
         <div className="flex items-start gap-4">
-          <div className="shrink-0 mt-1">{typeIcon(targetType, iconColor)}</div>
+          <div
+            className="shrink-0 mt-1 cursor-pointer"
+            onClick={() => toggleContributionExpansion(key)}
+          >
+            {typeIcon(targetType, iconColor)}
+          </div>
           <div className="min-w-0 flex-1 space-y-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div
+                className="min-w-0 cursor-pointer"
+                onClick={() => toggleContributionExpansion(key)}
+              >
                 <h3 className="font-semibold text-base leading-tight truncate">
                   {displayName}
                 </h3>
@@ -1338,7 +1353,7 @@ export default function AutoContributionsPage() {
                 {targetSubtype &&
                   targetSubtype !== ContributionTargetSubtype.MUTUAL_FUND &&
                   targetSubtypeLabel && (
-                    <Badge className="border-transparent bg-muted text-foreground/80 dark:bg-muted/70 px-2 py-0.5">
+                    <Badge className="hidden sm:inline-flex border-transparent bg-muted text-foreground/80 dark:bg-muted/70 px-2 py-0.5">
                       {targetSubtypeLabel}
                     </Badge>
                   )}
@@ -1367,130 +1382,140 @@ export default function AutoContributionsPage() {
                   </span>
                 )}
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={t.common.viewDetails}
-                  >
-                    <Info className="h-4 w-4" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent side="left" align="start" className="w-80">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between gap-4">
-                      <span className="font-medium text-muted-foreground">
-                        {t.management.targetType}
-                      </span>
-                      <span className="font-medium">{productTypeLabel}</span>
-                    </div>
-                    {targetSubtypeLabel && (
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-muted-foreground">
-                          {t.management.targetSubtype}
-                        </span>
-                        <span className="truncate max-w-[55%] text-right">
-                          {targetSubtypeLabel}
-                        </span>
-                      </div>
-                    )}
-                    {targetName && (
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-muted-foreground">
-                          {t.management.manualContributions.targetName}
-                        </span>
-                        <span className="truncate max-w-[55%] text-right">
-                          {targetName}
-                        </span>
-                      </div>
-                    )}
-                    {target && (
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-muted-foreground">
-                          {t.management.target}
-                        </span>
-                        <span className="truncate max-w-[55%] text-right">
-                          {target}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-4">
-                      <span className="font-medium text-muted-foreground">
-                        {t.management.since}
-                      </span>
-                      <span>
-                        {since
-                          ? formatDate(since, locale)
-                          : t.common.notAvailable}
-                      </span>
-                    </div>
-                    {until && (
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-muted-foreground">
-                          {t.management.until}
-                        </span>
-                        <span>{formatDate(until, locale)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-4">
-                      <span className="font-medium text-muted-foreground">
-                        {t.management.enabled}
-                      </span>
-                      <span
-                        className={cn(
-                          "font-medium",
-                          active ? "text-green-500" : "text-red-500",
-                        )}
-                      >
-                        {active ? t.management.enabled : t.management.disabled}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="font-medium text-muted-foreground">
-                        {t.management.monthlyAverageContribution}
-                      </span>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          <Sensitive>
-                            {formatCurrency(
-                              convertedMonthlyAmount,
-                              locale,
-                              defaultCurrency,
-                            )}
-                          </Sensitive>
-                        </div>
-                        {showOriginalCurrency && (
-                          <div className="text-xs text-muted-foreground">
-                            <Sensitive>
-                              {formatCurrency(
-                                normalizedMonthlyAmount,
-                                locale,
-                                currency,
-                              )}
-                            </Sensitive>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {source !== DataSource.REAL && (
-                      <div className="flex justify-between gap-4">
-                        <span className="font-medium text-muted-foreground">
-                          {t.management.source}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          {SourceIcon ? (
-                            <SourceIcon className="h-3.5 w-3.5" />
-                          ) : null}
-                          {t.enums?.dataSource?.[source] || source}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <button
+                type="button"
+                onClick={() => toggleContributionExpansion(key)}
+                aria-expanded={isExpanded}
+                aria-label={t.common.viewDetails}
+                className="shrink-0 p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isExpanded && "rotate-180",
+                  )}
+                />
+              </button>
             </div>
           </div>
         </div>
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              key="expanded"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 border-t border-border/50 pt-3 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                  {targetSubtypeLabel && (
+                    <div>
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                        {t.management.targetSubtype}
+                      </div>
+                      <div className="text-foreground">
+                        {targetSubtypeLabel}
+                      </div>
+                    </div>
+                  )}
+                  {targetName && (
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                        {t.management.manualContributions.targetName}
+                      </div>
+                      <div className="text-foreground break-words">
+                        {targetName}
+                      </div>
+                    </div>
+                  )}
+                  {target && (
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                        {t.management.target}
+                      </div>
+                      <div className="text-foreground font-mono text-xs truncate">
+                        {target}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                      {t.management.monthlyAverageContribution}
+                    </div>
+                    <div className="font-medium text-foreground">
+                      <Sensitive>
+                        {formatCurrency(
+                          convertedMonthlyAmount,
+                          locale,
+                          defaultCurrency,
+                        )}
+                      </Sensitive>
+                    </div>
+                    {showOriginalCurrency && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        <Sensitive>
+                          {formatCurrency(
+                            normalizedMonthlyAmount,
+                            locale,
+                            currency,
+                          )}
+                        </Sensitive>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                      {t.management.since}
+                    </div>
+                    <div className="text-foreground">
+                      {since
+                        ? formatDate(since, locale)
+                        : t.common.notAvailable}
+                    </div>
+                  </div>
+                  {until && (
+                    <div>
+                      <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                        {t.management.until}
+                      </div>
+                      <div className="text-foreground">
+                        {formatDate(until, locale)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {manualDraft && (
+                  <div className="flex items-center gap-0.5 justify-end pt-2 border-t border-border/30">
+                    <button
+                      type="button"
+                      onClick={() => handleEditManual(manualDraft)}
+                      aria-label={t.common.edit}
+                      title={t.common.edit}
+                      className={CONTRIBUTION_ICON_ACTION_CLASS}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteManual(manualDraft.localId)}
+                      aria-label={t.common.delete}
+                      title={t.common.delete}
+                      className={cn(
+                        CONTRIBUTION_ICON_ACTION_CLASS,
+                        "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400",
+                      )}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     )
   }
@@ -1520,7 +1545,86 @@ export default function AutoContributionsPage() {
     modalForm.target.trim().length > 0 &&
     !isValidIban(modalForm.target)
 
+  const targetIdentifierLabel =
+    modalForm?.target_type === ContributionTargetType.FUND_PORTFOLIO
+      ? "IBAN"
+      : modalForm?.target_type === ContributionTargetType.CRYPTO
+        ? t.management.manualContributions.cryptoTargetIdentifier
+        : "ISIN"
+
   useEffect(() => () => abortControllerRef.current?.abort(), [])
+
+  const contributionActions = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="default"
+        size="sm"
+        className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+        onClick={handleOpenCreateModal}
+        disabled={financialEntities.length === 0}
+      >
+        <Plus className="h-3.5 w-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">
+          {t.management.manualContributions.add}
+        </span>
+      </Button>
+      {isEditMode ? (
+        isQuickMode ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+            onClick={handleRequestCancelEdit}
+            disabled={isSaving}
+          >
+            <Check className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">{t.common.done}</span>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={handleRequestCancelEdit}
+              disabled={isSaving}
+            >
+              <X className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">{t.common.cancel}</span>
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+              onClick={() => handleSaveAll()}
+              disabled={isSaving || !hasLocalChanges}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span className="hidden sm:inline">{t.common.saving}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Save className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t.common.save}</span>
+                </span>
+              )}
+            </Button>
+          </>
+        )
+      ) : (
+        <Button
+          variant="default"
+          size="sm"
+          className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+          onClick={handleEnterEditMode}
+        >
+          <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+          <span className="hidden sm:inline">{t.common.edit}</span>
+        </Button>
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -1530,103 +1634,11 @@ export default function AutoContributionsPage() {
         initial="hidden"
         animate="show"
       >
-        <motion.div
-          variants={fadeListItem}
-          className="flex items-center justify-between gap-4 flex-wrap"
-        >
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 h-8 w-8"
-              onClick={() => navigate("/management")}
-            >
-              <ArrowLeft size={20} />
-            </Button>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">
-                {t.management.autoContributions}
-              </h1>
-              <PinAssetButton
-                assetId="management-auto-contributions"
-                className="hidden md:inline-flex"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-              onClick={handleOpenCreateModal}
-              disabled={financialEntities.length === 0}
-            >
-              <Plus className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">
-                {t.management.manualContributions.add}
-              </span>
-            </Button>
-            {isEditMode ? (
-              isQuickMode ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                  onClick={handleRequestCancelEdit}
-                  disabled={isSaving}
-                >
-                  <Check className="h-3.5 w-3.5 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.common.done}</span>
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={handleRequestCancelEdit}
-                    disabled={isSaving}
-                  >
-                    <X className="h-3.5 w-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">{t.common.cancel}</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                    onClick={() => handleSaveAll()}
-                    disabled={isSaving || !hasLocalChanges}
-                  >
-                    {isSaving ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="hidden sm:inline">
-                          {t.common.saving}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {t.common.save}
-                        </span>
-                      </span>
-                    )}
-                  </Button>
-                </>
-              )
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-                onClick={handleEnterEditMode}
-              >
-                <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">{t.common.edit}</span>
-              </Button>
-            )}
-          </div>
-        </motion.div>
+        {chartData.length === 0 && (
+          <motion.div variants={fadeListItem} className="flex justify-end">
+            {contributionActions}
+          </motion.div>
+        )}
 
         {isEditMode && !isQuickMode && hasLocalChanges && (
           <motion.div
@@ -1638,51 +1650,104 @@ export default function AutoContributionsPage() {
           </motion.div>
         )}
 
-        <motion.div variants={fadeListItem}>
+        <motion.div
+          variants={fadeListItem}
+          className={chartData.length > 0 ? "-mb-2" : undefined}
+        >
           <InvestmentFilters
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            showClearFilters={false}
+            hideLabelOnMobile
           />
         </motion.div>
 
         <motion.div variants={fadeListItem}>
           {chartData.length > 0 && (
-            <Card className="-mx-6 rounded-none border-x-0">
-              <CardContent className="pt-4">
-                <InvestmentDistributionChart
-                  data={chartData}
-                  title={t.common.distribution}
-                  locale={locale}
-                  currency={defaultCurrency}
-                  hideLegend
-                  containerClassName="overflow-visible w-full"
-                  variant="bare"
-                  orbitBubbles={chartData}
-                  orbitBubblesCollapsedHidden
-                  maxOuterRadius={150}
-                  chartHeightClassName="min-h-[260px] h-[300px]"
-                  toggleConfig={{
-                    activeView: "target",
-                    onViewChange: () => {},
-                    options: [
-                      {
-                        value: "target",
-                        label: t.management.monthlyPerTarget,
-                      },
-                    ],
-                  }}
-                  badges={[
-                    {
-                      icon: <Layers className="h-3 w-3" />,
-                      value: `${activeCount} ${t.management.activeContributions}`,
-                    },
-                  ]}
-                  centerContent={{
-                    rawValue: monthlyTotal,
-                  }}
-                />
-              </CardContent>
+            <Card
+              className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x"
+              data-testid="contributions-distribution"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex min-w-0 items-center gap-2 text-base font-semibold">
+                  <BarChart3 className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate">{t.common.distribution}</span>
+                </h3>
+                {contributionActions}
+              </div>
+              {(() => {
+                let offset = 0
+                const segments = chartData.map(item => {
+                  const start = offset
+                  offset += item.percentage
+                  return { item, start, end: offset }
+                })
+                const hovered =
+                  hoveredContributionIndex !== null
+                    ? segments[hoveredContributionIndex]
+                    : undefined
+                return (
+                  <div className="relative">
+                    <div className="flex h-6 overflow-hidden rounded-md bg-muted">
+                      {segments.map(({ item }, index) => {
+                        const isFaded =
+                          hoveredContributionIndex !== null &&
+                          hoveredContributionIndex !== index
+                        return (
+                          <div
+                            key={`contribution-bar-${index}-${item.name}`}
+                            className="h-full cursor-default transition-opacity duration-300"
+                            style={{
+                              width: `${item.percentage}%`,
+                              backgroundColor: item.color,
+                              opacity: isFaded ? 0.35 : 1,
+                            }}
+                            onMouseEnter={() =>
+                              setHoveredContributionIndex(index)
+                            }
+                            onMouseLeave={() =>
+                              setHoveredContributionIndex(null)
+                            }
+                          />
+                        )
+                      })}
+                    </div>
+                    {hovered && (
+                      <div
+                        key={hoveredContributionIndex}
+                        ref={clampChartTooltip}
+                        className="pointer-events-none absolute top-full z-20 mt-2 flex w-max items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 shadow-lg"
+                        style={
+                          (hovered.start + hovered.end) / 2 <= 50
+                            ? { left: `${hovered.start}%` }
+                            : { right: `${100 - hovered.end}%` }
+                        }
+                      >
+                        <span
+                          className="h-6 w-6 shrink-0 rounded-full"
+                          style={{ backgroundColor: hovered.item.color }}
+                        />
+                        <div className="flex flex-col leading-tight">
+                          <span className="max-w-[200px] truncate text-xs font-semibold text-popover-foreground">
+                            {hovered.item.name}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            <Sensitive>
+                              {hovered.item.percentage.toFixed(1)}% ·{" "}
+                              {formatCurrency(
+                                hovered.item.value,
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </Card>
           )}
         </motion.div>
@@ -1722,7 +1787,7 @@ export default function AutoContributionsPage() {
                 <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
                   {entityName}
                 </h2>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
                   {list.map(c => {
                     const manualDraft = manualDraftByOriginalId.get(c.id)
                     if (
@@ -1737,10 +1802,7 @@ export default function AutoContributionsPage() {
                       : false
 
                     return (
-                      <div
-                        key={manualDraft?.localId ?? c.id}
-                        className="h-full"
-                      >
+                      <div key={manualDraft?.localId ?? c.id}>
                         {renderContributionCard(
                           c,
                           entityId,
@@ -1752,7 +1814,7 @@ export default function AutoContributionsPage() {
                   })}
                   {isEditMode &&
                     unsavedDrafts.map(draft => (
-                      <div key={draft.localId} className="h-full">
+                      <div key={draft.localId}>
                         {renderContributionCard(
                           null,
                           entityId,
@@ -2005,7 +2067,9 @@ export default function AutoContributionsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2 min-h-[20px]">
-                          <Label htmlFor="target">{t.management.target}</Label>
+                          <Label htmlFor="target">
+                            {t.management.target} ({targetIdentifierLabel})
+                          </Label>
                           {modalSuggestions.length > 0 && (
                             <Popover
                               open={suggestionPopoverOpen}
@@ -2121,9 +2185,7 @@ export default function AutoContributionsPage() {
                             )
                             clearFormError("target")
                           }}
-                          placeholder={
-                            t.management.manualContributions.targetHelper
-                          }
+                          placeholder={targetIdentifierLabel}
                         />
                         {formErrors.target && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -2141,31 +2203,6 @@ export default function AutoContributionsPage() {
                             </span>
                           </div>
                         )}
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="targetName">
-                          {t.management.manualContributions.targetName}
-                        </Label>
-                        <Input
-                          id="targetName"
-                          value={modalForm.target_name}
-                          onChange={event => {
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    target_name: event.target.value,
-                                  }
-                                : prev,
-                            )
-                          }}
-                          placeholder={
-                            t.management.manualContributions.targetNameHelper
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {t.management.manualContributions.targetNameHelper}
-                        </p>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="currency">
@@ -2232,34 +2269,42 @@ export default function AutoContributionsPage() {
                         )}
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="frequency">
-                          {t.management.frequencyLabel}
-                        </Label>
-                        <select
-                          id="frequency"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={modalForm.frequency}
-                          onChange={event => {
-                            const value = event.target
-                              .value as ContributionFrequency
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    frequency: value,
-                                  }
-                                : prev,
-                            )
-                          }}
+                        <Label>{t.management.frequencyLabel}</Label>
+                        <div
+                          role="group"
+                          aria-label={t.management.frequencyLabel}
+                          data-testid="contribution-frequency-options"
+                          className="flex flex-wrap gap-1.5 rounded-md"
                         >
-                          {frequencyOptions.map(option => (
-                            <option key={option} value={option}>
-                              {(t.management.contributionFrequency as any)?.[
-                                option
-                              ] || option}
-                            </option>
-                          ))}
-                        </select>
+                          {frequencyOptions.map(option => {
+                            const selected = modalForm.frequency === option
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setModalForm(prev =>
+                                    prev
+                                      ? { ...prev, frequency: option }
+                                      : prev,
+                                  )
+                                }
+                                aria-pressed={selected}
+                                data-testid={`contribution-frequency-option-${option.toLowerCase()}`}
+                                className={cn(
+                                  "inline-flex min-h-8 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                  selected
+                                    ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                                    : "border-border bg-background text-foreground hover:bg-accent",
+                                )}
+                              >
+                                {(t.management.contributionFrequency as any)?.[
+                                  option
+                                ] || option}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label>{t.management.since}</Label>
@@ -2299,6 +2344,47 @@ export default function AutoContributionsPage() {
                           }}
                         />
                       </div>
+                    </div>
+                    <div className="space-y-3 border-t pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowOptionalFields(value => !value)}
+                        aria-expanded={showOptionalFields}
+                        className="flex w-full items-center justify-between gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        {t.management.manualContributions.optionalFields}
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 transition-transform",
+                            showOptionalFields && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      {showOptionalFields && (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="targetName">
+                            {t.management.manualContributions.targetName}
+                          </Label>
+                          <Input
+                            id="targetName"
+                            value={modalForm.target_name}
+                            onChange={event => {
+                              setModalForm(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      target_name: event.target.value,
+                                    }
+                                  : prev,
+                              )
+                            }}
+                            placeholder={modalForm.name}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {t.management.manualContributions.targetNameHelper}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">

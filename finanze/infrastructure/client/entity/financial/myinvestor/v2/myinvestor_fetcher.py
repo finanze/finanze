@@ -52,6 +52,7 @@ from domain.global_position import (
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
     AccountTx,
     DepositTx,
     FundPortfolioTx,
@@ -59,6 +60,7 @@ from domain.transactions import (
     StockTx,
     Transactions,
     TxType,
+    normalize_iban,
 )
 from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client import (
     MyInvestorAPIV2Client,
@@ -113,6 +115,7 @@ BEGINNING = date.fromisocalendar(2018, 1, 1)
 
 ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
+ACCOUNT_MOVEMENTS_MAX_LOOKBACK = timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
 
 ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
 
@@ -122,6 +125,42 @@ STOCK_ORDERS_POINTER = "stock_orders"
 FUND_ORDERS_POINTER = "fund_orders"
 PENSION_ORDERS_POINTER = "pension_orders"
 DEPOSIT_TXS_POINTER = "deposit_txs"
+ACCOUNT_TXS_POINTER = "account_txs"
+
+DEPOSIT_MOVEMENT_CLASS = "MOVIMIENTOS DEPOSITOS"
+INTEREST_MOVEMENT_CLASS = "LIQUIDACION INTERESES CUENTA"
+
+
+def _is_generic_movement(tx_class: str, raw_tx_type: str) -> bool:
+    if tx_class in (DEPOSIT_MOVEMENT_CLASS, INTEREST_MOVEMENT_CLASS):
+        return False
+    if tx_class == "ME" and raw_tx_type == "RETE.LIQUIDA":
+        return False
+    if tx_class == "0" and raw_tx_type == "INTERESES S/F":
+        return False
+    return True
+
+
+def _map_account_movement(
+    ref, name, raw_amount, currency, tx_date, iban=None
+) -> AccountTx:
+    amount = round(abs(raw_amount), 2)
+    return AccountTx(
+        id=uuid4(),
+        ref=ref,
+        name=name,
+        amount=amount,
+        currency=currency,
+        type=TxType.INFLOW if raw_amount > 0 else TxType.OUTFLOW,
+        product_type=ProductType.ACCOUNT,
+        date=tx_date,
+        entity=MY_INVESTOR,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        net_amount=amount,
+        source=DataSource.REAL,
+        iban=iban,
+    )
 
 
 def _map_deposit_tx(
@@ -144,7 +183,7 @@ def _map_deposit_tx(
     )
 
 
-def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
+def _map_account_tx(ref, name, amount, currency, tx_date, retentions, iban=None):
     amount = round(amount, 2)
     retentions = round(retentions, 2)
     net_amount = amount - retentions
@@ -164,6 +203,7 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
         interest_rate=None,
         avg_balance=None,
         source=DataSource.REAL,
+        iban=iban,
     )
 
 
@@ -272,6 +312,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             investment_txs += account_related_txs["deposit"]
             investment_txs += account_related_txs["portfolio"]
             account_txs += account_related_txs["interests"]
+            account_txs += account_related_txs["movements"]
 
         pension_fund_txs = []
         pension_fund_accounts = await self._client.get_pension_accounts()
@@ -427,15 +468,24 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         options: Optional[FetchOptions] = None,
     ):
         account_id = account["accountId"]
+        account_type = account.get("accountType")
+        cash_iban = normalize_iban(account.get("iban"))
         pointer_key = self._pointer_key(DEPOSIT_TXS_POINTER, account_id)
+        movements_pointer_key = self._pointer_key(ACCOUNT_TXS_POINTER, account_id)
         has_pointer_context = (
             options is not None and options.pointer_context is not None
         )
+        today = date.today()
+        include_movements = account_type == "CASH_ACCOUNT"
+        movements_min_date = max(min_date, today - ACCOUNT_MOVEMENTS_MAX_LOOKBACK)
         if has_pointer_context:
-            min_date = min(
-                self._pointer_date(options, pointer_key, min_date), date.today()
+            min_date = min(self._pointer_date(options, pointer_key, min_date), today)
+            movements_min_date = min(
+                self._pointer_date(options, movements_pointer_key, movements_min_date),
+                today,
             )
-        account_type = account.get("accountType")
+        if include_movements:
+            min_date = min(min_date, movements_min_date)
         portfolio_account_details = {}
 
         if account_type == "CASH_PORTFOLIO":
@@ -446,13 +496,15 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         deposit_txs = []
         interest_txs = []
         portfolio_txs = []
+        movement_txs = []
         result = {
             "deposit": deposit_txs,
             "interests": interest_txs,
             "portfolio": portfolio_txs,
+            "movements": movement_txs,
         }
 
-        to_date = from_date = date.today()
+        to_date = from_date = today
         from_date += timedelta(days=1)
         latest_fetched_tx_date = None
         while from_date > min_date:
@@ -472,8 +524,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             for tx in raw_txs:
                 ref = tx["reference"]
                 if ref in registered_txs:
-                    self._update_pointer(options, pointer_key, latest_fetched_tx_date)
-                    return result
+                    continue
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
@@ -483,7 +534,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 raw_amount = Dezimal(tx["amount"])
                 amount = abs(raw_amount)
 
-                if tx_class == "MOVIMIENTOS DEPOSITOS":
+                if tx_class == DEPOSIT_MOVEMENT_CLASS:
                     if raw_tx_type == "ABONO LIQUIDAC DEPO":
                         related_deposit_data = tx.get("depositSettlementDetails")
                         if not related_deposit_data:
@@ -551,7 +602,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             )
                         )
 
-                elif tx_class == "LIQUIDACION INTERESES CUENTA":
+                elif tx_class == INTEREST_MOVEMENT_CLASS:
                     if (
                         raw_tx_type == "LIQUIDAC. INTERESES"
                     ):  # Old one, retention is already deducted
@@ -560,7 +611,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         retentions = amount - net_amount
                         interest_txs.append(
                             _map_account_tx(
-                                ref, name, amount, currency, tx_date, retentions
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                tx_date,
+                                retentions,
+                                cash_iban,
                             )
                         )
 
@@ -574,7 +631,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         retentions = amount * CAPITAL_GAINS_BASE_TAX
                         interest_txs.append(
                             _map_account_tx(
-                                ref, name, amount, currency, tx_date, retentions
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                tx_date,
+                                retentions,
+                                cash_iban,
                             )
                         )
 
@@ -605,9 +668,23 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             )
                         )
 
+                if (
+                    include_movements
+                    and raw_amount != 0
+                    and tx_date.date() >= movements_min_date
+                    and _is_generic_movement(tx_class, raw_tx_type)
+                ):
+                    movement_txs.append(
+                        _map_account_movement(
+                            ref, name, raw_amount, currency, tx_date, cash_iban
+                        )
+                    )
+
             to_date -= ACCOUNT_TX_FETCH_STEP
 
         self._update_pointer(options, pointer_key, latest_fetched_tx_date)
+        if include_movements:
+            self._update_pointer(options, movements_pointer_key, latest_fetched_tx_date)
         return result
 
     async def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:

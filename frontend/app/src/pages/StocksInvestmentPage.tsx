@@ -30,8 +30,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpDown,
-  Pencil,
-  Trash2,
   Layers,
   ChevronDown,
   ChartCandlestick,
@@ -48,6 +46,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { Entity } from "@/types"
 import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -323,7 +322,6 @@ function StocksViewContent({
 }: StocksViewContentProps) {
   const {
     drafts,
-    isEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -677,6 +675,7 @@ function StocksViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          showClearFilters={false}
           hideLabelOnMobile
           extraFilters={
             <div
@@ -890,7 +889,7 @@ function StocksViewContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 const isExpanded = expandedCards[item.key] ?? false
 
@@ -1263,14 +1262,11 @@ function StocksViewContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1279,15 +1275,7 @@ function StocksViewContent({
                                         editByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1298,9 +1286,7 @@ function StocksViewContent({
                                         deleteByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>

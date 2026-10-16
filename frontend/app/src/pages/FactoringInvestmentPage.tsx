@@ -40,12 +40,10 @@ import {
   TrendingUp,
   Building,
   Briefcase,
-  Pencil,
   Trash2,
   History,
   RotateCcw,
   Filter,
-  FilterX,
   Clock,
   Info,
   Layers,
@@ -62,6 +60,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import { SettleManualInvestmentDialog } from "@/components/manual/SettleManualInvestmentDialog"
 import { PartialAmortizeDialog } from "@/components/manual/PartialAmortizeDialog"
 import { DeleteHistoricEntryDialog } from "@/components/manual/DeleteHistoricEntryDialog"
@@ -388,7 +387,6 @@ function FactoringViewContent({
   const { showToast } = useAppContext()
   const {
     drafts,
-    isEditMode,
     enterEditMode,
     editByOriginalId,
     editByLocalId,
@@ -998,29 +996,18 @@ function FactoringViewContent({
 
       <motion.div variants={fadeListItem}>
         <div className="flex flex-wrap gap-4 xl:flex-nowrap xl:items-center xl:justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-[200px]">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex min-w-[200px] flex-1 items-center gap-2 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <Filter size={16} />
               <span className="hidden sm:inline">{t.transactions.filters}</span>
             </div>
-            <div className="w-full sm:max-w-xs">
+            <div className="min-w-0 flex-1 sm:max-w-xs">
               <EntitySelector
                 entities={filteredEntities}
                 selectedEntityIds={selectedEntities}
                 onSelectionChange={setSelectedEntities}
               />
             </div>
-            {selectedEntities.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 self-start sm:self-auto"
-                onClick={() => setSelectedEntities([])}
-              >
-                <FilterX size={16} />
-                {t.transactions.clear}
-              </Button>
-            )}
           </div>
         </div>
       </motion.div>
@@ -1218,7 +1205,7 @@ function FactoringViewContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
                 const isExpanded = expandedCards[item.key] ?? false
 
                 const isLate =
@@ -1543,14 +1530,11 @@ function FactoringViewContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1559,15 +1543,7 @@ function FactoringViewContent({
                                         editByOriginalId(originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1578,9 +1554,7 @@ function FactoringViewContent({
                                         deleteByOriginalId(originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>

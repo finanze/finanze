@@ -55,7 +55,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       <div
         ref={ref}
         className={cn(
-          "fixed bottom-4 right-4 left-4 sm:left-auto z-[10050] flex max-w-sm items-start gap-3 overflow-hidden rounded-lg border border-l-[4px] border-border bg-background/95 px-4 py-3.5 shadow-md backdrop-blur-md transition-all",
+          "fixed bottom-4 right-4 left-4 sm:left-auto z-[20000] flex max-w-sm items-start gap-3 overflow-hidden rounded-lg border border-l-[4px] border-border bg-background/95 px-4 py-3.5 shadow-md backdrop-blur-md transition-all",
           accentClass,
           bottomOffsetClassName,
           className,
@@ -82,6 +82,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       return typeof document !== "undefined"
         ? createPortal(
             <motion.div
+              className="relative z-[20000]"
               initial={{ opacity: 0, y: 8, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.97 }}

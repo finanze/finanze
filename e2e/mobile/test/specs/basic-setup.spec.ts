@@ -42,7 +42,7 @@ describe('Basic Setup', () => {
                 return !url.includes('/login')
             },
             {
-                timeout: 45_000,
+                timeout: 60_000,
                 timeoutMsg: 'URL still contains /login after signup',
             },
         )
@@ -60,8 +60,11 @@ describe('Basic Setup', () => {
         await settingsBtn.waitForDisplayed({ timeout: 5_000 })
         await settingsBtn.click()
 
-        const logoutBtn = await $('button.text-red-500=Logout')
-        await logoutBtn.waitForDisplayed({ timeout: 5_000 })
+        const settingsHeading = await $(HEADING_XPATH('Settings'))
+        await settingsHeading.waitForDisplayed({ timeout: 30_000 })
+
+        const logoutBtn = await $('button=Logout')
+        await logoutBtn.waitForDisplayed({ timeout: 15_000 })
         await logoutBtn.click()
 
         const passwordField = await $('#password')
@@ -232,11 +235,11 @@ describe('Basic Setup', () => {
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 
-    it('navigates to Management page', async () => {
-        const tab = await $('button[aria-label="Management"]')
+    it('navigates to My Money page', async () => {
+        const tab = await $('button[aria-label="My Money"]')
         await tab.click()
 
-        const heading = await $(HEADING_XPATH('Management'))
+        const heading = await $(HEADING_XPATH('My Money'))
         await heading.waitForDisplayed({ timeout: 10_000 })
     })
 

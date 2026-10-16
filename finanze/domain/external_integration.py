@@ -8,6 +8,7 @@ class ExternalIntegrationType(str, Enum):
     DATA_SOURCE = "DATA_SOURCE"
     ENTITY_PROVIDER = "ENTITY_PROVIDER"
     CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER"
+    AI_PROVIDER = "AI_PROVIDER"
 
 
 class ExternalIntegrationStatus(str, Enum):
@@ -25,6 +26,8 @@ class ExternalIntegrationId(str, Enum):
     COINGECKO = "COINGECKO"
     COINMARKETCAP = "COINMARKETCAP"
     CRYPTOCOMPARE = "CRYPTOCOMPARE"
+    OPENROUTER = "OPENROUTER"
+    OPENAI = "OPENAI"
 
 
 @dataclass
@@ -80,5 +83,11 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
     ExternalIntegrationId.ENABLE_BANKING: {
         "application_id": "Application ID",
         "private_key": "Private Key (PEM)",
+    },
+    ExternalIntegrationId.OPENROUTER: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.OPENAI: {
+        "api_key": "API Key",
     },
 }

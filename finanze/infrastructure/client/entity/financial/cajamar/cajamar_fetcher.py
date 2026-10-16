@@ -1,11 +1,21 @@
+import hashlib
 import logging
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.entity_login import (
+    EntityLoginParams,
+    EntityLoginResult,
+    LoginResultCode,
+)
+from domain.fetch_pointer import FetchPointer
+from domain.fetch_record import DataSource
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
     Accounts,
@@ -23,22 +33,50 @@ from domain.global_position import (
     ProductType,
 )
 from domain.native_entities import CAJAMAR
-from infrastructure.client.entity.financial.cajamar.cajamar_client import CajamarClient
+from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
+    AccountTx,
+    Transactions,
+    TxType,
+    normalize_iban,
+)
+from infrastructure.client.entity.financial.cajamar.cajamar_client import (
+    CajamarClient,
+    CajamarSignatureRequired,
+)
 
 _FIDIS_TYPE = "CR"
 _CONFIRMING_TYPE = "CF"
 _LEASING_TYPES = {"LS", "LL"}
 
+ACCOUNT_TXS_POINTER = "account_txs"
+ACCOUNT_TXS_PAGE_SIZE = 16
+MAX_ACCOUNT_TX_PAGES = 100
+
+OLD_TXS_MAIN_DEVICE_SIGNATURE = "MAIN_DEVICE_SIGNATURE"
+
+
+@dataclass(frozen=True)
+class _OldTxsAccount:
+    account_id: str
+    iban: Optional[str]
+    date_from: date
+    date_to: date
+
 
 class CajamarFetcher(FinancialEntityFetcher):
     def __init__(self):
         self._client = CajamarClient()
+        self._old_txs_signature_required = False
         self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return await self._client.login(username, password, login_params.session)
+        result = await self._client.login(username, password, login_params.session)
+        if result.code == LoginResultCode.CREATED:
+            self._old_txs_signature_required = False
+        return result
 
     def _build_accounts(
         self, raw_position: dict
@@ -441,3 +479,221 @@ class CajamarFetcher(FinancialEntityFetcher):
             products[ProductType.CREDIT] = Credits(credits)
 
         return GlobalPosition(id=uuid4(), entity=CAJAMAR, products=products)
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        self._old_txs_signature_required = False
+        raw_position = await self._client.get_position() or {}
+        account_txs = []
+        old_txs_accounts = []
+        today = date.today()
+        for account in raw_position.get("accounts") or []:
+            if not account.get("id"):
+                continue
+            account_txs += await self._fetch_account_txs(
+                account, registered_txs, options
+            )
+            if options.two_factor_old_txs:
+                old_txs_accounts.append(
+                    _OldTxsAccount(
+                        account_id=account["id"],
+                        iban=normalize_iban(account.get("iban")),
+                        date_from=today
+                        - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS),
+                        date_to=today,
+                    )
+                )
+
+        if old_txs_accounts:
+            skip_refs = set(registered_txs) | {tx.ref for tx in account_txs}
+            account_txs += await self._fetch_old_txs(old_txs_accounts, skip_refs)
+        return Transactions(investment=[], account=account_txs)
+
+    async def request_old_txs_code(self) -> Optional[EntityLoginResult]:
+        if not self._old_txs_signature_required:
+            return None
+        self._old_txs_signature_required = False
+        return EntityLoginResult(
+            LoginResultCode.NOT_LOGGED,
+            details={"oldTxsRequirement": OLD_TXS_MAIN_DEVICE_SIGNATURE},
+        )
+
+    async def _fetch_old_txs(
+        self, accounts: list[_OldTxsAccount], skip_refs: set[str]
+    ) -> list[AccountTx]:
+        txs = []
+        for account in accounts:
+            try:
+                response = (
+                    await self._client.get_account_txs(
+                        account.account_id,
+                        1,
+                        ACCOUNT_TXS_PAGE_SIZE,
+                        date_from=account.date_from,
+                        date_to=account.date_to,
+                    )
+                    or {}
+                )
+            except CajamarSignatureRequired:
+                self._old_txs_signature_required = True
+                break
+            except Exception:
+                self._log.exception(
+                    f"Error requesting Cajamar older movements for {account.iban}"
+                )
+                continue
+
+            if response.get("optk") and "accountTransactionsPagination" not in response:
+                self._log.info(
+                    f"Cajamar older movements signature requested ({response.get('type')})"
+                )
+                self._old_txs_signature_required = True
+                break
+
+            txs += await self._page_old_account_txs(account, response, skip_refs)
+        return txs
+
+    async def _page_old_account_txs(
+        self, account: _OldTxsAccount, response: dict, skip_refs: set[str]
+    ) -> list[AccountTx]:
+        txs = []
+        seen_refs: dict[str, int] = {}
+        page = response.get("accountTransactionsPagination") or {}
+        page_num = 1
+        while True:
+            for raw_tx in page.get("dataList") or []:
+                tx_date = self._safe_parse_date(raw_tx.get("date"))
+                if tx_date is None:
+                    continue
+                ref = self._account_tx_ref(raw_tx, seen_refs)
+                if ref in skip_refs or tx_date < account.date_from:
+                    continue
+                tx = self._map_account_tx(raw_tx, ref, tx_date, account.iban)
+                if tx:
+                    txs.append(tx)
+                    skip_refs.add(ref)
+
+            num_pages = (page.get("pagination") or {}).get("numPages") or 0
+            if page_num >= num_pages or page_num >= MAX_ACCOUNT_TX_PAGES:
+                return txs
+            page_num += 1
+            next_response = await self._client.get_account_txs(
+                account.account_id,
+                page_num,
+                ACCOUNT_TXS_PAGE_SIZE,
+                date_from=account.date_from,
+                date_to=account.date_to,
+            )
+            page = (next_response or {}).get("accountTransactionsPagination") or {}
+
+    async def _fetch_account_txs(
+        self, account: dict, registered_txs: set[str], options: FetchOptions
+    ) -> list[AccountTx]:
+        account_id = account["id"]
+        account_iban = normalize_iban(account.get("iban"))
+        iban = account_iban or account_id
+        pointer_key = f"{ACCOUNT_TXS_POINTER}:{iban}"
+        today = date.today()
+        min_date = today - timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
+        pointer = self._get_pointer(options, pointer_key)
+        if pointer:
+            min_date = min(pointer.threshold, today)
+
+        txs = []
+        seen_refs: dict[str, int] = {}
+        latest_date: Optional[date] = None
+        for page_num in range(1, MAX_ACCOUNT_TX_PAGES + 1):
+            response = await self._client.get_account_txs(
+                account_id, page_num, ACCOUNT_TXS_PAGE_SIZE
+            )
+            page = (response or {}).get("accountTransactionsPagination") or {}
+            reached_end = False
+            for raw_tx in page.get("dataList") or []:
+                tx_date = self._safe_parse_date(raw_tx.get("date"))
+                if tx_date is None:
+                    continue
+                if latest_date is None or tx_date > latest_date:
+                    latest_date = tx_date
+                if tx_date < min_date:
+                    reached_end = True
+                    continue
+
+                ref = self._account_tx_ref(raw_tx, seen_refs)
+                if ref in registered_txs:
+                    reached_end = True
+                    continue
+
+                tx = self._map_account_tx(raw_tx, ref, tx_date, account_iban)
+                if tx:
+                    txs.append(tx)
+
+            num_pages = (page.get("pagination") or {}).get("numPages") or 0
+            if reached_end or page_num >= num_pages:
+                break
+
+        self._update_pointer(options, pointer_key, latest_date or today)
+        return txs
+
+    @staticmethod
+    def _account_tx_ref(raw_tx: dict, seen_refs: dict[str, int]) -> str:
+        # documentId and deferId change on every request, idDoc is tied to the operation
+        key = "|".join(
+            [
+                str(raw_tx.get("idDoc") or raw_tx.get("documentId") or ""),
+                str(raw_tx.get("date") or ""),
+                str(raw_tx.get("amount")),
+                " ".join((raw_tx.get("description") or "").split()),
+            ]
+        )
+        base = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+        occurrence = seen_refs.get(base, 0) + 1
+        seen_refs[base] = occurrence
+        return base if occurrence == 1 else f"{base}-{occurrence}"
+
+    @staticmethod
+    def _map_account_tx(
+        raw_tx: dict, ref: str, tx_date: date, iban: Optional[str] = None
+    ) -> Optional[AccountTx]:
+        raw_amount = raw_tx.get("amount")
+        if raw_amount is None:
+            return None
+        signed_amount = Dezimal(str(raw_amount))
+        if signed_amount == 0:
+            return None
+        amount = abs(signed_amount)
+        return AccountTx(
+            id=uuid4(),
+            ref=ref,
+            name=" ".join((raw_tx.get("description") or "").split()),
+            amount=amount,
+            currency=raw_tx.get("currency") or "EUR",
+            type=TxType.INFLOW if signed_amount > 0 else TxType.OUTFLOW,
+            date=datetime.combine(tx_date, datetime.min.time(), tzinfo=tzlocal()),
+            entity=CAJAMAR,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal(0),
+            retentions=Dezimal(0),
+            net_amount=amount,
+            iban=iban,
+        )
+
+    @staticmethod
+    def _get_pointer(
+        options: Optional[FetchOptions], key: str
+    ) -> Optional[FetchPointer]:
+        if not options or not options.pointer_context:
+            return None
+        return options.pointer_context.pointers.get(key)
+
+    @staticmethod
+    def _update_pointer(options: Optional[FetchOptions], key: str, threshold: date):
+        if not options or not options.pointer_context:
+            return
+        options.pointer_context.pointers[key] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=key,
+            threshold=threshold,
+        )

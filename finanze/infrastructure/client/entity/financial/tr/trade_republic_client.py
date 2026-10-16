@@ -536,11 +536,15 @@ class TradeRepublicClient:
         self,
         since: Optional[datetime] = None,
         already_registered_ids: set[str] = None,
+        with_details: bool = True,
     ):
+        requested_data = ["timelineTransactions"]
+        if with_details:
+            requested_data.append("timelineDetailV2")
         dl = TRTimeline(
             self._tr_api,
             since=since,
-            requested_data=["timelineTransactions", "timelineDetailV2"],
+            requested_data=requested_data,
             already_registered_ids=already_registered_ids,
         )
         return await dl.fetch()

@@ -11,7 +11,9 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import EntityNotFound
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
+from domain.labeling import LabelingTrigger
 from domain.transactions import (
+    AccountTx,
     AddManualTransactionRequest,
     FundTx,
     Transactions,
@@ -70,17 +72,22 @@ def _build_uc(entity_port=None):
     virtual_import_registry = AsyncMock()
     virtual_import_registry.get_last_import_records.return_value = []
     historic_port = AsyncMock()
+    transaction_labeler = AsyncMock()
     uc = AddManualTransactionImpl(
         entity_port=entity_port,
         transaction_port=transaction_port,
         virtual_import_registry=virtual_import_registry,
         transaction_handler_port=_make_transaction_handler(),
         historic_port=historic_port,
+        label_port=AsyncMock(),
+        transaction_label_port=AsyncMock(),
+        transaction_labeler=transaction_labeler,
     )
     return uc, {
         "entity_port": entity_port,
         "transaction_port": transaction_port,
         "historic_port": historic_port,
+        "transaction_labeler": transaction_labeler,
     }
 
 
@@ -165,3 +172,65 @@ async def test_execute_links_historic_entry():
     assert linked_id == historic_id
     assert len(tx_ids) == 1
     assert isinstance(tx_ids[0], UUID)
+
+
+def _make_account_tx(entity):
+    return AccountTx(
+        id=None,
+        ref="TX-ACC",
+        name="Groceries",
+        amount=Dezimal("25"),
+        currency="EUR",
+        type=TxType.OUTFLOW,
+        date=datetime(2025, 3, 1, 12, tzinfo=tzlocal()),
+        entity=entity,
+        source=DataSource.MANUAL,
+        product_type=ProductType.ACCOUNT,
+        fees=Dezimal("0"),
+        retentions=Dezimal("0"),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "external_labeling, expected_trigger",
+    [(None, LabelingTrigger.AUTO), (True, LabelingTrigger.MANUAL)],
+)
+async def test_execute_account_tx_external_labeling_trigger(
+    external_labeling, expected_trigger
+):
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+
+    result_id = await uc.execute(
+        AddManualTransactionRequest(
+            txs=[_make_account_tx(entity)], external_labeling=external_labeling
+        )
+    )
+
+    labeler = mocks["transaction_labeler"]
+    labeler.classify.assert_awaited_once()
+    labeler.classify_external.assert_awaited_once()
+    selection, trigger = labeler.classify_external.await_args[0]
+    assert selection.ids == [result_id]
+    assert trigger == expected_trigger
+
+
+@pytest.mark.asyncio
+async def test_execute_account_tx_external_labeling_disabled_skips_external():
+    entity = _make_entity()
+    entity_port = AsyncMock()
+    entity_port.get_by_id.return_value = entity
+    uc, mocks = _build_uc(entity_port)
+
+    await uc.execute(
+        AddManualTransactionRequest(
+            txs=[_make_account_tx(entity)], external_labeling=False
+        )
+    )
+
+    labeler = mocks["transaction_labeler"]
+    labeler.classify.assert_awaited_once()
+    labeler.classify_external.assert_not_awaited()

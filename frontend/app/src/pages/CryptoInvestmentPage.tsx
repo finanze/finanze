@@ -76,6 +76,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   Popover,
@@ -2620,34 +2621,23 @@ function CryptoInvestmentContent({
                           </div>
                         </div>
                         {isEditMode && assetView.isManual && (
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+                          <div className="flex items-center justify-end gap-0.5 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <ManualPositionActions
+                              onEdit={() => {
                                 if (assetView.originalId) {
                                   editByOriginalId(assetView.originalId)
                                 } else if (assetView.localId) {
                                   editByLocalId(assetView.localId)
                                 }
                               }}
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
+                              onDelete={() => {
                                 if (assetView.originalId) {
                                   deleteByOriginalId(assetView.originalId)
                                 } else if (assetView.localId) {
                                   deleteByLocalId(assetView.localId)
                                 }
                               }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            />
                           </div>
                         )}
                       </CardContent>

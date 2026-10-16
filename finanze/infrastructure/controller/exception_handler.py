@@ -11,19 +11,25 @@ from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
+    ExternalLabelingUnavailable,
     ExternalProviderAppNotLinked,
     IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
+    InvalidBudgetLabel,
+    InvalidLabelingRule,
     InvalidProvidedCredentials,
     InvalidTemplateDefaultValue,
     InvalidToken,
+    LabelingRuleNotFound,
+    LabelNotFound,
     TemplateNotFound,
     TooManyRequests,
     TransactionNotFound,
     UnauthorizedToken,
     NoUserLogged,
     PermissionDenied,
+    ProtectedLabel,
     InvalidUserCredentials,
 )
 
@@ -56,6 +62,30 @@ def handle_entity_not_found(e):
 
 def handle_tx_not_found(e):
     return jsonify({"code": "TX_NOT_FOUND", "message": str(e)}), 404
+
+
+def handle_label_not_found(e):
+    return jsonify({"code": "LABEL_NOT_FOUND"}), 404
+
+
+def handle_protected_label(e):
+    return jsonify({"code": "PROTECTED_LABEL"}), 403
+
+
+def handle_invalid_budget_label(e):
+    return jsonify({"code": "INVALID_BUDGET_LABEL"}), 400
+
+
+def handle_labeling_rule_not_found(e):
+    return jsonify({"code": "LABELING_RULE_NOT_FOUND"}), 404
+
+
+def handle_invalid_labeling_rule(e: InvalidLabelingRule):
+    return jsonify({"code": "INVALID_LABELING_RULE", "message": e.details}), 400
+
+
+def handle_external_labeling_unavailable(e: ExternalLabelingUnavailable):
+    return jsonify({"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}), 502
 
 
 def handle_invalid_login_credentials(e):
@@ -148,6 +178,14 @@ def register_exception_handlers(
 ):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
+    app.register_error_handler(LabelNotFound, handle_label_not_found)
+    app.register_error_handler(ProtectedLabel, handle_protected_label)
+    app.register_error_handler(InvalidBudgetLabel, handle_invalid_budget_label)
+    app.register_error_handler(LabelingRuleNotFound, handle_labeling_rule_not_found)
+    app.register_error_handler(InvalidLabelingRule, handle_invalid_labeling_rule)
+    app.register_error_handler(
+        ExternalLabelingUnavailable, handle_external_labeling_unavailable
+    )
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(InvalidUserCredentials, handle_invalid_login_credentials)
     app.register_error_handler(DataEncryptedError, handle_user_not_logged)

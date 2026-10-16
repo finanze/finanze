@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   Check,
   ChevronDown,
@@ -46,6 +46,7 @@ const INTEGRATION_CATEGORY_ORDER: ExternalIntegrationType[] = [
   ExternalIntegrationType.ENTITY_PROVIDER,
   ExternalIntegrationType.CRYPTO_PROVIDER,
   ExternalIntegrationType.CRYPTO_MARKET_PROVIDER,
+  ExternalIntegrationType.AI_PROVIDER,
   ExternalIntegrationType.DATA_SOURCE,
 ]
 
@@ -778,6 +779,9 @@ export function IntegrationsTab() {
                   className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
+                  onError={event => {
+                    event.currentTarget.style.visibility = "hidden"
+                  }}
                 />
                 <div className="min-w-0">
                   <CardTitle className="text-lg break-words">{title}</CardTitle>
@@ -817,169 +821,190 @@ export function IntegrationsTab() {
             <CardDescription className="pt-2">{description}</CardDescription>
           )}
         </CardHeader>
-        {isExpanded && !isUnavailable && (
-          <CardContent className="space-y-4">
-            {schemaEntries.length > 0 ? (
-              schemaEntries.map(([field, label], index) => {
-                const value = payload[field] ?? ""
-                const hasError = !!errors[field]
-                const isSecure = /secret|password|token|key/i.test(field)
-                const showHintInline = Boolean(hintContent) && index === 0
+        <AnimatePresence initial={false}>
+          {isExpanded && !isUnavailable && (
+            <motion.div
+              key="integration-settings"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <CardContent className="space-y-4">
+                {schemaEntries.length > 0 ? (
+                  schemaEntries.map(([field, label], index) => {
+                    const value = payload[field] ?? ""
+                    const hasError = !!errors[field]
+                    const isSecure = /secret|password|token|key/i.test(field)
+                    const showHintInline = Boolean(hintContent) && index === 0
 
-                return (
-                  <div key={field} className="space-y-2">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <Label
-                        htmlFor={`${integration.id}-${field}`}
-                        className="leading-tight"
-                      >
-                        {label}
-                      </Label>
-                      {showHintInline && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size={hasHintLabel ? "sm" : "icon"}
-                              type="button"
-                              aria-label={
-                                hasHintLabel ? hintButtonLabel : t.common.help
-                              }
-                              className={cn(
-                                "text-xs text-muted-foreground",
-                                hasHintLabel
-                                  ? "gap-1 h-auto px-2 py-1"
-                                  : "h-8 w-8 p-0",
-                              )}
-                            >
-                              <Info className="h-4 w-4" />
-                              {hasHintLabel ? (
-                                <span>{hintButtonLabel}</span>
-                              ) : undefined}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            align="start"
-                            collisionPadding={12}
-                            className="w-80 p-3 space-y-2 overflow-y-auto max-h-[min(70vh,var(--radix-popover-content-available-height))]"
+                    return (
+                      <div key={field} className="space-y-2">
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <Label
+                            htmlFor={`${integration.id}-${field}`}
+                            className="leading-tight"
                           >
-                            <h4 className="text-sm font-medium">
-                              {hint?.title ?? title}
-                            </h4>
-                            {hintContent}
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
-                    {field === "private_key" ? (
-                      <PrivateKeyField
-                        id={`${integration.id}-${field}`}
-                        label={String(label)}
-                        value={value}
-                        hasError={hasError}
-                        disabled={isUnavailable || disabledForPlatform}
-                        onChange={newValue =>
-                          handleIntegrationFieldChange(
-                            integration.id,
-                            field,
-                            newValue,
-                          )
-                        }
-                      />
-                    ) : isSecure ? (
-                      <SecretInput
-                        id={`${integration.id}-${field}`}
-                        value={value}
-                        onChange={event =>
-                          handleIntegrationFieldChange(
-                            integration.id,
-                            field,
-                            event.target.value,
-                          )
-                        }
-                        placeholder={String(label)}
-                        disabled={isUnavailable || disabledForPlatform}
-                        className={cn(hasError ? "border-red-500" : undefined)}
-                      />
-                    ) : (
-                      <Input
-                        id={`${integration.id}-${field}`}
-                        type="text"
-                        value={value}
-                        onChange={event =>
-                          handleIntegrationFieldChange(
-                            integration.id,
-                            field,
-                            event.target.value,
-                          )
-                        }
-                        placeholder={String(label)}
-                        disabled={isUnavailable || disabledForPlatform}
-                        className={cn(hasError ? "border-red-500" : undefined)}
-                      />
-                    )}
-                  </div>
-                )
-              })
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t.common.notAvailable}
-              </p>
-            )}
-
-            <div className="flex items-center justify-end gap-2">
-              {disabledForPlatform && (
-                <span className="text-xs text-muted-foreground">
-                  {`(${t.settings.googleSheetsWebDisabled})`}
-                </span>
-              )}
-              {isEnabled && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDisableIntegration(integration.id)}
-                  disabled={disableLoading}
-                >
-                  {disableLoading ? (
-                    <>
-                      <LoadingSpinner size="sm" className="mr-2" />
-                      {t.common.loading}
-                    </>
-                  ) : (
-                    <>
-                      <Link2Off className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">
-                        {t.entities.disconnect}
-                      </span>
-                    </>
-                  )}
-                </Button>
-              )}
-              <Button
-                size="sm"
-                onClick={() => handleSetupIntegration(integration.id)}
-                disabled={
-                  isLoading ||
-                  !canSubmit ||
-                  disabledForPlatform ||
-                  isUnavailable
-                }
-              >
-                {isLoading ? (
-                  <>
-                    <LoadingSpinner size="sm" color="invert" className="mr-2" />
-                    {t.common.loading}
-                  </>
+                            {label}
+                          </Label>
+                          {showHintInline && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size={hasHintLabel ? "sm" : "icon"}
+                                  type="button"
+                                  aria-label={
+                                    hasHintLabel
+                                      ? hintButtonLabel
+                                      : t.common.help
+                                  }
+                                  className={cn(
+                                    "text-xs text-muted-foreground",
+                                    hasHintLabel
+                                      ? "gap-1 h-auto px-2 py-1"
+                                      : "h-8 w-8 p-0",
+                                  )}
+                                >
+                                  <Info className="h-4 w-4" />
+                                  {hasHintLabel ? (
+                                    <span>{hintButtonLabel}</span>
+                                  ) : undefined}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="start"
+                                collisionPadding={12}
+                                className="w-80 p-3 space-y-2 overflow-y-auto max-h-[min(70vh,var(--radix-popover-content-available-height))]"
+                              >
+                                <h4 className="text-sm font-medium">
+                                  {hint?.title ?? title}
+                                </h4>
+                                {hintContent}
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
+                        {field === "private_key" ? (
+                          <PrivateKeyField
+                            id={`${integration.id}-${field}`}
+                            label={String(label)}
+                            value={value}
+                            hasError={hasError}
+                            disabled={isUnavailable || disabledForPlatform}
+                            onChange={newValue =>
+                              handleIntegrationFieldChange(
+                                integration.id,
+                                field,
+                                newValue,
+                              )
+                            }
+                          />
+                        ) : isSecure ? (
+                          <SecretInput
+                            id={`${integration.id}-${field}`}
+                            value={value}
+                            onChange={event =>
+                              handleIntegrationFieldChange(
+                                integration.id,
+                                field,
+                                event.target.value,
+                              )
+                            }
+                            placeholder={String(label)}
+                            disabled={isUnavailable || disabledForPlatform}
+                            className={cn(
+                              hasError ? "border-red-500" : undefined,
+                            )}
+                          />
+                        ) : (
+                          <Input
+                            id={`${integration.id}-${field}`}
+                            type="text"
+                            value={value}
+                            onChange={event =>
+                              handleIntegrationFieldChange(
+                                integration.id,
+                                field,
+                                event.target.value,
+                              )
+                            }
+                            placeholder={String(label)}
+                            disabled={isUnavailable || disabledForPlatform}
+                            className={cn(
+                              hasError ? "border-red-500" : undefined,
+                            )}
+                          />
+                        )}
+                      </div>
+                    )
+                  })
                 ) : (
-                  <>
-                    <Link2 className="mr-2 h-4 w-4" />
-                    {t.common.setup}
-                  </>
+                  <p className="text-sm text-muted-foreground">
+                    {t.common.notAvailable}
+                  </p>
                 )}
-              </Button>
-            </div>
-          </CardContent>
-        )}
+
+                <div className="flex items-center justify-end gap-2">
+                  {disabledForPlatform && (
+                    <span className="text-xs text-muted-foreground">
+                      {`(${t.settings.googleSheetsWebDisabled})`}
+                    </span>
+                  )}
+                  {isEnabled && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDisableIntegration(integration.id)}
+                      disabled={disableLoading}
+                    >
+                      {disableLoading ? (
+                        <>
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          {t.common.loading}
+                        </>
+                      ) : (
+                        <>
+                          <Link2Off className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">
+                            {t.entities.disconnect}
+                          </span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => handleSetupIntegration(integration.id)}
+                    disabled={
+                      isLoading ||
+                      !canSubmit ||
+                      disabledForPlatform ||
+                      isUnavailable
+                    }
+                  >
+                    {isLoading ? (
+                      <>
+                        <LoadingSpinner
+                          size="sm"
+                          color="invert"
+                          className="mr-2"
+                        />
+                        {t.common.loading}
+                      </>
+                    ) : (
+                      <>
+                        <Link2 className="mr-2 h-4 w-4" />
+                        {t.common.setup}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     )
   }

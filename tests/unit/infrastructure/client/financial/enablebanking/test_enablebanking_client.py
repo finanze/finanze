@@ -176,7 +176,31 @@ class TestRequests:
         assert body["redirect_url"] == EnableBankingClient.REDIRECT_URL
         assert body["aspsp"] == {"name": "Bank", "country": "ES"}
         assert body["state"] == "state-1"
-        assert body["access"] == {"valid_until": "2024-01-01T00:00:00+00:00"}
+        assert body["access"] == {
+            "valid_until": "2024-01-01T00:00:00+00:00",
+            "balances": True,
+            "transactions": True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_account_transactions_requests_booked_page(
+        self, rsa_private_key_pem
+    ):
+        client = _make_client(
+            FakeResponse(json_data={"transactions": [], "continuation_key": None}),
+            rsa_private_key_pem,
+        )
+
+        await client.get_account_transactions("acc-1", "2024-01-01", "next-key")
+
+        call = client._session.request.call_args
+        assert call.args[0] == "GET"
+        assert call.args[1].endswith("/accounts/acc-1/transactions")
+        assert call.kwargs["params"] == {
+            "date_from": "2024-01-01",
+            "transaction_status": "BOOK",
+            "continuation_key": "next-key",
+        }
 
     @pytest.mark.asyncio
     async def test_create_session(self, rsa_private_key_pem):

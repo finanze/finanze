@@ -99,6 +99,29 @@ import {
   TransactionsResult,
   ManualTransactionPayload,
 } from "../types/transactions"
+import type {
+  Label,
+  LabelsResponse,
+  SaveLabelRequest,
+  LabelingRulesResponse,
+  SaveLabelingRuleRequest,
+  SavedLabelingRule,
+  LabelingRuleConditions,
+  LabelingRulePreview,
+  UpdateTransactionLabelsRequest,
+  RelabelRequest,
+  RelabelResult,
+  ExternalLabelingProviders,
+} from "../types/labeling"
+import type { AIModelValidation, AITask } from "../types/ai"
+import type {
+  CashflowQuery,
+  CashflowSummary,
+  RecurringMovements,
+  RecurringMovementsQuery,
+  IgnoreRecurringMovementRequest,
+  IgnoredRecurringMovement,
+} from "../types/cashflow"
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { setTelemetryContext } from "@/lib/telemetry"
@@ -372,10 +395,138 @@ export async function getTransactions(
     if (queryParams.historic_entry_id) {
       params.append("historic_entry_id", queryParams.historic_entry_id)
     }
+    queryParams.labels?.forEach(label => params.append("label", label))
+    queryParams.excluded_labels?.forEach(label =>
+      params.append("exclude_label", label),
+    )
+    if (queryParams.unlabeled) params.append("unlabeled", "true")
+    if (queryParams.search?.trim()) {
+      params.append("search", queryParams.search.trim())
+    }
   }
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
   return (await getApiClient()).get(`/transactions${queryString}`)
+}
+
+export async function getLabels(): Promise<LabelsResponse> {
+  return (await getApiClient()).get("/labels")
+}
+
+export async function createLabel(request: SaveLabelRequest): Promise<Label> {
+  return (await getApiClient()).post("/labels", request)
+}
+
+export async function updateLabel(
+  labelId: string,
+  request: SaveLabelRequest,
+): Promise<void> {
+  return (await getApiClient()).put(`/labels/${labelId}`, request)
+}
+
+export async function deleteLabel(labelId: string): Promise<void> {
+  return (await getApiClient()).delete(`/labels/${labelId}`)
+}
+
+export async function getLabelingRules(): Promise<LabelingRulesResponse> {
+  return (await getApiClient()).get("/labeling/rules")
+}
+
+export async function createLabelingRule(
+  request: SaveLabelingRuleRequest,
+): Promise<SavedLabelingRule> {
+  return (await getApiClient()).post("/labeling/rules", request)
+}
+
+export async function updateLabelingRule(
+  ruleId: string,
+  request: SaveLabelingRuleRequest,
+): Promise<SavedLabelingRule> {
+  return (await getApiClient()).put(`/labeling/rules/${ruleId}`, request)
+}
+
+export async function deleteLabelingRule(ruleId: string): Promise<void> {
+  return (await getApiClient()).delete(`/labeling/rules/${ruleId}`)
+}
+
+export async function previewLabelingRule(
+  conditions: LabelingRuleConditions,
+  limit = 10,
+): Promise<LabelingRulePreview> {
+  return (await getApiClient()).post("/labeling/rules/preview", {
+    conditions,
+    limit,
+  })
+}
+
+export async function relabelTransactions(
+  request: RelabelRequest,
+): Promise<RelabelResult> {
+  return (await getApiClient()).post("/labeling/relabel", request)
+}
+
+export async function updateTransactionLabels(
+  txId: string,
+  request: UpdateTransactionLabelsRequest,
+): Promise<void> {
+  return (await getApiClient()).put(`/transactions/${txId}/labels`, request)
+}
+
+export async function getExternalLabelingProviders(): Promise<ExternalLabelingProviders> {
+  return (await getApiClient()).get("/labeling/external/providers")
+}
+
+export async function validateAIModel(
+  provider: string,
+  model: string,
+  task: AITask,
+  upstreamProvider?: string | null,
+): Promise<AIModelValidation> {
+  return (await getApiClient()).post("/ai/models/validate", {
+    provider,
+    model,
+    task,
+    upstream_provider: upstreamProvider || null,
+  })
+}
+
+export async function getCashflowSummary(
+  query: CashflowQuery,
+): Promise<CashflowSummary> {
+  const params = new URLSearchParams()
+  params.append("currency", query.currency)
+  params.append("from_date", query.from_date)
+  params.append("to_date", query.to_date)
+  if (query.granularity) params.append("granularity", query.granularity)
+  query.entities?.forEach(entity => params.append("entity", entity))
+  return (await getApiClient()).get(`/cashflow?${params.toString()}`)
+}
+
+export async function getRecurringMovements(
+  query: RecurringMovementsQuery,
+): Promise<RecurringMovements> {
+  const params = new URLSearchParams()
+  params.append("currency", query.currency)
+  if (query.lookback_months) {
+    params.append("lookback_months", query.lookback_months.toString())
+  }
+  if (query.type) params.append("type", query.type)
+  query.entities?.forEach(entity => params.append("entity", entity))
+  return (await getApiClient()).get(`/cashflow/recurring?${params.toString()}`)
+}
+
+export async function ignoreRecurringMovement(
+  request: IgnoreRecurringMovementRequest,
+): Promise<IgnoredRecurringMovement> {
+  return (await getApiClient()).post("/cashflow/recurring/ignored", request)
+}
+
+export async function restoreRecurringMovement(
+  ignoredId: string,
+): Promise<void> {
+  return (await getApiClient()).delete(
+    `/cashflow/recurring/ignored/${ignoredId}`,
+  )
 }
 
 export async function getMarketForecastPnl(

@@ -25,7 +25,12 @@ import type {
   ManualSavePayloadByEntity,
 } from "@/components/manual/manualPositionTypes"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatDate,
+  formatIban,
+  formatPercentage,
+} from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
@@ -125,7 +130,8 @@ interface AccountsSummary {
 }
 
 interface CardsSummary {
-  totalUsed: number
+  totalCreditUsed: number
+  creditCount: number
   count: number
 }
 
@@ -149,19 +155,18 @@ const BANKING_ACCOUNT_ENTITY_TYPES: EntityType[] = [
   EntityType.MARKET_FORECAST_PLATFORM,
 ]
 
-const formatIban = (iban?: string | null, reveal?: boolean) => {
-  if (!iban) return null
-  if (reveal) {
-    return iban.replace(/(.{4})/g, "$1 ").trim()
-  }
-  return `•••• •••• •••• ${iban.slice(-4)}`
-}
-
 const formatCardNumber = (ending?: string | null) =>
   ending ? `•••• •••• •••• ${ending}` : "•••• •••• •••• ••••"
 
 const isFiniteNumber = (value: number | null | undefined): value is number =>
   typeof value === "number" && Number.isFinite(value)
+
+const MANUAL_POSITION_ICON_ACTION_CLASS =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+const MANUAL_POSITION_DELETE_ACTION_CLASS = cn(
+  MANUAL_POSITION_ICON_ACTION_CLASS,
+  "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400",
+)
 
 type AccountDraft = ManualPositionDraft<Account>
 type CardDraft = ManualPositionDraft<CardModel>
@@ -607,6 +612,7 @@ export default function BankingPage() {
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+  const [showEmptyAccounts, setShowEmptyAccounts] = useState(false)
 
   const [accountOptions, setAccountOptions] = useState<AccountViewOptions>(
     () => {
@@ -623,6 +629,9 @@ export default function BankingPage() {
 
   const updateAccountOptions = useCallback(
     (patch: Partial<AccountViewOptions>) => {
+      if (patch.hideEmpty !== undefined) {
+        setShowEmptyAccounts(false)
+      }
       setAccountOptions(prev => {
         const next = { ...prev, ...patch }
         localStorage.setItem("bankingAccountOptions", JSON.stringify(next))
@@ -676,7 +685,8 @@ export default function BankingPage() {
     count: 0,
   })
   const [cardsSummary, setCardsSummary] = useState<CardsSummary>({
-    totalUsed: 0,
+    totalCreditUsed: 0,
+    creditCount: 0,
     count: 0,
   })
   const [loansSummary, setLoansSummary] = useState<LoansSummary>({
@@ -996,7 +1006,9 @@ export default function BankingPage() {
 
   const updateCardsSummary = useCallback((summary: CardsSummary) => {
     setCardsSummary(prev =>
-      prev.totalUsed === summary.totalUsed && prev.count === summary.count
+      prev.totalCreditUsed === summary.totalCreditUsed &&
+      prev.creditCount === summary.creditCount &&
+      prev.count === summary.count
         ? prev
         : summary,
     )
@@ -1025,7 +1037,7 @@ export default function BankingPage() {
   }, [])
 
   const totalAccountBalance = accountsSummary.totalBalance
-  const totalCardUsed = cardsSummary.totalUsed
+  const totalCreditCardUsed = cardsSummary.totalCreditUsed
   const totalLoanDebt = loansSummary.totalDebt + creditsSummary.totalDrawn
   const totalMonthlyPayments = loansSummary.totalMonthlyPayments
   const combinedDebtCount = loansSummary.count + creditsSummary.count
@@ -1089,6 +1101,8 @@ export default function BankingPage() {
             filteredEntities={bankingEntities}
             selectedEntities={selectedEntities}
             onEntitiesChange={setSelectedEntities}
+            showClearFilters={false}
+            hideLabelOnMobile
           />
         </div>
       </motion.div>
@@ -1130,19 +1144,19 @@ export default function BankingPage() {
             </Card>
           )}
 
-          {cardsSummary.count > 0 && (
+          {cardsSummary.creditCount > 0 && (
             <Card className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-orange-500" />
                 <span className="text-sm font-medium text-muted-foreground">
-                  {t.banking.totalCardUsed}
+                  {t.banking.totalCreditCardUsed}
                 </span>
               </div>
               <div className="text-2xl font-bold">
                 <Sensitive>
                   <FormattedMarketValue
                     value={formatCurrency(
-                      totalCardUsed,
+                      totalCreditCardUsed,
                       locale,
                       settings.general.defaultCurrency,
                     )}
@@ -1151,8 +1165,10 @@ export default function BankingPage() {
                 </Sensitive>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {cardsSummary.count}{" "}
-                {cardsSummary.count === 1 ? t.banking.card : t.banking.cards}
+                {cardsSummary.creditCount}{" "}
+                {cardsSummary.creditCount === 1
+                  ? t.banking.card
+                  : t.banking.cards}
               </div>
             </Card>
           )}
@@ -1225,6 +1241,8 @@ export default function BankingPage() {
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
           options={accountOptions}
+          showEmptyAccounts={showEmptyAccounts}
+          onShowEmptyAccounts={() => setShowEmptyAccounts(true)}
           onOptionsChange={updateAccountOptions}
           onSummaryChange={updateAccountsSummary}
           onFocusEntity={handleFocusEntity}
@@ -1316,6 +1334,8 @@ interface SectionCommonProps {
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
   options: AccountViewOptions
+  showEmptyAccounts: boolean
+  onShowEmptyAccounts: () => void
   onOptionsChange: (patch: Partial<AccountViewOptions>) => void
   onSummaryChange: (summary: AccountsSummary) => void
 }
@@ -1327,6 +1347,8 @@ function BankAccountsSection({
   defaultCurrency,
   exchangeRates,
   options,
+  showEmptyAccounts,
+  onShowEmptyAccounts,
   onOptionsChange,
   onSummaryChange,
   onFocusEntity,
@@ -1626,18 +1648,19 @@ function BankAccountsSection({
   )
 
   const sortedItems = useMemo(() => {
-    const base = options.hideEmpty
-      ? nonDeletedItems.filter(
-          item => (item.position.convertedTotal ?? 0) !== 0,
-        )
-      : nonDeletedItems
+    const base =
+      options.hideEmpty && !showEmptyAccounts
+        ? nonDeletedItems.filter(
+            item => (item.position.convertedTotal ?? 0) !== 0,
+          )
+        : nonDeletedItems
     const factor = options.sortOrder === "asc" ? 1 : -1
     return [...base].sort(
       (a, b) =>
         ((a.position.convertedTotal ?? 0) - (b.position.convertedTotal ?? 0)) *
         factor,
     )
-  }, [nonDeletedItems, options.hideEmpty, options.sortOrder])
+  }, [nonDeletedItems, options.hideEmpty, options.sortOrder, showEmptyAccounts])
 
   const groupedItems = useMemo(() => {
     if (!options.groupByEntity) return null
@@ -2043,11 +2066,12 @@ function BankAccountsSection({
                             )}
 
                             {showActions && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex items-center gap-1"
+                              <div className="flex justify-end gap-0.5">
+                                <button
+                                  type="button"
+                                  aria-label={t.common.edit}
+                                  title={t.common.edit}
+                                  className={MANUAL_POSITION_ICON_ACTION_CLASS}
                                   onClick={() => {
                                     if (manualDraft?.originalId) {
                                       editByOriginalId(manualDraft.originalId)
@@ -2059,12 +2083,14 @@ function BankAccountsSection({
                                   }}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
-                                  {t.common.edit}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={t.common.delete}
+                                  title={t.common.delete}
+                                  className={
+                                    MANUAL_POSITION_DELETE_ACTION_CLASS
+                                  }
                                   onClick={() => {
                                     if (manualDraft?.originalId) {
                                       deleteByOriginalId(manualDraft.originalId)
@@ -2076,8 +2102,7 @@ function BankAccountsSection({
                                   }}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
-                                  {t.common.delete}
-                                </Button>
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2087,18 +2112,20 @@ function BankAccountsSection({
                   </div>
                 </div>
               ))}
-              {options.hideEmpty && hiddenEmptyCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onOptionsChange({ hideEmpty: false })}
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {t.banking.emptyCount.replace(
-                    "{count}",
-                    String(hiddenEmptyCount),
-                  )}
-                </button>
-              )}
+              {options.hideEmpty &&
+                !showEmptyAccounts &&
+                hiddenEmptyCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onShowEmptyAccounts}
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {t.banking.emptyCount.replace(
+                      "{count}",
+                      String(hiddenEmptyCount),
+                    )}
+                  </button>
+                )}
             </div>
           </TooltipProvider>
         ))}
@@ -2315,15 +2342,19 @@ function BankCardsSection({
           return accumulator
         }
 
-        accumulator.total += item.position.convertedUsed ?? 0
+        if (item.position.type === CardType.CREDIT) {
+          accumulator.total += item.position.convertedUsed ?? 0
+          accumulator.creditCount += 1
+        }
         accumulator.count += 1
         return accumulator
       },
-      { total: 0, count: 0 },
+      { total: 0, creditCount: 0, count: 0 },
     )
 
     return {
-      totalUsed: totals.total,
+      totalCreditUsed: totals.total,
+      creditCount: totals.creditCount,
       count: totals.count,
     }
   }, [displayItems, isEntryDeleted])
@@ -2637,10 +2668,12 @@ function BankCardsSection({
                             </p>
                           )}
                           {showActions && (
-                            <div className="mt-auto flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
+                            <div className="mt-auto flex justify-end gap-0.5">
+                              <button
+                                type="button"
+                                aria-label={t.common.edit}
+                                title={t.common.edit}
+                                className={MANUAL_POSITION_ICON_ACTION_CLASS}
                                 onClick={() => {
                                   if (manualDraft?.originalId) {
                                     editByOriginalId(manualDraft.originalId)
@@ -2650,15 +2683,14 @@ function BankCardsSection({
                                     editByOriginalId(item.originalId)
                                   }
                                 }}
-                                className="flex items-center gap-1"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
-                                {t.common.edit}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={t.common.delete}
+                                title={t.common.delete}
+                                className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                                 onClick={() => {
                                   if (manualDraft?.originalId) {
                                     deleteByOriginalId(manualDraft.originalId)
@@ -2670,8 +2702,7 @@ function BankCardsSection({
                                 }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
-                                {t.common.delete}
-                              </Button>
+                              </button>
                             </div>
                           )}
                         </div>
@@ -3354,10 +3385,12 @@ function BankLoansSection({
                   )}
 
                   {showActions && (
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <div className="mt-4 flex justify-end gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={t.common.edit}
+                        title={t.common.edit}
+                        className={MANUAL_POSITION_ICON_ACTION_CLASS}
                         onClick={() => {
                           if (manualDraft?.originalId) {
                             editByOriginalId(manualDraft.originalId)
@@ -3367,15 +3400,14 @@ function BankLoansSection({
                             editByOriginalId(item.originalId)
                           }
                         }}
-                        className="flex items-center gap-1"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t.common.delete}
+                        title={t.common.delete}
+                        className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                         onClick={() => {
                           if (manualDraft?.originalId) {
                             deleteByOriginalId(manualDraft.originalId)
@@ -3387,8 +3419,7 @@ function BankLoansSection({
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        {t.common.delete}
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </Card>
@@ -3606,10 +3637,12 @@ function BankLoansSection({
                   )}
 
                   {showCreditActions && creditEditHandlers && (
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <div className="mt-4 flex justify-end gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={t.common.edit}
+                        title={t.common.edit}
+                        className={MANUAL_POSITION_ICON_ACTION_CLASS}
                         onClick={() => {
                           if (creditDraft?.originalId) {
                             creditEditHandlers.editByOriginalId(
@@ -3625,15 +3658,14 @@ function BankLoansSection({
                             )
                           }
                         }}
-                        className="flex items-center gap-1"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        {t.common.edit}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t.common.delete}
+                        title={t.common.delete}
+                        className={MANUAL_POSITION_DELETE_ACTION_CLASS}
                         onClick={() => {
                           if (creditDraft?.originalId) {
                             creditEditHandlers.deleteByOriginalId(
@@ -3651,8 +3683,7 @@ function BankLoansSection({
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        {t.common.delete}
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </Card>

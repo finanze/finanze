@@ -64,6 +64,7 @@ import {
   ManualPositionsManager,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
 import {
   mergeManualDisplayItems,
@@ -145,7 +146,6 @@ function FundsInvestmentPageContent({
   const portfolioManual = portfolioContext
   const {
     drafts,
-    isEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -724,36 +724,38 @@ function FundsInvestmentPageContent({
       </motion.div>
 
       <motion.div variants={fadeListItem}>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <Filter size={16} />
-            <span className="hidden sm:inline">{t.transactions.filters}:</span>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <div className="w-full sm:max-w-xs">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex min-w-64 flex-1 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <Filter size={16} />
+              <span className="hidden sm:inline">
+                {t.transactions.filters}:
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 sm:max-w-xs">
               <EntitySelector
                 entities={filteredEntities}
                 selectedEntityIds={selectedEntities}
                 onSelectionChange={setSelectedEntities}
               />
             </div>
-            {portfolioOptions.length > 0 && (
-              <div className="w-full sm:max-w-xs">
-                <MultiSelect
-                  options={portfolioOptions}
-                  value={selectedPortfolios}
-                  onChange={setSelectedPortfolios}
-                  placeholder={(t.investments as any).portfolio}
-                />
-              </div>
-            )}
           </div>
+          {portfolioOptions.length > 0 && (
+            <div className="min-w-64 flex-1 sm:max-w-xs">
+              <MultiSelect
+                options={portfolioOptions}
+                value={selectedPortfolios}
+                onChange={setSelectedPortfolios}
+                placeholder={(t.investments as any).portfolio}
+              />
+            </div>
+          )}
           {(selectedEntities.length > 0 || selectedPortfolios.length > 0) && (
             <Button
               variant="outline"
               size="sm"
               onClick={handleClearAllFilters}
-              className="flex items-center gap-2 self-start lg:self-auto"
+              className="flex shrink-0 items-center gap-2"
             >
               <FilterX size={16} />
               {t.transactions.clear}
@@ -964,7 +966,7 @@ function FundsInvestmentPageContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 const infoSheetUrl = position.infoSheetUrl?.trim()
                 const isExpanded = expandedCards[item.key] ?? false
@@ -1370,14 +1372,11 @@ function FundsInvestmentPageContent({
                               )}
                               {showActions && (
                                 <div
-                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  className="flex items-center justify-end gap-0.5 pt-2 border-t border-border/30"
                                   data-no-expand
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex items-center gap-2"
-                                    onClick={() => {
+                                  <ManualPositionActions
+                                    onEdit={() => {
                                       if (manualDraft?.originalId) {
                                         editByOriginalId(manualDraft.originalId)
                                       } else if (manualDraft) {
@@ -1386,15 +1385,7 @@ function FundsInvestmentPageContent({
                                         editByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    {t.common.edit}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-500 hover:text-red-600"
-                                    onClick={() => {
+                                    onDelete={() => {
                                       if (manualDraft?.originalId) {
                                         deleteByOriginalId(
                                           manualDraft.originalId,
@@ -1405,9 +1396,7 @@ function FundsInvestmentPageContent({
                                         deleteByOriginalId(item.originalId)
                                       }
                                     }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  />
                                 </div>
                               )}
                             </div>

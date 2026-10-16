@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Back",
+    "backTo": "Back to {page}",
     "backToTop": "Back to top",
     "submit": "Submit",
     "loading": "Loading...",
@@ -482,6 +483,7 @@
     "invalidPasswordFormat": "Encryption key must be at least 8 characters",
     "inAppConfirmationTitle": "Confirm login in",
     "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "inAppOldTxsConfirmationMessage": "Open the financial institution app on your phone and confirm the request to access older transactions.",
     "challengeTitle": "Security verification for",
     "challengeMessage": "Please complete the security verification to continue.",
     "cloudRestore": {
@@ -514,9 +516,12 @@
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
     "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
+    "twoFactorOldTxsHint": "Main data is already fetched. Enter the extra code to also fetch older account transactions.",
+    "twoFactorOldTxsHintDestination": "Main data is already fetched. Enter the extra code sent to {destination} to also fetch older account transactions.",
     "cancelConfirmationTitle": "Cancel verification?",
     "cancelLoginDescription": "Do you want to leave the login process?",
     "cancelFetchDescription": "Do you want to leave the fetch process?",
+    "cancelOldTxsDescription": "Main data is already saved. Do you want to skip older account transactions?",
     "pendingRequests": "Other entities need a code",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Verification code"
@@ -539,6 +544,7 @@
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "Some features could not be loaded for {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} did not allow fetching movements older than 3 months. Request them first in the {entity} app on your main device, approve the signature there and fetch again.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
     "DISABLED": "Data import disabled in settings.",
     "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
@@ -632,6 +638,7 @@
     "enableBankingNoLinkedAccountsAfter": ". Link it there first, then try again.",
     "confirmConnection": "Complete Connection",
     "providerLinkInstructions": "Finish the process in the opened window then confirm the connection.",
+    "completingConnection": "Completing the connection, this may take a few seconds...",
     "openLink": "Open Link",
     "dismiss": "Dismiss",
     "continueLink": "Continue link",
@@ -646,6 +653,8 @@
     "POSITION": "Positions",
     "AUTO_CONTRIBUTIONS": "Auto Contributions",
     "TRANSACTIONS": "Transactions",
+    "accountTransactions": "Account TXs",
+    "investmentTransactions": "Investment TXs",
     "HISTORIC": "Historic Data",
     "selectFeatures": "Select features to fetch from",
     "selectAll": "Select all",
@@ -653,6 +662,12 @@
     "fetchSelected": "Fetch",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "twoFactorOldTxs": "Include older account transactions",
+    "twoFactorOldTxsDescription": "Fetch account transactions beyond the usual 3-month limit. An extra verification code will be requested at the end.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Fetch account transactions beyond the usual 3-month limit. Before fetching, request movements older than 3 months in the Cajamar app on your main device and approve the signature there."
+    },
+    "twoFactorOldTxsSkipped": "Older account transactions from {entity} were skipped",
     "advancedOptions": "Advanced options",
     "availableFeatures": "Available Features",
     "supportedProducts": "Supported Products",
@@ -1179,6 +1194,50 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Connect OpenRouter to get automatic label suggestions for your account movements using the model you choose.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenRouter API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Create an account at "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", generate a new API key and paste it below. Usage is billed by OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Connect OpenAI to get automatic label suggestions for your account movements using GPT models.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an OpenAI API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Sign in to the OpenAI platform at "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", create a new secret key and paste it below. Usage is billed by OpenAI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
@@ -1189,6 +1248,7 @@
       "ENTITY_PROVIDER": "Banking providers",
       "CRYPTO_PROVIDER": "Crypto providers",
       "CRYPTO_MARKET_PROVIDER": "Crypto market data",
+      "AI_PROVIDER": "AI providers",
       "DATA_SOURCE": "Data sources"
     }
   },
@@ -1255,7 +1315,7 @@
     "includePendingMoneyInfo": "With this option enabled, pending (expenses or earnings) will be considered in the Pending Money section when calculating the net worth.",
     "includeLoans": "Include loans & credits",
     "includeLoansInfo": "This option means loans outstanding principal and credit lines drawn amount are considered when calculating net worth. The loans associated with a real estate entry won't be considered, as they are already computed in the real estate equity (see option below).",
-    "includeCardExpenses": "Subtract card expenses",
+    "includeCardExpenses": "Subtract credit card usage",
     "includeRealEstateEquity": "Include real estate equity",
     "includeRealEstateEquityInfo": "Enabling this option means real estate equity is considered when computing the net worth. Real estate equity is defined as the real estate valuation minus the related loans outstanding principal. If you want to also consider the residences mark also the option below.",
     "includeResidences": "Include residences",
@@ -1744,6 +1804,12 @@
     "selectAccounts": "Select accounts...",
     "selectProductTypes": "Select product types...",
     "selectTransactionTypes": "Select transaction types...",
+    "scope": {
+      "label": "Show",
+      "all": "All",
+      "account": "Accounts",
+      "investment": "Investments"
+    },
     "form": {
       "createTitle": "Add transaction",
       "editTitle": "Edit transaction",
@@ -1817,6 +1883,366 @@
       "calendarView": "Calendar"
     }
   },
+  "labels": {
+    "title": "Labels",
+    "tabs": {
+      "labels": "Labels",
+      "rules": "Rules",
+      "automation": "Automation"
+    },
+    "base": {
+      "salary": "Salary",
+      "business_income": "Business income",
+      "rental_income": "Rental income",
+      "refunds": "Refunds",
+      "gifts_received": "Gifts received",
+      "interest": "Interest",
+      "other_income": "Other income",
+      "housing": "Housing",
+      "utilities": "Utilities",
+      "groceries": "Groceries",
+      "restaurants": "Restaurants",
+      "transport": "Transport",
+      "shopping": "Shopping",
+      "subscriptions": "Subscriptions",
+      "health": "Health",
+      "insurance": "Insurance",
+      "education": "Education",
+      "leisure": "Leisure",
+      "travel": "Travel",
+      "personal_care": "Personal care",
+      "pets": "Pets",
+      "family": "Family",
+      "gifts_donations": "Gifts & donations",
+      "taxes": "Taxes",
+      "bank_fees": "Bank fees",
+      "cash_withdrawal": "Cash withdrawal",
+      "debt_payments": "Debt payments",
+      "other_expense": "Other expenses",
+      "internal_transfer": "Internal transfer",
+      "savings_investment": "Savings & investment"
+    },
+    "origins": {
+      "MANUAL": "Manual",
+      "RULE": "Rules",
+      "EXTERNAL": "Suggestions"
+    },
+    "settlement": "Investment",
+    "settlementHint": "This movement is the cash side of an investment operation, so it is not counted as income or expense.",
+    "editTransactionLabels": "Edit labels",
+    "addLabel": "Label",
+    "searchLabels": "Search labels...",
+    "transactionLabelsSaved": "Labels updated",
+    "saveError": "Unable to save changes",
+    "deleteError": "Unable to delete",
+    "createRuleFromMovement": "Create rule",
+    "lockLabels": "Lock labels",
+    "lockLabelsHint": "Relabeling, rules and suggestions will never change the labels of this movement.",
+    "unlinkSettlement": "Unlink from investment operation",
+    "transferPair": "Transfer",
+    "transferPairOtherEntity": "another entity",
+    "transferPairHint": "Paired as a transfer with a movement of the same amount in {entity}.",
+    "unpairTransfer": "Unpair transfer",
+    "unpairTransferHint": "Labels are locked so this movement is not paired again.",
+    "newLabel": "New label",
+    "editLabel": "Edit label",
+    "labelName": "Name",
+    "labelDescription": "Description",
+    "labelDescriptionHint": "Optional. Helps suggestions understand what belongs to this label.",
+    "baseLabelNameHint": "Leave empty to keep the default name.",
+    "nameRequired": "Enter a name",
+    "color": "Color",
+    "customColor": "Custom color",
+    "category": "Type",
+    "advanced": "Advanced",
+    "subcategory": "Subcategory",
+    "protectedLabel": "Protected label",
+    "subcategories": {
+      "NEED": "Need",
+      "WANTS": "Wants",
+      "SAVINGS": "Savings",
+      "NONE": "None"
+    },
+    "categoryHints": {
+      "EXPENSE": "Grouped with your spending labels.",
+      "INCOME": "Grouped with your income labels.",
+      "EXCLUDED": "Movements with this label are not counted as income or expenses, e.g. transfers between your own accounts."
+    },
+    "excluded": "Excluded",
+    "labelSaved": "Label saved",
+    "labelDeleted": "Label deleted",
+    "usage": "{count} movements",
+    "noUsage": "Not used yet",
+    "changeIcon": "Change icon",
+    "categories": {
+      "EXPENSE": "Spending",
+      "INCOME": "Income",
+      "EXCLUDED": "Not counted in totals"
+    },
+    "deleteLabelTitle": "Delete label",
+    "deleteLabelMessage": "Delete the label \"{name}\"? It will be removed from every movement.",
+    "deleteLabelWarning": "Rules that only apply this label will also be deleted.",
+    "unlabeled": "Unlabeled",
+    "anyLabel": "Any label",
+    "includeLabel": "With this label",
+    "excludeLabel": "Without this label",
+    "counterparty": "Counterparty",
+    "searchTextPlaceholder": "Search by name",
+    "manualLabelsHint": "Labels chosen here are kept. Leave empty to let your rules decide.",
+    "rules": {
+      "newRule": "New rule",
+      "editRule": "Edit rule",
+      "name": "Name",
+      "namePlaceholder": "Optional",
+      "when": "When the movement matches",
+      "then": "Apply these labels",
+      "textField": "Field",
+      "textOperator": "Condition",
+      "textValue": "Text",
+      "textValuePlaceholder": "e.g. netflix",
+      "fields": {
+        "ANY": "All",
+        "NAME": "Name",
+        "COUNTERPARTY": "Counterparty"
+      },
+      "operators": {
+        "CONTAINS": "Contains",
+        "STARTS_WITH": "Starts with",
+        "EQUALS": "Is exactly",
+        "REGEX": "Matches pattern"
+      },
+      "anyType": "Any type",
+      "lookIn": "Look in",
+      "amount": "Amount",
+      "min": "Min",
+      "max": "Max",
+      "dateRange": "Dates",
+      "moreConditions": "More conditions",
+      "minAmount": "Minimum amount",
+      "maxAmount": "Maximum amount",
+      "anyCurrency": "Any currency",
+      "dayOfMonth": "Day of month",
+      "dayFrom": "From day",
+      "dayTo": "To day",
+      "dayOfMonthHint": "Ranges can wrap around the month end, e.g. 28 – 3.",
+      "applyToExisting": "Apply to existing movements",
+      "applyToExistingHint": "Labels already matching movements, except the ones with kept labels.",
+      "preview": "Preview",
+      "previewCount": "{count} movements match",
+      "conditionRequired": "Add at least one condition",
+      "labelRequired": "Choose at least one label",
+      "invalidRule": "The rule is not valid, review the conditions",
+      "saved": "Rule saved",
+      "savedApplied": "Rule saved and applied to {count} movements",
+      "deleted": "Rule deleted",
+      "emptyTitle": "No rules yet",
+      "empty": "Rules label your movements automatically. Create one here or use \"Create rule\" from any movement.",
+      "unnamed": "Unnamed rule",
+      "daysSummary": "Days {from} – {to}",
+      "kind": "Rule type",
+      "kinds": {
+        "MATCH": "Match conditions",
+        "TRANSFER": "Transfers between accounts"
+      },
+      "kindHints": {
+        "MATCH": "Labels each movement matching text, type, amount or dates.",
+        "TRANSFER": "Pairs money leaving one account with the same amount arriving at another."
+      },
+      "transferWhen": "When two movements look like a transfer",
+      "transferExplanation": "An outflow in one account and an inflow of the same amount and currency in another account, within the allowed days, are paired and both get labeled. Accounts of the same entity are only paired when their IBANs are known.",
+      "transferThen": "Label both movements with",
+      "transferApplyToExistingHint": "Pairs and labels existing movements too, except the ones with kept labels.",
+      "transferEntitiesHint": "Leave empty to pair movements across all your entities.",
+      "accounts": "Accounts",
+      "anyAccount": "Any account",
+      "accountsHint": "Only movements of these accounts. Movements without a known IBAN never match.",
+      "transferAccountsHint": "Both movements must belong to these accounts. Leave empty to use all accounts.",
+      "transferUnnamed": "Transfers between my accounts",
+      "maxDays": "Maximum days apart",
+      "maxDaysHint": "Days allowed between the outflow and the inflow. 0 means same day.",
+      "maxDaysSummary": "Up to {days} days apart",
+      "sameDay": "Same day",
+      "deleteTitle": "Delete rule",
+      "deleteMessage": "Delete this rule? Labels it applied will be removed from movements."
+    },
+    "relabel": {
+      "title": "Relabel movements",
+      "description": "Run your rules again over existing movements. Movements with kept labels and investment settlements are skipped.",
+      "open": "Relabel",
+      "count": "Count",
+      "run": "Relabel",
+      "withLabels": "With labels",
+      "withoutLabels": "Without labels",
+      "unlabeledOnly": "Only unlabeled movements",
+      "replace": "Replace labels from",
+      "lockedHint": "Movements with locked labels are never changed.",
+      "includeExternal": "Use {provider} as fallback when no rule matches",
+      "includeExternalHint": "Movements left without a label after your rules run are sent to {provider} for a suggestion. Uses your External suggestions setup.",
+      "retryUnmatched": "Retry movements {provider} could not label before",
+      "retryUnmatchedHint": "By default they are skipped to avoid paying for them again.",
+      "matched": "{count} movements selected",
+      "summary": "{rules} labeled by rules · {external} labeled by suggestions",
+      "done": "Movements relabeled",
+      "externalFailed": "Movements relabeled, but suggestions could not be retrieved"
+    },
+    "automation": {
+      "rulesTitle": "Rules",
+      "rulesAlwaysOn": "Apply rules to new movements",
+      "rulesAlwaysOnHint": "Every movement that is synced, imported or added manually is labeled by your enabled rules as soon as it is saved.",
+      "alwaysOn": "Always on",
+      "optional": "Optional"
+    },
+    "external": {
+      "title": "External suggestions",
+      "enable": "Use an external provider",
+      "description": "Label the movements that none of your rules match with an external model.",
+      "moreSettings": "More settings",
+      "noProviders": "No providers available.",
+      "provider": "Provider",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "connectProvider": "Configure it in integrations",
+      "connectRequired": "Connect the provider or turn off external suggestions to save.",
+      "model": "Model",
+      "decisionModel": "Decision model",
+      "customModel": "Other model",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol"
+      },
+      "customModelNotice": "Some models can be slow and expensive when categorizing many movements. Faster and cheaper models are recommended.",
+      "validate": "Validate",
+      "modelValid": "Model supported",
+      "modelInvalid": "Model not found or not supported",
+      "upstreamProvider": "Provider",
+      "upstreamProviderPlaceholder": "Provider (optional)",
+      "upstreamProviderHint": "Optionally route requests to a specific provider, e.g. openai/flex. Requests will only go to that provider, without fallbacks.",
+      "minConfidence": "Minimum confidence (%)",
+      "minConfidenceHint": "Suggestions below this confidence are discarded.",
+      "minConfidenceNotApplicable": "This model does not report confidence, so every suggestion is applied.",
+      "maxPerRun": "Maximum movements per run",
+      "maxPerRunHint": "Limits usage on each sync or relabel.",
+      "autoRun": "Use as fallback when no rule matches",
+      "autoRunHint": "When new movements arrive (syncs, imports or manual entries), your rules are applied first and only the ones left without a label are sent to the provider for a suggestion. When off, the provider is only used when you run a relabel.",
+      "examples": "Feed with examples",
+      "examplesHint": "Include some of your already labeled movements with each request so the model learns how you label and suggests more accurately.",
+      "examplesCount": "Number of examples",
+      "examplesFrom": "Use labels set by",
+      "instructions": "Custom instructions",
+      "instructionsHint": "For advanced users. Extra guidance added to what is sent to the model, for example how to label specific payees.",
+      "instructionsPlaceholder": "e.g. Transfers from Ana are rent. Padel club payments are leisure.",
+      "privacyNotice": "Movement names, counterparties, amounts, currencies and dates are sent to the provider. Account numbers and balances are never shared.",
+      "providerAndModelRequired": "Choose a provider and a model"
+    }
+  },
+  "cashflow": {
+    "title": "Activity",
+    "tabs": {
+      "analysis": "Analysis"
+    },
+    "presets": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last3Months": "3 months",
+      "last6Months": "6 months",
+      "last12Months": "12 months",
+      "ytd": "Year to date",
+      "custom": "Custom"
+    },
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "savingsRate": "Savings rate",
+    "targetShort": "target",
+    "expensesToIncomeRatio": "Expenses as % of income",
+    "vsPrevious": "Change vs previous period",
+    "movementsCount": "{count} movements",
+    "excludedCount": "{count} excluded",
+    "excludedInfo": "Investment settlements and movements with labels excluded from totals are not counted.",
+    "evolution": "Evolution",
+    "evolutionViews": {
+      "bars": "Bar chart",
+      "composition": "Spending composition",
+      "heatmap": "Daily heatmap"
+    },
+    "evolutionViewLabels": {
+      "bars": "Spending",
+      "composition": "Expenses",
+      "heatmap": "Daily"
+    },
+    "composition": {
+      "modes": {
+        "labels": "Labels",
+        "budget": "Needs, wants & savings"
+      },
+      "otherLabels": "Other labels",
+      "remainder": "Remainder",
+      "spending": "Spending",
+      "savings": "Savings"
+    },
+    "heatmap": {
+      "hint": "Hover or tap a day to see its movements",
+      "noMovements": "No movements",
+      "view": "View"
+    },
+    "empty": {
+      "title": "No movements in this period",
+      "description": "Sync your accounts or add movements manually to see where your money goes.",
+      "goToTransactions": "Go to transactions",
+      "noExpenses": "No expenses in this period",
+      "noIncome": "No income in this period",
+      "noCounterparties": "No movements in this period"
+    },
+    "byLabel": "By label",
+    "overlapHint": "Movements with several labels count in each of them.",
+    "topCounterparties": "Main movements",
+    "budget": {
+      "title": "Budget performance",
+      "saved": "Saved",
+      "needs": "Needs",
+      "wants": "Wants",
+      "targetInfo": "Full calendar-month targets from the current budget, using each entry's active dates. Actual amounts cover the selected Activity dates. Needs and Wants follow expense label subcategories. Unlabeled expenses count as Needs; movements with both subcategories count once as Wants. Invested includes net SAVINGS-labeled movements plus purchases and investments minus sales and principal repayments. Linked investment cash movements are counted only through the investment transaction.",
+      "investedBreakdown": "Invested breakdown",
+      "savingsMovements": "Savings movements",
+      "investmentTransactions": "Investment transactions",
+      "actual": "Actual",
+      "notSet": "Not set",
+      "noTarget": "No target",
+      "noLabelTargets": "No label targets",
+      "incompleteTarget": "Incomplete",
+      "incomplete": "Some budget amounts have no exchange rate. Comparisons are incomplete.",
+      "unlinked": "Not linked",
+      "empty": "No budget entries for these months",
+      "openBudget": "Open budget",
+      "difference": "Difference",
+      "available": "Available",
+      "exceeded": "Exceeded",
+      "remaining": "Remaining",
+      "extra": "Extra"
+    },
+    "recurring": {
+      "title": "Historic recurring movements",
+      "description": "Recurring movements detected across all available history, regardless of the selected date range.",
+      "empty": "No recurring movements detected yet",
+      "emptyHint": "Regular payments and income show up here after a few repetitions.",
+      "next": "Next {date}",
+      "occurrences": "{count} times",
+      "upTo": "up to {amount}",
+      "track": "Add",
+      "tracked": "Added to budget",
+      "trackedBadge": "Budgeted",
+      "trackedAs": "Budget entry",
+      "openRecurring": "Open budget",
+      "budgetLabel": "Budget label",
+      "noLabel": "No label",
+      "showMore": "Show more",
+      "ignore": "Ignore",
+      "ignoredToast": "Movement ignored",
+      "ignoredSection": "Ignored ({count})",
+      "restore": "Restore",
+      "restoredToast": "Movement restored"
+    }
+  },
   "time": {
     "justNow": "just now",
     "minuteAgo": "1 minute ago",
@@ -1868,7 +2294,9 @@
       "SWITCH_TO": "F. Switch To",
       "INVESTMENT": "Investment",
       "FEE": "Fee",
-      "SPLIT": "Split"
+      "SPLIT": "Split",
+      "INFLOW": "Inflow",
+      "OUTFLOW": "Outflow"
     },
     "productType": {
       "ACCOUNT": "Account",
@@ -2147,7 +2575,7 @@
     "showNumbers": "Show details",
     "hideNumbers": "Hide details",
     "totalBalance": "Total Balance",
-    "totalCardUsed": "Total Card Usage",
+    "totalCreditCardUsed": "Credit card used",
     "totalDebt": "Outstanding Debt",
     "monthlyPayments": "Monthly Payments",
     "avgInterest": "avg. interest",
@@ -2212,24 +2640,59 @@
     "FUND_PORTFOLIO": "Fund Portfolio"
   },
   "management": {
-    "title": "Management",
-    "recurring": "Recurring",
+    "title": "My Money",
+    "recurring": "Budget",
     "pending": "Pending",
-    "recurringMoney": "Recurring Money",
-    "recurringMoneyDescription": "Manage your recurring income and expenses",
-    "pendingMoney": "Pending Money",
+    "recurringMoney": "Budget",
+    "recurringMoneyDescription": "Your recurring earnings, expenses and investments",
+    "pendingMoney": "Pending",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
     "autoContributions": "Contributions",
     "autoContributionsDescription": "Review your periodic investment contributions",
+    "cashflow": "Activity",
+    "cashflowDescription": "Analyze your income and spending, organize movements with labels and rules",
+    "labels": "Labels & Rules",
+    "labelsDescription": "Organize your account movements with labels",
+    "tabs": {
+      "overview": "Overview",
+      "earnings": "Earnings",
+      "expenses": "Expenses",
+      "investments": "Investments"
+    },
+    "overview": {
+      "suggestionsHint": "{count} suggested recurring expenses from your loans",
+      "review": "Review"
+    },
+    "upcoming": {
+      "title": "Upcoming",
+      "agenda": "Agenda",
+      "month": "Month",
+      "empty": "Nothing scheduled in the next {days} days",
+      "showAll": "Show all",
+      "showLess": "Show less"
+    },
     "earnings": "Earnings",
     "expenses": "Expenses",
-    "addNew": "Add new",
+    "addNew": "Add",
     "name": "Name",
     "namePlaceholder": "Enter name",
     "amount": "Amount",
     "amountPlaceholder": "Enter amount",
     "category": "Category",
+    "categoryFilter": {
+      "title": "Categories",
+      "include": "Include category",
+      "exclude": "Exclude category"
+    },
+    "categoryLegend": {
+      "showMore": "Show +{count}"
+    },
     "categoryPlaceholder": "Enter category",
+    "budgetLabel": {
+      "title": "Label",
+      "help": "Link a label to compare this budget with spending and income in Activity.",
+      "unassigned": "Unassigned"
+    },
     "iconLabel": "Icon",
     "frequencyLabel": "Frequency",
     "flowSubtype": "Type",
@@ -2255,6 +2718,7 @@
     "deleteError": "Error deleting item",
     "loadError": "Error loading data",
     "optional": "Optional",
+    "recommended": "Recommended",
     "flowType": {
       "EARNING": "Earning",
       "EXPENSE": "Expense"
@@ -2297,10 +2761,10 @@
     },
     "unsavedChanges": "You have unsaved changes",
     "requiredFields": "Required fields",
-    "sortBy": "Sort by",
+    "sortBy": "Sort",
     "sortByAmount": "Amount",
     "sortByDate": "Date",
-    "groupBy": "Group by",
+    "groupBy": "Group",
     "groupByCategory": "Category",
     "uncategorized": "Uncategorized",
     "nextPayment": "Next",
@@ -2308,10 +2772,12 @@
     "today": "Today",
     "tomorrow": "Tomorrow",
     "inDays": "In {days} days",
-    "monthlyRecurringEarnings": "Monthly recurring earnings",
-    "monthlyRecurringExpenses": "Monthly recurring expenses",
-    "savableAmount": "Savable amount",
-    "monthlyInvestedAmount": "Monthly invested",
+    "monthlyRecurringEarnings": "Monthly earnings",
+    "monthlyRecurringExpenses": "Monthly expenses",
+    "savableAmount": "Savings",
+    "remainingCash": "Remaining cash",
+    "remainingCashDescription": "Monthly earnings left after recurring expenses and investments ({percentage}% of earnings).",
+    "monthlyInvestedAmount": "Invested",
     "savingsRate": "Savings rate",
     "investedRate": "Invested rate",
     "ofEarnings": "of earnings",
@@ -2355,9 +2821,7 @@
     "goToIntegrations": "Go to Integrations",
     "contributionsDistribution": "Contribution distribution",
     "other": "Other",
-    "monthlyPerTarget": "Monthly by target",
-    "activeContributions": "Active contributions",
-    "monthlyAverageContribution": "Monthly avg. contribution",
+    "monthlyAverageContribution": "Monthly",
     "source": "Source",
     "manualContributions": {
       "unnamed": "Manual contribution",
@@ -2366,8 +2830,9 @@
       "editTitle": "Edit contribution",
       "entity": "Entity",
       "targetName": "Target name",
-      "targetNameHelper": "Optional friendly name shown in the list",
-      "targetHelper": "ISIN, IBAN or identifier",
+      "targetNameHelper": "Leave empty to use the name",
+      "optionalFields": "Optional fields",
+      "cryptoTargetIdentifier": "Symbol or contract address",
       "currency": "Currency",
       "suggestions": "Suggestions",
       "noSuggestions": "No suggestions available",

@@ -1,3 +1,5 @@
+import json
+import math
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,6 +14,10 @@ from quart import Response, set_request
 from domain.exception.exceptions import (
     EntityNotFound,
     TransactionNotFound,
+    LabelNotFound,
+    LabelingRuleNotFound,
+    InvalidLabelingRule,
+    ExternalLabelingUnavailable,
     InvalidProvidedCredentials,
     InvalidUserCredentials,
     UnauthorizedToken,
@@ -35,6 +41,10 @@ from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
 
 
+def _finite(value: float):
+    return value if math.isfinite(value) else None
+
+
 def _to_jsonable(value):
     if value is None:
         return None
@@ -42,14 +52,17 @@ def _to_jsonable(value):
     if is_dataclass(value):
         return _to_jsonable(asdict(value))
 
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, float):
+        return _finite(value)
+
+    if isinstance(value, (str, int, bool)):
         return value
 
     if isinstance(value, Dezimal):
-        return float(value)
+        return _finite(float(value))
 
     if isinstance(value, Decimal):
-        return float(value)
+        return _finite(float(value))
 
     if isinstance(value, UUID):
         return str(value)
@@ -73,6 +86,15 @@ def _to_jsonable(value):
         return [_to_jsonable(v) for v in value]
 
     return value
+
+
+# The Pyodide bridge turns None into undefined (dropping keys), so JSON travels as text
+def _json_response(status, data, headers):
+    try:
+        body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return {"status": status, "data": data, "headers": headers}
+    return {"status": status, "json": body, "headers": headers}
 
 
 async def handle_request(router, method, path, body, headers):
@@ -134,7 +156,7 @@ async def handle_request(router, method, path, body, headers):
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json"
 
-        return {"status": status, "data": data, "headers": headers}
+        return _json_response(status, data, headers)
 
     except Exception as e:
         status = 500
@@ -147,6 +169,18 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, TransactionNotFound):
             status = 404
             data = {"code": "TX_NOT_FOUND", "message": str(e)}
+        elif isinstance(e, LabelNotFound):
+            status = 404
+            data = {"code": "LABEL_NOT_FOUND"}
+        elif isinstance(e, LabelingRuleNotFound):
+            status = 404
+            data = {"code": "LABELING_RULE_NOT_FOUND"}
+        elif isinstance(e, InvalidLabelingRule):
+            status = 400
+            data = {"code": "INVALID_LABELING_RULE", "message": e.details}
+        elif isinstance(e, ExternalLabelingUnavailable):
+            status = 502
+            data = {"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}
         elif isinstance(e, InvalidUserCredentials):
             status = 401
             data = {"code": "INVALID_CREDENTIALS", "message": str(e)}
@@ -219,13 +253,13 @@ async def handle_request(router, method, path, body, headers):
         router.logger.exception(f"Error handling {method} {path}")
 
         reporter = getattr(router, "error_reporter", None)
-        if reporter is not None:
+        if reporter is not None and data["code"] == "UNEXPECTED_ERROR":
             reporter.capture_exception(
                 original, tags={"http_method": method, "route": clean_path}
             )
 
-        return {
-            "status": status,
-            "data": _to_jsonable(data),
-            "headers": {"Content-Type": "application/json"},
-        }
+        return _json_response(
+            status,
+            _to_jsonable(data),
+            {"Content-Type": "application/json"},
+        )

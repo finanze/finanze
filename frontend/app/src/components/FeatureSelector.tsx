@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import type { Feature } from "@/types"
+import { InternalFeature, type Feature } from "@/types"
 import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function FeatureSelector() {
@@ -46,10 +46,14 @@ export function FeatureSelector() {
     selectedEntity.id,
   )
 
-  const { deep } = fetchOptions
+  const { deep, twoFactorOldTxs } = fetchOptions
 
   const setDeepScrape = (value: boolean) => {
     setFetchOptions({ ...fetchOptions, deep: value })
+  }
+
+  const setTwoFactorOldTxs = (value: boolean) => {
+    setFetchOptions({ ...fetchOptions, twoFactorOldTxs: value })
   }
 
   const availableFeatures = useMemo(
@@ -62,6 +66,12 @@ export function FeatureSelector() {
     availableFeatures.every(feature => selectedFeatures.includes(feature))
 
   const hasTransactionsSelected = selectedFeatures.includes("TRANSACTIONS")
+  const showTwoFactorOldTxs =
+    hasTransactionsSelected &&
+    availableFeatures.includes("TRANSACTIONS") &&
+    !!selectedEntity.internal_features?.includes(
+      InternalFeature.TWO_FACTOR_OLD_TXS,
+    )
   const lastTransactionsFetchRaw = selectedEntity.last_fetch?.TRANSACTIONS
   const hasTransactionsHistory =
     typeof lastTransactionsFetchRaw === "string" &&
@@ -94,7 +104,10 @@ export function FeatureSelector() {
   }
 
   const handleSubmit = () => {
-    scrape(selectedEntity, selectedFeatures, { deep })
+    scrape(selectedEntity, selectedFeatures, {
+      deep,
+      twoFactorOldTxs: showTwoFactorOldTxs && !!twoFactorOldTxs,
+    })
   }
 
   const handleCancel = () => {
@@ -171,6 +184,29 @@ export function FeatureSelector() {
               )
             })}
           </div>
+
+          {showTwoFactorOldTxs && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+              <label htmlFor="two-factor-old-txs" className="flex-1">
+                <div className="text-sm font-medium">
+                  {t.features.twoFactorOldTxs}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {(
+                    t.features.twoFactorOldTxsEntityDescription as Record<
+                      string,
+                      string
+                    >
+                  )[selectedEntity.id] ?? t.features.twoFactorOldTxsDescription}
+                </div>
+              </label>
+              <Switch
+                id="two-factor-old-txs"
+                checked={!!twoFactorOldTxs}
+                onCheckedChange={setTwoFactorOldTxs}
+              />
+            </div>
+          )}
 
           <div className="flex justify-center">
             {availableFeatures.includes("TRANSACTIONS") && (

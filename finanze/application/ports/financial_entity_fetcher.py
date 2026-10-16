@@ -1,7 +1,13 @@
 import abc
+from typing import Optional
 
 from domain.auto_contributions import AutoContributions
-from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.entity_login import (
+    EntityLoginParams,
+    EntityLoginResult,
+    LoginResultCode,
+    TwoFactor,
+)
 from domain.exception.exceptions import FeatureNotSupported
 from domain.fetch_result import FetchOptions
 from domain.global_position import GlobalPosition, HistoricalPosition
@@ -31,3 +37,9 @@ class FinancialEntityFetcher(metaclass=abc.ABCMeta):
 
     async def historical_position(self) -> HistoricalPosition:
         raise FeatureNotSupported
+
+    async def request_old_txs_code(self) -> Optional[EntityLoginResult]:
+        return None
+
+    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
+        return EntityLoginResult(LoginResultCode.NOT_LOGGED)

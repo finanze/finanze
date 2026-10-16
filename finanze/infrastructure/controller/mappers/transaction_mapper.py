@@ -16,10 +16,17 @@ from domain.transactions import (
     FactoringTx,
     FundPortfolioTx,
     FundTx,
+    LabelOrigin,
     RealEstateCFTx,
     StockTx,
+    TxLabel,
     TxType,
+    UpdateManualTransactionRequest,
+    is_valid_iban_format,
+    normalize_iban,
 )
+
+MAX_COUNTERPARTY_LENGTH = 200
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -29,7 +36,26 @@ def _parse_datetime(value: str) -> datetime:
     return dt
 
 
+def _parse_manual_labels(body: dict) -> Optional[list[TxLabel]]:
+    raw_labels = body.get("labels")
+    if raw_labels is None:
+        return None
+    if not isinstance(raw_labels, list):
+        raise ValueError("labels must be a list of label IDs")
+    label_ids = list(dict.fromkeys(UUID(str(label_id)) for label_id in raw_labels))
+    return [
+        TxLabel(label_id=label_id, origin=LabelOrigin.MANUAL) for label_id in label_ids
+    ]
+
+
 def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
+    counterparty = (body.get("counterparty") or "").strip() or None
+    if counterparty and len(counterparty) > MAX_COUNTERPARTY_LENGTH:
+        raise ValueError("Counterparty is too long")
+    iban = normalize_iban(body.get("iban"))
+    if iban and not is_valid_iban_format(iban):
+        raise ValueError("Invalid IBAN")
+    labels = _parse_manual_labels(body)
     return AccountTx(
         id=tx_id,
         fees=Dezimal(body.get("fees", 0)),
@@ -41,6 +67,10 @@ def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> Base
         if body.get("avg_balance") is not None
         else None,
         net_amount=None,
+        counterparty=counterparty,
+        iban=iban,
+        labels=labels,
+        labels_locked=bool(labels),
         **base_kwargs,
     )
 
@@ -291,6 +321,24 @@ def _historic_entry_id_from_item(item: dict) -> Optional[UUID]:
     return UUID(raw_historic_id) if raw_historic_id else None
 
 
+def _external_labeling_from_item(item: dict) -> Optional[bool]:
+    value = item.get("external_labeling")
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ValueError("external_labeling must be a boolean")
+    return value
+
+
+def map_update_manual_transaction(
+    body: dict, tx_id: UUID
+) -> UpdateManualTransactionRequest:
+    return UpdateManualTransactionRequest(
+        tx=map_manual_transaction(body, tx_id=tx_id),
+        external_labeling=_external_labeling_from_item(body),
+    )
+
+
 def map_add_manual_transaction(body) -> AddManualTransactionRequest:
     if isinstance(body, list):
         if not body:
@@ -304,15 +352,25 @@ def map_add_manual_transaction(body) -> AddManualTransactionRequest:
             ),
             None,
         )
+        external_labeling = next(
+            (
+                _external_labeling_from_item(item)
+                for item in body
+                if isinstance(item, dict) and item.get("external_labeling") is not None
+            ),
+            None,
+        )
         return AddManualTransactionRequest(
             txs=txs,
             historic_entry_id=historic_entry_id,
+            external_labeling=external_labeling,
         )
 
     if isinstance(body, dict):
         return AddManualTransactionRequest(
             txs=[map_manual_transaction(body)],
             historic_entry_id=_historic_entry_id_from_item(body),
+            external_labeling=_external_labeling_from_item(body),
         )
 
     raise ValueError("Body must be a JSON object or array")

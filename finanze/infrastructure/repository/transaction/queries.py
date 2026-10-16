@@ -21,8 +21,8 @@ class TransactionQueries(str, Enum):
         INSERT INTO account_transactions (id, ref, name, amount, currency, type, date,
                                           entity_id, is_real, source, created_at,
                                           fees, retentions, interest_rate, avg_balance, net_amount,
-                                          entity_account_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          entity_account_id, counterparty, iban, linked_tx, labels_locked)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INVESTMENT_SELECT_BASE = """
@@ -51,6 +51,29 @@ class TransactionQueries(str, Enum):
             JOIN entities e ON at.entity_id = e.id
             LEFT JOIN entity_accounts ea ON at.entity_account_id = ea.id
         WHERE (at.entity_account_id IS NULL OR ea.deleted_at IS NULL)
+    """
+
+    ACCOUNT_COUNT_BASE = """
+        SELECT COUNT(*)
+        FROM account_transactions at
+            LEFT JOIN entity_accounts ea ON at.entity_account_id = ea.id
+        WHERE (at.entity_account_id IS NULL OR ea.deleted_at IS NULL)
+    """
+
+    GET_REFS_BY_ENTITY = """
+        SELECT ref
+        FROM investment_transactions
+        WHERE entity_id = ?
+        UNION
+        SELECT ref
+        FROM account_transactions
+        WHERE entity_id = ?
+    """
+
+    GET_LATEST_REAL_ACCOUNT_TX_DATE = """
+        SELECT MAX(date)
+        FROM account_transactions
+        WHERE entity_id = ? AND source = 'REAL'
     """
 
     INVESTMENT_SELECT_BY_ENTITY = """
@@ -162,7 +185,9 @@ class TransactionQueries(str, Enum):
                    portfolio_name,
                    product_subtype,
                    entity_account_id,
-                   split_ratio
+                   split_ratio,
+                   NULL      AS counterparty,
+                   FALSE     AS labels_locked
             FROM investment_transactions
             UNION ALL
             SELECT id,
@@ -188,13 +213,15 @@ class TransactionQueries(str, Enum):
                    NULL      AS price,
                    net_amount,
                    NULL      AS order_date,
-                   NULL      AS linked_tx,
+                   linked_tx,
                    NULL      AS interests,
-                   NULL      AS iban,
+                   iban,
                    NULL      AS portfolio_name,
                    NULL      AS product_subtype,
                    entity_account_id,
-                   NULL      AS split_ratio
+                   NULL      AS split_ratio,
+                   counterparty,
+                   labels_locked
             FROM account_transactions
         ) tx
             JOIN entities e ON tx.entity_id = e.id

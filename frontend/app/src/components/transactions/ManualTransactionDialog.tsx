@@ -12,9 +12,12 @@ import {
   Bitcoin,
   ArrowLeftRight,
   Repeat,
+  Loader2,
+  Sparkles,
 } from "lucide-react"
 import { EntitySelector } from "@/components/EntitySelector"
 import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
 import {
   Card,
   CardContent,
@@ -30,6 +33,7 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
 import { DataSource, EntityOrigin, type Entity } from "@/types"
 import { getCurrencySymbol, cn } from "@/lib/utils"
+import { formatIban } from "@/lib/formatters"
 import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
 import {
   Popover,
@@ -39,6 +43,7 @@ import {
 import {
   ProductType,
   EquityType,
+  type Accounts,
   type StockInvestments,
   type StockDetail,
   type FundInvestments,
@@ -48,6 +53,7 @@ import {
 } from "@/types/position"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { useFinancialData } from "@/context/FinancialDataContext"
+import { LabelSelector } from "@/components/labels/LabelSelector"
 import {
   ManualTransactionPayload,
   type ManualAccountTransactionPayload,
@@ -95,6 +101,7 @@ const OUTGOING_TX_TYPES = new Set<TxType>([
   TxType.TRANSFER_OUT,
   TxType.SWITCH_FROM,
   TxType.SWAP_FROM,
+  TxType.OUTFLOW,
 ])
 
 const NO_ORDER_DATE_TX_TYPES = new Set<TxType>([
@@ -163,6 +170,9 @@ const getMoreDetailsFieldNames = (type: ManualTxTypeOption): Set<string> => {
     return DEFAULT_MORE_DETAILS_FIELDS
   }
   switch (type) {
+    case TxType.INFLOW:
+    case TxType.OUTFLOW:
+      return new Set(["fees", "counterparty"])
     case TxType.BUY:
     case TxType.INVESTMENT:
       return new Set(["retentions", "market"])
@@ -187,7 +197,12 @@ const TX_TYPES_BY_PRODUCT: Record<
   SupportedManualProductType,
   readonly TxType[]
 > = {
-  [ProductType.ACCOUNT]: [TxType.INTEREST, TxType.FEE],
+  [ProductType.ACCOUNT]: [
+    TxType.OUTFLOW,
+    TxType.INFLOW,
+    TxType.INTEREST,
+    TxType.FEE,
+  ],
   [ProductType.STOCK_ETF]: [
     TxType.BUY,
     TxType.SELL,
@@ -434,6 +449,8 @@ const createExtraDefaults = (
         retentions: "0",
         interest_rate: "",
         avg_balance: "",
+        counterparty: "",
+        iban: "",
       }
     case ProductType.STOCK_ETF:
       return {
@@ -505,6 +522,23 @@ const getFieldConfigs = (
   const isSplit = txType === TxType.SPLIT
   switch (productType) {
     case ProductType.ACCOUNT:
+      if (txType === TxType.INFLOW || txType === TxType.OUTFLOW) {
+        return [
+          {
+            name: "counterparty",
+            labelKey: t.labels.counterparty,
+            type: "text",
+          },
+          { name: "iban", labelKey: t.transactions.iban, type: "text" },
+          {
+            name: "fees",
+            labelKey: t.transactions.fees,
+            type: "number",
+            numericType: "nonNegative",
+            step: "0.01",
+          },
+        ]
+      }
       return [
         {
           name: "fees",
@@ -532,6 +566,7 @@ const getFieldConfigs = (
           type: "number",
           step: "0.01",
         },
+        { name: "iban", labelKey: t.transactions.iban, type: "text" },
       ]
     case ProductType.STOCK_ETF:
       return [
@@ -1185,6 +1220,16 @@ export function ManualTransactionDialog({
 }: ManualTransactionDialogProps) {
   const { t, locale } = useI18n()
   const { positionsData } = useFinancialData()
+  const { settings, externalIntegrations, fetchExternalIntegrations } =
+    useAppContext()
+  const externalSettings = settings.labeling?.external
+  const externalEnabled = Boolean(externalSettings?.enabled)
+  const externalAutoRun = Boolean(externalSettings?.autoRun)
+  const externalProvider = externalSettings?.provider ?? ""
+  const externalProviderName =
+    externalIntegrations.find(
+      integration => integration.id === externalProvider,
+    )?.name ?? externalProvider
   const [formState, setFormState] = useState<ManualTransactionFormState>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
     const productType = SUPPORTED_PRODUCT_TYPES[0]
@@ -1206,6 +1251,9 @@ export function ManualTransactionDialog({
     }
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [labelIds, setLabelIds] = useState<string[]>([])
+  const [labelsTouched, setLabelsTouched] = useState(false)
+  const [externalLabeling, setExternalLabeling] = useState(externalAutoRun)
   const sharesPriceEditedRef = useRef(false)
   const [originMoreOpen, setOriginMoreOpen] = useState(false)
   const [destMoreOpen, setDestMoreOpen] = useState(false)
@@ -1214,6 +1262,19 @@ export function ManualTransactionDialog({
   const isTransferCreate = mode === "create" && isTransferUiType(formState.type)
   const isSwapCreate = mode === "create" && isSwapUiType(formState.type)
   const isPairedCreate = isTransferCreate || isSwapCreate
+  const showExternalLabelingToggle =
+    externalEnabled &&
+    formState.productType === ProductType.ACCOUNT &&
+    !isPairedCreate &&
+    labelIds.length === 0
+
+  useEffect(() => {
+    if (isOpen) setExternalLabeling(externalAutoRun)
+  }, [isOpen, externalAutoRun])
+
+  useEffect(() => {
+    if (isOpen && externalEnabled) void fetchExternalIntegrations()
+  }, [isOpen, externalEnabled, fetchExternalIntegrations])
   const lockProductAndType =
     mode === "edit" &&
     isDomainTxType(formState.type) &&
@@ -1360,6 +1421,30 @@ export function ManualTransactionDialog({
         if (names.length > 0) {
           suggestions.portfolio_name = names
         }
+        if (ibans.length > 0) {
+          suggestions.iban = ibans
+        }
+      }
+
+      if (formState.productType === ProductType.ACCOUNT) {
+        const seen = new Set<string>()
+        const ibans: SuggestionOption[] = []
+        entityPositions.forEach(ep => {
+          const accounts = ep.products[ProductType.ACCOUNT] as
+            Accounts | undefined
+          accounts?.entries?.forEach(account => {
+            const normalized = account.iban?.replace(/\s+/g, "").toUpperCase()
+            if (!normalized || seen.has(normalized)) return
+            seen.add(normalized)
+            const accountLabel = account.name?.trim()
+            ibans.push({
+              value: normalized,
+              label: accountLabel
+                ? `${formatIban(normalized, true)} · ${accountLabel}`
+                : (formatIban(normalized, true) ?? normalized),
+            })
+          })
+        })
         if (ibans.length > 0) {
           suggestions.iban = ibans
         }
@@ -1679,6 +1764,8 @@ export function ManualTransactionDialog({
       swapRatio: "",
     })
     setErrors({})
+    setLabelIds([])
+    setLabelsTouched(false)
     sharesPriceEditedRef.current = false
   }, [defaultCurrency])
 
@@ -1733,6 +1820,8 @@ export function ManualTransactionDialog({
             avg_balance: transaction.avg_balance
               ? `${transaction.avg_balance}`
               : "",
+            counterparty: transaction.counterparty ?? "",
+            iban: transaction.iban ?? "",
           }
           break
         case ProductType.STOCK_ETF:
@@ -1816,6 +1905,8 @@ export function ManualTransactionDialog({
 
       setFormState(nextState)
       setErrors({})
+      setLabelIds((transaction.labels ?? []).map(label => label.label_id))
+      setLabelsTouched(false)
       sharesPriceEditedRef.current = false
     } else {
       resetForm()
@@ -2416,13 +2507,36 @@ export function ManualTransactionDialog({
 
     switch (formState.productType) {
       case ProductType.ACCOUNT: {
+        const isMovement =
+          formState.type === TxType.INFLOW || formState.type === TxType.OUTFLOW
         const payload: ManualAccountTransactionPayload = {
           ...base,
           product_type: ProductType.ACCOUNT,
           fees: resolvedFees,
           retentions: parseNumberValue(formState.extra.retentions, 0),
-          interest_rate: parseOptionalNumber(formState.extra.interest_rate),
-          avg_balance: parseOptionalNumber(formState.extra.avg_balance),
+          interest_rate: isMovement
+            ? undefined
+            : parseOptionalNumber(formState.extra.interest_rate),
+          avg_balance: isMovement
+            ? undefined
+            : parseOptionalNumber(formState.extra.avg_balance),
+          counterparty: isMovement
+            ? formState.extra.counterparty?.trim() || undefined
+            : undefined,
+          iban:
+            formState.extra.iban?.replace(/\s+/g, "").toUpperCase() ||
+            undefined,
+          labels:
+            mode === "create"
+              ? labelIds.length
+                ? labelIds
+                : undefined
+              : labelsTouched
+                ? labelIds
+                : undefined,
+          external_labeling: showExternalLabelingToggle
+            ? externalLabeling
+            : undefined,
         }
         return payload
       }
@@ -3438,6 +3552,47 @@ export function ManualTransactionDialog({
                       </div>
                     )
                   )}
+                  {formState.productType === ProductType.ACCOUNT &&
+                    !isPairedCreate && (
+                      <div className="border-t border-border pt-4 space-y-3">
+                        <h3 className="text-sm font-semibold text-muted-foreground">
+                          {t.labels.title}
+                        </h3>
+                        <LabelSelector
+                          value={labelIds}
+                          onChange={value => {
+                            setLabelIds(value)
+                            setLabelsTouched(true)
+                          }}
+                          disabled={isSubmitting}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t.labels.manualLabelsHint}
+                        </p>
+                        {showExternalLabelingToggle && (
+                          <div className="flex items-center justify-between gap-3">
+                            <Label
+                              htmlFor="manual-tx-external-labeling"
+                              className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 shrink-0 text-fuchsia-500" />
+                              {t.labels.relabel.includeExternal.replace(
+                                "{provider}",
+                                externalProviderName,
+                              )}
+                            </Label>
+                            <Switch
+                              id="manual-tx-external-labeling"
+                              size="sm"
+                              checked={externalLabeling}
+                              onCheckedChange={setExternalLabeling}
+                              disabled={isSubmitting}
+                              className="bg-origin-border data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-violet-500 data-[state=checked]:via-fuchsia-500 data-[state=checked]:to-amber-400"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
                   <Button
@@ -3458,7 +3613,11 @@ export function ManualTransactionDialog({
                     title={isSubmitting ? t.common.saving : t.common.save}
                     className="h-9 w-9 p-0"
                   >
-                    <Save className="h-4 w-4" />
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                   </Button>
                 </CardFooter>
               </form>

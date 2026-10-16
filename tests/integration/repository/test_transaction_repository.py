@@ -91,7 +91,25 @@ async def setup():
             interest_rate TEXT,
             avg_balance TEXT,
             net_amount TEXT,
-            entity_account_id CHAR(36)
+            entity_account_id CHAR(36),
+            counterparty TEXT,
+            iban TEXT,
+            linked_tx TEXT,
+            labels_locked BOOLEAN NOT NULL DEFAULT FALSE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE account_transaction_labels (
+            tx_id CHAR(36) NOT NULL,
+            label_id CHAR(36) NOT NULL,
+            origin VARCHAR(16) NOT NULL,
+            rule_id CHAR(36),
+            provider TEXT,
+            confidence TEXT,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (tx_id, label_id)
         )
         """
     )

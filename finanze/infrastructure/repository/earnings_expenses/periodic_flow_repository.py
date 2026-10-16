@@ -39,6 +39,7 @@ def _map_row_to_periodic_flow(row) -> PeriodicFlow:
         linked=row["linked"],
         real_estate_flow=real_estate_flow,
         max_amount=Dezimal(row["max_amount"]) if row["max_amount"] else None,
+        label_id=UUID(row["label_id"]) if row["label_id"] else None,
     )
 
 
@@ -66,6 +67,7 @@ class PeriodicFlowRepository(PeriodicFlowPort):
                     flow.until,
                     flow.icon,
                     str(flow.max_amount) if flow.max_amount else None,
+                    str(flow.label_id) if flow.label_id else None,
                 ),
             )
         return flow
@@ -86,6 +88,7 @@ class PeriodicFlowRepository(PeriodicFlowPort):
                     flow.until,
                     flow.icon,
                     str(flow.max_amount) if flow.max_amount else None,
+                    str(flow.label_id) if flow.label_id else None,
                     str(flow.id),
                 ),
             )

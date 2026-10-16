@@ -14,7 +14,7 @@ import {
   TrendingUp,
   ArrowLeftRight,
   Calculator,
-  CalendarCog,
+  Wallet,
   Blocks,
   Settings,
   FileUp,
@@ -213,7 +213,7 @@ export function FloatingBottomNav() {
         key: "management",
         path: "/management",
         label: t.management.title,
-        icon: <CalendarCog size={22} />,
+        icon: <Wallet size={22} />,
       },
       {
         kind: "route",

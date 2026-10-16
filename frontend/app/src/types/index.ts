@@ -99,6 +99,7 @@ export interface Entity {
   icon_url?: string | null
   status?: EntityStatus
   features: Feature[]
+  transaction_kinds?: TransactionKind[] | null
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
   session_category?: EntitySessionCategory
@@ -113,6 +114,20 @@ export interface Entity {
   fetchable?: boolean
   allows_hd_wallet?: boolean | null
   accounts?: EntityAccountInfo[]
+  internal_features?: InternalFeature[]
+}
+
+export enum InternalFeature {
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
+}
+
+export enum FetchStage {
+  MAIN = "MAIN",
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
+}
+
+export enum OldTxsRequirement {
+  MAIN_DEVICE_SIGNATURE = "MAIN_DEVICE_SIGNATURE",
 }
 
 export enum EntitySessionCategory {
@@ -154,6 +169,8 @@ export enum CredentialType {
   INTERNAL = "INTERNAL",
   INTERNAL_TEMP = "INTERNAL_TEMP",
 }
+
+export type TransactionKind = "ACCOUNT" | "INVESTMENT"
 
 export type Feature =
   "POSITION" | "AUTO_CONTRIBUTIONS" | "TRANSACTIONS" | "HISTORIC"
@@ -313,6 +330,8 @@ export interface FetchRequest {
   token?: string
   avoidNewLogin?: boolean
   deep?: boolean
+  twoFactorOldTxs?: boolean
+  stage?: FetchStage
   entityAccountId?: string
 }
 
@@ -350,6 +369,11 @@ export interface FetchResponse {
     credentials?: Record<string, string>
     failedFeatures?: Feature[]
     completedFeatures?: Feature[]
+    stage?: FetchStage
+    message?: string | null
+    pinLength?: number
+    pinChannel?: PinChannel
+    oldTxsRequirement?: OldTxsRequirement
   }
 }
 
@@ -763,6 +787,7 @@ export enum ExternalIntegrationType {
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
   CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
+  AI_PROVIDER = "AI_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {
@@ -898,6 +923,7 @@ export interface PeriodicFlow {
   } | null
   next_date?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface PendingFlow {
@@ -925,6 +951,7 @@ export interface CreatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface UpdatePeriodicFlowRequest {
@@ -940,6 +967,7 @@ export interface UpdatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface CreatePendingFlowRequest {

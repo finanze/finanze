@@ -6,6 +6,7 @@ from domain.entity import (
     EntityOrigin,
     EntityType,
     Feature,
+    TransactionKind,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import ProductType
@@ -15,6 +16,7 @@ from domain.native_entity import (
     CredentialType,
     EntitySetupLoginType,
     EntitySessionCategory,
+    InternalFeature,
     NativeFinancialEntity,
     NativeCryptoWalletEntity,
     NativeCryptoExchangeEntity,
@@ -27,6 +29,7 @@ MY_INVESTOR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -52,7 +55,8 @@ UNICAJA = NativeFinancialEntity(
     natural_id="UCJAES2M",
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
+    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -62,6 +66,7 @@ UNICAJA = NativeFinancialEntity(
         "abck": CredentialType.INTERNAL,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 TRADE_REPUBLIC = NativeFinancialEntity(
@@ -71,6 +76,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.STOCK_ETF,
@@ -166,6 +172,7 @@ F24 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[ProductType.ACCOUNT, ProductType.DEPOSIT, ProductType.STOCK_ETF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
@@ -197,6 +204,7 @@ ING = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT, TransactionKind.INVESTMENT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -211,8 +219,10 @@ ING = NativeFinancialEntity(
         "apiCookie": CredentialType.INTERNAL_TEMP,
         "apiAuth": CredentialType.INTERNAL_TEMP,
         "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
+        "genomaLoginCookie": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 CAJAMAR = NativeFinancialEntity(
@@ -221,7 +231,8 @@ CAJAMAR = NativeFinancialEntity(
     natural_id="BCCAESMM",
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION],
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[
         ProductType.ACCOUNT,
         ProductType.CARD,
@@ -235,6 +246,7 @@ CAJAMAR = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
     },
     icon_url=None,
+    internal_features=[InternalFeature.TWO_FACTOR_OLD_TXS],
 )
 
 DEGIRO = NativeFinancialEntity(
@@ -286,6 +298,7 @@ B100 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    transaction_kinds=[TransactionKind.ACCOUNT],
     products=[ProductType.ACCOUNT, ProductType.CARD],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,

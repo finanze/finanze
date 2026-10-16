@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
 
-from domain.entity import Entity, EntityType, Feature
+from domain.entity import Entity, EntityType, Feature, TransactionKind
 from domain.external_integration import (
     ExternalIntegrationId,
 )
@@ -27,7 +27,8 @@ class ExternalEntity:
     payload: Optional[dict] = None
 
 
-EXTERNAL_ENTITY_FEATURES = [Feature.POSITION]
+EXTERNAL_ENTITY_FEATURES = [Feature.POSITION, Feature.TRANSACTIONS]
+EXTERNAL_ENTITY_TRANSACTION_KINDS = [TransactionKind.ACCOUNT]
 
 
 @dataclass
@@ -64,6 +65,14 @@ class ExternalEntityLoginRequest:
 class ExternalEntityFetchRequest:
     external_entity: ExternalEntity
     entity: Entity
+
+
+@dataclass
+class ExternalEntityTxFetchRequest:
+    external_entity: ExternalEntity
+    entity: Entity
+    from_date: date
+    registered_txs: set[str]
 
 
 class ExternalEntitySetupResponseCode(str, Enum):

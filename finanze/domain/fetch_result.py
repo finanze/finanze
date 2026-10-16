@@ -46,10 +46,17 @@ class FetchResultCode(str, Enum):
     UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR"
 
 
+class FetchStage(str, Enum):
+    MAIN = "MAIN"
+    TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS"
+
+
 @dataclass
 class FetchOptions:
     deep: bool = False
     pointer_context: Optional[FetchPointerContext] = None
+    two_factor_old_txs: bool = False
+    stage: FetchStage = FetchStage.MAIN
 
 
 @dataclass

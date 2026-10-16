@@ -29,7 +29,10 @@ async function isEntityConnected(
     entityName: string,
 ): Promise<boolean> {
     const card = page
-        .locator('h3', { hasText: entityName })
+        .locator('h3')
+        .filter({
+            has: page.getByRole('img', { name: entityName, exact: true }),
+        })
         .first()
         .locator('../..')
     return await card
@@ -46,7 +49,10 @@ async function fetchEntity(
     entityName: string,
 ) {
     const card = page
-        .locator('h3', { hasText: entityName })
+        .locator('h3')
+        .filter({
+            has: page.getByRole('img', { name: entityName, exact: true }),
+        })
         .first()
         .locator('../..')
     await card.getByRole('button', { name: 'Fetch' }).click()
@@ -106,9 +112,12 @@ test.describe('External Login - ING (full creds from external login)', () => {
         await goToIntegrations(page)
 
         if (!(await isEntityConnected(page, 'ING'))) {
-            // Click ING — triggers external login mock
-            // Use h3 locator to avoid matching sidebar "Banking" text
-            await page.locator('h3', { hasText: 'ING' }).first().click()
+            await page
+                .locator('h3')
+                .filter({
+                    has: page.getByRole('img', { name: 'ING', exact: true }),
+                })
+                .click()
 
             // Mock fires completion with all 5 INTERNAL_TEMP creds.
             // Zero visible creds → login() called directly, no form shown.

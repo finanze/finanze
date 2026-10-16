@@ -19,7 +19,7 @@ export type PinnedShortcutId =
   | "real-estate"
   | "management-recurring"
   | "management-pending"
-  | "management-auto-contributions"
+  | "management-cashflow"
 
 interface PinnedShortcutsContextType {
   pinnedShortcuts: PinnedShortcutId[]
@@ -43,9 +43,13 @@ const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "real-estate",
   "management-recurring",
   "management-pending",
-  "management-auto-contributions",
+  "management-cashflow",
 ]
-const DEFAULT_PINNED: PinnedShortcutId[] = ["banking"]
+const LEGACY_SHORTCUT_IDS: Record<string, PinnedShortcutId> = {
+  "management-auto-contributions": "management-recurring",
+  "management-labels": "management-cashflow",
+}
+const DEFAULT_PINNED: PinnedShortcutId[] = ["banking", "management-cashflow"]
 
 const PinnedShortcutsContext = createContext<
   PinnedShortcutsContextType | undefined
@@ -56,9 +60,13 @@ function loadPinnedShortcuts(): PinnedShortcutId[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
-      const valid = parsed.filter((id): id is PinnedShortcutId =>
-        KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId),
-      )
+      const valid = parsed
+        .map(id => LEGACY_SHORTCUT_IDS[id] ?? id)
+        .filter(
+          (id, index, ids): id is PinnedShortcutId =>
+            KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId) &&
+            ids.indexOf(id) === index,
+        )
       return valid.length ? valid : DEFAULT_PINNED
     }
     return DEFAULT_PINNED

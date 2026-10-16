@@ -11,6 +11,8 @@ from application.ports.sheets_port import SheetsPort
 from application.ports.template_parser_port import TemplateParserPort
 from application.ports.template_port import TemplatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.transaction_label_port import TransactionLabelPort
+from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
@@ -37,6 +39,9 @@ from domain.importing import (
     TemplatedDataParserParams,
 )
 from domain.settings import ImportSheetConfig, SheetsGlobalConfig, SheetsImportConfig
+from domain.labeling import LabelingTrigger
+from domain.settlement import settlement_window
+from domain.transactions import AccountTxSelection
 from domain.use_cases.import_sheets import ImportSheets
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
@@ -67,6 +72,8 @@ class ImportSheetsImpl(ImportSheets):
         template_port: TemplatePort,
         template_parser: TemplateParserPort,
         transaction_handler_port: TransactionHandlerPort,
+        transaction_label_port: TransactionLabelPort,
+        transaction_labeler: TransactionLabeler,
     ):
         self._position_port = position_port
         self._transaction_port = transaction_port
@@ -78,6 +85,8 @@ class ImportSheetsImpl(ImportSheets):
         self._template_port = template_port
         self._template_parser = template_parser
         self._transaction_handler_port = transaction_handler_port
+        self._transaction_label_port = transaction_label_port
+        self._transaction_labeler = transaction_labeler
 
         self._lock = Lock()
 
@@ -148,13 +157,41 @@ class ImportSheetsImpl(ImportSheets):
                     tx_candidates, existing_entities_by_name
                 )
 
+                previous = (
+                    await self._transaction_label_port.get_classifications_by_source(
+                        DataSource.SHEETS
+                    )
+                )
                 await self._transaction_port.delete_by_source(DataSource.SHEETS)
                 transactions = imported_txs.transactions
+                new_account_ids = []
                 if transactions:
                     for entity in imported_txs.created_entities:
                         await self._entity_port.insert(entity)
 
                     await self._transaction_port.save(transactions)
+
+                    account_txs = transactions.account or []
+                    if account_txs:
+                        await self._transaction_label_port.restore(
+                            {
+                                tx.id: previous[(tx.entity.id, tx.ref)]
+                                for tx in account_txs
+                                if (tx.entity.id, tx.ref) in previous
+                            }
+                        )
+                        await self._transaction_labeler.classify(
+                            AccountTxSelection(ids=[tx.id for tx in account_txs])
+                        )
+                        new_account_ids = [
+                            tx.id
+                            for tx in account_txs
+                            if (tx.entity.id, tx.ref) not in previous
+                        ]
+                    if transactions.investment:
+                        await self._transaction_labeler.link_settlements(
+                            settlement_window(transactions.investment)
+                        )
 
                     tx_entities = {
                         tx.entity.id
@@ -197,11 +234,16 @@ class ImportSheetsImpl(ImportSheets):
                     transactions=transactions,
                 )
 
-                return ImportResult(
-                    ImportResultCode.COMPLETED,
-                    data=data,
-                    errors=errors,
+            if new_account_ids:
+                await self._transaction_labeler.classify_external(
+                    AccountTxSelection(ids=new_account_ids), LabelingTrigger.AUTO
                 )
+
+            return ImportResult(
+                ImportResultCode.COMPLETED,
+                data=data,
+                errors=errors,
+            )
 
     async def _get_import_candidates(
         self,

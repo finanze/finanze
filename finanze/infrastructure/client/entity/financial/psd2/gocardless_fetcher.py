@@ -20,6 +20,7 @@ from domain.external_entity import (
     ExternalEntityFetchRequest,
     ExternalEntityLoginRequest,
     ExternalEntitySetupResponseCode,
+    ExternalEntityTxFetchRequest,
     ProviderExternalEntityDetails,
 )
 from domain.external_integration import (
@@ -32,6 +33,10 @@ from domain.global_position import (
     AccountType,
     GlobalPosition,
     ProductType,
+)
+from domain.transactions import Transactions
+from infrastructure.client.entity.financial.psd2.psd2_transactions import (
+    map_gocardless_transaction,
 )
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
@@ -251,3 +256,33 @@ class GoCardlessFetcher(ExternalEntityFetcher):
         products = {ProductType.ACCOUNT: Accounts(accounts)}
 
         return GlobalPosition(id=uuid4(), entity=request.entity, products=products)
+
+    async def transactions(self, request: ExternalEntityTxFetchRequest) -> Transactions:
+        requisition_id = request.external_entity.provider_instance_id
+        requisition_details = self._client.get_requisition(requisition_id)
+
+        account_txs = []
+        for account_id in requisition_details.get("accounts", []):
+            try:
+                details = self._client.get_account_details(account_id)
+                account_info = details.get("account", {})
+                if account_info.get("status") == "deleted":
+                    continue
+                response = self._client.get_account_transactions(
+                    account_id, date_from=request.from_date.isoformat()
+                )
+            except HTTPError as e:
+                if e.response.status_code == 429:
+                    raise TooManyRequests() from e
+                raise ExternalEntityFailed() from e
+
+            account_key = account_info.get("iban") or account_id
+            booked = (response.get("transactions") or {}).get("booked") or []
+            for raw_tx in booked:
+                tx = map_gocardless_transaction(
+                    raw_tx, account_key, request.entity, account_info.get("iban")
+                )
+                if tx and tx.ref not in request.registered_txs:
+                    account_txs.append(tx)
+
+        return Transactions(investment=[], account=account_txs)
