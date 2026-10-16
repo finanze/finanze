@@ -174,6 +174,28 @@ const defaultExternalLabeling: ExternalLabelingSettings = {
   instructions: null,
 }
 
+const stripEmptySheetsGlobals = (settings: AppSettings): AppSettings => {
+  const strip = (sheets?: { [key: string]: any }) => {
+    if (!sheets?.globals || Object.keys(sheets.globals).length > 0) {
+      return sheets
+    }
+    const rest = { ...sheets }
+    delete rest.globals
+    return rest
+  }
+  return {
+    ...settings,
+    export: settings.export && {
+      ...settings.export,
+      sheets: strip(settings.export.sheets),
+    },
+    importing: settings.importing && {
+      ...settings.importing,
+      sheets: strip(settings.importing.sheets),
+    },
+  }
+}
+
 const mergeSettingsWithDefaults = (
   incoming?: Partial<AppSettings>,
 ): AppSettings => {
@@ -435,7 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveSettingsData = useCallback(
     async (settingsData: AppSettings, options?: { silent?: boolean }) => {
       try {
-        await saveSettings(settingsData)
+        await saveSettings(stripEmptySheetsGlobals(settingsData))
         setSettings(mergeSettingsWithDefaults(settingsData))
         if (!options?.silent) {
           showToast(t.settings.saveSuccess, "success")
