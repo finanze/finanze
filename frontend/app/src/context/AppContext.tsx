@@ -30,6 +30,7 @@ import {
 } from "@/services/api"
 import { waitForLazyInit } from "@/lib/mobile"
 import { reportError } from "@/lib/telemetry"
+import { stripEmptySheetsGlobals } from "@/lib/settingsUtils"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
@@ -445,7 +446,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       options?: { silent?: boolean },
     ) => {
       try {
-        await saveSettings(settingsData)
+        await saveSettings(stripEmptySheetsGlobals(settingsData))
         setSettings(prev =>
           mergeSettingsWithDefaults({ ...prev, ...settingsData }),
         )

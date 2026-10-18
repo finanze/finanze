@@ -110,3 +110,36 @@ export const processDataFields = (settingsObj: any) => {
 
   return processed
 }
+
+type SheetsSettings = {
+  globals?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+type SettingsWithSheets = {
+  export?: { sheets?: SheetsSettings }
+  importing?: { sheets?: SheetsSettings }
+}
+
+export const stripEmptySheetsGlobals = <T extends object>(settings: T): T => {
+  const settingsWithSheets = settings as T & SettingsWithSheets
+  const strip = (section?: { sheets?: SheetsSettings }) => {
+    const sheets = section?.sheets
+    const globals = sheets?.globals
+    if (!sheets || !globals || Object.keys(globals).length > 0) return section
+
+    const strippedSheets = { ...sheets }
+    delete strippedSheets.globals
+    return { ...section, sheets: strippedSheets }
+  }
+
+  return {
+    ...settings,
+    ...(settingsWithSheets.export
+      ? { export: strip(settingsWithSheets.export) }
+      : {}),
+    ...(settingsWithSheets.importing
+      ? { importing: strip(settingsWithSheets.importing) }
+      : {}),
+  } as T
+}
