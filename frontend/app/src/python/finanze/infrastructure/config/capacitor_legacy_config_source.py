@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Optional
+from warnings import deprecated
 
 from js import jsBridge
 
@@ -8,6 +9,10 @@ from domain.user import User
 from infrastructure.config.legacy_config_source import LegacyConfigSource
 
 
+@deprecated(
+    "Only for migrating existing Capacitor config preferences into database-backed settings.",
+    category=None,
+)
 class CapacitorLegacyConfigSource(LegacyConfigSource):
     def __init__(self):
         self._prefs_key: Optional[str] = None

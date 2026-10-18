@@ -1,4 +1,5 @@
 import logging
+from warnings import deprecated
 
 import strictyaml
 
@@ -7,6 +8,10 @@ from infrastructure.repository.settings.settings_mapper import legacy_to_section
 from infrastructure.repository.settings.settings_repository import SettingsRepository
 
 
+@deprecated(
+    "Only for importing legacy config YAML backups; use current settings APIs for new data.",
+    category=None,
+)
 class LegacyConfigBackupImporter(LegacyConfigImporter):
     def __init__(self, settings_repository: SettingsRepository):
         self._settings_repository = settings_repository

@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
+from warnings import deprecated
 
 from domain.settings import (
     CURRENT_VERSION,
@@ -109,6 +110,10 @@ def sections_to_partial_settings(
     return PartialSettings(lastUpdate=last_update, version=CURRENT_VERSION, **values)
 
 
+@deprecated(
+    "Only for converting pre-database config payloads into settings sections.",
+    category=None,
+)
 def legacy_to_sections(raw: Any) -> tuple[dict[str, dict], Optional[datetime]]:
     if not isinstance(raw, dict):
         return {}, None

@@ -1,5 +1,6 @@
 import logging
 from copy import deepcopy
+from warnings import deprecated
 
 from infrastructure.config.base_config import CURRENT_VERSION
 from infrastructure.config.versions import (
@@ -13,6 +14,10 @@ from infrastructure.config.versions import (
 )
 
 
+@deprecated(
+    "Only for converting pre-database config payloads.",
+    category=None,
+)
 class ConfigMigrator:
     def __init__(self):
         self._log = logging.getLogger(__name__)

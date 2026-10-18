@@ -1,3 +1,5 @@
+from warnings import deprecated
+
 from domain.backup import BackupFileType
 from infrastructure.cloud.backup.capacitor_backup_processor import (
     delete_staging_file,
@@ -9,6 +11,10 @@ from infrastructure.config.legacy_config_backup_importer import (
 )
 
 
+@deprecated(
+    "Only for importing legacy config backups from Capacitor staging storage.",
+    category=None,
+)
 class CapacitorLegacyConfigBackupImporter(LegacyConfigBackupImporter):
     async def import_data(self, data: bytes):
         file_name = get_file_name(BackupFileType.CONFIG, "decompiled")

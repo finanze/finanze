@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Optional
+from warnings import deprecated
 
 import strictyaml
 
@@ -10,6 +11,10 @@ from infrastructure.config.legacy_config_source import LegacyConfigSource
 CONFIG_NAME = "config.yml"
 
 
+@deprecated(
+    "Only for migrating existing config.yml files into database-backed settings.",
+    category=None,
+)
 class FileLegacyConfigSource(LegacyConfigSource):
     def __init__(self):
         self._config_file: Optional[Path] = None

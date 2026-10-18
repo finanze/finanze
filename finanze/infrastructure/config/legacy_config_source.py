@@ -1,9 +1,14 @@
 import abc
 from typing import Optional
+from warnings import deprecated
 
 from domain.user import User
 
 
+@deprecated(
+    "Only for migrating settings from pre-database config storage.",
+    category=None,
+)
 class LegacyConfigSource(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def connect(self, user: User):

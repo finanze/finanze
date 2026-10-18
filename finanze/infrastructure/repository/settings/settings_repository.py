@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import Any, Optional
+from warnings import deprecated
 
 from application.ports.config_port import ConfigPort
 from domain.settings import PartialSettings, Settings, SettingsSection
@@ -103,6 +104,10 @@ class SettingsRepository(ConfigPort):
                     (key, serialize_section(section), updated_at),
                 )
 
+    @deprecated(
+        "Only for database upgrades that import pre-database config storage.",
+        category=None,
+    )
     async def load_legacy(self) -> Optional[dict]:
         try:
             return await self._legacy_source.load()
@@ -110,6 +115,10 @@ class SettingsRepository(ConfigPort):
             self._log.warning(f"Could not load legacy config: {e}")
             return None
 
+    @deprecated(
+        "Only for importing or migrating legacy config; use save() for current settings.",
+        category=None,
+    )
     async def apply_legacy(
         self, sections: dict[str, dict], last_update: Optional[datetime]
     ) -> bool:
