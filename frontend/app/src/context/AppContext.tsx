@@ -30,6 +30,7 @@ import {
 } from "@/services/api"
 import { waitForLazyInit } from "@/lib/mobile"
 import { reportError } from "@/lib/telemetry"
+import { stripEmptySheetsGlobals } from "@/lib/settingsUtils"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
@@ -68,6 +69,8 @@ export interface AppSettings {
   data?: DataConfig
   labeling?: LabelingSettings
 }
+
+export type SettingsKey = keyof AppSettings
 
 export interface ExportState {
   isExporting: boolean
@@ -110,9 +113,9 @@ interface AppContextType {
     options?: { reportable?: boolean; duration?: number },
   ) => void
   hideToast: () => void
-  fetchSettings: () => Promise<void>
+  fetchSettings: (keys?: SettingsKey[]) => Promise<void>
   saveSettings: (
-    settings: AppSettings,
+    settings: Partial<AppSettings>,
     options?: { silent?: boolean },
   ) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
@@ -419,24 +422,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchExchangeRates, isAuthenticated, showToast, t])
 
-  const fetchSettings = useCallback(async () => {
-    try {
-      setIsLoadingSettings(true)
-      const data = await getSettings()
-      setSettings(mergeSettingsWithDefaults(data))
-    } catch (error) {
-      console.error("Error fetching settings:", error)
-      showToast(t.settings.fetchError, "error")
-    } finally {
-      setIsLoadingSettings(false)
-    }
-  }, [showToast, t])
+  const fetchSettings = useCallback(
+    async (keys?: SettingsKey[]) => {
+      try {
+        setIsLoadingSettings(true)
+        const data = await getSettings(keys)
+        setSettings(prev =>
+          mergeSettingsWithDefaults(keys?.length ? { ...prev, ...data } : data),
+        )
+      } catch (error) {
+        console.error("Error fetching settings:", error)
+        showToast(t.settings.fetchError, "error")
+      } finally {
+        setIsLoadingSettings(false)
+      }
+    },
+    [showToast, t],
+  )
 
   const saveSettingsData = useCallback(
-    async (settingsData: AppSettings, options?: { silent?: boolean }) => {
+    async (
+      settingsData: Partial<AppSettings>,
+      options?: { silent?: boolean },
+    ) => {
       try {
-        await saveSettings(settingsData)
-        setSettings(mergeSettingsWithDefaults(settingsData))
+        await saveSettings(stripEmptySheetsGlobals(settingsData))
+        setSettings(prev =>
+          mergeSettingsWithDefaults({ ...prev, ...settingsData }),
+        )
         if (!options?.silent) {
           showToast(t.settings.saveSuccess, "success")
         }

@@ -90,6 +90,19 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    const fullPath = `${UPLOADS_DIR}/${path}`
+    const result = await Filesystem.stat({
+      path: fullPath,
+      directory: Directory.Documents,
+    })
+    return result.type === "directory"
+  } catch {
+    return false
+  }
+}
+
 async function getFileUri(path: string): Promise<string> {
   const fullPath = `${UPLOADS_DIR}/${path}`
 
@@ -111,14 +124,21 @@ async function getFileUri(path: string): Promise<string> {
 
 async function createDirectory(path: string): Promise<void> {
   const fullPath = `${UPLOADS_DIR}/${path}`
+  if (await directoryExists(path)) {
+    return
+  }
+
   try {
     await Filesystem.mkdir({
       path: fullPath,
       directory: Directory.Documents,
       recursive: true,
     })
-  } catch {
-    // Directory may already exist
+  } catch (error) {
+    if (await directoryExists(path)) {
+      return
+    }
+    throw error
   }
 }
 

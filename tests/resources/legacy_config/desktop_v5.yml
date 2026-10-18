@@ -1,0 +1,15 @@
+version: 5
+general:
+  defaultCurrency: GBP
+export:
+  sheets:
+    globals:
+      spreadsheetId: export-sheet
+    transactions:
+    - range: Txs
+      data:
+      - ACCOUNT
+assets:
+  crypto:
+    stablecoins:
+    - USDT

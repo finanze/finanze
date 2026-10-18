@@ -80,11 +80,7 @@ import {
 } from "@/components/ui/Popover"
 import { Switch } from "@/components/ui/Switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
-import {
-  cleanObject,
-  processDataFields,
-  sanitizeStablecoins,
-} from "@/lib/settingsUtils"
+import { cleanObject, processDataFields } from "@/lib/settingsUtils"
 import { ProductType } from "@/types/position"
 import {
   TemplateManagerDialog,
@@ -1775,10 +1771,6 @@ export default function ExportPage() {
     try {
       setIsSavingExportConfig(true)
 
-      const sanitizedStablecoins = sanitizeStablecoins(
-        settings.assets?.crypto?.stablecoins,
-      )
-
       const exportSheets = JSON.parse(
         JSON.stringify(exportConfigDraft),
       ) as SheetsConfigDraft
@@ -1799,30 +1791,20 @@ export default function ExportPage() {
         )
       }
 
-      const settingsForSave: AppSettings = {
-        ...settings,
+      const settingsForSave: Partial<AppSettings> = {
         export: {
           ...(settings.export ?? {}),
           sheets: exportSheets,
         },
-        assets: {
-          ...settings.assets,
-          crypto: {
-            ...settings.assets?.crypto,
-            stablecoins: sanitizedStablecoins,
-          },
-        },
       }
 
       const processedSettings = processDataFields({ ...settingsForSave })
-      const cleanedSettings = cleanObject(processedSettings) as AppSettings
+      const cleanedSettings = cleanObject(processedSettings) as
+        Partial<AppSettings> | undefined
 
-      if (cleanedSettings.assets?.crypto) {
-        cleanedSettings.assets.crypto.hideUnknownTokens =
-          settings.assets?.crypto?.hideUnknownTokens ?? false
-      }
-
-      const wasSaved = await saveSettings(cleanedSettings)
+      const wasSaved = await saveSettings({
+        export: cleanedSettings?.export ?? {},
+      })
       if (!wasSaved) {
         return
       }
@@ -1850,10 +1832,6 @@ export default function ExportPage() {
 
     try {
       setIsSavingImportConfig(true)
-
-      const sanitizedStablecoins = sanitizeStablecoins(
-        settings.assets?.crypto?.stablecoins,
-      )
 
       const importConfig = JSON.parse(
         JSON.stringify(importConfigDraft),
@@ -1892,30 +1870,20 @@ export default function ExportPage() {
         }
       })
 
-      const settingsForSave: AppSettings = {
-        ...settings,
+      const settingsForSave: Partial<AppSettings> = {
         importing: {
           ...(settings.importing ?? {}),
           sheets: importConfig,
         },
-        assets: {
-          ...settings.assets,
-          crypto: {
-            ...settings.assets?.crypto,
-            stablecoins: sanitizedStablecoins,
-          },
-        },
       }
 
       const processedSettings = processDataFields({ ...settingsForSave })
-      const cleanedSettings = cleanObject(processedSettings) as AppSettings
+      const cleanedSettings = cleanObject(processedSettings) as
+        Partial<AppSettings> | undefined
 
-      if (cleanedSettings.assets?.crypto) {
-        cleanedSettings.assets.crypto.hideUnknownTokens =
-          settings.assets?.crypto?.hideUnknownTokens ?? false
-      }
-
-      const wasSaved = await saveSettings(cleanedSettings)
+      const wasSaved = await saveSettings({
+        importing: cleanedSettings?.importing ?? {},
+      })
       if (!wasSaved) {
         return
       }
@@ -1933,7 +1901,7 @@ export default function ExportPage() {
   const handleRevertExportConfig = async () => {
     try {
       setIsRevertingExportConfig(true)
-      await fetchSettings()
+      await fetchSettings(["export"])
       setExportValidationErrors({})
       setResetExportDraftRequested(true)
     } catch (error) {
@@ -1947,7 +1915,7 @@ export default function ExportPage() {
   const handleRevertImportConfig = async () => {
     try {
       setIsRevertingImportConfig(true)
-      await fetchSettings()
+      await fetchSettings(["importing"])
       setImportValidationErrors({})
       setResetImportDraftRequested(true)
     } catch (error) {

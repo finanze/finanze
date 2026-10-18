@@ -21,6 +21,10 @@ from domain.data_init import (
 )
 from domain.user import User
 from infrastructure.repository.db.client import DBClient, UnderlyingConnection
+from infrastructure.repository.db.settings_snapshot import (
+    read_settings_rows,
+    restore_settings_rows_if_empty,
+)
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
 
@@ -236,6 +240,8 @@ class DBManager(DatasourceInitiator, Backupable):
 
         await self._client.wal_checkpoint()
 
+        settings_rows = await read_settings_rows(self._client)
+
         user = self._user
         user_path = user.path
         passwd = self._pass
@@ -266,6 +272,11 @@ class DBManager(DatasourceInitiator, Backupable):
             connection.close()
 
         await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
+
+        try:
+            await restore_settings_rows_if_empty(self._client, settings_rows)
+        except Exception as e:
+            self._log.exception(f"Could not restore settings after import: {e}")
 
         temp_old_db_path.unlink()
 

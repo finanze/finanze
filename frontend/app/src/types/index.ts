@@ -240,7 +240,6 @@ export interface CloudAuthResponse {
 
 export enum BackupFileType {
   DATA = "DATA",
-  CONFIG = "CONFIG",
 }
 
 export enum BackupMode {

@@ -215,6 +215,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_2_ignored_recurring_move
 from infrastructure.repository.db.versions.v0.v11.v0110_3_periodic_flow_budget_label import (
     V01103PeriodicFlowBudgetLabel,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_4_settings import (
+    V01104Settings,
+)
 
 versions = [
     V0Genesis(),
@@ -300,4 +303,5 @@ versions = [
     V01101OpenAIIntegration(),
     V01102IgnoredRecurringMovements(),
     V01103PeriodicFlowBudgetLabel(),
+    V01104Settings(),
 ]

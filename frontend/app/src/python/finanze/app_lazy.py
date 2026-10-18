@@ -116,6 +116,9 @@ class LazyComponents:
         from infrastructure.cloud.backup.capacitor_backup_processor import (
             CapacitorBackupProcessorAdapter,
         )
+        from infrastructure.config.capacitor_legacy_config_backup_importer import (
+            CapacitorLegacyConfigBackupImporter,
+        )
         from infrastructure.repository.historic.historic_repository import (
             HistoricSQLRepository as HistoricRepository,
         )
@@ -417,7 +420,7 @@ class LazyComponents:
             transaction_label_port=tx_label_repo,
             labeling_rule_port=labeling_rule_repo,
             label_port=label_repo,
-            config_port=d.config_loader,
+            config_port=d.settings_repository,
             external_integration_port=d.ext_int_repo,
             providers=external_labeling_providers,
             transaction_handler_port=d.tx_handler,
@@ -440,7 +443,7 @@ class LazyComponents:
                 d.tx_repo,
                 historic_repo,
                 financial_entity_fetchers,
-                d.config_loader,
+                d.settings_repository,
                 d.creds_repo,
                 sessions_repo,
                 d.last_fetches_repo,
@@ -577,9 +580,13 @@ class LazyComponents:
             d.backup_repository,
             d.cloud_register,
             d.cloud_register,
+            legacy_config_importer=CapacitorLegacyConfigBackupImporter(
+                d.settings_repository
+            ),
+            error_reporter=self._core.error_reporter,
         )
 
-        self.update_settings = UpdateSettingsImpl(d.config_loader)
+        self.update_settings = UpdateSettingsImpl(d.settings_repository)
 
         self.up_crypto = UpdateCryptoWalletConnectionImpl(d.wallet_repo)
         self.del_crypto = DeleteCryptoWalletConnectionImpl(

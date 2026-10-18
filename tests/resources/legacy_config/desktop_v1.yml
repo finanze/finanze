@@ -1,0 +1,19 @@
+general:
+  defaultCurrency: CHF
+scrape:
+  virtual:
+    globals:
+      spreadsheetId: legacy-virtual
+    transactions:
+    - range: Legacy Txs
+      data: account
+export:
+  sheets:
+    globals:
+      spreadsheetId: legacy-export
+    summary:
+    - range: Summary
+    investments:
+    - range: Investments!A1
+      data:
+      - STOCK_ETF

@@ -43,7 +43,7 @@ describe("canAutoSync derivation", () => {
   it("is true when permissions include backup.auto", async () => {
     setPermissions(ALL_PLUS_PERMISSIONS)
     setBackupMode(BackupMode.MANUAL)
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -58,7 +58,7 @@ describe("canAutoSync derivation", () => {
   it("is false when permissions lack backup.auto", async () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -74,7 +74,7 @@ describe("canAutoSync derivation", () => {
     setRole(CloudRole.BASIC)
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -93,7 +93,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -118,7 +118,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const initialInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const initialInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(initialInfo)
     mockUploadBackup.mockResolvedValue(
       buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
@@ -137,9 +137,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     mockGetBackupsInfo.mockClear()
     mockUploadBackup.mockClear()
 
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.PENDING))
     mockUploadBackup.mockResolvedValue(
       buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
     )
@@ -166,7 +164,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const conflictInfo = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const conflictInfo = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(conflictInfo)
 
     const { unmount } = renderBackupUI()
@@ -186,7 +184,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(syncInfo)
 
     const { unmount } = renderBackupUI()
@@ -210,10 +208,10 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED)
+    const info = buildBackupsInfo(SyncStatus.OUTDATED)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockImportBackup.mockResolvedValue(
-      buildSyncResult([BackupFileType.CONFIG], SyncStatus.SYNC),
+      buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
     )
 
     const { unmount } = renderBackupUI()
@@ -224,7 +222,7 @@ describe("auto-sync interval (AUTO mode, Plus)", () => {
 
     await waitFor(() => {
       expect(mockImportBackup).toHaveBeenCalledWith({
-        types: [BackupFileType.CONFIG],
+        types: [BackupFileType.DATA],
       })
     })
 
@@ -238,7 +236,7 @@ describe("manual-mode interval with Plus remote refresh", () => {
     setBackupMode(BackupMode.MANUAL)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -269,7 +267,7 @@ describe("manual-mode interval with Plus remote refresh", () => {
     setBackupMode(BackupMode.MANUAL)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -300,7 +298,7 @@ describe("manual-mode interval with Plus remote refresh", () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -333,7 +331,7 @@ describe("post-scrape auto-upload", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(syncInfo)
 
     const { unmount } = renderBackupUI()
@@ -345,7 +343,7 @@ describe("post-scrape auto-upload", () => {
     mockGetBackupsInfo.mockClear()
     mockUploadBackup.mockClear()
 
-    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(pendingInfo)
     mockUploadBackup.mockResolvedValue(
       buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
@@ -377,7 +375,7 @@ describe("post-scrape auto-upload", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(syncInfo)
 
     const { unmount } = renderDualBackupUI()
@@ -389,7 +387,7 @@ describe("post-scrape auto-upload", () => {
     mockGetBackupsInfo.mockClear()
     mockUploadBackup.mockClear()
 
-    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(pendingInfo)
     mockUploadBackup.mockResolvedValue(
       buildSyncResult([BackupFileType.DATA], SyncStatus.SYNC),
@@ -416,7 +414,7 @@ describe("post-scrape auto-upload", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(syncInfo)
 
     const { unmount } = renderBackupUI()
@@ -452,7 +450,7 @@ describe("post-scrape auto-upload", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const syncInfo = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const syncInfo = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(syncInfo)
 
     const { unmount } = renderBackupUI()
@@ -463,7 +461,7 @@ describe("post-scrape auto-upload", () => {
 
     mockGetBackupsInfo.mockClear()
 
-    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(pendingInfo)
 
     await act(async () => {
@@ -485,7 +483,7 @@ describe("post-scrape auto-upload", () => {
     setBackupMode(BackupMode.MANUAL)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -497,7 +495,7 @@ describe("post-scrape auto-upload", () => {
     mockGetBackupsInfo.mockClear()
     mockUploadBackup.mockClear()
 
-    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(pendingInfo)
 
     await act(async () => {
@@ -518,7 +516,7 @@ describe("post-scrape auto-upload", () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.AUTO)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.SYNC)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -530,7 +528,7 @@ describe("post-scrape auto-upload", () => {
     mockGetBackupsInfo.mockClear()
     mockUploadBackup.mockClear()
 
-    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const pendingInfo = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(pendingInfo)
 
     await act(async () => {
@@ -553,7 +551,7 @@ describe("TOO_MANY_REQUESTS Plus upsell toast", () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
 
-    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockUploadBackup.mockRejectedValue(tooManyRequestsError())
 
@@ -579,7 +577,7 @@ describe("TOO_MANY_REQUESTS Plus upsell toast", () => {
     setPermissions(ALL_PLUS_PERMISSIONS)
     setBackupMode(BackupMode.MANUAL)
 
-    const info = buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockUploadBackup.mockRejectedValue(tooManyRequestsError())
 
@@ -611,7 +609,7 @@ describe("TOO_MANY_REQUESTS Plus upsell toast", () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.CONFLICT)
+    const info = buildBackupsInfo(SyncStatus.CONFLICT)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockImportBackup.mockRejectedValue(tooManyRequestsError())
 
@@ -637,7 +635,7 @@ describe("TOO_MANY_REQUESTS Plus upsell toast", () => {
     setPermissions(["backup.info", "backup.create", "backup.import"])
     setBackupMode(BackupMode.MANUAL)
 
-    const info = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(info)
     mockUploadBackup.mockRejectedValue(tooManyRequestsError())
 
@@ -665,7 +663,7 @@ describe("permission gating in auto-sync", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC)
+    const info = buildBackupsInfo(SyncStatus.PENDING)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()
@@ -688,7 +686,7 @@ describe("permission gating in auto-sync", () => {
     setBackupMode(BackupMode.AUTO)
     setRole(CloudRole.PLUS)
 
-    const info = buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED)
+    const info = buildBackupsInfo(SyncStatus.OUTDATED)
     mockGetBackupsInfo.mockResolvedValue(info)
 
     const { unmount } = renderBackupUI()

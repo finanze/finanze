@@ -29,7 +29,7 @@ import {
   Palette,
   Fingerprint,
 } from "lucide-react"
-import { useAppContext } from "@/context/AppContext"
+import { useAppContext, type SettingsKey } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
 import { useBackupAlert } from "@/context/BackupAlertContext"
 import { useCloud } from "@/context/CloudContext"
@@ -51,6 +51,7 @@ import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import { DataDisplayMode } from "@/types"
 
 const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
+const GENERAL_TAB_SETTINGS: SettingsKey[] = ["general", "data", "assets"]
 
 export default function SettingsPage() {
   const { t, locale, changeLocale } = useI18n()
@@ -93,7 +94,7 @@ export default function SettingsPage() {
   }))
 
   useEffect(() => {
-    fetchSettings()
+    fetchSettings(GENERAL_TAB_SETTINGS)
     fetchExternalIntegrations()
   }, [])
 

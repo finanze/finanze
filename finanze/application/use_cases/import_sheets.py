@@ -38,7 +38,12 @@ from domain.importing import (
     ImportResultCode,
     TemplatedDataParserParams,
 )
-from domain.settings import ImportSheetConfig, SheetsGlobalConfig, SheetsImportConfig
+from domain.settings import (
+    ImportSheetConfig,
+    SettingsSection,
+    SheetsGlobalConfig,
+    SheetsImportConfig,
+)
 from domain.labeling import LabelingTrigger
 from domain.settlement import settlement_window
 from domain.transactions import AccountTxSelection
@@ -93,7 +98,7 @@ class ImportSheetsImpl(ImportSheets):
         self._log = logging.getLogger(__name__)
 
     async def execute(self) -> ImportResult:
-        config = await self._config_port.load()
+        config = await self._config_port.load_sections({SettingsSection.IMPORTING})
         sheets_import_config = config.importing.sheets
 
         sheets_credentials = await self._external_integration_port.get_payload(

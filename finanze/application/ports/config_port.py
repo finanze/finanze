@@ -1,6 +1,8 @@
 import abc
+from typing import Optional
+from warnings import deprecated
 
-from domain.settings import Settings
+from domain.settings import PartialSettings, Settings, SettingsSection
 from domain.user import User
 
 
@@ -18,9 +20,17 @@ class ConfigPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def raw_load(self) -> dict:
+    async def load_sections(self, sections: set[SettingsSection]) -> PartialSettings:
+        raise NotImplementedError
+
+    @deprecated(
+        "Only for database upgrades that import pre-database config storage.",
+        category=None,
+    )
+    @abc.abstractmethod
+    async def load_legacy(self) -> Optional[dict]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def save(self, new_config: Settings) -> None:
+    async def save(self, new_config: Settings | PartialSettings) -> None:
         raise NotImplementedError

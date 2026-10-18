@@ -179,7 +179,7 @@ async def ctx(tmp_path):
     await entity_repo.insert(ENTITY)
 
     config_port = AsyncMock()
-    config_port.load = AsyncMock(
+    config_port.load_sections = AsyncMock(
         return_value=Settings(
             lastUpdate=datetime.now(tzlocal()).isoformat(),
             assets=AssetConfig(crypto=CryptoAssetConfig()),

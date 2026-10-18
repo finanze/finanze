@@ -893,7 +893,6 @@
         "MANUAL": "Decidi tu quando controllare e sincronizzare i backup"
       },
       "data": "Dati",
-      "config": "Configurazione",
       "lastBackup": "Data Ultimo Backup",
       "noBackupYet": "Nessun backup ancora",
       "pendingBackup": "In sospeso",

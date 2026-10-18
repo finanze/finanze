@@ -125,7 +125,7 @@ import type {
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { setTelemetryContext } from "@/lib/telemetry"
-import { AppSettings } from "@/context/AppContext"
+import { AppSettings, type SettingsKey } from "@/context/AppContext"
 import {
   triggerDeferredInit,
   isBackgroundUpdateAvailable,
@@ -267,11 +267,16 @@ export async function deleteTemplate(id: string): Promise<void> {
   return (await getApiClient()).delete(`/templates/${id}`)
 }
 
-export async function getSettings(): Promise<AppSettings> {
-  return (await getApiClient()).get("/settings")
+export async function getSettings(
+  keys?: SettingsKey[],
+): Promise<Partial<AppSettings>> {
+  const params = new URLSearchParams()
+  keys?.forEach(key => params.append("key", key))
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/settings${queryString}`)
 }
 
-export async function saveSettings(settings: any) {
+export async function saveSettings(settings: Partial<AppSettings>) {
   return (await getApiClient()).post("/settings", settings)
 }
 

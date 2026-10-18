@@ -1,0 +1,19 @@
+lastUpdate: 2026-02-15T07:00:00+01:00
+version: 8
+general:
+  defaultCurrency: EUR
+  defaultCommodityWeightUnit: GRAM
+  editMode: BOGUS
+data:
+  autoRefresh:
+    mode: NO_2FA
+    max_outdated: NEVER
+assets:
+  crypto:
+    stablecoins:
+    - USDC
+    hideUnknownTokens: yes
+labeling:
+  external:
+    enabled: yes
+    minConfidence: high

@@ -233,7 +233,10 @@ from infrastructure.cloud.backup.backup_processor_adapter import (
     BackupProcessorAdapter,
 )
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
-from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.config.legacy_config_backup_importer import (
+    LegacyConfigBackupImporter,
+)
 from infrastructure.config.server_details_adapter import (
     ServerDetailsAdapter,
     detect_distribution,
@@ -327,6 +330,7 @@ from infrastructure.repository.instrument_history.instrument_price_history_repos
     InstrumentPriceHistorySQLRepository,
 )
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
+from infrastructure.repository.settings.settings_repository import SettingsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
 from infrastructure.repository.tracked_updates.tracked_updates_repository import (
     TrackedUpdatesRepository,
@@ -410,7 +414,7 @@ class FinanzeServer:
 
         static_upload_dir = args.data_dir / Path("static")
 
-        config_loader = ConfigLoader()
+        settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -566,7 +570,7 @@ class FinanzeServer:
             transaction_label_port=transaction_label_repository,
             labeling_rule_port=labeling_rule_repository,
             label_port=label_repository,
-            config_port=config_loader,
+            config_port=settings_repository,
             external_integration_port=external_integration_repository,
             providers=external_labeling_providers,
             transaction_handler_port=transaction_handler,
@@ -575,7 +579,7 @@ class FinanzeServer:
         user_login = UserLoginImpl(
             db_manager,
             data_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
@@ -583,12 +587,14 @@ class FinanzeServer:
         register_user = RegisterUserImpl(
             db_manager,
             data_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
         )
-        change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
+        change_user_password = ChangeUserPasswordImpl(
+            db_manager, data_manager, settings_repository
+        )
         server_options_port = ServerDetailsAdapter(args)
         if os.getenv("ENV_FF"):
             feature_flag_port = EnvFeatureFlagAdapter()
@@ -607,7 +613,7 @@ class FinanzeServer:
         )
         user_logout = UserLogoutImpl(
             db_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
@@ -633,7 +639,7 @@ class FinanzeServer:
             transaction_repository,
             historic_repository,
             financial_entity_fetchers,
-            config_loader,
+            settings_repository,
             credentials_port,
             sessions_repository,
             last_fetches_repository,
@@ -684,7 +690,7 @@ class FinanzeServer:
             entity_repository,
             template_repository,
             template_processor,
-            config_loader,
+            settings_repository,
         )
         export_file = ExportFileImpl(
             position_repository,
@@ -702,7 +708,7 @@ class FinanzeServer:
             sheets_adapter,
             entity_repository,
             external_integration_repository,
-            config_loader,
+            settings_repository,
             virtual_import_registry,
             template_repository,
             template_parser,
@@ -741,8 +747,8 @@ class FinanzeServer:
             historic_repository,
             fetch_pointers_repository,
         )
-        get_settings = GetSettingsImpl(config_loader)
-        update_settings = UpdateSettingsImpl(config_loader)
+        get_settings = GetSettingsImpl(settings_repository)
+        update_settings = UpdateSettingsImpl(settings_repository)
         get_telemetry_consent = GetTelemetryConsentImpl(telemetry_consent_port)
         update_telemetry_consent = UpdateTelemetryConsentImpl(
             telemetry_consent_port, self._error_reporter
@@ -1098,7 +1104,6 @@ class FinanzeServer:
 
         backupable_ports = {
             BackupFileType.DATA: db_manager,
-            BackupFileType.CONFIG: config_loader,
         }
         upload_backup = UploadBackupImpl(
             data_initiator=db_manager,
@@ -1115,6 +1120,8 @@ class FinanzeServer:
             backup_repository=backup_repository,
             backup_local_registry=cloud_register,
             cloud_register=cloud_register,
+            legacy_config_importer=LegacyConfigBackupImporter(settings_repository),
+            error_reporter=self._error_reporter,
         )
         get_backups = GetBackupsImpl(
             backupable_ports=backupable_ports,

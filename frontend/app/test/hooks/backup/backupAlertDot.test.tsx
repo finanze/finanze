@@ -175,48 +175,42 @@ describe("alert color from backup status", () => {
     {
       name: "CONFLICT → red",
       data: SyncStatus.CONFLICT,
-      config: SyncStatus.SYNC,
       mode: BackupMode.AUTO,
       expected: "red",
     },
     {
       name: "MANUAL + OUTDATED → orange",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.OUTDATED,
+      data: SyncStatus.OUTDATED,
       mode: BackupMode.MANUAL,
       expected: "orange",
     },
     {
       name: "AUTO + OUTDATED → none",
-      data: SyncStatus.SYNC,
-      config: SyncStatus.OUTDATED,
+      data: SyncStatus.OUTDATED,
       mode: BackupMode.AUTO,
       expected: "none",
     },
     {
       name: "SYNC → none",
       data: SyncStatus.SYNC,
-      config: SyncStatus.SYNC,
       mode: BackupMode.AUTO,
       expected: "none",
     },
     {
       name: "PENDING → none",
       data: SyncStatus.PENDING,
-      config: SyncStatus.SYNC,
       mode: BackupMode.MANUAL,
       expected: "none",
     },
     {
       name: "MISSING → none",
       data: SyncStatus.MISSING,
-      config: SyncStatus.MISSING,
       mode: BackupMode.AUTO,
       expected: "none",
     },
-  ])("$name", async ({ data, config, mode, expected }) => {
+  ])("$name", async ({ data, mode, expected }) => {
     currentBackupMode = mode
-    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(data, config))
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(data))
 
     render(<AlertSyncWithReader />, { wrapper: Wrapper })
 
@@ -227,9 +221,7 @@ describe("alert color from backup status", () => {
 
   it("credentials mismatch → dark-red", async () => {
     currentBackupMode = BackupMode.MANUAL
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
     mockUploadBackup.mockRejectedValue(
       new ApiErrorException("INVALID_BACKUP_CREDENTIALS"),
     )
@@ -252,9 +244,7 @@ describe("alert color from backup status", () => {
 
 describe("FloatingBottomNav alert dot", () => {
   it("shows red dot on More button when CONFLICT", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
 
     render(<FloatingNavWithSync />, { wrapper: Wrapper })
 
@@ -267,9 +257,7 @@ describe("FloatingBottomNav alert dot", () => {
 
   it("shows amber dot on More button when MANUAL + OUTDATED", async () => {
     currentBackupMode = BackupMode.MANUAL
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.OUTDATED))
 
     render(<FloatingNavWithSync />, { wrapper: Wrapper })
 
@@ -281,9 +269,7 @@ describe("FloatingBottomNav alert dot", () => {
   })
 
   it("shows no dot on More button when SYNC", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     render(<FloatingNavWithSync />, { wrapper: Wrapper })
 
@@ -298,9 +284,7 @@ describe("FloatingBottomNav alert dot", () => {
 
   it("shows dark-red dot on More button when credentials mismatch", async () => {
     currentBackupMode = BackupMode.MANUAL
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
     mockUploadBackup.mockRejectedValue(
       new ApiErrorException("INVALID_BACKUP_CREDENTIALS"),
     )
@@ -331,9 +315,7 @@ describe("FloatingBottomNav alert dot", () => {
 
 describe("BackupStatusPopover trigger dot", () => {
   it("shows red dot when CONFLICT", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
 
     render(<PopoverWithSync />, { wrapper: Wrapper })
 
@@ -345,9 +327,7 @@ describe("BackupStatusPopover trigger dot", () => {
   })
 
   it("shows foreground dot when PENDING", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.PENDING, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.PENDING))
 
     render(<PopoverWithSync />, { wrapper: Wrapper })
 
@@ -359,9 +339,7 @@ describe("BackupStatusPopover trigger dot", () => {
   })
 
   it("shows amber dot when OUTDATED", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.OUTDATED),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.OUTDATED))
 
     render(<PopoverWithSync />, { wrapper: Wrapper })
 
@@ -374,9 +352,7 @@ describe("BackupStatusPopover trigger dot", () => {
 
   it("shows dark-red dot when credentials mismatch", async () => {
     currentBackupMode = BackupMode.MANUAL
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.CONFLICT, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.CONFLICT))
     mockUploadBackup.mockRejectedValue(
       new ApiErrorException("INVALID_BACKUP_CREDENTIALS"),
     )
@@ -403,9 +379,7 @@ describe("BackupStatusPopover trigger dot", () => {
   })
 
   it("shows no dot when SYNC", async () => {
-    mockGetBackupsInfo.mockResolvedValue(
-      buildBackupsInfo(SyncStatus.SYNC, SyncStatus.SYNC),
-    )
+    mockGetBackupsInfo.mockResolvedValue(buildBackupsInfo(SyncStatus.SYNC))
 
     render(<PopoverWithSync />, { wrapper: Wrapper })
 

@@ -894,7 +894,6 @@
         "MANUAL": "You control when backups are checked and synced"
       },
       "data": "Data",
-      "config": "Config",
       "lastBackup": "Last Backup Date",
       "noBackupYet": "No backup yet",
       "pendingBackup": "Pending",

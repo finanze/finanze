@@ -36,6 +36,7 @@ from domain.labeling import (
     conditions_match,
     matching_rules,
 )
+from domain.settings import SettingsSection
 from domain.settlement import SETTLEMENT_MAX_DAYS, match_settlements
 from domain.transactions import (
     ACCOUNT_MOVEMENT_TYPES,
@@ -201,7 +202,7 @@ class TransactionLabelerAdapter(TransactionLabeler):
     ) -> LabelingResult:
         result = LabelingResult()
         try:
-            settings = await self._config_port.load()
+            settings = await self._config_port.load_sections({SettingsSection.LABELING})
             config = settings.labeling.external
             if not config.enabled or not config.provider or not config.model:
                 return result

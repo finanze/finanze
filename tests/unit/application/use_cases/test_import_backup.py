@@ -81,6 +81,8 @@ def _build_use_case(
     backupable_ports=None,
     hashed_password="hashed_pass",
     decompile_result=None,
+    legacy_config_importer=None,
+    error_reporter=None,
 ):
     cloud_register = MagicMock()
     cloud_register.get_auth = AsyncMock(return_value=auth or _make_auth())
@@ -123,6 +125,8 @@ def _build_use_case(
         backup_repository=backup_repo,
         backup_local_registry=local_registry,
         cloud_register=cloud_register,
+        legacy_config_importer=legacy_config_importer,
+        error_reporter=error_reporter,
     )
     return (
         use_case,
@@ -189,8 +193,9 @@ class TestImportCooldown:
         auth = _make_auth(permissions=["backup.import"])
         auth.role = CloudUserRole.BASIC
         old_date = datetime.now(tzlocal()) - timedelta(minutes=1081)
+        remote_date = datetime.now(tzlocal()) + timedelta(hours=1)
         piece_id = uuid4()
-        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        remote_backup = _make_backup_info(date=remote_date, backup_id=piece_id)
         local_info = BackupsInfo(
             pieces={
                 BackupFileType.DATA: _make_backup_info(date=old_date),
@@ -201,7 +206,7 @@ class TestImportCooldown:
                 BackupFileType.DATA: remote_backup,
             }
         )
-        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        transfer_piece = _make_transfer_piece(date=remote_date, piece_id=piece_id)
         download_result = BackupPieces(pieces=[transfer_piece])
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=old_date)
@@ -223,8 +228,9 @@ class TestImportCooldown:
     @pytest.mark.asyncio
     async def test_no_cooldown_when_old_backup(self):
         old_date = datetime.now(tzlocal()) - timedelta(minutes=10)
+        remote_date = datetime.now(tzlocal()) + timedelta(hours=1)
         piece_id = uuid4()
-        remote_backup = _make_backup_info(date=LATER, backup_id=piece_id)
+        remote_backup = _make_backup_info(date=remote_date, backup_id=piece_id)
         local_info = BackupsInfo(
             pieces={
                 BackupFileType.DATA: _make_backup_info(date=old_date),
@@ -235,7 +241,7 @@ class TestImportCooldown:
                 BackupFileType.DATA: remote_backup,
             }
         )
-        transfer_piece = _make_transfer_piece(date=LATER, piece_id=piece_id)
+        transfer_piece = _make_transfer_piece(date=remote_date, piece_id=piece_id)
         download_result = BackupPieces(pieces=[transfer_piece])
         backupable = MagicMock()
         backupable.get_last_updated = AsyncMock(return_value=old_date)
@@ -571,3 +577,296 @@ class TestImportInitialize:
         backupable.import_data.assert_called_once()
         call_kwargs = backupable.import_data.call_args
         assert call_kwargs[1]["initialize"] is False
+
+
+def _legacy_scenario(
+    remote_types=(BackupFileType.DATA, BackupFileType.CONFIG),
+    local_data_date=EARLIER,
+    remote_data_date=NOW,
+):
+    remote_pieces = {}
+    transfer_pieces = []
+    for backup_type in remote_types:
+        piece_id = uuid4()
+        date = remote_data_date if backup_type == BackupFileType.DATA else NOW
+        remote_pieces[backup_type] = _make_backup_info(
+            backup_type=backup_type, date=date, backup_id=piece_id
+        )
+        transfer_pieces.append(
+            BackupTransferPiece(
+                id=piece_id,
+                protocol=1,
+                date=date,
+                type=backup_type,
+                payload=f"encrypted_{backup_type.value}".encode(),
+                size=100,
+            )
+        )
+    local_info = BackupsInfo(
+        pieces={BackupFileType.DATA: _make_backup_info(date=local_data_date)}
+    )
+    backupable = MagicMock()
+    backupable.get_last_updated = AsyncMock(return_value=LONG_AGO)
+    backupable.import_data = AsyncMock()
+    backupable.export = AsyncMock(return_value=b"data")
+    return (
+        local_info,
+        BackupsInfo(pieces=remote_pieces),
+        transfer_pieces,
+        backupable,
+    )
+
+
+def _filtering_download(transfer_pieces):
+    async def _download(params):
+        return BackupPieces(
+            pieces=[p for p in transfer_pieces if p.type in params.types]
+        )
+
+    return _download
+
+
+async def _decompile_by_type(request):
+    return BackupProcessResult(payload=f"plain_{request.type.value}".encode(), size=10)
+
+
+class TestImportLegacyConfig:
+    @pytest.mark.asyncio
+    async def test_imports_legacy_config_along_with_data(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+        importer = MagicMock()
+        importer.import_data = AsyncMock()
+
+        use_case, _, local_registry, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+        processor.decompile = AsyncMock(side_effect=_decompile_by_type)
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        download_params = backup_repo.download.call_args[0][0]
+        assert set(download_params.types) == {
+            BackupFileType.DATA,
+            BackupFileType.CONFIG,
+        }
+        assert backupable.import_data.call_args[0][0] == b"plain_DATA"
+        importer.import_data.assert_awaited_once_with(b"plain_CONFIG")
+        assert set(result.pieces) == {BackupFileType.DATA}
+        inserted = local_registry.insert.call_args[0][0]
+        assert [info.type for info in inserted] == [BackupFileType.DATA]
+
+    @pytest.mark.asyncio
+    async def test_legacy_config_imported_after_data(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+        transfer_pieces.reverse()
+        calls = []
+        backupable.import_data = AsyncMock(
+            side_effect=lambda *a, **k: calls.append("DATA")
+        )
+        importer = MagicMock()
+        importer.import_data = AsyncMock(side_effect=lambda *a: calls.append("CONFIG"))
+
+        use_case, _, _, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+        processor.decompile = AsyncMock(side_effect=_decompile_by_type)
+
+        await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert calls == ["DATA", "CONFIG"]
+
+    @pytest.mark.asyncio
+    async def test_imports_legacy_config_on_initialize(self):
+        _, remote_info, transfer_pieces, backupable = _legacy_scenario()
+        importer = MagicMock()
+        importer.import_data = AsyncMock()
+
+        use_case, _, _, backup_repo, processor, *_ = _build_use_case(
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+        processor.decompile = AsyncMock(side_effect=_decompile_by_type)
+
+        result = await use_case.execute(
+            ImportBackupRequest(
+                types=[BackupFileType.DATA],
+                password="mypass",
+                force=True,
+                initialize=True,
+            )
+        )
+
+        importer.import_data.assert_awaited_once_with(b"plain_CONFIG")
+        assert set(result.pieces) == {BackupFileType.DATA}
+
+    @pytest.mark.asyncio
+    async def test_skips_legacy_config_when_data_not_imported(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario(
+            local_data_date=LATER, remote_data_date=EARLIER
+        )
+        importer = MagicMock()
+        importer.import_data = AsyncMock()
+
+        use_case, _, _, backup_repo, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert BackupFileType.CONFIG not in backup_repo.download.call_args[0][0].types
+        importer.import_data.assert_not_called()
+        assert result.pieces == {}
+
+    @pytest.mark.asyncio
+    async def test_no_config_download_when_remote_has_no_config(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario(
+            remote_types=(BackupFileType.DATA,)
+        )
+        importer = MagicMock()
+        importer.import_data = AsyncMock()
+
+        use_case, _, _, backup_repo, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert backup_repo.download.call_args[0][0].types == [BackupFileType.DATA]
+        importer.import_data.assert_not_called()
+        assert set(result.pieces) == {BackupFileType.DATA}
+
+    @pytest.mark.asyncio
+    async def test_no_config_download_without_importer(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+
+        use_case, _, _, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert backup_repo.download.call_args[0][0].types == [BackupFileType.DATA]
+        assert processor.decompile.call_count == 1
+        assert set(result.pieces) == {BackupFileType.DATA}
+
+    @pytest.mark.asyncio
+    async def test_ignores_unrequested_pieces_returned_by_repository(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+
+        use_case, _, local_registry, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            download_result=BackupPieces(pieces=transfer_pieces),
+        )
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert processor.decompile.call_count == 1
+        assert set(result.pieces) == {BackupFileType.DATA}
+        inserted = local_registry.insert.call_args[0][0]
+        assert [info.type for info in inserted] == [BackupFileType.DATA]
+
+    @pytest.mark.asyncio
+    async def test_legacy_config_failure_does_not_break_import(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+        error = ValueError("bad config")
+        importer = MagicMock()
+        importer.import_data = AsyncMock(side_effect=error)
+        error_reporter = MagicMock()
+
+        use_case, _, local_registry, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+            error_reporter=error_reporter,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+        processor.decompile = AsyncMock(side_effect=_decompile_by_type)
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert set(result.pieces) == {BackupFileType.DATA}
+        assert local_registry.insert.call_count == 1
+        error_reporter.capture_exception.assert_called_once_with(
+            error, tags={"use_case": "import_backup", "phase": "legacy_config"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_legacy_config_decompile_failure_does_not_break_import(self):
+        local_info, remote_info, transfer_pieces, backupable = _legacy_scenario()
+        importer = MagicMock()
+        importer.import_data = AsyncMock()
+
+        async def _decompile(request):
+            if request.type == BackupFileType.CONFIG:
+                raise ValueError("wrong password")
+            return await _decompile_by_type(request)
+
+        use_case, _, _, backup_repo, processor, *_ = _build_use_case(
+            local_info=local_info,
+            remote_info=remote_info,
+            backupable_ports={BackupFileType.DATA: backupable},
+            legacy_config_importer=importer,
+        )
+        backup_repo.download = AsyncMock(
+            side_effect=_filtering_download(transfer_pieces)
+        )
+        processor.decompile = AsyncMock(side_effect=_decompile)
+
+        result = await use_case.execute(
+            ImportBackupRequest(types=[BackupFileType.DATA], password="pass")
+        )
+
+        assert set(result.pieces) == {BackupFileType.DATA}
+        importer.import_data.assert_not_called()
