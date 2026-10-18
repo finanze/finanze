@@ -781,6 +781,41 @@
       "errorReportingDescription": "Share pseudonymous crash and error reports identified only by an installation ID so bugs can be fixed. Amounts, account details and personal data are never sent.",
       "installId": "Installation ID"
     },
+    "mcp": {
+      "tabTitle": "MCP",
+      "title": "MCP server",
+      "description": "Let AI assistants and MCP-compatible clients query your Finanze data through the Model Context Protocol.",
+      "enableLabel": "Enable MCP server",
+      "enableDescription": "Clients authenticated with the access token can read your positions, transactions, flows and more.",
+      "readOnlyLabel": "Read only",
+      "readOnlyDescription": "When enabled, assistants can only read your data. Turn it off to let them create, edit and delete data, connect integrations and fetch entities.",
+      "readOnlyWarning": "Read-only mode is off. Assistants can modify and delete your data. Review what they do carefully.",
+      "connectionTitle": "Connection",
+      "serverUrl": "Server URL",
+      "token": "Access token",
+      "regenerateToken": "Regenerate",
+      "regenerateConfirmTitle": "Regenerate access token?",
+      "regenerateConfirmMessage": "Clients using the current token will stop working until you update their configuration.",
+      "tokenRegenerated": "Access token regenerated",
+      "runningNote": "Finanze must be running and unlocked for clients to connect. Reconnect your clients after changing the read-only setting so they refresh the available tools.",
+      "clientsTitle": "Client setup",
+      "clientsDescription": "Copy the configuration for your client. The copied text includes your access token.",
+      "clients": {
+        "vscode": "VS Code",
+        "claudeCode": "Claude Code",
+        "cursor": "Cursor",
+        "claudeDesktop": "Claude Desktop"
+      },
+      "clientHints": {
+        "vscode": "Add it to .vscode/mcp.json in your workspace or to your user mcp.json.",
+        "claudeCode": "Run it in a terminal.",
+        "cursor": "Add it to ~/.cursor/mcp.json or .cursor/mcp.json in your project.",
+        "claudeDesktop": "Add it to claude_desktop_config.json and restart Claude Desktop. Requires Node.js."
+      },
+      "loadError": "Could not load the MCP settings",
+      "updateError": "Could not update the MCP settings",
+      "regenerateError": "Could not regenerate the access token"
+    },
     "cloud": {
       "tabTitle": "Cloud",
       "title": "Cloud Sync",

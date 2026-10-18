@@ -780,6 +780,41 @@
       "errorReportingDescription": "Condividi segnalazioni pseudonime di crash ed errori identificate solo da un ID di installazione per poterli correggere. Importi, dati dei conti e dati personali non vengono mai inviati.",
       "installId": "ID di installazione"
     },
+    "mcp": {
+      "tabTitle": "MCP",
+      "title": "Server MCP",
+      "description": "Consenti ad assistenti IA e client compatibili con MCP di consultare i tuoi dati Finanze tramite il Model Context Protocol.",
+      "enableLabel": "Attiva server MCP",
+      "enableDescription": "I client autenticati con il token di accesso possono leggere posizioni, transazioni, flussi e altro.",
+      "readOnlyLabel": "Sola lettura",
+      "readOnlyDescription": "Quando è attiva, gli assistenti possono solo leggere i tuoi dati. Disattivala per consentire loro di creare, modificare ed eliminare dati, collegare integrazioni e aggiornare entità.",
+      "readOnlyWarning": "La modalità di sola lettura è disattivata. Gli assistenti possono modificare ed eliminare i tuoi dati. Controlla con attenzione ciò che fanno.",
+      "connectionTitle": "Connessione",
+      "serverUrl": "URL del server",
+      "token": "Token di accesso",
+      "regenerateToken": "Rigenera",
+      "regenerateConfirmTitle": "Rigenerare il token di accesso?",
+      "regenerateConfirmMessage": "I client che usano il token attuale smetteranno di funzionare finché non aggiornerai la loro configurazione.",
+      "tokenRegenerated": "Token di accesso rigenerato",
+      "runningNote": "Finanze deve essere in esecuzione e sbloccato perché i client possano connettersi. Riconnetti i client dopo aver cambiato l'impostazione di sola lettura per aggiornare gli strumenti disponibili.",
+      "clientsTitle": "Configurazione del client",
+      "clientsDescription": "Copia la configurazione per il tuo client. Il testo copiato include il tuo token di accesso.",
+      "clients": {
+        "vscode": "VS Code",
+        "claudeCode": "Claude Code",
+        "cursor": "Cursor",
+        "claudeDesktop": "Claude Desktop"
+      },
+      "clientHints": {
+        "vscode": "Aggiungilo a .vscode/mcp.json nel tuo workspace o al tuo mcp.json utente.",
+        "claudeCode": "Eseguilo in un terminale.",
+        "cursor": "Aggiungilo a ~/.cursor/mcp.json o a .cursor/mcp.json nel tuo progetto.",
+        "claudeDesktop": "Aggiungilo a claude_desktop_config.json e riavvia Claude Desktop. Richiede Node.js."
+      },
+      "loadError": "Impossibile caricare le impostazioni MCP",
+      "updateError": "Impossibile aggiornare le impostazioni MCP",
+      "regenerateError": "Impossibile rigenerare il token di accesso"
+    },
     "cloud": {
       "tabTitle": "Cloud",
       "title": "Sincronizzazione Cloud",

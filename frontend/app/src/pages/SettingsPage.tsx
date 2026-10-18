@@ -28,6 +28,7 @@ import {
   Languages,
   Palette,
   Fingerprint,
+  Bot,
 } from "lucide-react"
 import { useAppContext, type SettingsKey } from "@/context/AppContext"
 import { useTheme } from "@/context/ThemeContext"
@@ -39,6 +40,7 @@ import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { GeneralTab } from "@/components/settings/GeneralTab"
 import { CloudTab } from "@/components/settings/CloudTab"
+import { McpTab } from "@/components/settings/McpTab"
 import { isNativeMobile } from "@/lib/platform"
 import {
   checkBiometricAvailability,
@@ -52,6 +54,11 @@ import { DataDisplayMode } from "@/types"
 
 const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES", "it-IT"]
 const GENERAL_TAB_SETTINGS: SettingsKey[] = ["general", "data", "assets"]
+const TAB_GRID_COLS: Record<number, string> = {
+  3: "sm:grid-cols-3",
+  4: "sm:grid-cols-4",
+  5: "sm:grid-cols-5",
+}
 
 export default function SettingsPage() {
   const { t, locale, changeLocale } = useI18n()
@@ -79,6 +86,8 @@ export default function SettingsPage() {
     useState(false)
 
   const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
+  const isMcpAvailable = !isNativeMobile()
+  const tabCount = 3 + Number(isCloudEnabled) + Number(isMcpAvailable)
 
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -168,7 +177,7 @@ export default function SettingsPage() {
       >
         <div className="flex justify-center w-full">
           <TabsList
-            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] ${isCloudEnabled ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"}`}
+            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] grid-cols-2 ${TAB_GRID_COLS[tabCount]}`}
           >
             <TabsTrigger
               value="general"
@@ -219,6 +228,15 @@ export default function SettingsPage() {
             >
               {t.settings.integrations}
             </TabsTrigger>
+            {isMcpAvailable && (
+              <TabsTrigger
+                value="mcp"
+                className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
+              >
+                <Bot className="h-4 w-4 shrink-0" />
+                {t.settings.mcp.tabTitle}
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -495,6 +513,12 @@ export default function SettingsPage() {
         <TabsContent value="integrations" className="space-y-4 mt-4">
           <IntegrationsTab />
         </TabsContent>
+
+        {isMcpAvailable && (
+          <TabsContent value="mcp" className="space-y-4 mt-4">
+            <McpTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

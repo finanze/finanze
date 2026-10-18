@@ -218,6 +218,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_3_periodic_flow_budget_l
 from infrastructure.repository.db.versions.v0.v11.v0110_4_settings import (
     V01104Settings,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_5_mcp_config import (
+    V01105McpConfig,
+)
 
 versions = [
     V0Genesis(),
@@ -304,4 +307,5 @@ versions = [
     V01102IgnoredRecurringMovements(),
     V01103PeriodicFlowBudgetLabel(),
     V01104Settings(),
+    V01105McpConfig(),
 ]

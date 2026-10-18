@@ -45,6 +45,9 @@ from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_gains_timeline import GetGainsTimeline
 from domain.use_cases.get_networth_timeline import GetNetworthTimeline
+from domain.use_cases.get_mcp_config import GetMcpConfig
+from domain.use_cases.update_mcp_config import UpdateMcpConfig
+from domain.use_cases.regenerate_mcp_token import RegenerateMcpToken
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
@@ -236,6 +239,11 @@ from infrastructure.controller.routes.handle_cloud_auth import handle_cloud_auth
 from infrastructure.controller.routes.historic import get_historic
 from infrastructure.controller.routes.gains_timeline import gains_timeline
 from infrastructure.controller.routes.networth_timeline import networth_timeline
+from infrastructure.controller.routes.get_mcp_config import get_mcp_config
+from infrastructure.controller.routes.update_mcp_config import update_mcp_config
+from infrastructure.controller.routes.regenerate_mcp_token import (
+    regenerate_mcp_token,
+)
 from infrastructure.controller.routes.import_backup import import_backup
 from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.import_sheets import import_sheets
@@ -384,6 +392,9 @@ async def register_routes(
     get_recurring_movements_uc: GetRecurringMovements,
     ignore_recurring_movement_uc: IgnoreRecurringMovement,
     restore_recurring_movement_uc: RestoreRecurringMovement,
+    get_mcp_config_uc: GetMcpConfig,
+    update_mcp_config_uc: UpdateMcpConfig,
+    regenerate_mcp_token_uc: RegenerateMcpToken,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -726,6 +737,18 @@ async def register_routes(
     @app.route("/api/v1/networth-timeline", methods=["GET"])
     async def networth_timeline_route():
         return await networth_timeline(get_networth_timeline_uc)
+
+    @app.route("/api/v1/mcp/config", methods=["GET"])
+    async def get_mcp_config_route():
+        return await get_mcp_config(get_mcp_config_uc)
+
+    @app.route("/api/v1/mcp/config", methods=["PUT"])
+    async def update_mcp_config_route():
+        return await update_mcp_config(update_mcp_config_uc)
+
+    @app.route("/api/v1/mcp/config/token", methods=["POST"])
+    async def regenerate_mcp_token_route():
+        return await regenerate_mcp_token(regenerate_mcp_token_uc)
 
     @app.route("/api/v1/gains-timeline", methods=["GET"])
     async def gains_timeline_route():
