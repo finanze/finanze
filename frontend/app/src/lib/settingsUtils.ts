@@ -110,8 +110,3 @@ export const processDataFields = (settingsObj: any) => {
 
   return processed
 }
-
-export const sanitizeStablecoins = (stablecoins: string[] | undefined) =>
-  Array.from(
-    new Set((stablecoins ?? []).map(symbol => symbol.trim().toUpperCase())),
-  ).filter(Boolean)

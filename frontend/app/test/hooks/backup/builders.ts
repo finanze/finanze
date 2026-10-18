@@ -86,14 +86,10 @@ export function buildPiece(
   }
 }
 
-export function buildBackupsInfo(
-  dataStatus: SyncStatus,
-  configStatus: SyncStatus,
-): FullBackupsInfo {
+export function buildBackupsInfo(dataStatus: SyncStatus): FullBackupsInfo {
   return {
     pieces: {
       [BackupFileType.DATA]: buildPiece(dataStatus),
-      [BackupFileType.CONFIG]: buildPiece(configStatus),
     },
   }
 }

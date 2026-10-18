@@ -99,15 +99,13 @@ class TestGetBackups:
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
             return_value=last_update
         )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
-            return_value=last_update
-        )
 
         response = await client.get(GET_BACKUPS_URL)
         assert response.status_code == 200
         body = await response.get_json()
         assert "pieces" in body
         assert "DATA" in body["pieces"]
+        assert "CONFIG" not in body["pieces"]
 
     @pytest.mark.asyncio
     async def test_sync_status_when_local_matches_remote(
@@ -131,9 +129,6 @@ class TestGetBackups:
             return_value=BackupsInfo(pieces={BackupFileType.DATA: remote_info})
         )
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
             return_value=dt - timedelta(minutes=10)
         )
 
@@ -166,9 +161,6 @@ class TestGetBackups:
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
             return_value=datetime.now(timezone.utc)
         )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
 
         response = await client.get(GET_BACKUPS_URL)
         body = await response.get_json()
@@ -193,9 +185,6 @@ class TestGetBackups:
             return_value=BackupsInfo(pieces={BackupFileType.DATA: local_info})
         )
         backupable_ports[BackupFileType.DATA].get_last_updated = AsyncMock(
-            return_value=dt - timedelta(minutes=10)
-        )
-        backupable_ports[BackupFileType.CONFIG].get_last_updated = AsyncMock(
             return_value=dt - timedelta(minutes=10)
         )
 
@@ -715,7 +704,7 @@ class TestImportBackup:
 
 class TestUploadMultipleTypes:
     @pytest.mark.asyncio
-    async def test_upload_data_and_config(
+    async def test_upload_ignores_legacy_config_type(
         self,
         client,
         cloud_register,
@@ -744,16 +733,8 @@ class TestUploadMultipleTypes:
             payload=b"enc",
             size=3,
         )
-        config_piece = BackupTransferPiece(
-            id=uuid.uuid4(),
-            protocol=1,
-            date=dt,
-            type=BackupFileType.CONFIG,
-            payload=b"enc",
-            size=3,
-        )
         backup_repository.upload = AsyncMock(
-            return_value=BackupPieces(pieces=[data_piece, config_piece])
+            return_value=BackupPieces(pieces=[data_piece])
         )
 
         response = await client.post(
@@ -762,10 +743,10 @@ class TestUploadMultipleTypes:
         )
         assert response.status_code == 200
         body = await response.get_json()
-        assert "DATA" in body["pieces"]
-        assert "CONFIG" in body["pieces"]
+        assert set(body["pieces"]) == {"DATA"}
         assert body["pieces"]["DATA"]["status"] == SyncStatus.SYNC.value
-        assert body["pieces"]["CONFIG"]["status"] == SyncStatus.SYNC.value
+        upload_params = backup_repository.upload.call_args[0][0]
+        assert [p.type for p in upload_params.pieces.pieces] == [BackupFileType.DATA]
 
 
 class TestBackupTransferFailed:

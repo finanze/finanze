@@ -29,6 +29,7 @@ from domain.global_position import PositionQueryRequest, ProductType
 from domain.historic import HistoricQueryRequest
 from domain.settings import (
     ExportSheetConfig,
+    SettingsSection,
     SheetsGlobalConfig,
 )
 from domain.template import ProcessorDataFilter
@@ -113,7 +114,7 @@ class ExportSheetsImpl(ExportSheets):
         self._lock = Lock()
 
     async def execute(self):
-        config = await self._config_port.load()
+        config = await self._config_port.load_sections({SettingsSection.EXPORT})
         sheets_export_config = config.export.sheets
 
         sheet_credentials = await self._external_integration_port.get_payload(

@@ -29,7 +29,7 @@ class V0702ExternalIntegrationsMigration(DBVersionMigration, QueryMixin):
         if not config_port:
             return
 
-        config = await config_port.raw_load()
+        config = await config_port.load_legacy()
         if config is None or "integrations" not in config:
             return
 

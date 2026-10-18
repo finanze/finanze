@@ -112,6 +112,8 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/client/keychain/",
   "finanze/infrastructure/keychain/",
   "finanze/infrastructure/cloud/backup/capacitor_backup_processor.py",
+  "finanze/infrastructure/config/legacy_config_backup_importer.py",
+  "finanze/infrastructure/config/capacitor_legacy_config_backup_importer.py",
   "finanze/infrastructure/file_storage/mobile_file_storage.py",
   // Infrastructure - repositories (lazy-only)
   "finanze/infrastructure/repository/keychain/",

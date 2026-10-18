@@ -213,7 +213,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
       return
     }
     setSaving(true)
-    await saveSettings({ ...settings, labeling: { external: nextSettings } })
+    await saveSettings({ labeling: { external: nextSettings } })
     setSaving(false)
   }
 

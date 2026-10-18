@@ -191,6 +191,15 @@ class LabelingConfig:
     external: ExternalLabelingConfig = field(default_factory=ExternalLabelingConfig)
 
 
+class SettingsSection(str, Enum):
+    GENERAL = "general"
+    DATA = "data"
+    EXPORT = "export"
+    IMPORTING = "importing"
+    ASSETS = "assets"
+    LABELING = "labeling"
+
+
 @dataclass
 class Settings:
     lastUpdate: str
@@ -201,3 +210,22 @@ class Settings:
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
     labeling: LabelingConfig = field(default_factory=LabelingConfig)
+
+
+@dataclass
+class PartialSettings:
+    lastUpdate: Optional[str] = None
+    version: int = CURRENT_VERSION
+    general: Optional[GeneralConfig] = None
+    data: Optional[DataConfig] = None
+    export: Optional[ExportConfig] = None
+    importing: Optional[ImportConfig] = None
+    assets: Optional[AssetConfig] = None
+    labeling: Optional[LabelingConfig] = None
+
+    def included_sections(self) -> list[SettingsSection]:
+        return [
+            section
+            for section in SettingsSection
+            if getattr(self, section.value) is not None
+        ]

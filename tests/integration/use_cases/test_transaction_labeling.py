@@ -97,7 +97,7 @@ class _Env:
         self.entity_repo = EntitySQLRepository(client)
         self.handler = TransactionHandler(client)
         self.config_port = AsyncMock()
-        self.config_port.load = AsyncMock(
+        self.config_port.load_sections = AsyncMock(
             return_value=_settings(ExternalLabelingConfig())
         )
         self.integration_port = AsyncMock()
@@ -391,7 +391,7 @@ async def test_relabel_filters_by_labels_and_dry_run(env):
 async def test_classify_external_stores_confident_suggestions(env):
     restaurants = await env.label_id("restaurants")
     groceries = await env.label_id("groceries")
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True,
@@ -443,7 +443,7 @@ async def test_classify_external_stores_confident_suggestions(env):
 
 @pytest.mark.asyncio
 async def test_classify_external_passes_upstream_provider(env):
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_external_config(upstreamProvider="  openai/flex  ")
     )
     env.provider.label = AsyncMock(return_value=[])
@@ -475,7 +475,7 @@ async def test_classify_external_examples_only_from_selected_origins(env):
     env.provider.label = AsyncMock(return_value=[])
 
     async def examples_for(origins):
-        env.config_port.load = AsyncMock(
+        env.config_port.load_sections = AsyncMock(
             return_value=_settings(
                 ExternalLabelingConfig(
                     enabled=True,
@@ -508,7 +508,7 @@ async def test_classify_external_disabled_or_auto_run_off_does_nothing(env):
     await env.labeler.classify_external(
         AccountTxSelection(ids=[tx.id]), LabelingTrigger.AUTO
     )
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(
                 enabled=True, provider="OPENROUTER", model="m/x", autoRun=False
@@ -524,7 +524,7 @@ async def test_classify_external_disabled_or_auto_run_off_does_nothing(env):
 
 @pytest.mark.asyncio
 async def test_classify_external_errors_are_swallowed(env):
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(enabled=True, provider="OPENROUTER", model="m/x")
         )
@@ -620,7 +620,7 @@ async def test_classify_external_with_openai_provider(env):
         },
         transaction_handler_port=env.handler,
     )
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
         )
@@ -668,7 +668,7 @@ async def test_classify_external_with_openai_decisions(env):
         },
         transaction_handler_port=env.handler,
     )
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
         )
@@ -719,7 +719,7 @@ async def test_relabel_reports_openai_quota_error_details(env):
         },
         transaction_handler_port=env.handler,
     )
-    env.config_port.load = AsyncMock(
+    env.config_port.load_sections = AsyncMock(
         return_value=_settings(
             ExternalLabelingConfig(enabled=True, provider="OPENAI", model="gpt-6-luna")
         )
@@ -754,7 +754,7 @@ async def _unmatched_at(env, tx_id):
 @pytest.mark.asyncio
 async def test_classify_external_skips_previously_unmatched_unless_retry(env):
     restaurants = await env.label_id("restaurants")
-    env.config_port.load = AsyncMock(return_value=_external_config())
+    env.config_port.load_sections = AsyncMock(return_value=_external_config())
     matched = env.account_tx("Burger place", "15")
     unmatched = env.account_tx("Something", "9")
     await env.save(matched, unmatched)
@@ -795,7 +795,9 @@ async def test_classify_external_skips_previously_unmatched_unless_retry(env):
 
 @pytest.mark.asyncio
 async def test_relabel_external_advances_through_history_without_resending(env):
-    env.config_port.load = AsyncMock(return_value=_external_config(maxPerRun=2))
+    env.config_port.load_sections = AsyncMock(
+        return_value=_external_config(maxPerRun=2)
+    )
     oldest = env.account_tx("Old", "1", day=5)
     middle = env.account_tx("Mid", "2", day=10)
     newest = env.account_tx("New", "3", day=15)

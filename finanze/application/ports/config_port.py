@@ -1,6 +1,7 @@
 import abc
+from typing import Optional
 
-from domain.settings import Settings
+from domain.settings import PartialSettings, Settings, SettingsSection
 from domain.user import User
 
 
@@ -18,9 +19,13 @@ class ConfigPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def raw_load(self) -> dict:
+    async def load_sections(self, sections: set[SettingsSection]) -> PartialSettings:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def save(self, new_config: Settings) -> None:
+    async def load_legacy(self) -> Optional[dict]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def save(self, new_config: Settings | PartialSettings) -> None:
         raise NotImplementedError

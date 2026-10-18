@@ -96,7 +96,8 @@ from infrastructure.controller.exception_handler import register_exception_handl
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.user_files.user_data_manager import UserDataManager
-from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.repository.settings.settings_repository import SettingsRepository
 
 from application.ports.sheets_initiator import SheetsInitiator
 from application.ports.cloud_register import CloudRegister
@@ -204,7 +205,7 @@ async def app(tmp_path):
     db_client = DBClient()
     db_manager = DBManager(db_client)
     data_manager = UserDataManager(str(tmp_path))
-    config_loader = ConfigLoader()
+    config_loader = SettingsRepository(db_client, FileLegacyConfigSource())
 
     sheets_initiator = MagicMock(spec=SheetsInitiator)
 
@@ -270,10 +271,8 @@ async def app(tmp_path):
     data_initiator.get_hashed_password = AsyncMock(return_value="hashed-password")
 
     backupable_data = AsyncMock(spec=Backupable)
-    backupable_config = AsyncMock(spec=Backupable)
     backupable_ports = {
         BackupFileType.DATA: backupable_data,
-        BackupFileType.CONFIG: backupable_config,
     }
 
     keychain_loader = AsyncMock(spec=PublicKeychainLoader)
@@ -316,7 +315,7 @@ async def app(tmp_path):
     user_logout_uc = UserLogoutImpl(
         db_manager, config_loader, sheets_initiator, cloud_register
     )
-    change_password_uc = ChangeUserPasswordImpl(db_manager, data_manager)
+    change_password_uc = ChangeUserPasswordImpl(db_manager, data_manager, config_loader)
     get_status_uc = GetStatusImpl(
         db_manager, data_manager, server_details_port, feature_flag_port
     )

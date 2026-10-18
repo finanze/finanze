@@ -893,7 +893,6 @@
         "MANUAL": "Tú decides cuándo comprobar y sincronizar copias"
       },
       "data": "Datos",
-      "config": "Config",
       "lastBackup": "Fecha de última copia",
       "noBackupYet": "Sin copia aún",
       "pendingBackup": "Pendiente",

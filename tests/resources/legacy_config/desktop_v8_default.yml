@@ -1,0 +1,53 @@
+lastUpdate: 2026-03-01T10:00:00+01:00
+version: 8
+general:
+  defaultCurrency: EUR
+  defaultCommodityWeightUnit: GRAM
+  editMode: QUICK
+data:
+  autoRefresh:
+    mode: NO_2FA
+    max_outdated: TWELVE_HOURS
+assets:
+  crypto:
+    stablecoins:
+    - USDT
+    - USDC
+    - USDe
+    - DAI
+    - USD1
+    - BUSD
+    - PYUSD
+    - PUSD
+    - FDUSD
+    - TUSD
+    - USDD
+    - GUSD
+    - USDP
+    - LUSD
+    - cUSD
+    - OUSD
+    - FRAX
+    - sUSD
+    - USDX
+    - USDY
+    - USYC
+    - EURC
+    - EURS
+    - EURT
+    - PAXG
+    - XAUT
+    - JPYC
+    hideUnknownTokens: no
+labeling:
+  external:
+    enabled: no
+    autoRun: yes
+    minConfidence: 70
+    maxPerRun: 400
+    examples:
+      enabled: no
+      count: 20
+      origins:
+      - MANUAL
+      - RULE

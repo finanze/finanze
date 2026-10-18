@@ -153,8 +153,9 @@ export function GeneralTab() {
           ),
         ).filter(Boolean)
 
-        const settingsForSave: AppSettings = {
-          ...nextSettings,
+        const settingsForSave: Partial<AppSettings> = {
+          general: nextSettings.general,
+          data: nextSettings.data,
           assets: {
             ...nextSettings.assets,
             crypto: {
@@ -164,7 +165,7 @@ export function GeneralTab() {
           },
         }
 
-        const cleanedSettings = cleanObject(settingsForSave)
+        const cleanedSettings = cleanObject(settingsForSave) ?? {}
 
         if (!cleanedSettings.assets) {
           cleanedSettings.assets = {
