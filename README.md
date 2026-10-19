@@ -65,12 +65,31 @@ It connects to real financial entities via public ways and open banking (PSD2), 
     - 🏠 Real estate investments with a variety of metrics and KPIs
     - 🪙 Commodities with market value tracking
 - 💵 Earnings and expenses tracking with periodic asset contributions to forecast future positions
+- 📊 Cashflow budgets for needs, wants, and investments, with remaining income and per-label spending breakdowns
+- 🤖 AI-assisted transaction labeling with custom rules, external model suggestions, and confidence scores when supported
 - 💱 Multicurrency support with automatic exchange rate fetching
 - 🔐 Local encrypted database for secure data storage
+- 🤖 MCP server for AI clients
 - 📤 Dynamic and customizable data export to Google Sheets
 - 📥 Manual data importing
 - ⚙️ Highly configurable with templating for exports and imports
 - 📊 Complex savings & retirement calculator with multiple scenarios and variables
+
+### Cashflow Budgeting
+
+Set monthly targets for needs, wants, and investment contributions, then compare them with actual cashflow. See available or exceeded amounts, track the remaining income over time, and drill into spending by label.
+
+### Transaction Labels, Rules, and AI
+
+Create labels and reusable rules to categorize transactions. Rules can match transaction text, type, amount, currency, dates, entities, or IBANs. Preview matches before applying rules, including to existing transactions.
+
+For suggestions, connect OpenAI or OpenRouter. Presets include TypeSafe Jev through OpenRouter and a decision-capable OpenAI model; compatible OpenAI decision support is detected automatically. Models that return decision results can include confidence scores with their suggested labels.
+
+### MCP Server
+
+Finanze includes a Model Context Protocol (MCP) server that lets compatible AI clients access supported Finanze data and tools. In the app, open **Settings > MCP** to enable it, choose an access mode, and copy a connection snippet for your client. Read-only access is enabled by default. Write access allows supported tools to create, edit, and delete data, connect integrations, and fetch entity data.
+
+The server uses Streamable HTTP at `<Finanze server URL>/mcp` and requires the bearer token shown in MCP settings. Keep the token private, and make sure Finanze is running and unlocked when connecting.
 
 ### Supported Assets by Financial Entity & Crypto Exchanges
 
@@ -136,7 +155,7 @@ Not all entities support the same features, in general we can group data in the 
 | Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
 | B100                | ✅              | ❌                        | ✅ (interest)                  | -                      |
 | Crescenta           | ✅              | -                         | ✅                             | -                      |
-| Trading 212 (Beta)  | ✅              | ❌                         | ✅                             | -                      |
+| Trading 212 (Beta)  | ✅              | ❌                        | ✅                             | -                      |
 
 | Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 | --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
