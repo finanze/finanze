@@ -64,6 +64,21 @@ class TestMcpAccess:
         assert tools["save_label"].annotations.read_only_hint is False
         assert tools["delete_label"].annotations.destructive_hint is True
         assert tools["get_net_worth"].annotations.read_only_hint is True
+        for name in (
+            "save_manual_position",
+            "save_contribution",
+            "settle_manual_investment",
+            "amortize_manual_investment",
+            "unsettle_manual_investment",
+        ):
+            assert tools[name].annotations.read_only_hint is False, name
+            assert tools[name].annotations.destructive_hint is False, name
+        for name in (
+            "delete_manual_position",
+            "delete_contribution",
+            "delete_manual_historic_entry",
+        ):
+            assert tools[name].annotations.destructive_hint is True, name
 
     @pytest.mark.asyncio
     async def test_regenerated_token_replaces_previous(self, mcp_env):

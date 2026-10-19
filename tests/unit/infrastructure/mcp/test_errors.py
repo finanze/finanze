@@ -30,6 +30,16 @@ class TestMapError:
             "Invalid input"
         )
 
+    def test_prefix_not_duplicated(self):
+        assert (
+            str(map_error("tool", ValueError("Invalid input: bad date")))
+            == "Invalid input: bad date"
+        )
+        assert (
+            str(map_error("tool", FlowNotFound("flow not found: abc")))
+            == "flow not found: abc"
+        )
+
     def test_protected_label(self):
         assert "protected" in str(map_error("tool", ProtectedLabel()))
 

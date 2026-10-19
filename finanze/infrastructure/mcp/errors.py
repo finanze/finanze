@@ -6,6 +6,7 @@ from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
     AddressNotFound,
     CalculationInputError,
+    EntityNameAlreadyExists,
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
@@ -20,6 +21,9 @@ from domain.exception.exceptions import (
     LabelingRuleNotFound,
     LabelNotFound,
     ManualAccountNotFound,
+    ManualHistoricEntryNotFinal,
+    ManualHistoricEntryNotFound,
+    ManualInvestmentNotFound,
     MarketValueValuationRequired,
     MissingFieldsError,
     NoUserLogged,
@@ -49,6 +53,8 @@ _NOT_FOUND = {
     ManualAccountNotFound: "Account not found",
     RelatedAccountNotFound: "Related account not found",
     RelatedFundPortfolioNotFound: "Related fund portfolio not found",
+    ManualInvestmentNotFound: "Manual investment not found",
+    ManualHistoricEntryNotFound: "Historic entry not found",
 }
 
 _INVALID_INPUT = (
@@ -67,7 +73,11 @@ _log = logging.getLogger(__name__)
 
 def _with_detail(prefix: str, error: Exception) -> str:
     detail = str(error).strip()
-    return f"{prefix}: {detail}" if detail else prefix
+    if not detail:
+        return prefix
+    if detail.lower().startswith(prefix.lower()):
+        return detail
+    return f"{prefix}: {detail}"
 
 
 def map_error(
@@ -82,6 +92,12 @@ def map_error(
             return ToolError(_with_detail(message, error))
     if isinstance(error, ProtectedLabel):
         return ToolError("This label is protected and cannot be changed.")
+    if isinstance(error, ManualHistoricEntryNotFinal):
+        return ToolError(
+            "Only completed or defaulted historic entries can be unsettled."
+        )
+    if isinstance(error, EntityNameAlreadyExists):
+        return ToolError("An entity with this name already exists.")
     if isinstance(error, InvalidLabelingRule):
         return ToolError(f"Invalid labeling rule: {error.details}")
     if isinstance(error, ExternalLabelingUnavailable):

@@ -60,7 +60,10 @@ class GetPositionImpl(GetPosition):
         ]
 
         query = PositionQueryRequest(
-            entities=query.entities, excluded_entities=excluded_entities
+            entities=query.entities,
+            excluded_entities=excluded_entities,
+            real=query.real,
+            products=query.products,
         )
         global_position_by_entity = (
             await self._position_port.get_last_by_entity_broken_down(query)

@@ -11,6 +11,7 @@ from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.delete_label import DeleteLabel
 from domain.use_cases.delete_labeling_rule import DeleteLabelingRule
+from domain.use_cases.delete_manual_historic_entry import DeleteManualHistoricEntry
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
 from domain.use_cases.delete_pending_flow import DeletePendingFlow
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
@@ -46,6 +47,9 @@ from domain.use_cases.get_settings import GetSettings
 from domain.use_cases.get_transactions import GetTransactions
 from domain.use_cases.ignore_recurring_movement import IgnoreRecurringMovement
 from domain.use_cases.list_real_estate import ListRealEstate
+from domain.use_cases.partial_amortize_manual_investment import (
+    PartialAmortizeManualInvestment,
+)
 from domain.use_cases.preview_labeling_rule import PreviewLabelingRule
 from domain.use_cases.query_pending_flows import QueryPendingFlows
 from domain.use_cases.relabel_transactions import RelabelTransactions
@@ -54,13 +58,17 @@ from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.save_pending_flow import SavePendingFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
+from domain.use_cases.settle_manual_investment import SettleManualInvestment
 from domain.use_cases.settle_pending_flow import SettlePendingFlow
+from domain.use_cases.unsettle_manual_investment import UnsettleManualInvestment
+from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_label import UpdateLabel
 from domain.use_cases.update_labeling_rule import UpdateLabelingRule
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
 from domain.use_cases.update_pending_flow import UpdatePendingFlow
 from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
+from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_transaction_labels import UpdateTransactionLabels
 
@@ -71,8 +79,14 @@ class McpUseCases:
     get_available_entities: GetAvailableEntities
     get_networth_summary: GetNetworthSummary
     get_position: GetPosition
+    update_position: UpdatePosition
     get_contributions: GetContributions
+    update_contributions: UpdateContributions
     get_historic: GetHistoric
+    settle_manual_investment: SettleManualInvestment
+    partial_amortize_manual_investment: PartialAmortizeManualInvestment
+    unsettle_manual_investment: UnsettleManualInvestment
+    delete_manual_historic_entry: DeleteManualHistoricEntry
     get_networth_timeline: GetNetworthTimeline
     get_gains_timeline: GetGainsTimeline
     get_transactions: GetTransactions

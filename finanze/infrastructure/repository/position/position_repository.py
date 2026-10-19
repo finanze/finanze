@@ -914,12 +914,11 @@ class PositionSQLRepository(PositionPort):
             grouped: dict[str, list[FundPortfolio]] = {}
             for row in cursor:
                 gp_id = row["global_position_id"]
-                currency = row["currency"]
                 grouped.setdefault(gp_id, []).append(
                     FundPortfolio(
                         id=UUID(row["id"]),
                         name=row["name"],
-                        currency=currency,
+                        currency=row["currency"],
                         initial_investment=(
                             Dezimal(row["initial_investment"])
                             if row["initial_investment"]
@@ -930,16 +929,20 @@ class PositionSQLRepository(PositionPort):
                             if row["market_value"]
                             else None
                         ),
+                        account_id=(
+                            UUID(row["account_id"]) if row["account_id"] else None
+                        ),
                         account=(
                             Account(
                                 id=UUID(row["account_id"]),
-                                total=Dezimal(0),
-                                currency=currency,
-                                type=AccountType.FUND_PORTFOLIO,
+                                total=Dezimal(row["total"]),
+                                currency=row["account_currency"],
+                                type=AccountType(row["account_type"]),
                                 name=row["account_name"],
                                 iban=row["iban"],
+                                source=source_map[gp_id],
                             )
-                            if row["account_id"]
+                            if row["account_type"]
                             else None
                         ),
                         source=source_map[gp_id],

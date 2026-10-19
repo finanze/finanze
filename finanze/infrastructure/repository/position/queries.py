@@ -253,7 +253,8 @@ class PositionQueries(str, Enum):
     GET_STOCKS_BY_GLOBAL_POSITION_IDS = "SELECT s.*, mpd.track_ticker, mpd.tracker_key, mpd.track_loan FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id IN ({placeholders})"
 
     GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_IDS = """
-        SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban
+        SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban,
+               ap.currency AS account_currency, ap.type AS account_type
         FROM fund_portfolios fp
             LEFT JOIN account_positions ap ON fp.account_id = ap.id
         WHERE fp.global_position_id IN ({placeholders})

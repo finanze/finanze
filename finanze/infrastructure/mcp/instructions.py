@@ -7,6 +7,7 @@ INSTRUCTIONS = """Finanze is the user's self-hosted personal finance app. It agg
 - Amounts are in the stated currency, rates and returns are fractions (0.05 = 5%).
 - Prefer get_net_worth for an overview and narrow down with get_positions, search_transactions or get_cashflow.
 - Always confirm with the user before modifying or deleting data.
+- Manual positions and contributions get new IDs after every save, re-read them before chaining changes.
 """
 
 
