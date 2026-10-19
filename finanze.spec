@@ -13,7 +13,10 @@ numpy_binaries = collect_dynamic_libs("numpy")
 
 sentry_submodules = collect_submodules("sentry_sdk")
 
-mcp_submodules = collect_submodules("mcp") + collect_submodules("mcp_types")
+mcp_submodules = collect_submodules(
+    "mcp",
+    filter=lambda name: name != "mcp.cli" and not name.startswith("mcp.cli."),
+) + collect_submodules("mcp_types")
 
 a = Analysis(
     ['finanze/__main__.py'],

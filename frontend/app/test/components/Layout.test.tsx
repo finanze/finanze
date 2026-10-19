@@ -157,12 +157,12 @@ describe.each([
 
     swipeRight(gestureRoot)
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByRole("link", { name: "Dashboard" }),
-      ).toBeInTheDocument(),
-    )
-    expect(scrollRoot.scrollTop).toBe(659)
+      ).toBeInTheDocument()
+      expect(scrollRoot.scrollTop).toBe(659)
+    })
     expect(sessionStorage.getItem(returnScrollKey("transactions"))).toBeNull()
   })
 

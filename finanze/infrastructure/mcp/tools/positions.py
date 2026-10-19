@@ -67,7 +67,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         sort_by: HistoricSortBy = HistoricSortBy.MATURITY,
         sort_order: SortOrder = SortOrder.DESC,
     ):
-        """Get closed/matured investments (finished deposits, factoring, real estate crowdfunding, crowdlending, sold positions) with invested amount, returns and related transactions."""
+        """Get past completed Real Estate Crowdfunding and Factoring investments with invested amounts, returns, and related transactions."""
         return await ucs.get_historic.execute(
             HistoricQueryRequest(
                 entities=entities,
