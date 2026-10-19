@@ -171,13 +171,13 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "transactions": [_compact_tx(tx) for tx in result.transactions],
         }
 
-    @registry.write("Add manual transactions")
-    async def add_manual_transactions(
+    @registry.write("Add transactions")
+    async def add_transactions(
         transactions: Annotated[
             list[ManualTransactionInput], Field(min_length=1, max_length=100)
         ],
     ):
-        """Add manually entered transactions. Required fields depend on product_type, see each field description."""
+        """Add one or more manual account or investment transactions. Required fields depend on product_type; see each field description."""
         bodies = [_to_body(tx) for tx in transactions]
         for body in bodies:
             body.setdefault("ref", str(uuid4()))
@@ -192,7 +192,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             Field(description="Complete transaction data, replaces the existing one."),
         ],
     ):
-        """Replace a manually added transaction. Only transactions with source MANUAL can be updated."""
+        """Replace a manual transaction. Only source MANUAL transactions can be updated with this tool; transactions fetched from connected entities (REAL) or imported from Google Sheets (SHEETS) cannot be updated here."""
         if not transaction.ref:
             raise ToolError("ref is required, use the one from search_transactions.")
         await ucs.update_manual_transaction.execute(
@@ -204,7 +204,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
     async def delete_manual_transaction(
         tx_id: Annotated[UUID, Field(description="Transaction ID.")],
     ):
-        """Delete a manually added transaction. Only transactions with source MANUAL can be deleted."""
+        """Delete a manual transaction. Only source MANUAL transactions can be deleted with this tool; transactions fetched from connected entities (REAL) or imported from Google Sheets (SHEETS) cannot be deleted here."""
         await ucs.delete_manual_transaction.execute(tx_id)
         return {"deleted": str(tx_id)}
 

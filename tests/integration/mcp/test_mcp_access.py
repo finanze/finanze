@@ -65,6 +65,7 @@ class TestMcpAccess:
         assert tools["delete_label"].annotations.destructive_hint is True
         assert tools["get_net_worth"].annotations.read_only_hint is True
         for name in (
+            "add_transactions",
             "save_manual_position",
             "save_contribution",
             "settle_manual_investment",
@@ -121,3 +122,8 @@ class TestMcpAccess:
         for tool in tools.values():
             assert tool.description, tool.name
             assert tool.annotations.title, tool.name
+        for name in ("update_manual_transaction", "delete_manual_transaction"):
+            description = tools[name].description
+            assert "MANUAL" in description
+            assert "REAL" in description
+            assert "SHEETS" in description
