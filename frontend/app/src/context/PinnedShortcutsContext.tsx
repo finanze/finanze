@@ -30,7 +30,7 @@ interface PinnedShortcutsContextType {
 }
 
 const STORAGE_KEY = "finanze-pinned-assets"
-const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
+export const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "banking",
   "stocks-etfs",
   "funds",

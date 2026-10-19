@@ -10,6 +10,7 @@ import {
 import { BackupAlertSync } from "@/components/BackupAlertSync"
 import { BackupStatusPopover } from "@/components/layout/BackupStatusPopover"
 import { FloatingBottomNav } from "@/components/layout/FloatingBottomNav"
+import { BottomNavProvider } from "@/context/BottomNavContext"
 import {
   useBackupStatus,
   resetBackupStatusCache,
@@ -146,7 +147,9 @@ function PopoverWithSync() {
 function Wrapper({ children }: { children: ReactNode }) {
   return (
     <I18nProvider>
-      <BackupAlertProvider>{children}</BackupAlertProvider>
+      <BackupAlertProvider>
+        <BottomNavProvider>{children}</BottomNavProvider>
+      </BackupAlertProvider>
     </I18nProvider>
   )
 }
