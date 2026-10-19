@@ -252,7 +252,8 @@ class ManualHistoricWriter:
             returned=returned,
             currency=entry.currency,
             last_invest_date=last_invest_date,
-            last_tx_date=last_tx_date or now,
+            last_tx_date=last_tx_date
+            or max((tx.date for tx in related_txs), default=now),
             effective_maturity=effective_maturity,
             net_return=net_return,
             fees=fees,

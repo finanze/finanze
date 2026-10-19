@@ -229,6 +229,29 @@ async def test_amortize_keeps_historic_ongoing():
 
 
 @pytest.mark.asyncio
+async def test_amortize_sets_historic_last_tx_date_to_payment_date():
+    entity = _make_entity()
+    recf = _make_recf()
+    position = _make_position(entity, ProductType.REAL_ESTATE_CF, recf)
+    uc, mocks = _build_uc(entity, position)
+    payment_date = datetime(2024, 6, 15, tzinfo=tzlocal())
+
+    request = PartialAmortizeManualInvestmentRequest(
+        entity_id=entity.id,
+        entry_id=recf.id,
+        product_type=ProductType.REAL_ESTATE_CF,
+        amount=Dezimal("300"),
+        date=payment_date,
+        create_investment_tx=True,
+    )
+
+    await uc.execute(request)
+
+    ongoing = mocks["historic_port"].upsert.await_args.args[0]
+    assert ongoing.last_tx_date == payment_date
+
+
+@pytest.mark.asyncio
 async def test_amortize_with_interests_creates_interest_tx():
     entity = _make_entity()
     recf = _make_recf()

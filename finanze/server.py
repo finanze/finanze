@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import socket
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 import uvicorn
@@ -71,6 +72,11 @@ from application.use_cases.get_external_integrations import GetExternalIntegrati
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_gains_timeline import GetGainsTimelineImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
+from application.use_cases.get_networth_summary import GetNetworthSummaryImpl
+from application.use_cases.get_mcp_config import GetMcpConfigImpl
+from application.use_cases.update_mcp_config import UpdateMcpConfigImpl
+from application.use_cases.regenerate_mcp_token import RegenerateMcpTokenImpl
+from application.use_cases.authorize_mcp_access import AuthorizeMcpAccessImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_market_forecast_closed_positions import (
@@ -260,6 +266,13 @@ from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
 from infrastructure.file_storage.local_file_storage import LocalFileStorage
+from infrastructure.mcp.gateway import McpGateway
+from infrastructure.mcp.server_factory import (
+    MCP_PATH,
+    build_http_app,
+    build_mcp_server,
+)
+from infrastructure.mcp.use_cases import McpUseCases
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -305,6 +318,7 @@ from infrastructure.repository.keychain.public_keychain_repository import (
     PublicKeychainRepository,
 )
 from infrastructure.repository.labeling.label_repository import LabelRepository
+from infrastructure.repository.mcp.mcp_config_repository import McpConfigRepository
 from infrastructure.repository.cashflow.ignored_recurring_movement_repository import (
     IgnoredRecurringMovementRepository,
 )
@@ -355,6 +369,8 @@ class FinanzeServer:
     def __init__(self, args: argparse.Namespace):
         self._args = args
         self._quart_app = None
+        self._asgi_app = None
+        self._mcp_servers = []
         self._db_client = None
         self._financial_entity_fetchers = None
         self._error_reporter = NoopErrorReporter()
@@ -415,6 +431,7 @@ class FinanzeServer:
         static_upload_dir = args.data_dir / Path("static")
 
         settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
+        mcp_config_repository = McpConfigRepository(db_client)
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -773,6 +790,16 @@ class FinanzeServer:
             real_estate_repository,
             historic_metal_price_client,
         )
+        get_networth_summary = GetNetworthSummaryImpl(
+            position_repository,
+            entity_repository,
+            real_estate_repository,
+            exchange_rate_storage,
+        )
+        get_mcp_config = GetMcpConfigImpl(mcp_config_repository)
+        update_mcp_config = UpdateMcpConfigImpl(mcp_config_repository)
+        regenerate_mcp_token = RegenerateMcpTokenImpl(mcp_config_repository)
+        authorize_mcp_access = AuthorizeMcpAccessImpl(mcp_config_repository, db_manager)
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
@@ -1260,6 +1287,91 @@ class FinanzeServer:
             get_recurring_movements_uc=get_recurring_movements,
             ignore_recurring_movement_uc=ignore_recurring_movement,
             restore_recurring_movement_uc=restore_recurring_movement,
+            get_mcp_config_uc=get_mcp_config,
+            update_mcp_config_uc=update_mcp_config,
+            regenerate_mcp_token_uc=regenerate_mcp_token,
+        )
+
+        self._log.info("Setting up MCP server...")
+        mcp_use_cases = McpUseCases(
+            get_settings=get_settings,
+            get_available_entities=get_available_entities,
+            get_networth_summary=get_networth_summary,
+            get_position=get_entities_position,
+            update_position=update_position,
+            get_contributions=get_contributions,
+            update_contributions=update_contributions,
+            get_historic=get_historic,
+            settle_manual_investment=settle_manual_investment,
+            partial_amortize_manual_investment=partial_amortize_manual_investment,
+            unsettle_manual_investment=unsettle_manual_investment,
+            delete_manual_historic_entry=delete_manual_historic_entry,
+            get_networth_timeline=get_networth_timeline,
+            get_gains_timeline=get_gains_timeline,
+            get_transactions=get_transactions,
+            add_manual_transaction=add_manual_transaction,
+            update_manual_transaction=update_manual_transaction,
+            delete_manual_transaction=delete_manual_transaction,
+            update_transaction_labels=update_transaction_labels,
+            get_periodic_flows=get_periodic_flows,
+            save_periodic_flow=save_periodic_flow,
+            update_periodic_flow=update_periodic_flow,
+            delete_periodic_flow=delete_periodic_flow,
+            query_pending_flows=query_pending_flows,
+            save_pending_flow=save_pending_flow,
+            update_pending_flow=update_pending_flow,
+            delete_pending_flow=delete_pending_flow,
+            settle_pending_flow=settle_pending_flow,
+            get_money_events=get_money_events,
+            get_labels=get_labels,
+            create_label=create_label,
+            update_label=update_label,
+            delete_label=delete_label,
+            get_labeling_rules=get_labeling_rules,
+            create_labeling_rule=create_labeling_rule,
+            update_labeling_rule=update_labeling_rule,
+            delete_labeling_rule=delete_labeling_rule,
+            preview_labeling_rule=preview_labeling_rule,
+            relabel_transactions=relabel_transactions,
+            get_cashflow_summary=get_cashflow_summary,
+            get_recurring_movements=get_recurring_movements,
+            ignore_recurring_movement=ignore_recurring_movement,
+            restore_recurring_movement=restore_recurring_movement,
+            get_exchange_rates=get_exchange_rates,
+            get_euribor_rates=get_euribor_rates,
+            get_instruments=get_instruments,
+            get_instrument_info=get_instrument_info,
+            search_crypto_assets=search_crypto_assets,
+            get_crypto_asset_details=get_crypto_asset_details,
+            get_crypto_wallet_addresses=get_crypto_wallet_addresses,
+            derive_crypto_addresses=derive_crypto_addresses,
+            connect_crypto_wallet=connect_crypto_wallet,
+            update_crypto_wallet=update_crypto_wallet,
+            delete_crypto_wallet=delete_crypto_wallet,
+            fetch_crypto_data=fetch_crypto_data,
+            save_commodities=save_commodities,
+            get_external_integrations=get_external_integrations,
+            connect_external_integration=connect_external_integrations,
+            disconnect_external_integration=disconnect_external_integrations,
+            list_real_estate=list_real_estate,
+            create_real_estate=create_real_estate,
+            update_real_estate=update_real_estate,
+            delete_real_estate=delete_real_estate,
+            calculate_savings=calculate_savings,
+            calculate_loan=calculate_loan,
+            forecast=forecast,
+            fetch_financial_data=fetch_financial_data,
+        )
+        version = resolve_version()
+        self._mcp_servers = [
+            build_mcp_server(
+                mcp_use_cases, version, writes_enabled, self._error_reporter
+            )
+            for writes_enabled in (False, True)
+        ]
+        read_app, full_app = [build_http_app(s) for s in self._mcp_servers]
+        self._asgi_app = McpGateway(
+            self._quart_app, read_app, full_app, authorize_mcp_access, MCP_PATH
         )
 
         self._log.info("Warming up exchange rates...")
@@ -1300,7 +1412,7 @@ class FinanzeServer:
         self._log.info("Starting server...")
 
         config = uvicorn.Config(
-            self._quart_app,
+            self._asgi_app,
             host="0.0.0.0",
             port=self._args.port,
             log_config=None,
@@ -1310,7 +1422,10 @@ class FinanzeServer:
         server = uvicorn.Server(config)
 
         try:
-            await server.serve()
+            async with AsyncExitStack() as stack:
+                for mcp_server in self._mcp_servers:
+                    await stack.enter_async_context(mcp_server.session_manager.run())
+                await server.serve()
         except OSError as e:
             self._log.error(f"Could not start server on port {self._args.port}: {e}")
             if e.errno == 48:

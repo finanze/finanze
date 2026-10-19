@@ -26,6 +26,27 @@ const EXCLUDED_DIRS = [
   "infrastructure/sheets",
   "infrastructure/file_storage",
   "infrastructure/credentials",
+  "infrastructure/mcp",
+  "infrastructure/repository/mcp",
+]
+
+const EXCLUDED_PATHS = [
+  "domain/mcp.py",
+  "domain/networth_summary.py",
+  "domain/use_cases/get_networth_summary.py",
+  "application/use_cases/get_networth_summary.py",
+  "domain/use_cases/authorize_mcp_access.py",
+  "domain/use_cases/get_mcp_config.py",
+  "domain/use_cases/regenerate_mcp_token.py",
+  "domain/use_cases/update_mcp_config.py",
+  "application/ports/mcp_config_port.py",
+  "application/use_cases/authorize_mcp_access.py",
+  "application/use_cases/get_mcp_config.py",
+  "application/use_cases/regenerate_mcp_token.py",
+  "application/use_cases/update_mcp_config.py",
+  "infrastructure/controller/routes/get_mcp_config.py",
+  "infrastructure/controller/routes/regenerate_mcp_token.py",
+  "infrastructure/controller/routes/update_mcp_config.py",
 ]
 
 const EXCLUDED_FILES = [
@@ -548,6 +569,7 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
         dir => rel === dir || rel.startsWith(`${dir}${path.sep}`),
       )
       if (underExcluded && !isUnderInclude(rel)) return
+      if (matchesPatterns(rel, EXCLUDED_PATHS)) return
     }
 
     // Only copy python files or strictly necessary data files
