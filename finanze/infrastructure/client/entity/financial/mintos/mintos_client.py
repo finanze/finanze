@@ -133,7 +133,7 @@ class MintosAPIClient:
         return await self._get_asset_pages(account_id, "orders")
 
     @cached(cache=Cache.MEMORY, ttl=120)
-    async def get_etf_quotes(self, isin: str) -> dict:
+    async def get_equity_quotes(self, isin: str) -> dict:
         return await self._get_request(
             f"/assetx-price-api/v1/history/quotes/{isin}",
             params={"range": "ONE_DAY"},
@@ -142,6 +142,12 @@ class MintosAPIClient:
     @cached(cache=Cache.MEMORY, ttl=120)
     async def get_etf_details(self, isin: str) -> dict:
         return await self._get_request(f"/assetx-price-api/v1/instruments/etf/{isin}")
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_stock_details(self, isin: str) -> dict:
+        return await self._get_request(
+            f"/assetx-price-api/v1/instruments/equity/{isin}"
+        )
 
     @cached(cache=Cache.MEMORY, ttl=120)
     async def get_etf_instrument_details(self, isin: str) -> dict:

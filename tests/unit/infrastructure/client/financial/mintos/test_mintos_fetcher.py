@@ -59,21 +59,37 @@ async def test_global_position_includes_etf_and_existing_products(fetcher):
         "netAnnualReturnPercentage": "5"
     }
     fetcher._client.get_portfolio.return_value = {"totalInvestmentDistribution": {}}
-    fetcher._client.get_asset_positions.return_value = [
-        {
-            "productType": "SINGLE_ETF",
-            "instrument": instrument(),
-            "shares": {
-                "available": "0.1",
-                "locked": "0.0120107962",
-                "total": "0.1120107962",
-            },
-            "invested": {"amount": "2.49", "currency": "EUR"},
-        }
-    ]
-    fetcher._client.get_etf_quotes.return_value = {
-        "quotes": [{"ts": 2, "l": "20.41"}, {"ts": 1, "l": "22"}]
+    fetcher._client.get_asset_accounts.return_value["accounts"]["SINGLE_STOCK"] = {
+        "id": "stock-account"
     }
+    etf_position = {
+        "productType": "SINGLE_ETF",
+        "instrument": instrument(),
+        "shares": {
+            "available": "0.1",
+            "locked": "0.0120107962",
+            "total": "0.1120107962",
+        },
+        "invested": {"amount": "2.49", "currency": "EUR"},
+    }
+    stock_position = {
+        "productType": "SINGLE_STOCK",
+        "instrument": {
+            "isin": "JP3735400008",
+            "name": "NTT",
+            "attributes": {"ticker": "NTT"},
+        },
+        "shares": {"total": "1.0152284263"},
+        "invested": {"amount": "1", "currency": "EUR"},
+    }
+    fetcher._client.get_asset_positions.side_effect = [
+        [etf_position],
+        [stock_position],
+    ]
+    fetcher._client.get_equity_quotes.side_effect = [
+        {"quotes": [{"ts": 2, "l": "20.41"}, {"ts": 1, "l": "22"}]},
+        {"quotes": [{"ts": 1, "l": "0.988"}]},
+    ]
     fetcher._client.get_etf_details.return_value = {
         "fundProvider": {"code": "HSBC", "title": "HSBC ETF"},
         "tradingVenue": "Tradegate",
@@ -81,10 +97,15 @@ async def test_global_position_includes_etf_and_existing_products(fetcher):
     fetcher._client.get_etf_instrument_details.return_value = {
         "kid": {"language": "es", "url": "https://example.test/kid"}
     }
+    fetcher._client.get_stock_details.return_value = {
+        "displayTitle": "NTT INC.",
+        "tradingVenue": "TRADEGATE",
+    }
 
     result = await fetcher.global_position()
 
     holding = result.products[ProductType.STOCK_ETF].entries[0]
+    stock_holding = result.products[ProductType.STOCK_ETF].entries[1]
     assert holding.type == EquityType.ETF
     assert holding.shares == Dezimal("0.1120107962")
     assert holding.initial_investment == Dezimal("2.49")
@@ -95,9 +116,19 @@ async def test_global_position_includes_etf_and_existing_products(fetcher):
     assert holding.issuer == "HSBC"
     assert holding.market == "Tradegate"
     assert holding.info_sheet_url == "https://example.test/kid"
+    assert stock_holding.type == EquityType.STOCK
+    assert stock_holding.shares == Dezimal("1.0152284263")
+    assert stock_holding.initial_investment == Dezimal("1")
+    assert stock_holding.market_value == Dezimal("1.00")
+    assert stock_holding.currency == "EUR"
+    assert stock_holding.ticker == "NTT"
+    assert stock_holding.issuer == "NTT INC."
+    assert stock_holding.market == "TRADEGATE"
+    assert stock_holding.info_sheet_url is None
     assert ProductType.ACCOUNT in result.products
     assert ProductType.CROWDLENDING in result.products
-    fetcher._client.get_asset_positions.assert_awaited_once_with("etf-account")
+    fetcher._client.get_asset_positions.assert_any_await("etf-account")
+    fetcher._client.get_asset_positions.assert_any_await("stock-account")
 
 
 @pytest.mark.asyncio
@@ -143,6 +174,51 @@ async def test_trade_execution_and_dividend(fetcher, raw_type, expected_type):
     assert execution.date.tzinfo is not None
     assert execution.order_date == execution.date
     assert income.order_date is None
+
+
+@pytest.mark.asyncio
+async def test_stock_transaction_uses_stock_account_and_equity_type(fetcher):
+    fetcher._client.get_asset_accounts.return_value = {
+        "accounts": {"SINGLE_STOCK": {"id": "stock-account"}}
+    }
+    stock_instrument = {
+        "isin": "JP3735400008",
+        "name": "NTT",
+        "attributes": {"ticker": "NTT"},
+    }
+    stock_tx = transaction("stock-buy", "BUY_ORDER")
+    stock_tx.update(
+        instrument=stock_instrument,
+        totalAmount={"amount": "1", "currency": "EUR"},
+        netAmount={"amount": "1", "currency": "EUR"},
+        feeAmount={"amount": "0", "currency": "EUR"},
+        createdAt="2026-10-15T06:03:39.042115Z",
+        orderId="stock-order",
+        details={"orderId": "stock-order"},
+    )
+    fetcher._client.get_asset_transactions.return_value = [stock_tx]
+    fetcher._client.get_asset_orders.return_value = [
+        {
+            "id": "stock-order",
+            "executed": {
+                "shares": "1.0152284263",
+                "sharePrice": {"amount": "0.99", "currency": "EUR"},
+                "executedAt": "2026-10-15T06:03:39.042115Z",
+            },
+        }
+    ]
+
+    result = await fetcher.transactions(set(), FetchOptions())
+
+    assert len(result.investment) == 1
+    stock_buy = result.investment[0]
+    assert stock_buy.ref == "stock-buy"
+    assert stock_buy.type == TxType.BUY
+    assert stock_buy.equity_type == EquityType.STOCK
+    assert stock_buy.shares == Dezimal("1.0152284263")
+    assert stock_buy.price == Dezimal("0.99")
+    assert stock_buy.amount == stock_buy.net_amount == Dezimal("1")
+    fetcher._client.get_asset_transactions.assert_awaited_once_with("stock-account")
 
 
 @pytest.mark.asyncio
@@ -231,7 +307,7 @@ async def test_no_etf_account(fetcher):
     fetcher._client.get_asset_accounts.return_value = {
         "accounts": {"CRYPTO_ETP": {"id": "crypto"}}
     }
-    assert await fetcher._build_etf_positions() == []
+    assert await fetcher._build_equity_positions() == []
     assert (await fetcher.transactions(set(), FetchOptions())).investment == []
     fetcher._client.get_asset_positions.assert_not_awaited()
     fetcher._client.get_asset_transactions.assert_not_awaited()
@@ -253,9 +329,11 @@ async def test_malformed_asset_is_skipped(fetcher, caplog, field, missing):
     else:
         malformed[field] = None
     fetcher._client.get_asset_positions.return_value = [malformed, valid]
-    fetcher._client.get_etf_quotes.return_value = {"quotes": [{"ts": 1, "l": "20.41"}]}
+    fetcher._client.get_equity_quotes.return_value = {
+        "quotes": [{"ts": 1, "l": "20.41"}]
+    }
 
-    result = await fetcher._build_etf_positions()
+    result = await fetcher._build_equity_positions()
 
     assert len(result) == 1
     if field != "productType" or missing:
@@ -272,12 +350,12 @@ async def test_missing_quote_fields_skip_only_affected_asset(fetcher, caplog, qu
         "invested": {"amount": "22.23", "currency": "EUR"},
     }
     fetcher._client.get_asset_positions.return_value = [position, position]
-    fetcher._client.get_etf_quotes.side_effect = [
+    fetcher._client.get_equity_quotes.side_effect = [
         quotes,
         {"quotes": [{"ts": 1, "l": "20"}]},
     ]
 
-    assert len(await fetcher._build_etf_positions()) == 1
+    assert len(await fetcher._build_equity_positions()) == 1
     assert "Skipping Mintos ETF asset" in caplog.text
 
 
