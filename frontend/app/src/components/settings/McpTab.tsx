@@ -159,7 +159,7 @@ export function McpTab() {
   const copyButton = (key: string, text: string) => (
     <Button
       type="button"
-      variant="outline"
+      variant="ghost"
       size="icon"
       className="shrink-0"
       data-testid={`mcp-copy-${key}`}
@@ -326,7 +326,13 @@ export function McpTab() {
               >
                 {buildSnippet(client, serverUrl, TOKEN_MASK)}
               </pre>
-              <div className="absolute right-2 top-2">
+              <div
+                className={
+                  client === "claudeCode"
+                    ? "absolute right-2 top-1/2 -translate-y-1/2"
+                    : "absolute right-2 top-2"
+                }
+              >
                 {copyButton("snippet", buildSnippet(client, serverUrl, token))}
               </div>
             </div>
