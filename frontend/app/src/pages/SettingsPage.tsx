@@ -41,6 +41,7 @@ import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { GeneralTab } from "@/components/settings/GeneralTab"
 import { CloudTab } from "@/components/settings/CloudTab"
 import { McpTab } from "@/components/settings/McpTab"
+import { BottomNavCard } from "@/components/settings/BottomNavCard"
 import { isNativeMobile } from "@/lib/platform"
 import {
   checkBiometricAvailability,
@@ -401,6 +402,8 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <BottomNavCard />
 
               {isNativeMobile() && (
                 <Card className="-mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
