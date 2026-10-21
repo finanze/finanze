@@ -1,7 +1,7 @@
 {
     "release": "v0.7.0",
     "build": "b11669",
-    "license_sha256": "3468798dd4eb1badf2d665d4afec49d424aa31fd4f0af91638ccd4b1a48615d0",
+    "license_sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
     "base_url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669",
     "assets": {
         "mac-arm64": {

@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 from package_llama import (
+    LLAMA_LICENSE_PATH,
     TARGET_NAME,
     LlamaPackagingError,
     download_asset,
@@ -77,6 +78,10 @@ class FakeFetch:
 
 
 class TestLock:
+    def test_repository_lock_pins_bundled_license(self):
+        lock = load_lock(LOCK_FILE)
+        assert lock["license_sha256"] == _sha(LLAMA_LICENSE_PATH.read_bytes())
+
     def test_repository_lock_is_valid(self):
         lock = load_lock(LOCK_FILE)
         for platform in ("mac", "linux", "win"):
