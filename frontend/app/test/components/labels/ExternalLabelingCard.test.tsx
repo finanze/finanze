@@ -164,7 +164,9 @@ describe("ExternalLabelingCard models", () => {
     renderCard(LOCAL_PROVIDER, "org/model-GGUF:Q4_K_M")
 
     const options = await screen.findByTestId("external-model-options")
-    expect(within(options).getByRole("radio")).toBeChecked()
+    await waitFor(() =>
+      expect(within(options).getByRole("radio")).toBeChecked(),
+    )
     expect(screen.getAllByRole("radio")).toHaveLength(1)
     expect(screen.queryByText(external.customModel)).not.toBeInTheDocument()
     expect(
