@@ -107,6 +107,12 @@ from domain.use_cases.delete_labeling_rule import DeleteLabelingRule
 from domain.use_cases.get_external_labeling_providers import (
     GetExternalLabelingProviders,
 )
+from domain.use_cases.get_external_labeling_models import GetExternalLabelingModels
+from domain.use_cases.get_local_models import GetLocalModels
+from domain.use_cases.download_local_model import DownloadLocalModel
+from domain.use_cases.delete_local_model import DeleteLocalModel
+from domain.use_cases.list_hugging_face_quants import ListHuggingFaceQuants
+from domain.use_cases.import_local_model import ImportLocalModel
 from domain.use_cases.get_labeling_rules import GetLabelingRules
 from domain.use_cases.get_labels import GetLabels
 from domain.use_cases.preview_labeling_rule import PreviewLabelingRule
@@ -115,6 +121,7 @@ from domain.use_cases.update_label import UpdateLabel
 from domain.use_cases.update_labeling_rule import UpdateLabelingRule
 from domain.use_cases.update_transaction_labels import UpdateTransactionLabels
 from domain.use_cases.validate_ai_model import ValidateAIModel
+from domain.use_cases.get_ai_server_info import GetAIServerInfo
 from domain.use_cases.get_cashflow_summary import GetCashflowSummary
 from domain.use_cases.get_recurring_movements import GetRecurringMovements
 from domain.use_cases.ignore_recurring_movement import IgnoreRecurringMovement
@@ -135,6 +142,18 @@ from infrastructure.controller.routes.delete_labeling_rule import delete_labelin
 from infrastructure.controller.routes.get_external_labeling_providers import (
     get_external_labeling_providers,
 )
+from infrastructure.controller.routes.get_external_labeling_models import (
+    get_external_labeling_models,
+)
+from infrastructure.controller.routes.get_local_models import get_local_models
+from infrastructure.controller.routes.download_local_model import (
+    download_local_model,
+)
+from infrastructure.controller.routes.delete_local_model import delete_local_model
+from infrastructure.controller.routes.list_hugging_face_quants import (
+    list_hugging_face_quants,
+)
+from infrastructure.controller.routes.import_local_model import import_local_model
 from infrastructure.controller.routes.get_labeling_rules import get_labeling_rules
 from infrastructure.controller.routes.get_labels import get_labels
 from infrastructure.controller.routes.preview_labeling_rule import (
@@ -147,6 +166,7 @@ from infrastructure.controller.routes.update_transaction_labels import (
     update_transaction_labels,
 )
 from infrastructure.controller.routes.validate_ai_model import validate_ai_model
+from infrastructure.controller.routes.get_ai_server_info import get_ai_server_info
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
@@ -387,7 +407,9 @@ async def register_routes(
     relabel_transactions_uc: RelabelTransactions,
     update_transaction_labels_uc: UpdateTransactionLabels,
     get_external_labeling_providers_uc: GetExternalLabelingProviders,
+    get_external_labeling_models_uc: GetExternalLabelingModels,
     validate_ai_model_uc: ValidateAIModel,
+    get_ai_server_info_uc: GetAIServerInfo,
     get_cashflow_summary_uc: GetCashflowSummary,
     get_recurring_movements_uc: GetRecurringMovements,
     ignore_recurring_movement_uc: IgnoreRecurringMovement,
@@ -395,6 +417,11 @@ async def register_routes(
     get_mcp_config_uc: GetMcpConfig,
     update_mcp_config_uc: UpdateMcpConfig,
     regenerate_mcp_token_uc: RegenerateMcpToken,
+    get_local_models_uc: GetLocalModels,
+    download_local_model_uc: DownloadLocalModel,
+    delete_local_model_uc: DeleteLocalModel,
+    list_hugging_face_quants_uc: ListHuggingFaceQuants,
+    import_local_model_uc: ImportLocalModel,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -550,9 +577,41 @@ async def register_routes(
     async def get_external_labeling_providers_route():
         return await get_external_labeling_providers(get_external_labeling_providers_uc)
 
+    @app.route(
+        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
+    )
+    async def get_external_labeling_models_route(provider_id: str):
+        return await get_external_labeling_models(
+            get_external_labeling_models_uc, provider_id
+        )
+
     @app.route("/api/v1/ai/models/validate", methods=["POST"])
     async def validate_ai_model_route():
         return await validate_ai_model(validate_ai_model_uc)
+
+    @app.route("/api/v1/ai/providers/<provider_id>/server", methods=["GET"])
+    async def get_ai_server_info_route(provider_id: str):
+        return await get_ai_server_info(get_ai_server_info_uc, provider_id)
+
+    @app.route("/api/v1/ai/local/models", methods=["GET"])
+    async def get_local_models_route():
+        return await get_local_models(get_local_models_uc)
+
+    @app.route("/api/v1/ai/local/models", methods=["DELETE"])
+    async def delete_local_model_route():
+        return await delete_local_model(delete_local_model_uc)
+
+    @app.route("/api/v1/ai/local/models/download", methods=["POST"])
+    async def download_local_model_route():
+        return await download_local_model(download_local_model_uc)
+
+    @app.route("/api/v1/ai/local/models/import", methods=["POST"])
+    async def import_local_model_route():
+        return await import_local_model(import_local_model_uc)
+
+    @app.route("/api/v1/ai/local/huggingface/quants", methods=["GET"])
+    async def list_hugging_face_quants_route():
+        return await list_hugging_face_quants(list_hugging_face_quants_uc)
 
     @app.route("/api/v1/cashflow", methods=["GET"])
     async def cashflow_summary_route():

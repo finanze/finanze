@@ -1,6 +1,6 @@
 import { ChildProcess, spawn } from "node:child_process"
 import { join } from "node:path"
-import { readdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { EventEmitter } from "node:events"
 import {
   AppConfig,
@@ -21,6 +21,9 @@ interface BackendControllerOptions {
 }
 
 type StatusListener = (status: BackendStatus) => void
+
+const LLAMA_SERVER_DIR = "llama"
+const LLAMA_SERVER_NAME = "finanze-llama-server"
 
 export class BackendController extends EventEmitter {
   private process: ChildProcess | null = null
@@ -249,7 +252,17 @@ export class BackendController extends EventEmitter {
     }
 
     const executablePath = join(serverDirPath, serverFile)
-    return spawn(executablePath, args, { env: this.spawnEnv() })
+    const llamaServerPath = join(
+      binPath,
+      LLAMA_SERVER_DIR,
+      this.options.appConfig.os === OS.WINDOWS
+        ? `${LLAMA_SERVER_NAME}.exe`
+        : LLAMA_SERVER_NAME,
+    )
+    const prodArgs = existsSync(llamaServerPath)
+      ? [...args, "--llama-server-path", llamaServerPath]
+      : args
+    return spawn(executablePath, prodArgs, { env: this.spawnEnv() })
   }
 
   private attachProcess(child: ChildProcess) {

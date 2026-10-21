@@ -529,6 +529,10 @@
     "INVALID_CODE": "Codice fornito non valido",
     "INVALID_CREDENTIALS": "Credenziali non valide per {entity}",
     "INVALID_PRIVATE_KEY": "La chiave privata fornita per {integration} non è valida.",
+    "INVALID_URL": "L'URL di {integration} non è valido.",
+    "UNREACHABLE": "Impossibile raggiungere {integration}. Verifica che il server sia in esecuzione e che l'URL sia corretto.",
+    "NOT_A_MODEL_ROUTER": "Questo server serve un solo modello. Collegalo come Custom endpoint, oppure avvia llama-server senza -m per gestire i modelli da Finanze.",
+    "MISSING_SERVER_URL": "Inserisci l'URL del server per {integration}.",
     "NO_CREDENTIALS_AVAILABLE": "Nessuna credenziale disponibile per {entity}",
     "UNEXPECTED_ERROR": "Si è verificato un errore imprevisto con {entity}",
     "UNAUTHORIZED": "Credenziali non valide o scadute per {entity}",
@@ -1287,12 +1291,165 @@
             }
           ]
         }
+      },
+      "OPENAI_COMPATIBLE": {
+        "description": "Collega qualsiasi server compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, per etichettare i tuoi movimenti con modelli ospitati da te.",
+        "help": "Come collegarlo",
+        "hint": {
+          "title": "Collegare un server compatibile con OpenAI",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Inserisci l'URL base dell'API del server, ad esempio http://localhost:11434/v1 per Ollama o http://localhost:1234/v1 per LM Studio. La chiave API serve solo se il tuo server la richiede."
+            }
+          ]
+        }
+      },
+      "LOCAL_MODELS": {
+        "description": "Esegui piccoli modelli di IA in modo privato, su questo dispositivo o sul tuo server llama.cpp. Scaricali da qui e usali per etichettare i tuoi movimenti.",
+        "help": "Come funziona",
+        "hint": {
+          "title": "Modelli locali",
+          "parts": [
+            {
+              "type": "text",
+              "value": "I modelli vengono eseguiti con "
+            },
+            {
+              "type": "link",
+              "label": "llama.cpp",
+              "url": "https://github.com/ggml-org/llama.cpp"
+            },
+            {
+              "type": "text",
+              "value": ". Per usare il tuo server, avvia llama-server in modalità router (senza -m) e inserisci il suo URL e la chiave API. Ollama, LM Studio o un llama-server con un solo modello vanno in Custom endpoint."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",
     "integrationEnabledSuccess": "Integrazione {integration} abilitata con successo",
     "integrationDisabledSuccess": "Integrazione {integration} disabilitata con successo",
     "integrationRequiredMessage": "Abilita l'integrazione Google Sheets in Integrazioni per configurare queste impostazioni.",
+    "integrationInsecureKeyWarning": "Questa connessione non è cifrata (http), quindi la chiave API viene inviata in chiaro. Usa https o solo una rete di cui ti fidi.",
+    "localModels": {
+      "builtInMode": "Motore integrato",
+      "serverMode": "Il mio server llama.cpp",
+      "builtInNotice": "I modelli vengono eseguiti su questo dispositivo con il motore integrato. Si avvia solo quando serve e si ferma dopo un po' di inattività.",
+      "serverNotice": "Inserisci l'URL di un server llama.cpp avviato in modalità router (senza -m). Ollama, LM Studio o un llama-server con un solo modello vanno in Custom endpoint.",
+      "envUrlNotice": "L'ambiente del server definisce già FINANZE_LLAMA_SERVER_URL = {url}{key}. Lascia i campi vuoti per usarlo, i valori inseriti qui lo sostituiscono.",
+      "envKeySuffix": " e una chiave API",
+      "precedence": "Priorità: valori inseriti, poi l'ambiente e poi il motore integrato.",
+      "overridesEnvironment": "facoltativo, sostituisce l'ambiente",
+      "envKeyPlaceholder": "Definita nell'ambiente",
+      "using": {
+        "BUILT_IN": "In uso il motore integrato",
+        "ENVIRONMENT": "In uso il server dell'ambiente ({url})",
+        "PAYLOAD": "In uso {url}"
+      },
+      "unreachable": "Non disponibile",
+      "manage": "Gestisci modelli",
+      "dialogTitle": "Modelli locali",
+      "moreModels": "+{count} altri",
+      "models": "Modelli",
+      "noModels": "Ancora nessun modello. Scaricane uno consigliato o qualsiasi modello GGUF da Hugging Face.",
+      "externalHint": "Anche i modelli nella cartella dei modelli del tuo server compaiono qui. Dopo aver aggiunto dei file, premi Aggiorna.",
+      "import": "Importa GGUF",
+      "importTitle": "Seleziona un file di modello GGUF",
+      "importSuccess": "{model} importato",
+      "importHint": "I file importati vengono usati dalla loro posizione, non vengono copiati. Puoi anche mettere file GGUF nella cartella dei modelli e premere Aggiorna.",
+      "openFolder": "Apri cartella",
+      "recommended": "Consigliati",
+      "params": "{params} parametri",
+      "downloadSize": "{size} da scaricare",
+      "ram": "~{ram} di RAM",
+      "ramWarning": "Potrebbe non entrare nella memoria di questo dispositivo",
+      "languages": "Lingue: {languages}",
+      "downloadStarted": "Download di {model} in corso",
+      "cancelDownload": "Annulla download",
+      "downloadFailed": "Il download di {model} non è riuscito o è stato interrotto.",
+      "deleteTitle": "Elimina modello",
+      "deleteMessage": "{model} verrà eliminato. Potrai scaricarlo di nuovo più tardi.",
+      "deleteImportedMessage": "{model} verrà rimosso da Finanze. Il file originale viene mantenuto.",
+      "deleted": "{model} eliminato",
+      "huggingFace": "Altri modelli da Hugging Face",
+      "huggingFaceHint": "Inserisci un repository di Hugging Face con file GGUF, ad esempio unsloth/Qwen3.5-4B-GGUF. I modelli piccoli (meno di 4B parametri) funzionano meglio sulla maggior parte dei dispositivi.",
+      "repoPlaceholder": "proprietario/repository",
+      "find": "Cerca",
+      "variant": "Variante",
+      "noQuants": "Nessun file GGUF compatibile trovato in questo repository.",
+      "invalidRepo": "Inserisci il repository come proprietario/nome.",
+      "unverifiedModel": "Impossibile verificare se questo modello è compatibile. Se non si avvia, eliminalo e provane un altro.",
+      "failedHint": "Non è stato possibile avviarlo. Il motore potrebbe non supportarlo o potrebbe richiedere più memoria di quella disponibile.",
+      "failedLogHint": "I dettagli sono in llama-server.log nella cartella dei modelli.",
+      "decisions": "Modello decisionale",
+      "states": {
+        "UNLOADED": "Pronto",
+        "LOADING": "Caricamento",
+        "LOADED": "Caricato",
+        "SLEEPING": "Inattivo",
+        "DOWNLOADING": "Download in corso",
+        "FAILED": "Avvio non riuscito",
+        "MISSING": "File non trovato"
+      },
+      "sources": {
+        "CATALOG": "Consigliato",
+        "HUGGING_FACE": "Hugging Face",
+        "IMPORTED": "Importato",
+        "SERVER": "Server"
+      },
+      "errors": {
+        "MISSING_SERVER_URL": "Inserisci l'URL del tuo server llama.cpp.",
+        "INVALID_URL": "L'URL del server non è valido.",
+        "UNREACHABLE": "Impossibile raggiungere il server. Verifica che sia in esecuzione e che l'URL sia corretto.",
+        "UNAUTHORIZED": "Il server ha rifiutato la chiave API.",
+        "NOT_A_MODEL_ROUTER": "Questo server serve un solo modello. Collegalo come Custom endpoint, oppure avvia llama-server senza -m per gestire i modelli da qui.",
+        "SERVER_ERROR": "Il server ha restituito un errore.",
+        "RUNTIME_FAILED": "Impossibile avviare il motore integrato.",
+        "MODEL_NOT_FOUND": "Modello non trovato.",
+        "INVALID_MODEL": "Il modello non è valido.",
+        "DOWNLOAD_FAILED": "Impossibile scaricare il modello.",
+        "NOT_DELETABLE": "Questo modello è gestito dal server e non può essere eliminato da qui.",
+        "INSUFFICIENT_SPACE": "Spazio libero su disco insufficiente per questo modello.",
+        "IMPORT_UNSUPPORTED": "L'importazione di file è disponibile solo con il motore integrato.",
+        "INVALID_FILE": "Il file non è un modello GGUF valido.",
+        "HUGGING_FACE_UNAVAILABLE": "Impossibile ottenere il repository da Hugging Face.",
+        "UNSUPPORTED_MODEL": "È un modello encoder o di embedding, non può etichettare i movimenti. Scegli un modello di chat o di decisione."
+      }
+    },
+    "aiServer": {
+      "button": "Dettagli del server",
+      "title": "Dettagli del server",
+      "refresh": "Aggiorna",
+      "status": "Stato",
+      "connected": "Connesso",
+      "respondedWithError": "Ha risposto con un errore",
+      "unreachable": "Non raggiungibile",
+      "latency": "{ms} ms",
+      "server": "Server",
+      "unknownServer": "Server compatibile con OpenAI",
+      "endpoint": "Endpoint",
+      "apiKey": "Chiave API",
+      "apiKeySet": "Inviata con ogni richiesta",
+      "apiKeyNotSet": "Non impostata",
+      "models": "Modelli",
+      "modelCount": "{count} disponibili",
+      "loadedCount": "{count} caricati",
+      "loaded": "Caricato",
+      "notLoaded": "Non caricato",
+      "context": "{context} di contesto",
+      "decisions": "Modello di decisione",
+      "noModels": "Il server non elenca alcun modello.",
+      "unknownHint": "Versione, modelli caricati e dimensione del contesto vengono mostrati per Ollama, LM Studio, llama.cpp e vLLM.",
+      "errors": {
+        "UNREACHABLE": "Impossibile connettersi. Verifica che il server sia in esecuzione, che l'URL sia corretto e che accetti connessioni da questo dispositivo.",
+        "UNAUTHORIZED": "Il server ha rifiutato la chiave API.",
+        "NOT_FOUND": "Non c'è un elenco di modelli a questo URL. Controlla il percorso, di solito termina con /v1.",
+        "SERVER_ERROR": "Il server ha restituito un errore durante l'elenco dei modelli.",
+        "INVALID_RESPONSE": "Il server ha risposto, ma non con un elenco di modelli compatibile con OpenAI."
+      }
+    },
     "integrationCategories": {
       "ENTITY_PROVIDER": "Provider bancari",
       "CRYPTO_PROVIDER": "Provider crypto",
@@ -2146,14 +2303,19 @@
       "provider": "Provider",
       "connected": "Collegato",
       "notConnected": "Non collegato",
+      "unavailableHere": "Non disponibile su questo dispositivo",
+      "providerUnavailable": "{provider} non è disponibile su questo dispositivo, quindi qui i suggerimenti vengono saltati. Continuano a funzionare sui dispositivi che lo supportano. Scegli un altro provider per avere suggerimenti anche qui.",
       "connectProvider": "Configuralo nelle integrazioni",
       "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
       "model": "Modello",
       "decisionModel": "Modello decisionale",
       "customModel": "Altro modello",
+      "customModelHint": "Usa qualsiasi altro ID di modello offerto da {provider}.",
+      "customModelUnlistedHint": "Per un modello che il tuo server può eseguire ma non compare sopra, ad esempio dietro un proxy o con un alias.",
       "customModelPlaceholder": "openai/gpt-6-luna",
       "customModelPlaceholders": {
-        "OPENAI": "gpt-6.1-sol"
+        "OPENAI": "gpt-6.1-sol",
+        "OPENAI_COMPATIBLE": "qwen3.5:9b"
       },
       "customModelNotice": "Alcuni modelli possono essere lenti e costosi quando si categorizzano molti movimenti. Si consigliano modelli più veloci ed economici.",
       "validate": "Verifica",
@@ -2177,7 +2339,18 @@
       "instructionsHint": "Per utenti esperti. Indicazioni aggiuntive inviate al modello, ad esempio come etichettare determinati pagamenti.",
       "instructionsPlaceholder": "ad es. I bonifici di Ana sono affitto. I pagamenti del club di padel sono tempo libero.",
       "privacyNotice": "Al provider vengono inviati descrizione, controparte, importo, valuta e data dei movimenti. Numeri di conto e saldi non vengono mai condivisi.",
-      "providerAndModelRequired": "Scegli un provider e un modello"
+      "providerAndModelRequired": "Scegli un provider e un modello",
+      "loadingModels": "Caricamento modelli...",
+      "noModelsAvailable": "Ancora nessun modello disponibile.",
+      "searchModels": "Cerca modelli",
+      "noModelsMatch": "Nessun modello corrisponde alla ricerca.",
+      "modelsError": "Impossibile caricare i modelli dal provider.",
+      "modelUnavailable": "Il modello selezionato ({model}) non è più disponibile. Scegline un altro.",
+      "manageModels": "Gestisci modelli",
+      "modelLoaded": "Caricato",
+      "modelFailed": "Avvio non riuscito",
+      "modelLoadFailed": "{model} non si è avviato l'ultima volta che è stato usato. Potrebbe non essere compatibile o richiedere più memoria. Scegli un altro modello o controlla Gestisci modelli.",
+      "smallModelWarning": "I modelli piccoli potrebbero non gestire bene così tante etichette e suggerire quelle sbagliate. I modelli più grandi danno risultati migliori."
     }
   },
   "cashflow": {

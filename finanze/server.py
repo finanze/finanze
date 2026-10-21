@@ -130,6 +130,16 @@ from application.use_cases.delete_labeling_rule import DeleteLabelingRuleImpl
 from application.use_cases.get_external_labeling_providers import (
     GetExternalLabelingProvidersImpl,
 )
+from application.use_cases.get_external_labeling_models import (
+    GetExternalLabelingModelsImpl,
+)
+from application.use_cases.get_local_models import GetLocalModelsImpl
+from application.use_cases.download_local_model import DownloadLocalModelImpl
+from application.use_cases.delete_local_model import DeleteLocalModelImpl
+from application.use_cases.list_hugging_face_quants import (
+    ListHuggingFaceQuantsImpl,
+)
+from application.use_cases.import_local_model import ImportLocalModelImpl
 from application.use_cases.get_labeling_rules import GetLabelingRulesImpl
 from application.use_cases.get_labels import GetLabelsImpl
 from application.use_cases.preview_labeling_rule import PreviewLabelingRuleImpl
@@ -140,6 +150,7 @@ from application.use_cases.update_transaction_labels import (
     UpdateTransactionLabelsImpl,
 )
 from application.use_cases.validate_ai_model import ValidateAIModelImpl
+from application.use_cases.get_ai_server_info import GetAIServerInfoImpl
 from application.use_cases.get_cashflow_summary import GetCashflowSummaryImpl
 from application.use_cases.get_recurring_movements import GetRecurringMovementsImpl
 from application.use_cases.ignore_recurring_movement import (
@@ -158,7 +169,19 @@ from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
 from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
+    OpenAICompatibleClient,
+)
 from infrastructure.client.ai.openrouter.openrouter_client import OpenRouterClient
+from infrastructure.local_models.huggingface_catalog_client import (
+    HuggingFaceCatalogClient,
+)
+from infrastructure.local_models.llama_router_client import LlamaRouterClient
+from infrastructure.local_models.llama_router_process import LlamaRouterProcess
+from infrastructure.local_models.local_model_catalog import StaticLocalModelCatalog
+from infrastructure.local_models.local_model_imports import LocalModelFileImports
+from infrastructure.local_models.local_model_runtime import LocalModelRuntimeAdapter
+from infrastructure.local_models.local_models_ai_client import LocalModelsAIClient
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.zerion.zerion_client import ZerionClient
@@ -257,7 +280,10 @@ from infrastructure.crypto.public_key_derivation_adapter import (
 )
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
-from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
+from infrastructure.labeling.ai_labeling_presets import (
+    LABELING_BATCH_SIZES,
+    LABELING_PRESETS,
+)
 from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.labeling.transaction_labeler_adapter import (
     TransactionLabelerAdapter,
@@ -373,6 +399,7 @@ class FinanzeServer:
         self._mcp_servers = []
         self._db_client = None
         self._financial_entity_fetchers = None
+        self._local_model_runtime = None
         self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
 
@@ -440,9 +467,24 @@ class FinanzeServer:
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
         polymarket_fetcher = PolymarketFetcher()
+        models_dir = args.data_dir / Path("models")
+        llama_router = LlamaRouterClient()
+        local_model_runtime = LocalModelRuntimeAdapter(
+            LlamaRouterProcess(args.llama_server_path, models_dir, llama_router),
+            os.getenv("FINANZE_LLAMA_SERVER_URL"),
+            os.getenv("FINANZE_LLAMA_SERVER_API_KEY"),
+        )
+        self._local_model_runtime = local_model_runtime
+        local_model_imports = LocalModelFileImports(models_dir)
+        local_model_catalog = StaticLocalModelCatalog()
+        hugging_face_catalog = HuggingFaceCatalogClient()
         ai_clients = {
             ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
             ExternalIntegrationId.OPENAI: OpenAIClient(),
+            ExternalIntegrationId.OPENAI_COMPATIBLE: OpenAICompatibleClient(),
+            ExternalIntegrationId.LOCAL_MODELS: LocalModelsAIClient(
+                local_model_runtime, llama_router, local_model_catalog
+            ),
         }
 
         crypto_entity_fetchers = {
@@ -503,7 +545,11 @@ class FinanzeServer:
         }
 
         external_labeling_providers = {
-            integration_id: AILabelingProvider(client, LABELING_PRESETS[integration_id])
+            integration_id: AILabelingProvider(
+                client,
+                LABELING_PRESETS.get(integration_id, []),
+                LABELING_BATCH_SIZES.get(integration_id),
+            )
             for integration_id, client in ai_clients.items()
         }
 
@@ -880,7 +926,8 @@ class FinanzeServer:
             external_integrations,
         )
         disconnect_external_integrations = DisconnectExternalIntegrationImpl(
-            external_integration_repository
+            external_integration_repository,
+            external_integrations,
         )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
@@ -1100,8 +1147,41 @@ class FinanzeServer:
         get_external_labeling_providers = GetExternalLabelingProvidersImpl(
             external_integration_repository, external_labeling_providers
         )
+        get_external_labeling_models = GetExternalLabelingModelsImpl(
+            external_integration_repository, external_labeling_providers
+        )
         validate_ai_model = ValidateAIModelImpl(
             external_integration_repository, ai_clients
+        )
+        get_ai_server_info = GetAIServerInfoImpl(
+            external_integration_repository, ai_clients
+        )
+        get_local_models = GetLocalModelsImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
+            local_model_catalog,
+        )
+        download_local_model = DownloadLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_catalog,
+            hugging_face_catalog,
+        )
+        delete_local_model = DeleteLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
+        )
+        list_hugging_face_quants = ListHuggingFaceQuantsImpl(hugging_face_catalog)
+        import_local_model = ImportLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
         )
         get_cashflow_summary = GetCashflowSummaryImpl(
             transaction_repository,
@@ -1282,7 +1362,9 @@ class FinanzeServer:
             relabel_transactions_uc=relabel_transactions,
             update_transaction_labels_uc=update_transaction_labels,
             get_external_labeling_providers_uc=get_external_labeling_providers,
+            get_external_labeling_models_uc=get_external_labeling_models,
             validate_ai_model_uc=validate_ai_model,
+            get_ai_server_info_uc=get_ai_server_info,
             get_cashflow_summary_uc=get_cashflow_summary,
             get_recurring_movements_uc=get_recurring_movements,
             ignore_recurring_movement_uc=ignore_recurring_movement,
@@ -1290,6 +1372,11 @@ class FinanzeServer:
             get_mcp_config_uc=get_mcp_config,
             update_mcp_config_uc=update_mcp_config,
             regenerate_mcp_token_uc=regenerate_mcp_token,
+            get_local_models_uc=get_local_models,
+            download_local_model_uc=download_local_model,
+            delete_local_model_uc=delete_local_model,
+            list_hugging_face_quants_uc=list_hugging_face_quants,
+            import_local_model_uc=import_local_model,
         )
 
         self._log.info("Setting up MCP server...")
@@ -1442,8 +1529,17 @@ class FinanzeServer:
             self._log.info("Finanze server shutting down.")
             await self._error_reporter.flush()
             await self._close_financial_entity_fetchers()
+            await self._stop_local_models()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _stop_local_models(self):
+        if self._local_model_runtime is None:
+            return
+        try:
+            await self._local_model_runtime.stop()
+        except Exception:
+            self._log.warning("Error stopping local models runtime", exc_info=True)
 
     async def _close_financial_entity_fetchers(self):
         fetchers = self._financial_entity_fetchers or {}

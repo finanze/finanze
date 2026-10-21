@@ -28,6 +28,7 @@ const EXCLUDED_DIRS = [
   "infrastructure/credentials",
   "infrastructure/mcp",
   "infrastructure/repository/mcp",
+  "infrastructure/local_models",
 ]
 
 const EXCLUDED_PATHS = [
@@ -47,6 +48,27 @@ const EXCLUDED_PATHS = [
   "infrastructure/controller/routes/get_mcp_config.py",
   "infrastructure/controller/routes/regenerate_mcp_token.py",
   "infrastructure/controller/routes/update_mcp_config.py",
+  "domain/local_model.py",
+  "domain/use_cases/get_local_models.py",
+  "domain/use_cases/download_local_model.py",
+  "domain/use_cases/delete_local_model.py",
+  "domain/use_cases/list_hugging_face_quants.py",
+  "domain/use_cases/import_local_model.py",
+  "application/ports/local_model_router.py",
+  "application/ports/local_model_runtime.py",
+  "application/ports/local_model_imports.py",
+  "application/ports/local_model_catalog.py",
+  "application/ports/huggingface_catalog.py",
+  "application/use_cases/get_local_models.py",
+  "application/use_cases/download_local_model.py",
+  "application/use_cases/delete_local_model.py",
+  "application/use_cases/list_hugging_face_quants.py",
+  "application/use_cases/import_local_model.py",
+  "infrastructure/controller/routes/get_local_models.py",
+  "infrastructure/controller/routes/download_local_model.py",
+  "infrastructure/controller/routes/delete_local_model.py",
+  "infrastructure/controller/routes/list_hugging_face_quants.py",
+  "infrastructure/controller/routes/import_local_model.py",
 ]
 
 const EXCLUDED_FILES = [
@@ -290,7 +312,9 @@ const LAZY_PATTERNS = [
   "finanze/application/use_cases/relabel_transactions.py",
   "finanze/application/use_cases/update_transaction_labels.py",
   "finanze/application/use_cases/get_external_labeling_providers.py",
+  "finanze/application/use_cases/get_external_labeling_models.py",
   "finanze/application/use_cases/validate_ai_model.py",
+  "finanze/application/use_cases/get_ai_server_info.py",
   "finanze/infrastructure/controller/routes/get_labels.py",
   "finanze/infrastructure/controller/routes/get_labeling_rules.py",
   "finanze/infrastructure/controller/routes/cashflow_summary.py",
@@ -305,7 +329,9 @@ const LAZY_PATTERNS = [
   "finanze/infrastructure/controller/routes/relabel_transactions.py",
   "finanze/infrastructure/controller/routes/update_transaction_labels.py",
   "finanze/infrastructure/controller/routes/get_external_labeling_providers.py",
+  "finanze/infrastructure/controller/routes/get_external_labeling_models.py",
   "finanze/infrastructure/controller/routes/validate_ai_model.py",
+  "finanze/infrastructure/controller/routes/get_ai_server_info.py",
   // Recurring movement ignore/restore writes
   "finanze/application/use_cases/ignore_recurring_movement.py",
   "finanze/application/use_cases/restore_recurring_movement.py",

@@ -49,6 +49,12 @@ def app_args() -> argparse.ArgumentParser:
         choices=["NONE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="ERROR",
     )
+    parser.add_argument(
+        "--llama-server-path",
+        help="Path to the llama.cpp server executable used to run local AI models.",
+        type=str,
+        default=os.environ.get("FINANZE_LLAMA_SERVER_PATH"),
+    )
     return parser
 
 
@@ -58,6 +64,9 @@ def parse_args() -> argparse.Namespace:
 
     args.data_dir = Path(args.data_dir)
     os.makedirs(args.data_dir, exist_ok=True)
+    args.llama_server_path = (
+        Path(args.llama_server_path) if args.llama_server_path else None
+    )
 
     args.logged_username = os.environ.get("USERNAME")
     args.logged_password = os.environ.get("PASSWORD")

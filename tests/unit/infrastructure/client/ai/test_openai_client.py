@@ -104,6 +104,7 @@ class TestOpenAIClientFeatures:
         assert OpenAIClient().features() == {
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
+            AIClientFeature.CUSTOM_MODELS,
         }
 
     @pytest.mark.asyncio

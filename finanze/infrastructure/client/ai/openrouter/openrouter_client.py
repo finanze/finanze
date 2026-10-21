@@ -3,16 +3,13 @@ from urllib.parse import quote
 
 from domain.ai import (
     AIClientFeature,
-    AIDecisionAnswer,
     AIDecisionRequest,
     AIDecisionResult,
     AIGeneration,
     AIGenerationRequest,
-    AIGenerationStatus,
     AIModel,
     AIModelCapability,
     AIModelProvider,
-    AIUsage,
 )
 from domain.exception.exceptions import (
     AIProviderError,
@@ -22,10 +19,16 @@ from domain.exception.exceptions import (
     TooManyRequests,
 )
 from domain.external_integration import ExternalIntegrationPayload
+from infrastructure.client.ai.chat_completions import (
+    chat_messages,
+    decision_body,
+    json_schema_format,
+    parse_chat_completion,
+    parse_decisions,
+)
 from infrastructure.client.ai.http_ai_client import (
     REASONING_EFFORTS,
     HttpAIClient,
-    to_dezimal,
 )
 from infrastructure.client.http.http_response import HttpResponse
 
@@ -59,6 +62,7 @@ class OpenRouterClient(HttpAIClient):
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.UPSTREAM_PROVIDERS,
+            AIClientFeature.CUSTOM_MODELS,
         }
 
     def _headers(self, credentials: Optional[ExternalIntegrationPayload]) -> dict:
@@ -119,23 +123,9 @@ class OpenRouterClient(HttpAIClient):
     async def generate(
         self, request: AIGenerationRequest, credentials: ExternalIntegrationPayload
     ) -> AIGeneration:
-        messages = []
-        if request.instructions:
-            messages.append({"role": "system", "content": request.instructions})
-        messages += [
-            {"role": message.role.value.lower(), "content": message.content}
-            for message in request.messages
-        ]
-        body = {"model": request.model, "messages": messages}
+        body = {"model": request.model, "messages": chat_messages(request)}
         if request.response_schema is not None:
-            body["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": request.response_schema.name,
-                    "strict": True,
-                    "schema": request.response_schema.schema,
-                },
-            }
+            body["response_format"] = json_schema_format(request.response_schema)
         if request.temperature is not None:
             body["temperature"] = float(request.temperature)
         if request.reasoning_effort is not None:
@@ -149,66 +139,15 @@ class OpenRouterClient(HttpAIClient):
             }
 
         response = await self._send("POST", "/chat/completions", credentials, json=body)
-
-        choices = response.get("choices") or []
-        choice = choices[0] if choices else {}
-        message = choice.get("message") or {}
-        usage = response.get("usage") or {}
-        content = message.get("content")
-        if isinstance(content, list):
-            content = "".join(
-                part.get("text", "") for part in content if isinstance(part, dict)
-            )
-        if message.get("refusal"):
-            generation_status = AIGenerationStatus.REFUSED
-        elif choice.get("finish_reason") == "length":
-            generation_status = AIGenerationStatus.INCOMPLETE
-        else:
-            generation_status = AIGenerationStatus.COMPLETED
-        return AIGeneration(
-            status=generation_status,
-            text=content or None,
-            refusal=message.get("refusal"),
-            usage=AIUsage(
-                input_tokens=usage.get("prompt_tokens") or 0,
-                output_tokens=usage.get("completion_tokens") or 0,
-            )
-            if usage
-            else None,
-        )
+        return parse_chat_completion(response)
 
     async def decide(
         self, request: AIDecisionRequest, credentials: ExternalIntegrationPayload
     ) -> AIDecisionResult:
-        body = {
-            "model": request.model,
-            "state": request.state,
-            "questions": {
-                question.id: {
-                    "type": "choice",
-                    "instructions": question.instructions,
-                    "criteria": dict.fromkeys(question.options),
-                }
-                for question in request.questions
-            },
-        }
-        response = await self._send("POST", "/systemone", credentials, json=body)
-
-        answers = {}
-        for question_id, answer in (response.get("answers") or {}).items():
-            if not isinstance(answer, dict):
-                continue
-            probabilities = {
-                option: probability
-                for option, value in (answer.get("probabilities") or {}).items()
-                if (probability := to_dezimal(value)) is not None
-            }
-            answers[question_id] = AIDecisionAnswer(
-                choice=answer.get("choice"),
-                confidence=to_dezimal(answer.get("confidence")),
-                probabilities=probabilities,
-            )
-        return AIDecisionResult(answers=answers)
+        response = await self._send(
+            "POST", "/systemone", credentials, json=decision_body(request)
+        )
+        return parse_decisions(response)
 
     async def _provider_error(self, response: HttpResponse) -> Optional[Exception]:
         if response.status == 402:

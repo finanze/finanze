@@ -84,10 +84,7 @@ EXCLUDED = "EXCLUDED"
 
 BASE_LABELS = [
     ("salary", "#16a34a", "briefcase", INCOME),
-    ("business_income", "#15803d", "store", INCOME),
-    ("rental_income", "#0d9488", "key-round", INCOME),
     ("refunds", "#0891b2", "rotate-ccw", INCOME),
-    ("gifts_received", "#db2777", "gift", INCOME),
     ("interest", "#65a30d", "percent", INCOME),
     ("other_income", "#4ade80", "circle-plus", INCOME),
     ("housing", "#9333ea", "house", EXPENSE),
@@ -99,7 +96,6 @@ BASE_LABELS = [
     ("subscriptions", "#8b5cf6", "repeat", EXPENSE),
     ("health", "#f43f5e", "heart-pulse", EXPENSE),
     ("insurance", "#64748b", "shield", EXPENSE),
-    ("education", "#0ea5e9", "graduation-cap", EXPENSE),
     ("leisure", "#a855f7", "ticket", EXPENSE),
     ("travel", "#06b6d4", "plane", EXPENSE),
     ("personal_care", "#f472b6", "sparkles", EXPENSE),

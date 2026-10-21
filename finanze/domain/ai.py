@@ -11,6 +11,9 @@ class AIClientFeature(str, Enum):
     GENERATION = "GENERATION"
     DECISIONS = "DECISIONS"
     UPSTREAM_PROVIDERS = "UPSTREAM_PROVIDERS"
+    MODEL_LISTING = "MODEL_LISTING"
+    CUSTOM_MODELS = "CUSTOM_MODELS"
+    SERVER_INFO = "SERVER_INFO"
 
 
 class AIModelCapability(str, Enum):
@@ -60,6 +63,9 @@ class AIModel:
     id: str
     name: str
     capabilities: set[AIModelCapability] = field(default_factory=set)
+    size: Optional[int] = None
+    loaded: bool = False
+    load_failed: bool = False
 
 
 @dataclass
@@ -86,6 +92,42 @@ class AIModelValidation:
     name: Optional[str] = None
     capabilities: list[AIModelCapability] = field(default_factory=list)
     upstream_provider: Optional[str] = None
+
+
+class AIServerKind(str, Enum):
+    OLLAMA = "OLLAMA"
+    LM_STUDIO = "LM_STUDIO"
+    LLAMA_CPP = "LLAMA_CPP"
+    VLLM = "VLLM"
+
+
+class AIServerError(str, Enum):
+    UNREACHABLE = "UNREACHABLE"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    NOT_FOUND = "NOT_FOUND"
+    SERVER_ERROR = "SERVER_ERROR"
+    INVALID_RESPONSE = "INVALID_RESPONSE"
+
+
+@dataclass
+class AIServerModel:
+    id: str
+    decisions: bool = False
+    loaded: Optional[bool] = None
+    size: Optional[int] = None
+    context_length: Optional[int] = None
+
+
+@dataclass
+class AIServerInfo:
+    url: str
+    api_key_set: bool
+    reachable: bool = False
+    error: Optional[AIServerError] = None
+    latency_ms: Optional[int] = None
+    kind: Optional[AIServerKind] = None
+    version: Optional[str] = None
+    models: list[AIServerModel] = field(default_factory=list)
 
 
 @dataclass

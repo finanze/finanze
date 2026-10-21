@@ -153,6 +153,9 @@ export interface ExternalLabelingModel {
   name: string
   description?: string | null
   probabilistic: boolean
+  size?: number | null
+  loaded?: boolean
+  load_failed?: boolean
 }
 
 export interface ExternalLabelingProviderDetails {
@@ -161,10 +164,15 @@ export interface ExternalLabelingProviderDetails {
   recommended_models: ExternalLabelingModel[]
   custom_models: boolean
   upstream_providers: boolean
+  dynamic_models?: boolean
 }
 
 export interface ExternalLabelingProviders {
   providers: ExternalLabelingProviderDetails[]
+}
+
+export interface ExternalLabelingModels {
+  models: ExternalLabelingModel[]
 }
 
 export interface ExternalLabelingSettings {

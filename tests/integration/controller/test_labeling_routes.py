@@ -711,7 +711,7 @@ async def test_label_crud(ctx):
     response = await ctx.http.get("/api/v1/labels")
     assert response.status_code == 200
     labels = (await response.get_json())["labels"]
-    assert len(labels) == 30
+    assert len(labels) == 26
     assert all(label["usage"] == 0 for label in labels)
 
     response = await ctx.http.post(

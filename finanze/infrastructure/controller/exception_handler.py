@@ -5,6 +5,8 @@ from quart import jsonify, request
 from application.ports.error_reporter_port import ErrorReporterPort
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
+    INTEGRATION_SETUP_BAD_REQUEST_CODES,
+    INTEGRATION_SETUP_UNAUTHORIZED_CODES,
     AddressNotFound,
     BackupConflict,
     BackupTransferFailed,
@@ -23,6 +25,8 @@ from domain.exception.exceptions import (
     InvalidToken,
     LabelingRuleNotFound,
     LabelNotFound,
+    LocalModelError,
+    LocalModelErrorCode,
     TemplateNotFound,
     TooManyRequests,
     TransactionNotFound,
@@ -32,6 +36,20 @@ from domain.exception.exceptions import (
     ProtectedLabel,
     InvalidUserCredentials,
 )
+
+LOCAL_MODEL_ERROR_STATUSES = {
+    LocalModelErrorCode.MISSING_SERVER_URL: 400,
+    LocalModelErrorCode.INVALID_URL: 400,
+    LocalModelErrorCode.INVALID_MODEL: 400,
+    LocalModelErrorCode.INVALID_FILE: 400,
+    LocalModelErrorCode.DOWNLOAD_FAILED: 400,
+    LocalModelErrorCode.NOT_DELETABLE: 400,
+    LocalModelErrorCode.UNSUPPORTED_MODEL: 400,
+    LocalModelErrorCode.MODEL_NOT_FOUND: 404,
+    LocalModelErrorCode.IMPORT_UNSUPPORTED: 409,
+    LocalModelErrorCode.INSUFFICIENT_SPACE: 507,
+    LocalModelErrorCode.RUNTIME_FAILED: 500,
+}
 
 
 def build_unexpected_error_handler(error_reporter: Optional[ErrorReporterPort] = None):
@@ -121,11 +139,12 @@ def handle_integration_not_found(e):
 
 
 def handle_integration_setup_error(e):
-    if e.code in (
-        IntegrationSetupErrorCode.INVALID_CREDENTIALS,
-        IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
-    ):
+    if e.code in INTEGRATION_SETUP_UNAUTHORIZED_CODES:
         return jsonify({"code": e.code.value}), 401
+    if e.code in INTEGRATION_SETUP_BAD_REQUEST_CODES:
+        return jsonify({"code": e.code.value}), 400
+    if e.code == IntegrationSetupErrorCode.UNREACHABLE:
+        return jsonify({"code": e.code.value}), 502
 
     return jsonify({"code": e.code.value}), 500
 
@@ -173,6 +192,12 @@ def handle_external_provider_app_not_linked(e):
     return jsonify({"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}), 409
 
 
+def handle_local_model_error(e: LocalModelError):
+    return jsonify(
+        {"code": e.code.value, "message": e.details}
+    ), LOCAL_MODEL_ERROR_STATUSES.get(e.code, 502)
+
+
 def register_exception_handlers(
     app, error_reporter: Optional[ErrorReporterPort] = None
 ):
@@ -205,6 +230,7 @@ def register_exception_handlers(
     app.register_error_handler(BackupConflict, handle_backup_conflict)
     app.register_error_handler(BackupTransferFailed, handle_backup_transfer_failed)
     app.register_error_handler(PermissionDenied, handle_permission_denied)
+    app.register_error_handler(LocalModelError, handle_local_model_error)
     app.register_error_handler(
         ExternalProviderAppNotLinked, handle_external_provider_app_not_linked
     )

@@ -66,7 +66,11 @@ class OpenAIClient(HttpAIClient):
     BASE_URL = "https://api.openai.com/v1"
 
     def features(self) -> set[AIClientFeature]:
-        return {AIClientFeature.GENERATION, AIClientFeature.DECISIONS}
+        return {
+            AIClientFeature.GENERATION,
+            AIClientFeature.DECISIONS,
+            AIClientFeature.CUSTOM_MODELS,
+        }
 
     async def setup(self, payload: ExternalIntegrationPayload):
         response = await self._request("GET", "/models", payload)

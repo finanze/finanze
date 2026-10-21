@@ -53,13 +53,15 @@ export function RelabelDialog({
   } = useAppContext()
   const labelOptions = useLabelOptions()
   const externalSettings = settings.labeling?.external
-  const externalEnabled = Boolean(externalSettings?.enabled)
   const externalAutoRun = Boolean(externalSettings?.autoRun)
   const externalProvider = externalSettings?.provider ?? ""
-  const externalProviderName =
-    externalIntegrations.find(
-      integration => integration.id === externalProvider,
-    )?.name ?? externalProvider
+  const externalIntegration = externalIntegrations.find(
+    integration => integration.id === externalProvider,
+  )
+  const externalEnabled =
+    Boolean(externalSettings?.enabled) &&
+    externalIntegration?.available !== false
+  const externalProviderName = externalIntegration?.name ?? externalProvider
 
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")

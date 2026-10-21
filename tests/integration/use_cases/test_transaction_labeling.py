@@ -200,7 +200,7 @@ async def _transfer_rule(env):
 @pytest.mark.asyncio
 async def test_migration_seeds_base_labels_and_default_rules(env):
     labels = await env.label_repo.get_all()
-    assert len(labels) == 30
+    assert len(labels) == 26
     excluded = {
         label.key for label in labels if label.category == LabelCategory.EXCLUDED
     }
