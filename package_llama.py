@@ -25,6 +25,7 @@ TOOL_LIBRARY = re.compile(r"^(lib)?llama-(?!server-impl\.).+-impl\.")
 OS_NAMES = {"Darwin": "mac", "Linux": "linux", "Windows": "win"}
 ARCH_NAMES = {"x86_64": "x64", "amd64": "x64", "arm64": "arm64", "aarch64": "arm64"}
 DOWNLOAD_TIMEOUT = 120.0
+LLAMA_LICENSE_PATH = Path(__file__).parent / "resources" / "llama" / LICENSE_NAME
 
 
 class LlamaPackagingError(Exception):
@@ -138,7 +139,20 @@ def _make_executable(path: Path):
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def install(extracted: Path, output: Path) -> Path:
+def _find_license(extracted: Path, source_dir: Path) -> Optional[Path]:
+    return next(
+        (
+            path
+            for path in (source_dir / LICENSE_NAME, extracted / LICENSE_NAME)
+            if path.is_file()
+        ),
+        None,
+    )
+
+
+def install(
+    extracted: Path, output: Path, license_fallback: Optional[Path] = None
+) -> Path:
     server = _find_server(extracted)
     source_dir = server.parent
     if output.exists():
@@ -168,17 +182,15 @@ def install(extracted: Path, output: Path) -> Path:
             shutil.copy2(library, output / name)
             _make_executable(output / name)
 
-    license_file = next(
-        (
-            path
-            for path in (source_dir / LICENSE_NAME, extracted / LICENSE_NAME)
-            if path.is_file()
-        ),
-        None,
-    )
+    license_file = _find_license(extracted, source_dir)
+    if license_file is None and license_fallback and license_fallback.is_file():
+        license_file = license_fallback
     if license_file is None:
         raise LlamaPackagingError("llama.cpp LICENSE not found in archive")
     shutil.copy2(license_file, output / LICENSE_NAME)
+    for additional_license in source_dir.glob("LICENSE-*"):
+        if additional_license.is_file():
+            shutil.copy2(additional_license, output / additional_license.name)
     return target
 
 
@@ -198,7 +210,21 @@ def fetch_llama_server(
     asset = select_asset(lock, os_name, arch)
     archive = download_asset(lock, asset, cache_dir, fetch)
     with tempfile.TemporaryDirectory() as tmp:
-        extract(archive, Path(tmp))
-        target = install(Path(tmp), output)
+        extracted = Path(tmp)
+        extract(archive, extracted)
+        server = _find_server(extracted)
+        license_fallback = None
+        if _find_license(extracted, server.parent) is None:
+            expected_license_sha256 = lock.get("license_sha256")
+            if (
+                not LLAMA_LICENSE_PATH.is_file()
+                or not isinstance(expected_license_sha256, str)
+                or sha256(LLAMA_LICENSE_PATH) != expected_license_sha256
+            ):
+                raise LlamaPackagingError(
+                    "llama.cpp LICENSE missing from archive and verified fallback"
+                )
+            license_fallback = LLAMA_LICENSE_PATH
+        target = install(extracted, output, license_fallback)
     logger.info(f"llama.cpp server {lock.get('build')} ready at {target}")
     return target

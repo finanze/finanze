@@ -26,8 +26,16 @@ def _sha(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def _write_lock(path: Path, assets: dict, base_url: str = BASE_URL) -> Path:
-    path.write_text(json.dumps({"build": "b1", "base_url": base_url, "assets": assets}))
+def _write_lock(
+    path: Path,
+    assets: dict,
+    base_url: str = BASE_URL,
+    license_sha256: str | None = None,
+) -> Path:
+    lock = {"build": "b1", "base_url": base_url, "assets": assets}
+    if license_sha256 is not None:
+        lock["license_sha256"] = license_sha256
+    path.write_text(json.dumps(lock))
     return path
 
 
@@ -258,6 +266,7 @@ class TestFetch:
                 "ggml.dll": b"ggml",
                 "llama-cli-impl.dll": b"cli",
                 "LICENSE": b"MIT",
+                "LICENSE-LLVM-OpenMP": b"LLVM OpenMP",
             }
         )
         lock = _write_lock(
@@ -270,9 +279,37 @@ class TestFetch:
         assert target.name == f"{TARGET_NAME}.exe"
         assert sorted(p.name for p in (tmp_path / "out").iterdir()) == [
             "LICENSE",
+            "LICENSE-LLVM-OpenMP",
             f"{TARGET_NAME}.exe",
             "ggml.dll",
         ]
+
+    def test_zip_archive_uses_bundled_license_when_missing(self, tmp_path):
+        content = _zip(
+            {
+                "llama-server.exe": b"server",
+                "LICENSE-LLVM-OpenMP": b"LLVM OpenMP",
+            }
+        )
+        bundled_license = Path(__file__).parents[2] / "resources" / "llama" / "LICENSE"
+        lock = _write_lock(
+            tmp_path / "lock.json",
+            {"win-x64": {"file": "llama.zip", "sha256": _sha(content)}},
+            license_sha256=_sha(bundled_license.read_bytes()),
+        )
+        target = fetch_llama_server(
+            lock,
+            tmp_path / "out",
+            tmp_path / "cache",
+            "win",
+            "x64",
+            FakeFetch(content),
+        )
+        assert target.name == f"{TARGET_NAME}.exe"
+        assert (
+            tmp_path / "out" / "LICENSE"
+        ).read_bytes() == bundled_license.read_bytes()
+        assert (tmp_path / "out" / "LICENSE-LLVM-OpenMP").read_bytes() == b"LLVM OpenMP"
 
     def test_unknown_platform(self, tmp_path):
         lock = _write_lock(tmp_path / "lock.json", {})

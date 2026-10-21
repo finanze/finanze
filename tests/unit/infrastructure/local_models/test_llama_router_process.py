@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -231,8 +232,11 @@ class TestStaleCleanup:
         models_dir = tmp_path / "models"
         models_dir.mkdir()
         (models_dir / PID_FILE).write_text("999")
+        process_name = executable.name
+        if sys.platform.startswith("linux"):
+            process_name = process_name[: llama_router_process.LINUX_COMM_LENGTH]
         monkeypatch.setattr(
-            llama_router_process, "_process_name", lambda pid: executable.name
+            llama_router_process, "_process_name", lambda pid: process_name
         )
         process = _process(executable, tmp_path)
         await process.ensure_started()
