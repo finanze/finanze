@@ -117,7 +117,8 @@ class HuggingFaceCatalogClient(HuggingFaceCatalog):
 
         if response.status in (401, 403, 404):
             raise LocalModelError(
-                LocalModelErrorCode.INVALID_MODEL, "Repository not found or gated"
+                LocalModelErrorCode.HUGGING_FACE_REPO_NOT_FOUND,
+                "Repository not found or gated",
             )
         if not response.ok:
             self._log.warning(f"Hugging Face model request failed: {response.status}")
@@ -153,11 +154,6 @@ class HuggingFaceCatalogClient(HuggingFaceCatalog):
                 continue
             quants[quant] = HuggingFaceQuantOption(
                 quant=quant, file=file, size=sizes[file]
-            )
-
-        if not quants:
-            raise LocalModelError(
-                LocalModelErrorCode.INVALID_MODEL, "No GGUF files found"
             )
 
         return HuggingFaceQuants(

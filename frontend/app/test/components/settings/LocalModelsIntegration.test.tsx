@@ -531,6 +531,42 @@ describe("LocalModelsManager", () => {
     )
   })
 
+  it("explains when a repository has no compatible GGUF files", async () => {
+    getLocalModels.mockResolvedValue(connected())
+    getHuggingFaceQuants.mockResolvedValue({
+      repo: "org/no-gguf",
+      quants: [],
+      kind: HuggingFaceModelKind.UNKNOWN,
+    })
+    renderIntegration(true)
+    await openDialog()
+
+    const input = await screen.findByLabelText(copy.huggingFace)
+    fireEvent.change(input, { target: { value: "org/no-gguf" } })
+    fireEvent.click(screen.getByRole("button", { name: copy.find }))
+
+    expect(await screen.findByText(copy.noQuants)).toBeInTheDocument()
+    expect(screen.queryByText(copy.unverifiedModel)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(copy.variant)).not.toBeInTheDocument()
+  })
+
+  it("explains when a repository cannot be found or accessed", async () => {
+    getLocalModels.mockResolvedValue(connected())
+    getHuggingFaceQuants.mockRejectedValue({
+      code: "HUGGING_FACE_REPO_NOT_FOUND",
+    })
+    renderIntegration(true)
+    await openDialog()
+
+    const input = await screen.findByLabelText(copy.huggingFace)
+    fireEvent.change(input, { target: { value: "org/private-model" } })
+    fireEvent.click(screen.getByRole("button", { name: copy.find }))
+
+    expect(
+      await screen.findByText(copy.errors.HUGGING_FACE_REPO_NOT_FOUND),
+    ).toBeInTheDocument()
+  })
+
   it("warns when a Hugging Face variant may not fit in memory", async () => {
     getLocalModels.mockResolvedValue(connected())
     getHuggingFaceQuants.mockResolvedValue({

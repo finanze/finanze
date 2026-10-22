@@ -1414,6 +1414,7 @@
         "IMPORT_UNSUPPORTED": "Importar archivos solo está disponible con el motor integrado.",
         "INVALID_FILE": "El archivo no es un modelo GGUF válido.",
         "HUGGING_FACE_UNAVAILABLE": "No se ha podido obtener el repositorio de Hugging Face.",
+        "HUGGING_FACE_REPO_NOT_FOUND": "No se ha encontrado este repositorio de Hugging Face. Puede ser privado o estar restringido.",
         "UNSUPPORTED_MODEL": "Es un modelo codificador o de embeddings, no puede etiquetar movimientos. Elige un modelo de chat o de decisiones."
       }
     },

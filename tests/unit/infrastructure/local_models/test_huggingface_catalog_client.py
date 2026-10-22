@@ -233,16 +233,16 @@ class TestListQuants:
         client = _client(HttpResponse(httpx.Response(status, json={})))
         with pytest.raises(LocalModelError) as error:
             await client.list_quants("org/model")
-        assert error.value.code == LocalModelErrorCode.INVALID_MODEL
+        assert error.value.code == LocalModelErrorCode.HUGGING_FACE_REPO_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_repo_without_gguf(self):
         client = _client(
             HttpResponse(httpx.Response(200, json=_info(_file("a.bin", 1))))
         )
-        with pytest.raises(LocalModelError) as error:
-            await client.list_quants("org/model")
-        assert error.value.code == LocalModelErrorCode.INVALID_MODEL
+        result = await client.list_quants("org/model")
+        assert result.repo == "org/model"
+        assert result.quants == []
 
     @pytest.mark.parametrize(
         "response",

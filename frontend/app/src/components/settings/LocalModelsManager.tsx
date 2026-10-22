@@ -523,7 +523,10 @@ export function LocalModelsManager({
   const selectedOption = quants?.quants.find(
     option => option.quant === selectedQuant,
   )
-  const unsupportedModel = quants?.kind === HuggingFaceModelKind.ENCODER
+  const unsupportedModel =
+    quants !== null &&
+    quants.quants.length > 0 &&
+    quants.kind === HuggingFaceModelKind.ENCODER
 
   return (
     <div
@@ -653,12 +656,14 @@ export function LocalModelsManager({
               {copy.errors.UNSUPPORTED_MODEL}
             </p>
           )}
-          {quants?.kind === HuggingFaceModelKind.UNKNOWN && (
-            <p className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              {copy.unverifiedModel}
-            </p>
-          )}
+          {quants !== null &&
+            quants.quants.length > 0 &&
+            quants.kind === HuggingFaceModelKind.UNKNOWN && (
+              <p className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                {copy.unverifiedModel}
+              </p>
+            )}
           {quants && !unsupportedModel && quants.quants.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <select

@@ -1,9 +1,6 @@
 BASE_LABEL_DESCRIPTIONS = {
     "salary": "Salary, payroll, wages or pension received from an employer or public body",
-    "business_income": "Income from self-employment, freelancing, invoices or own business sales",
-    "rental_income": "Rent received from tenants for a property the user owns",
     "refunds": "Refunds, reimbursements, returns or chargebacks received",
-    "gifts_received": "Money received as a gift from family or friends",
     "interest": "Interest or remuneration paid by the bank on account balances",
     "other_income": "Any other incoming money that does not fit another income category",
     "housing": "Rent paid, mortgage installments, community fees and home maintenance",
@@ -15,7 +12,6 @@ BASE_LABEL_DESCRIPTIONS = {
     "subscriptions": "Recurring digital services and memberships such as streaming, software or cloud storage",
     "health": "Pharmacies, doctors, dentists, hospitals, opticians and medical services",
     "insurance": "Insurance premiums for home, car, health, life or other policies",
-    "education": "Tuition, schools, courses, books and learning materials",
     "leisure": "Entertainment, cinema, concerts, events, hobbies, games and sports activities",
     "travel": "Flights, hotels, holiday rentals, travel agencies and trips",
     "personal_care": "Hairdressers, beauty salons, cosmetics, spa and personal care",

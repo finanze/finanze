@@ -475,6 +475,25 @@ async def test_model_in_folder_is_listed(ctx):
 
 
 @pytest.mark.asyncio
+async def test_huggingface_quant_search_reports_specific_reasons(ctx):
+    await ctx.connect()
+    ctx.server.hf_info["siblings"] = [{"rfilename": "README.md", "size": 10}]
+
+    response = await ctx.http.get(
+        "/api/v1/ai/local/huggingface/quants", query_string={"repo": HF_REPO}
+    )
+    assert response.status_code == 200
+    assert (await response.get_json())["quants"] == []
+
+    response = await ctx.http.get(
+        "/api/v1/ai/local/huggingface/quants",
+        query_string={"repo": "org/missing"},
+    )
+    assert response.status_code == 404
+    assert (await response.get_json())["code"] == "HUGGING_FACE_REPO_NOT_FOUND"
+
+
+@pytest.mark.asyncio
 async def test_download_errors(ctx):
     await ctx.connect()
 

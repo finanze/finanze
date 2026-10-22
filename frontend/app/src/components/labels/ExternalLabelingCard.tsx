@@ -19,7 +19,6 @@ import {
   PenLine,
   Search,
   Settings2,
-  ShieldAlert,
   Sparkles,
   XCircle,
 } from "lucide-react"
@@ -848,10 +847,9 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
               )}
 
               {provider && (
-                <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-50 p-3 text-xs text-yellow-800 dark:bg-yellow-900/10 dark:text-yellow-300">
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{t.labels.external.privacyNotice}</span>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t.labels.external.privacyNotice}
+                </p>
               )}
 
               <div>

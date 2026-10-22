@@ -46,6 +46,7 @@ LOCAL_MODEL_ERROR_STATUSES = {
     LocalModelErrorCode.NOT_DELETABLE: 400,
     LocalModelErrorCode.UNSUPPORTED_MODEL: 400,
     LocalModelErrorCode.MODEL_NOT_FOUND: 404,
+    LocalModelErrorCode.HUGGING_FACE_REPO_NOT_FOUND: 404,
     LocalModelErrorCode.IMPORT_UNSUPPORTED: 409,
     LocalModelErrorCode.INSUFFICIENT_SPACE: 507,
     LocalModelErrorCode.RUNTIME_FAILED: 500,
