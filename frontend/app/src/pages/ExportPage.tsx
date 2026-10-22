@@ -79,7 +79,8 @@ import {
   PopoverContent,
 } from "@/components/ui/Popover"
 import { Switch } from "@/components/ui/Switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
+import { PageTabs, type PageTab } from "@/components/ui/PageTabs"
+import { Tabs, TabsContent } from "@/components/ui/Tabs"
 import { cleanObject, processDataFields } from "@/lib/settingsUtils"
 import { ProductType } from "@/types/position"
 import {
@@ -338,6 +339,10 @@ export default function ExportPage() {
   } = useAppContext()
   const { refreshData, invalidateTransactionsCache } = useFinancialData()
   const [activeTab, setActiveTab] = useState<"export" | "import">("export")
+  const pageTabs: PageTab<"export" | "import">[] = [
+    { key: "export", label: t.export.tabs.export, Icon: FileUp },
+    { key: "import", label: t.export.tabs.import, Icon: Download },
+  ]
   const [successAnimation, setSuccessAnimation] = useState(false)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -1960,7 +1965,7 @@ export default function ExportPage() {
     !canExport || exportState.isExporting || successAnimation
   const isImportDisabled = !canImport || isImporting || importSuccessAnimation
 
-  const goToIntegrationsSettings = () => navigate("/settings?tab=integrations")
+  const goToProviders = () => navigate("/entities?tab=providers")
 
   const IntegrationRequiredBadge = ({
     integrationName = "Google Sheets",
@@ -1987,13 +1992,9 @@ export default function ExportPage() {
           <div className="space-y-1">
             <div className="text-sm ml-8">• {integrationName}</div>
           </div>
-          <Button
-            size="sm"
-            className="w-full mt-8"
-            onClick={goToIntegrationsSettings}
-          >
+          <Button size="sm" className="w-full mt-8" onClick={goToProviders}>
             <Settings className="mr-2 h-3 w-3" />
-            {t.entities.goToSettings}
+            {t.entities.goToProviders}
           </Button>
         </div>
       </PopoverContent>
@@ -4842,29 +4843,15 @@ export default function ExportPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
       >
-        <Tabs
-          value={activeTab}
-          onValueChange={value => setActiveTab(value as "export" | "import")}
-          className="space-y-6"
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <Tabs value={activeTab} className="space-y-6">
+          <div className="space-y-4">
             <h1 className="text-3xl font-bold">{t.export.title}</h1>
-            <TabsList className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 backdrop-blur self-center shadow-sm md:ml-auto md:self-auto">
-              <TabsTrigger
-                value="export"
-                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-              >
-                <FileUp className="mr-2 h-4 w-4" />
-                {t.export.tabs.export}
-              </TabsTrigger>
-              <TabsTrigger
-                value="import"
-                className="rounded-full px-5 py-2 text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-white dark:data-[state=active]:text-black"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                {t.export.tabs.import}
-              </TabsTrigger>
-            </TabsList>
+            <PageTabs
+              tabs={pageTabs}
+              active={activeTab}
+              onChange={setActiveTab}
+              layoutId="export-import-tabs"
+            />
           </div>
 
           <TabsContent value="export" className="space-y-6">

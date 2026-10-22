@@ -11,9 +11,14 @@ test.describe('Disconnect Entity (Urbanitae)', () => {
             .getByRole('heading', { name: 'Integrations' })
             .waitFor({ timeout: 15_000 })
 
-        // Check if Urbanitae is already connected (from a prior test run)
-        const connectedHeading = page.getByText('Connected').first()
-        const isAlreadyConnected = await connectedHeading
+        const urbanitaeCard = page
+            .locator('h3', { hasText: 'Urbanitae' })
+            .first()
+            .locator('../..')
+        const fetchButton = urbanitaeCard.getByRole('button', {
+            name: 'Fetch',
+        })
+        const isAlreadyConnected = await fetchButton
             .isVisible({ timeout: 2_000 })
             .catch(() => false)
 
@@ -41,16 +46,12 @@ test.describe('Disconnect Entity (Urbanitae)', () => {
                 .waitFor({ timeout: 15_000 })
         }
 
-        // Verify entity is in Connected section
-        await expect(page.getByText('Connected').first()).toBeVisible({
+        // Verify the entity exposes its connected-state action
+        await expect(fetchButton).toBeVisible({
             timeout: 5_000,
         })
 
         // Click the disconnect button (red Unplug icon) on Urbanitae card
-        const urbanitaeCard = page
-            .locator('h3', { hasText: 'Urbanitae' })
-            .first()
-            .locator('../..')
         const disconnectButton = urbanitaeCard.locator(
             'button.text-red-600, button.text-red-500',
         )

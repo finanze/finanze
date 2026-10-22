@@ -3,15 +3,21 @@ import { useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   AlertTriangle,
+  Bitcoin,
+  BrainCircuit,
+  ChartNoAxesCombined,
   Check,
   ChevronDown,
   ChevronUp,
   Clipboard,
+  Database,
   Info,
+  Landmark,
   Link2,
   Link2Off,
   Server,
   Upload,
+  type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
@@ -47,8 +53,8 @@ import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import {
   LocalModelsIntegration,
   type IntegrationFieldOptions,
-} from "./LocalModelsIntegration"
-import { AIServerDetailsDialog } from "./AIServerDetailsDialog"
+} from "@/components/settings/LocalModelsIntegration"
+import { AIServerDetailsDialog } from "@/components/settings/AIServerDetailsDialog"
 
 const LOCAL_MODELS_ID = "LOCAL_MODELS"
 const SERVER_DETAILS_INTEGRATIONS = new Set(["OPENAI_COMPATIBLE"])
@@ -76,6 +82,15 @@ const INTEGRATION_CATEGORY_ORDER: ExternalIntegrationType[] = [
   ExternalIntegrationType.AI_PROVIDER,
   ExternalIntegrationType.DATA_SOURCE,
 ]
+
+const INTEGRATION_CATEGORY_ICONS: Record<ExternalIntegrationType, LucideIcon> =
+  {
+    [ExternalIntegrationType.ENTITY_PROVIDER]: Landmark,
+    [ExternalIntegrationType.CRYPTO_PROVIDER]: Bitcoin,
+    [ExternalIntegrationType.CRYPTO_MARKET_PROVIDER]: ChartNoAxesCombined,
+    [ExternalIntegrationType.AI_PROVIDER]: BrainCircuit,
+    [ExternalIntegrationType.DATA_SOURCE]: Database,
+  }
 
 type IntegrationHintPart =
   | { type: "text"; value: string }
@@ -269,7 +284,7 @@ function PrivateKeyField({
   )
 }
 
-export function IntegrationsTab() {
+export function ProvidersTab() {
   const { t } = useI18n()
   const [searchParams] = useSearchParams()
   const { showToast, externalIntegrations, fetchExternalIntegrations } =
@@ -1148,9 +1163,12 @@ export function IntegrationsTab() {
             return null
           }
 
+          const Icon = INTEGRATION_CATEGORY_ICONS[category]
+
           return (
             <div key={category} className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-300">
+                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {t.settings.integrationCategories[category]}
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">

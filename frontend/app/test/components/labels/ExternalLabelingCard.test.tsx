@@ -155,6 +155,19 @@ afterEach(() => {
 })
 
 describe("ExternalLabelingCard models", () => {
+  it("opens provider setup on the integrations providers tab", async () => {
+    getExternalLabelingModels.mockResolvedValue({ models: [] })
+    renderCard({ ...COMPATIBLE_PROVIDER, connected: false })
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: external.connectProvider }),
+    )
+
+    expect(navigate).toHaveBeenCalledWith(
+      "/entities?tab=providers&focus=OPENAI_COMPATIBLE",
+    )
+  })
+
   it("only lists installed models for local models", async () => {
     getExternalLabelingModels.mockResolvedValue({
       models: [
