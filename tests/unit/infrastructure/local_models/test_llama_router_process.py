@@ -257,6 +257,43 @@ class TestStaleCleanup:
         assert (models_dir / PID_FILE).read_text() == "4242"
         await process.stop()
 
+    @pytest.mark.asyncio
+    async def test_cleanup_without_start(
+        self, executable, tmp_path, killed, monkeypatch
+    ):
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+        (models_dir / PID_FILE).write_text("999")
+        process_name = executable.name
+        if sys.platform.startswith("linux"):
+            process_name = process_name[: llama_router_process.LINUX_COMM_LENGTH]
+        monkeypatch.setattr(
+            llama_router_process, "_process_name", lambda pid: process_name
+        )
+        spawner = FakeSpawner()
+        process = _process(executable, tmp_path, spawner=spawner)
+
+        await process.cleanup_stale()
+
+        assert killed == [(999, True)]
+        assert not (models_dir / PID_FILE).exists()
+        assert spawner.calls == []
+
+    @pytest.mark.asyncio
+    async def test_cleanup_unavailable(self, tmp_path, killed, monkeypatch):
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+        (models_dir / PID_FILE).write_text("999")
+        monkeypatch.setattr(
+            llama_router_process, "_process_name", lambda pid: "finanze-llama-server"
+        )
+        process = _process(None, tmp_path)
+
+        await process.cleanup_stale()
+
+        assert killed == []
+        assert (models_dir / PID_FILE).read_text() == "999"
+
 
 class TestStop:
     @pytest.mark.asyncio

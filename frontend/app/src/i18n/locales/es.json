@@ -4103,6 +4103,7 @@
     "dataDirPlaceholder": "Ubicación por defecto",
     "logDir": "Directorio de logs",
     "logDirPlaceholder": "Ubicación por defecto",
+    "openFolder": "Abrir carpeta",
     "logLevel": "Nivel de log en consola",
     "logFileLevel": "Nivel de log en archivo",
     "inheritLogLevel": "Igual que el nivel de log",

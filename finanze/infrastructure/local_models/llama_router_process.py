@@ -165,6 +165,10 @@ class LlamaRouterProcess:
         async with self._lock:
             await self._stop_locked()
 
+    async def cleanup_stale(self):
+        if self.available:
+            await asyncio.to_thread(self._cleanup_stale)
+
     def _alive(self) -> bool:
         return self._process is not None and self._process.poll() is None
 

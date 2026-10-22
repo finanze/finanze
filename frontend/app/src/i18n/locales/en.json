@@ -4090,6 +4090,7 @@
     "dataDirPlaceholder": "Default location",
     "logDir": "Log directory",
     "logDirPlaceholder": "Default location",
+    "openFolder": "Open folder",
     "logLevel": "Console log level",
     "logFileLevel": "File log level",
     "inheritLogLevel": "Same as console log level",

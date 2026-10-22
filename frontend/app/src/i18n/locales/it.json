@@ -4085,6 +4085,7 @@
     "dataDirPlaceholder": "Posizione predefinita",
     "logDir": "Directory log",
     "logDirPlaceholder": "Posizione predefinita",
+    "openFolder": "Apri cartella",
     "logLevel": "Livello di log in console",
     "logFileLevel": "Livello di log su file",
     "inheritLogLevel": "Uguale al livello di log della console",

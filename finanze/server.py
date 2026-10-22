@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
+import signal
 import socket
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -390,6 +391,14 @@ from infrastructure.telemetry.noop_error_reporter import NoopErrorReporter
 from infrastructure.telemetry.sentry_error_reporter import SentryErrorReporter
 from infrastructure.user_files.user_data_manager import UserDataManager
 
+GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 5
+
+
+async def serve(server: uvicorn.Server):
+    # uvicorn re-raises SIGTERM after shutting down, which would skip our cleanup
+    signal.signal(signal.SIGTERM, lambda *_: None)
+    await server.serve()
+
 
 class FinanzeServer:
     def __init__(self, args: argparse.Namespace):
@@ -469,8 +478,12 @@ class FinanzeServer:
         polymarket_fetcher = PolymarketFetcher()
         models_dir = args.data_dir / Path("models")
         llama_router = LlamaRouterClient()
+        llama_process = LlamaRouterProcess(
+            args.llama_server_path, models_dir, llama_router
+        )
+        await llama_process.cleanup_stale()
         local_model_runtime = LocalModelRuntimeAdapter(
-            LlamaRouterProcess(args.llama_server_path, models_dir, llama_router),
+            llama_process,
             os.getenv("FINANZE_LLAMA_SERVER_URL"),
             os.getenv("FINANZE_LLAMA_SERVER_API_KEY"),
         )
@@ -1505,6 +1518,7 @@ class FinanzeServer:
             log_config=None,
             log_level=None,
             access_log=True,
+            timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
         )
         server = uvicorn.Server(config)
 
@@ -1512,7 +1526,7 @@ class FinanzeServer:
             async with AsyncExitStack() as stack:
                 for mcp_server in self._mcp_servers:
                     await stack.enter_async_context(mcp_server.session_manager.run())
-                await server.serve()
+                await serve(server)
         except OSError as e:
             self._log.error(f"Could not start server on port {self._args.port}: {e}")
             if e.errno == 48:
