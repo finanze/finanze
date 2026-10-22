@@ -112,8 +112,17 @@ import type {
   RelabelRequest,
   RelabelResult,
   ExternalLabelingProviders,
+  ExternalLabelingModels,
 } from "../types/labeling"
-import type { AIModelValidation, AITask } from "../types/ai"
+import type {
+  AIModelValidation,
+  AIServerInfo,
+  AITask,
+  DownloadLocalModelRequest,
+  HuggingFaceQuants,
+  ImportedLocalModel,
+  LocalModelsOverview,
+} from "../types/ai"
 import type {
   CashflowQuery,
   CashflowSummary,
@@ -482,6 +491,48 @@ export async function getExternalLabelingProviders(): Promise<ExternalLabelingPr
   return (await getApiClient()).get("/labeling/external/providers")
 }
 
+export async function getExternalLabelingModels(
+  providerId: string,
+): Promise<ExternalLabelingModels> {
+  return (await getApiClient()).get(
+    `/labeling/external/providers/${encodeURIComponent(providerId)}/models`,
+  )
+}
+
+export async function getLocalModels(
+  refresh = false,
+): Promise<LocalModelsOverview> {
+  return (await getApiClient()).get(
+    refresh ? "/ai/local/models?refresh=1" : "/ai/local/models",
+  )
+}
+
+export async function downloadLocalModel(
+  request: DownloadLocalModelRequest,
+): Promise<void> {
+  return (await getApiClient()).post("/ai/local/models/download", request)
+}
+
+export async function deleteLocalModel(modelId: string): Promise<void> {
+  return (await getApiClient()).delete(
+    `/ai/local/models?model_id=${encodeURIComponent(modelId)}`,
+  )
+}
+
+export async function importLocalModel(
+  path: string,
+): Promise<ImportedLocalModel> {
+  return (await getApiClient()).post("/ai/local/models/import", { path })
+}
+
+export async function getHuggingFaceQuants(
+  repo: string,
+): Promise<HuggingFaceQuants> {
+  return (await getApiClient()).get(
+    `/ai/local/huggingface/quants?repo=${encodeURIComponent(repo)}`,
+  )
+}
+
 export async function validateAIModel(
   provider: string,
   model: string,
@@ -494,6 +545,12 @@ export async function validateAIModel(
     task,
     upstream_provider: upstreamProvider || null,
   })
+}
+
+export async function getAIServerInfo(provider: string): Promise<AIServerInfo> {
+  return (await getApiClient()).get(
+    `/ai/providers/${encodeURIComponent(provider)}/server`,
+  )
 }
 
 export async function getCashflowSummary(

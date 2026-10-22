@@ -23,3 +23,14 @@ class ExternalTxLabelingProvider(metaclass=abc.ABCMeta):
 
     def supports_upstream_providers(self) -> bool:
         return False
+
+    def custom_models(self) -> bool:
+        return True
+
+    def dynamic_models(self) -> bool:
+        return False
+
+    async def list_models(
+        self, credentials: ExternalIntegrationPayload
+    ) -> list[ExternalLabelingModel]:
+        return []

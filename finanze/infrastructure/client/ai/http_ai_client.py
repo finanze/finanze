@@ -55,6 +55,9 @@ class HttpAIClient(AIClient):
             headers["Authorization"] = f"Bearer {api_key}"
         return headers
 
+    def _base_url(self, credentials: Optional[ExternalIntegrationPayload]) -> str:
+        return self.BASE_URL
+
     async def _should_retry(self, response: HttpResponse) -> bool:
         return response.status in self.RETRYABLE_STATUSES
 
@@ -65,13 +68,14 @@ class HttpAIClient(AIClient):
         credentials: Optional[ExternalIntegrationPayload],
         **kwargs,
     ) -> HttpResponse:
+        kwargs.setdefault("timeout", self.REQUEST_TIMEOUT_SECONDS)
+        url = f"{self._base_url(credentials)}{path}"
         attempt = 0
         while True:
             response = await self._session.request(
                 method,
-                f"{self.BASE_URL}{path}",
+                url,
                 headers=self._headers(credentials),
-                timeout=self.REQUEST_TIMEOUT_SECONDS,
                 **kwargs,
             )
             if attempt >= self.MAX_RETRIES or not await self._should_retry(response):

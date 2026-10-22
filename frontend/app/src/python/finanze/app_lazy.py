@@ -130,10 +130,16 @@ class LazyComponents:
         )
         from infrastructure.client.interests.ecb_client import ECBClient
         from infrastructure.client.ai.openai.openai_client import OpenAIClient
+        from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
+            OpenAICompatibleClient,
+        )
         from infrastructure.client.ai.openrouter.openrouter_client import (
             OpenRouterClient,
         )
-        from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
+        from infrastructure.labeling.ai_labeling_presets import (
+            LABELING_BATCH_SIZES,
+            LABELING_PRESETS,
+        )
         from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
         from infrastructure.labeling.transaction_labeler_adapter import (
             TransactionLabelerAdapter,
@@ -182,7 +188,11 @@ class LazyComponents:
         from application.use_cases.get_external_labeling_providers import (
             GetExternalLabelingProvidersImpl,
         )
+        from application.use_cases.get_external_labeling_models import (
+            GetExternalLabelingModelsImpl,
+        )
         from application.use_cases.validate_ai_model import ValidateAIModelImpl
+        from application.use_cases.get_ai_server_info import GetAIServerInfoImpl
         from application.use_cases.ignore_recurring_movement import (
             IgnoreRecurringMovementImpl,
         )
@@ -367,6 +377,7 @@ class LazyComponents:
         ai_clients = {
             ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
             ExternalIntegrationId.OPENAI: OpenAIClient(),
+            ExternalIntegrationId.OPENAI_COMPATIBLE: OpenAICompatibleClient(),
         }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: True,
@@ -374,7 +385,11 @@ class LazyComponents:
             **ai_clients,
         }
         external_labeling_providers = {
-            integration_id: AILabelingProvider(client, LABELING_PRESETS[integration_id])
+            integration_id: AILabelingProvider(
+                client,
+                LABELING_PRESETS.get(integration_id, []),
+                LABELING_BATCH_SIZES.get(integration_id),
+            )
             for integration_id, client in ai_clients.items()
         }
         if INCLUDE_CONNECTIONS:
@@ -607,7 +622,9 @@ class LazyComponents:
         self.conn_integration = ConnectExternalIntegrationImpl(
             d.ext_int_repo, external_integrations
         )
-        self.disconn_integration = DisconnectExternalIntegrationImpl(d.ext_int_repo)
+        self.disconn_integration = DisconnectExternalIntegrationImpl(
+            d.ext_int_repo, external_integrations
+        )
 
         self.save_periodic = SavePeriodicFlowImpl(d.period_repo, label_repo)
         self.up_periodic = UpdatePeriodicFlowImpl(d.period_repo, label_repo)
@@ -790,7 +807,11 @@ class LazyComponents:
         self.get_external_labeling_providers = GetExternalLabelingProvidersImpl(
             d.ext_int_repo, external_labeling_providers
         )
+        self.get_external_labeling_models = GetExternalLabelingModelsImpl(
+            d.ext_int_repo, external_labeling_providers
+        )
         self.validate_ai_model = ValidateAIModelImpl(d.ext_int_repo, ai_clients)
+        self.get_ai_server_info = GetAIServerInfoImpl(d.ext_int_repo, ai_clients)
         self.ignore_recurring_movement = IgnoreRecurringMovementImpl(
             ignored_recurring_repo
         )

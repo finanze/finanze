@@ -93,6 +93,11 @@ class FakeAIClient(AIClient):
     async def get_model_providers(self, model_id, credentials):
         return self.providers
 
+    async def list_models(self, credentials):
+        if self.error:
+            raise self.error
+        return list(self.models.values())
+
     async def generate(self, request, credentials):
         self.generate_requests.append(request)
         if self.error:
@@ -168,6 +173,12 @@ class TestRecommendedModels:
         assert not _provider(
             FakeAIClient(features={AIClientFeature.GENERATION})
         ).supports_upstream_providers()
+
+    def test_custom_models_depend_on_client_features(self):
+        assert not _provider(FakeAIClient()).custom_models()
+        assert _provider(
+            FakeAIClient(features={AIClientFeature.CUSTOM_MODELS})
+        ).custom_models()
 
 
 class TestLabel:
@@ -342,3 +353,52 @@ class TestLabel:
         sent = client.generate_requests[0]
         assert sent.temperature is None
         assert sent.reasoning_effort == AIReasoningEffort.NONE
+
+    @pytest.mark.asyncio
+    async def test_custom_batch_size(self):
+        client = FakeAIClient(models={"gen": GENERATION_MODEL})
+        provider = AILabelingProvider(client, [], batch_size=10)
+        await provider.label(_request("gen", 21), CREDENTIALS)
+        assert len(client.generate_requests) == 3
+
+
+class TestDynamicModels:
+    def test_depends_on_model_listing_feature(self):
+        assert not _provider(FakeAIClient()).dynamic_models()
+        assert _provider(
+            FakeAIClient(features={AIClientFeature.MODEL_LISTING})
+        ).dynamic_models()
+
+    @pytest.mark.asyncio
+    async def test_lists_client_models(self):
+        client = FakeAIClient(
+            models={
+                "gen": AIModel(
+                    id="gen",
+                    name="Gen",
+                    capabilities={AIModelCapability.STRUCTURED_OUTPUT},
+                    size=100,
+                    loaded=True,
+                ),
+                "dec": DECISIONS_MODEL,
+                "bad": AIModel(id="bad", name="Bad", load_failed=True),
+            }
+        )
+        models = await _provider(client).list_models(CREDENTIALS)
+        assert models == [
+            ExternalLabelingModel(
+                id="gen", name="Gen", probabilistic=False, size=100, loaded=True
+            ),
+            ExternalLabelingModel(id="dec", name="Dec", probabilistic=True),
+            ExternalLabelingModel(
+                id="bad", name="Bad", probabilistic=False, load_failed=True
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_listing_error_raises_unavailable(self):
+        client = FakeAIClient(
+            error=AIProviderError(AIProviderErrorCode.UNAVAILABLE, "Down")
+        )
+        with pytest.raises(ExternalLabelingUnavailable):
+            await _provider(client).list_models(CREDENTIALS)

@@ -306,6 +306,10 @@ export function AdvancedSettingsForm({
   }
 
   const usingRemoteServer = Boolean(config.serverUrl?.trim())
+  const dataDirectory = config.backend?.dataDir
+  const logDirectory = config.backend?.logDir
+  const canOpenDirectories =
+    !usingRemoteServer && Boolean(window.ipcAPI?.showItemInFolder)
   const logFileLevelValue =
     config.backend?.logFileLevel ?? LOG_FILE_LEVEL_INHERIT
 
@@ -417,6 +421,21 @@ export function AdvancedSettingsForm({
                   t.advancedSettings.dataDirPlaceholder}
               </span>
             </button>
+            {canOpenDirectories && dataDirectory && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                aria-label={`${t.advancedSettings.openFolder}: ${t.advancedSettings.dataDir}`}
+                title={`${t.advancedSettings.openFolder}: ${t.advancedSettings.dataDir}`}
+                onClick={() =>
+                  void window.ipcAPI?.showItemInFolder?.(dataDirectory)
+                }
+              >
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -442,6 +461,21 @@ export function AdvancedSettingsForm({
                 {config.backend?.logDir || t.advancedSettings.logDirPlaceholder}
               </span>
             </button>
+            {canOpenDirectories && logDirectory && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                aria-label={`${t.advancedSettings.openFolder}: ${t.advancedSettings.logDir}`}
+                title={`${t.advancedSettings.openFolder}: ${t.advancedSettings.logDir}`}
+                onClick={() =>
+                  void window.ipcAPI?.showItemInFolder?.(logDirectory)
+                }
+              >
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 

@@ -620,11 +620,25 @@ def setup_lazy_routes(router: "Router", lazy: "LazyComponents") -> None:
             lz.get_external_labeling_providers,
         ),
         (
+            "GET",
+            "/api/v1/labeling/external/providers/<provider_id>/models",
+            "get_external_labeling_models",
+            "get_external_labeling_models",
+            lz.get_external_labeling_models,
+        ),
+        (
             "POST",
             "/api/v1/ai/models/validate",
             "validate_ai_model",
             "validate_ai_model",
             lz.validate_ai_model,
+        ),
+        (
+            "GET",
+            "/api/v1/ai/providers/<provider_id>/server",
+            "get_ai_server_info",
+            "get_ai_server_info",
+            lz.get_ai_server_info,
         ),
         (
             "PUT",

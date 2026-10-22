@@ -97,6 +97,7 @@ class TestOpenRouterClientFeatures:
             AIClientFeature.GENERATION,
             AIClientFeature.DECISIONS,
             AIClientFeature.UPSTREAM_PROVIDERS,
+            AIClientFeature.CUSTOM_MODELS,
         }
 
 

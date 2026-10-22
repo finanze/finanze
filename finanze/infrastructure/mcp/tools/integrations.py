@@ -19,6 +19,8 @@ ManageableIntegration = Literal[
     "CRYPTOCOMPARE",
     "OPENROUTER",
     "OPENAI",
+    "OPENAI_COMPATIBLE",
+    "LOCAL_MODELS",
 ]
 
 
@@ -34,7 +36,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         payload: Annotated[
             dict[str, str],
             Field(
-                description='Fields required by the integration (see payload_schema in list_integrations), e.g. {"api_key": "..."}.'
+                description='Fields required by the integration (see payload_schema in list_integrations, fields in optional_fields can be omitted), e.g. {"api_key": "..."}.'
             ),
         ],
     ):

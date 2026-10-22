@@ -12,6 +12,8 @@ from infrastructure.controller.request_wrapper import RequestWrapper
 from quart import Response, set_request
 
 from domain.exception.exceptions import (
+    INTEGRATION_SETUP_BAD_REQUEST_CODES,
+    INTEGRATION_SETUP_UNAUTHORIZED_CODES,
     EntityNotFound,
     TransactionNotFound,
     LabelNotFound,
@@ -200,15 +202,14 @@ async def handle_request(router, method, path, body, headers):
             status = 404
             data = {"code": "INTEGRATION_NOT_FOUND", "message": str(e)}
         elif isinstance(e, IntegrationSetupError):
-            status = (
-                401
-                if e.code
-                in (
-                    IntegrationSetupErrorCode.INVALID_CREDENTIALS,
-                    IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
-                )
-                else 500
-            )
+            if e.code in INTEGRATION_SETUP_UNAUTHORIZED_CODES:
+                status = 401
+            elif e.code in INTEGRATION_SETUP_BAD_REQUEST_CODES:
+                status = 400
+            elif e.code == IntegrationSetupErrorCode.UNREACHABLE:
+                status = 502
+            else:
+                status = 500
             data = {"code": e.code.value}
         elif isinstance(e, ExternalIntegrationRequired):
             status = 409

@@ -1223,13 +1223,15 @@ export function ManualTransactionDialog({
   const { settings, externalIntegrations, fetchExternalIntegrations } =
     useAppContext()
   const externalSettings = settings.labeling?.external
-  const externalEnabled = Boolean(externalSettings?.enabled)
   const externalAutoRun = Boolean(externalSettings?.autoRun)
   const externalProvider = externalSettings?.provider ?? ""
-  const externalProviderName =
-    externalIntegrations.find(
-      integration => integration.id === externalProvider,
-    )?.name ?? externalProvider
+  const externalIntegration = externalIntegrations.find(
+    integration => integration.id === externalProvider,
+  )
+  const externalEnabled =
+    Boolean(externalSettings?.enabled) &&
+    externalIntegration?.available !== false
+  const externalProviderName = externalIntegration?.name ?? externalProvider
   const [formState, setFormState] = useState<ManualTransactionFormState>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
     const productType = SUPPORTED_PRODUCT_TYPES[0]

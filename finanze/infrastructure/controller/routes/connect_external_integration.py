@@ -20,8 +20,8 @@ async def connect_external_integration(
             400,
         )
 
-    payload = body.get("payload")
-    if not payload:
+    payload = (body or {}).get("payload")
+    if not isinstance(payload, dict):
         return jsonify({"message": "Error: missing payload"}), 400
 
     req = ConnectedExternalIntegrationRequest(external_integration_id, payload)

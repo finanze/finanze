@@ -530,6 +530,10 @@
     "INVALID_CODE": "Invalid code provided",
     "INVALID_CREDENTIALS": "Invalid credentials for {entity}",
     "INVALID_PRIVATE_KEY": "The provided private key for {integration} is invalid.",
+    "INVALID_URL": "The URL for {integration} is not valid.",
+    "UNREACHABLE": "Could not reach {integration}. Check that the server is running and the URL is correct.",
+    "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom endpoint, or start llama-server without -m to manage models from Finanze.",
+    "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -1288,12 +1292,166 @@
             }
           ]
         }
+      },
+      "OPENAI_COMPATIBLE": {
+        "description": "Connect any OpenAI-compatible server, such as Ollama, LM Studio, vLLM or llama.cpp, to label your movements with models you host yourself.",
+        "help": "How to connect",
+        "hint": {
+          "title": "Connect an OpenAI-compatible server",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Enter the base URL of the server API, for example http://localhost:11434/v1 for Ollama or http://localhost:1234/v1 for LM Studio. The API key is only needed if your server requires one."
+            }
+          ]
+        }
+      },
+      "LOCAL_MODELS": {
+        "description": "Run small AI models privately, on this device or on your own llama.cpp server. Download them from here and use them to label your movements.",
+        "help": "How it works",
+        "hint": {
+          "title": "Local models",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Models run with "
+            },
+            {
+              "type": "link",
+              "label": "llama.cpp",
+              "url": "https://github.com/ggml-org/llama.cpp"
+            },
+            {
+              "type": "text",
+              "value": ". To use your own server, start llama-server in router mode (without -m) and enter its URL and API key. Ollama, LM Studio or a single-model llama-server go in Custom endpoint."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
+    "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",
+    "localModels": {
+      "builtInMode": "Built-in engine",
+      "serverMode": "My llama.cpp server",
+      "builtInNotice": "Models run on this device with the built-in engine. It only starts when needed and stops after a while without use.",
+      "serverNotice": "Enter the URL of a llama.cpp server started in router mode (without -m). Ollama, LM Studio or a single-model llama-server go in Custom endpoint.",
+      "envUrlNotice": "The server environment already sets FINANZE_LLAMA_SERVER_URL = {url}{key}. Leave the fields blank to use it, values entered here override it.",
+      "envKeySuffix": " and an API key",
+      "precedence": "Priority: entered values, then environment, then built-in engine.",
+      "overridesEnvironment": "optional, overrides environment",
+      "envKeyPlaceholder": "Set by environment",
+      "using": {
+        "BUILT_IN": "Using the built-in engine",
+        "ENVIRONMENT": "Using the server from the environment ({url})",
+        "PAYLOAD": "Using {url}"
+      },
+      "unreachable": "Not available",
+      "manage": "Manage models",
+      "dialogTitle": "Local models",
+      "moreModels": "+{count} more",
+      "models": "Models",
+      "noModels": "No models yet. Download a recommended one or any GGUF model from Hugging Face.",
+      "externalHint": "Models in your server's models folder are also listed here. After adding files there, press Refresh.",
+      "import": "Import GGUF",
+      "importTitle": "Select a GGUF model file",
+      "importSuccess": "{model} imported",
+      "importHint": "Imported files are used from where they are, they are not copied. You can also drop GGUF files in the models folder and press Refresh.",
+      "openFolder": "Open folder",
+      "recommended": "Recommended",
+      "params": "{params} parameters",
+      "downloadSize": "{size} download",
+      "ram": "~{ram} RAM",
+      "ramWarning": "May not fit in this device's memory",
+      "languages": "Languages: {languages}",
+      "downloadStarted": "Downloading {model}",
+      "cancelDownload": "Cancel download",
+      "downloadFailed": "The download of {model} failed or was interrupted.",
+      "deleteTitle": "Delete model",
+      "deleteMessage": "{model} will be removed. You can download it again later.",
+      "deleteImportedMessage": "{model} will be removed from Finanze. The original file is kept.",
+      "deleted": "{model} deleted",
+      "huggingFace": "More models from Hugging Face",
+      "huggingFaceHint": "Enter a Hugging Face repository with GGUF files, for example unsloth/Qwen3.5-4B-GGUF. Small models (under 4B parameters) work best on most devices.",
+      "repoPlaceholder": "owner/repository",
+      "find": "Find",
+      "variant": "Variant",
+      "noQuants": "No compatible GGUF files found in this repository.",
+      "invalidRepo": "Enter the repository as owner/name.",
+      "unverifiedModel": "Could not check if this model is compatible. If it fails to start, delete it and try another one.",
+      "failedHint": "It could not be started. The engine may not support it or it may need more memory than available.",
+      "failedLogHint": "Details are in llama-server.log inside the models folder.",
+      "decisions": "Decision model",
+      "states": {
+        "UNLOADED": "Ready",
+        "LOADING": "Loading",
+        "LOADED": "Loaded",
+        "SLEEPING": "Idle",
+        "DOWNLOADING": "Downloading",
+        "FAILED": "Failed to start",
+        "MISSING": "File not found"
+      },
+      "sources": {
+        "CATALOG": "Recommended",
+        "HUGGING_FACE": "Hugging Face",
+        "IMPORTED": "Imported",
+        "SERVER": "Server"
+      },
+      "errors": {
+        "MISSING_SERVER_URL": "Enter the URL of your llama.cpp server.",
+        "INVALID_URL": "The server URL is not valid.",
+        "UNREACHABLE": "Could not reach the server. Check that it is running and the URL is correct.",
+        "UNAUTHORIZED": "The server rejected the API key.",
+        "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom endpoint, or start llama-server without -m to manage models from here.",
+        "SERVER_ERROR": "The server returned an error.",
+        "RUNTIME_FAILED": "The built-in engine could not be started.",
+        "MODEL_NOT_FOUND": "The model was not found.",
+        "INVALID_MODEL": "The model is not valid.",
+        "DOWNLOAD_FAILED": "The model could not be downloaded.",
+        "NOT_DELETABLE": "This model is managed by the server and cannot be deleted from here.",
+        "INSUFFICIENT_SPACE": "Not enough free disk space for this model.",
+        "IMPORT_UNSUPPORTED": "Importing files is only available with the built-in engine.",
+        "INVALID_FILE": "The file is not a valid GGUF model.",
+        "HUGGING_FACE_UNAVAILABLE": "Could not get the repository from Hugging Face.",
+        "HUGGING_FACE_REPO_NOT_FOUND": "Could not find this Hugging Face repository. It may be private or gated.",
+        "UNSUPPORTED_MODEL": "This is an encoder or embedding model, it can't label movements. Choose a chat or decision model."
+      }
+    },
+    "aiServer": {
+      "button": "Server details",
+      "title": "Server details",
+      "refresh": "Refresh",
+      "status": "Status",
+      "connected": "Connected",
+      "respondedWithError": "Responded with an error",
+      "unreachable": "Not reachable",
+      "latency": "{ms} ms",
+      "server": "Server",
+      "unknownServer": "OpenAI-compatible server",
+      "endpoint": "Endpoint",
+      "apiKey": "API key",
+      "apiKeySet": "Sent with each request",
+      "apiKeyNotSet": "Not set",
+      "models": "Models",
+      "modelCount": "{count} available",
+      "loadedCount": "{count} loaded",
+      "loaded": "Loaded",
+      "notLoaded": "Not loaded",
+      "context": "{context} context",
+      "decisions": "Decision model",
+      "noModels": "The server does not list any models.",
+      "unknownHint": "Version, loaded models and context size are shown for Ollama, LM Studio, llama.cpp and vLLM.",
+      "errors": {
+        "UNREACHABLE": "Could not connect. Check that the server is running, the URL is correct and it accepts connections from this device.",
+        "UNAUTHORIZED": "The server rejected the API key.",
+        "NOT_FOUND": "There is no model list at this URL. Check the path, it usually ends in /v1.",
+        "SERVER_ERROR": "The server returned an error when listing its models.",
+        "INVALID_RESPONSE": "The server answered, but not with an OpenAI-compatible model list."
+      }
+    },
     "integrationCategories": {
       "ENTITY_PROVIDER": "Banking providers",
       "CRYPTO_PROVIDER": "Crypto providers",
@@ -2151,14 +2309,19 @@
       "provider": "Provider",
       "connected": "Connected",
       "notConnected": "Not connected",
+      "unavailableHere": "Not available on this device",
+      "providerUnavailable": "{provider} is not available on this device, so suggestions are skipped here. They keep working on devices that support it. Choose another provider to also get suggestions here.",
       "connectProvider": "Configure it in integrations",
       "connectRequired": "Connect the provider or turn off external suggestions to save.",
       "model": "Model",
       "decisionModel": "Decision model",
       "customModel": "Other model",
+      "customModelHint": "Use any other model ID offered by {provider}.",
+      "customModelUnlistedHint": "For a model your server can run but does not list above, for example one behind a proxy or an alias.",
       "customModelPlaceholder": "openai/gpt-6-luna",
       "customModelPlaceholders": {
-        "OPENAI": "gpt-6.1-sol"
+        "OPENAI": "gpt-6.1-sol",
+        "OPENAI_COMPATIBLE": "qwen3.5:9b"
       },
       "customModelNotice": "Some models can be slow and expensive when categorizing many movements. Faster and cheaper models are recommended.",
       "validate": "Validate",
@@ -2182,7 +2345,18 @@
       "instructionsHint": "For advanced users. Extra guidance added to what is sent to the model, for example how to label specific payees.",
       "instructionsPlaceholder": "e.g. Transfers from Ana are rent. Padel club payments are leisure.",
       "privacyNotice": "Movement names, counterparties, amounts, currencies and dates are sent to the provider. Account numbers and balances are never shared.",
-      "providerAndModelRequired": "Choose a provider and a model"
+      "providerAndModelRequired": "Choose a provider and a model",
+      "loadingModels": "Loading models...",
+      "noModelsAvailable": "No models available yet.",
+      "searchModels": "Search models",
+      "noModelsMatch": "No models match your search.",
+      "modelsError": "Could not load the models from the provider.",
+      "modelUnavailable": "The selected model ({model}) is no longer available. Choose another one.",
+      "manageModels": "Manage models",
+      "modelLoaded": "Loaded",
+      "modelFailed": "Failed to start",
+      "modelLoadFailed": "{model} failed to start the last time it was used. It may not be supported or need more memory. Choose another model or check Manage models.",
+      "smallModelWarning": "Small models may not handle this many labels well and can suggest the wrong ones. Larger models give better results."
     }
   },
   "cashflow": {
@@ -3916,6 +4090,7 @@
     "dataDirPlaceholder": "Default location",
     "logDir": "Log directory",
     "logDirPlaceholder": "Default location",
+    "openFolder": "Open folder",
     "logLevel": "Console log level",
     "logFileLevel": "File log level",
     "inheritLogLevel": "Same as console log level",

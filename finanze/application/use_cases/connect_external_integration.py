@@ -8,6 +8,7 @@ from domain.exception.exceptions import (
     IntegrationSetupErrorCode,
 )
 from domain.external_integration import (
+    EXTERNAL_INTEGRATION_OPTIONAL_FIELDS,
     EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS,
     ConnectedExternalIntegrationRequest,
     ExternalIntegrationId,
@@ -31,11 +32,18 @@ class ConnectExternalIntegrationImpl(ConnectExternalIntegration):
         if integration is None:
             raise IntegrationNotFound()
 
-        payload = request.payload
         payload_schema = EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS[request.integration_id]
+        optional_fields = EXTERNAL_INTEGRATION_OPTIONAL_FIELDS.get(
+            request.integration_id, set()
+        )
+        payload = {
+            key: value
+            for key, value in request.payload.items()
+            if key not in optional_fields or (isinstance(value, str) and value.strip())
+        }
 
-        for key, value in payload_schema.items():
-            if key not in payload:
+        for key in payload_schema:
+            if key not in optional_fields and key not in payload:
                 raise IntegrationSetupError(
                     IntegrationSetupErrorCode.INVALID_CREDENTIALS
                 )

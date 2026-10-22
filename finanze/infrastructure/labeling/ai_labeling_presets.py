@@ -34,4 +34,11 @@ LABELING_PRESETS: dict[ExternalIntegrationId, list[AILabelingPreset]] = {
             reasoning_effort=AIReasoningEffort.NONE,
         ),
     ],
+    ExternalIntegrationId.OPENAI_COMPATIBLE: [],
+    ExternalIntegrationId.LOCAL_MODELS: [],
+}
+
+LABELING_BATCH_SIZES: dict[ExternalIntegrationId, int] = {
+    ExternalIntegrationId.OPENAI_COMPATIBLE: 10,
+    ExternalIntegrationId.LOCAL_MODELS: 10,
 }

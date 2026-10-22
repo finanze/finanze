@@ -221,6 +221,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_4_settings import (
 from infrastructure.repository.db.versions.v0.v11.v0110_5_mcp_config import (
     V01105McpConfig,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_6_local_ai_integrations import (
+    V01106LocalAIIntegrations,
+)
 
 versions = [
     V0Genesis(),
@@ -308,4 +311,5 @@ versions = [
     V01103PeriodicFlowBudgetLabel(),
     V01104Settings(),
     V01105McpConfig(),
+    V01106LocalAIIntegrations(),
 ]

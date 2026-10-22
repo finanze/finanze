@@ -28,6 +28,8 @@ class ExternalIntegrationId(str, Enum):
     CRYPTOCOMPARE = "CRYPTOCOMPARE"
     OPENROUTER = "OPENROUTER"
     OPENAI = "OPENAI"
+    OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE"
+    LOCAL_MODELS = "LOCAL_MODELS"
 
 
 @dataclass
@@ -38,6 +40,7 @@ class ExternalIntegration:
     status: ExternalIntegrationStatus
     available: bool = True
     payload_schema: dict[str, str] | None = None
+    optional_fields: list[str] | None = None
 
 
 @dataclass
@@ -90,4 +93,17 @@ EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
     ExternalIntegrationId.OPENAI: {
         "api_key": "API Key",
     },
+    ExternalIntegrationId.OPENAI_COMPATIBLE: {
+        "base_url": "Base URL",
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.LOCAL_MODELS: {
+        "server_url": "Server URL",
+        "api_key": "API Key",
+    },
+}
+
+EXTERNAL_INTEGRATION_OPTIONAL_FIELDS: dict[ExternalIntegrationId, set[str]] = {
+    ExternalIntegrationId.OPENAI_COMPATIBLE: {"api_key"},
+    ExternalIntegrationId.LOCAL_MODELS: {"server_url", "api_key"},
 }

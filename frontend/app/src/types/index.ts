@@ -694,6 +694,11 @@ declare global {
       restartBackend: () => Promise<BackendActionResult>
       getBackendStatus: () => Promise<BackendStatus>
       selectDirectory: (initialPath?: string) => Promise<string | null>
+      selectFile?: (options?: {
+        title?: string
+        extensions?: string[]
+      }) => Promise<string | null>
+      showItemInFolder?: (path: string) => Promise<void>
       onBackendStatusChange: (
         callback: (status: BackendStatus) => void,
       ) => () => void
@@ -801,6 +806,7 @@ export interface ExternalIntegration {
   type: ExternalIntegrationType
   available: boolean
   payload_schema?: Record<string, string> | null
+  optional_fields?: string[] | null
 }
 
 export interface ExternalIntegrations {

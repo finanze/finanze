@@ -10,6 +10,7 @@ from domain.ai import (
     AIGenerationRequest,
     AIModel,
     AIModelProvider,
+    AIServerInfo,
 )
 from domain.exception.exceptions import AIProviderError, AIProviderErrorCode
 from domain.external_integration import ExternalIntegrationPayload
@@ -39,9 +40,23 @@ class AIClient(ConnectableIntegration, metaclass=abc.ABCMeta):
             AIProviderErrorCode.UNSUPPORTED_OPERATION, "Model providers not supported"
         )
 
+    async def list_models(
+        self, credentials: Optional[ExternalIntegrationPayload]
+    ) -> list[AIModel]:
+        raise AIProviderError(
+            AIProviderErrorCode.UNSUPPORTED_OPERATION, "Model listing not supported"
+        )
+
     async def decide(
         self, request: AIDecisionRequest, credentials: ExternalIntegrationPayload
     ) -> AIDecisionResult:
         raise AIProviderError(
             AIProviderErrorCode.UNSUPPORTED_OPERATION, "Decisions not supported"
+        )
+
+    async def get_server_info(
+        self, credentials: ExternalIntegrationPayload
+    ) -> AIServerInfo:
+        raise AIProviderError(
+            AIProviderErrorCode.UNSUPPORTED_OPERATION, "Server info not supported"
         )

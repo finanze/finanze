@@ -2,18 +2,24 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
 import { useNavigate } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
+  HardDrive,
   Info,
-  ShieldAlert,
+  PenLine,
+  Search,
+  Settings2,
+  Sparkles,
   XCircle,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
@@ -30,11 +36,18 @@ import {
 import { Switch } from "@/components/ui/Switch"
 import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { getExternalLabelingProviders, validateAIModel } from "@/services/api"
+import { LocalModelsManagerDialog } from "@/components/settings/LocalModelsDialog"
+import {
+  getExternalLabelingModels,
+  getExternalLabelingProviders,
+  validateAIModel,
+} from "@/services/api"
 import { cn } from "@/lib/utils"
+import { formatFileSize } from "@/utils/releaseUtils"
 import { AITask } from "@/types/ai"
 import { LabelOrigin } from "@/types/transactions"
 import type {
+  ExternalLabelingModel,
   ExternalLabelingProviderDetails,
   ExternalLabelingSettings,
 } from "@/types/labeling"
@@ -44,7 +57,10 @@ import {
 } from "./ExternalSuggestionsSurface"
 
 const CUSTOM_MODEL = "__custom__"
+const LOCAL_MODELS_PROVIDER = "LOCAL_MODELS"
 const MAX_INSTRUCTIONS_LENGTH = 2000
+const SMALL_MODEL_SIZE = 2_000_000_000
+const MODEL_SEARCH_THRESHOLD = 6
 const EXAMPLE_ORIGINS = [LabelOrigin.MANUAL, LabelOrigin.RULE]
 
 const SELECT_CLASS =
@@ -93,6 +109,44 @@ function ProviderLogo({ id, name }: { id: string; name: string }) {
   )
 }
 
+function RadioMark({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+        checked
+          ? "border-violet-500 bg-violet-500 text-white"
+          : "border-muted-foreground/40 bg-background",
+      )}
+    >
+      <Check
+        className={cn("h-2.5 w-2.5", !checked && "invisible")}
+        strokeWidth={3.5}
+      />
+    </span>
+  )
+}
+
+function ModelChip({
+  className,
+  children,
+}: {
+  className: string
+  children: ReactNode
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
 export function ExternalLabelingCard({ className }: { className?: string }) {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -115,6 +169,20 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
   const [providerOpen, setProviderOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dynamicModels, setDynamicModels] = useState<
+    ExternalLabelingModel[] | null
+  >(null)
+  const [dynamicModelsFailed, setDynamicModelsFailed] = useState(false)
+  const [modelsVersion, setModelsVersion] = useState(0)
+  const [modelQuery, setModelQuery] = useState("")
+  const [managerOpen, setManagerOpen] = useState(false)
+  const syncedModelRef = useRef<string | null>(null)
+
+  const refreshModels = useCallback(() => setModelsVersion(v => v + 1), [])
+  const closeManager = useCallback(() => {
+    setManagerOpen(false)
+    refreshModels()
+  }, [refreshModels])
 
   const stored = settings.labeling?.external
 
@@ -132,25 +200,69 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
   }, [stored])
 
   const provider = useMemo(
-    () => providers.find(p => p.id === draft?.provider) ?? providers[0],
+    () =>
+      draft?.provider
+        ? providers.find(p => p.id === draft.provider)
+        : providers[0],
     [providers, draft?.provider],
+  )
+  const providerUnavailable =
+    providers.length > 0 && !!draft?.provider && !provider
+
+  const dynamicProviderId =
+    provider?.dynamic_models && provider.connected ? provider.id : null
+
+  useEffect(() => {
+    setDynamicModels(null)
+    setDynamicModelsFailed(false)
+    setModelQuery("")
+  }, [dynamicProviderId])
+
+  useEffect(() => {
+    if (!dynamicProviderId) return
+    let cancelled = false
+    getExternalLabelingModels(dynamicProviderId)
+      .then(response => {
+        if (cancelled) return
+        setDynamicModels(response.models)
+        setDynamicModelsFailed(false)
+      })
+      .catch(err => {
+        console.error("Error loading provider models:", err)
+        if (!cancelled) setDynamicModelsFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dynamicProviderId, modelsVersion])
+
+  const modelOptions = useMemo(
+    () =>
+      dynamicProviderId
+        ? (dynamicModels ?? [])
+        : (provider?.recommended_models ?? []),
+    [dynamicProviderId, dynamicModels, provider],
   )
 
   useEffect(() => {
     if (!draft || !provider) return
     const model = draft.model ?? ""
-    const recommended = provider.recommended_models.some(m => m.id === model)
-    if (!model) {
-      setModelChoice(provider.recommended_models[0]?.id ?? CUSTOM_MODEL)
-      setCustomModel("")
-    } else if (recommended) {
-      setModelChoice(model)
-      setCustomModel("")
-    } else {
-      setModelChoice(CUSTOM_MODEL)
-      setCustomModel(model)
-    }
-  }, [provider, draft?.model])
+    const key = `${provider.id}:${model}`
+    const keepChoice = syncedModelRef.current === key
+    syncedModelRef.current = key
+    const isListed = (id: string) => modelOptions.some(m => m.id === id)
+    const choice = !model
+      ? (modelOptions[0]?.id ?? CUSTOM_MODEL)
+      : isListed(model)
+        ? model
+        : CUSTOM_MODEL
+    setModelChoice(current =>
+      keepChoice && current !== CUSTOM_MODEL && isListed(current)
+        ? current
+        : choice,
+    )
+    setCustomModel(choice === CUSTOM_MODEL ? model : "")
+  }, [provider, draft?.model, modelOptions])
 
   const providerName = useCallback(
     (providerId: string) =>
@@ -175,9 +287,11 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
 
   const nextSettings: ExternalLabelingSettings = {
     ...draft,
-    provider: provider?.id ?? draft.provider ?? null,
-    model: selectedModel || null,
-    upstreamProvider,
+    ...(provider && {
+      provider: provider.id,
+      model: selectedModel || null,
+      upstreamProvider,
+    }),
     instructions: draft.instructions?.trim() ? draft.instructions : null,
   }
   const dirty =
@@ -208,7 +322,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
 
   const handleSave = async () => {
     if (providerDisconnected) return
-    if (draft.enabled && (!provider || !selectedModel)) {
+    if (draft.enabled && (provider ? !selectedModel : !draft.provider)) {
       setError(t.labels.external.providerAndModelRequired)
       return
     }
@@ -217,15 +331,37 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
     setSaving(false)
   }
 
-  const recommendedModels = provider?.recommended_models ?? []
-  const selectedRecommended = recommendedModels.find(m => m.id === modelChoice)
+  const selectedRecommended = modelOptions.find(m => m.id === modelChoice)
+  const loadingDynamicModels =
+    !!dynamicProviderId && !dynamicModels && !dynamicModelsFailed
+  const modelUnavailable =
+    !!dynamicModels &&
+    !provider?.custom_models &&
+    !!stored.model &&
+    stored.provider === provider?.id &&
+    draft.model === stored.model &&
+    !dynamicModels.some(m => m.id === stored.model)
+  const selectedModelFailed = !!selectedRecommended?.load_failed
+  const smallModelSelected =
+    !!selectedRecommended?.size && selectedRecommended.size < SMALL_MODEL_SIZE
+  const customSelected = modelChoice === CUSTOM_MODEL
+  const shownProviderId = provider?.id ?? draft.provider ?? ""
+
+  const showModelSearch =
+    !!dynamicProviderId && modelOptions.length > MODEL_SEARCH_THRESHOLD
+  const query = showModelSearch ? modelQuery.trim().toLowerCase() : ""
+  const visibleModels = query
+    ? modelOptions.filter(model =>
+        `${model.name} ${model.id}`.toLowerCase().includes(query),
+      )
+    : modelOptions
 
   const modelOptionClass = (selected: boolean) =>
     cn(
-      "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 transition-colors",
+      "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-violet-500/50",
       selected
-        ? "border-violet-500/60 bg-violet-500/10"
-        : "border-border bg-background/60 hover:border-violet-500/30",
+        ? "border-violet-500/60 bg-violet-500/10 shadow-sm shadow-violet-500/10"
+        : "border-border/70 bg-background/70 hover:border-violet-500/40 hover:bg-background",
     )
 
   return (
@@ -269,7 +405,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
             <div className="flex justify-center py-4">
               <LoadingSpinner size="sm" />
             </div>
-          ) : providers.length === 0 || !provider ? (
+          ) : providers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t.labels.external.noProviders}
             </p>
@@ -296,11 +432,11 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <ProviderLogo
-                            id={provider.id}
-                            name={providerName(provider.id)}
+                            id={shownProviderId}
+                            name={providerName(shownProviderId)}
                           />
                           <span className="truncate">
-                            {providerName(provider.id)}
+                            {providerName(shownProviderId)}
                           </span>
                         </span>
                         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -312,7 +448,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                     >
                       <div role="listbox" aria-labelledby="external-provider">
                         {providers.map(p => {
-                          const selected = p.id === provider.id
+                          const selected = p.id === provider?.id
                           return (
                             <button
                               key={p.id}
@@ -363,16 +499,20 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                   </Popover>
                   <Badge
                     className={cn(
-                      provider.connected
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+                      !provider
+                        ? "bg-muted text-muted-foreground"
+                        : provider.connected
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
                     )}
                   >
-                    {provider.connected
-                      ? t.labels.external.connected
-                      : t.labels.external.notConnected}
+                    {!provider
+                      ? t.labels.external.unavailableHere
+                      : provider.connected
+                        ? t.labels.external.connected
+                        : t.labels.external.notConnected}
                   </Badge>
-                  {!provider.connected && (
+                  {provider && !provider.connected && (
                     <Button
                       variant="link"
                       size="sm"
@@ -390,65 +530,199 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <FieldLabel>{t.labels.external.model}</FieldLabel>
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  {recommendedModels.map(model => (
-                    <label
-                      key={model.id}
-                      className={modelOptionClass(modelChoice === model.id)}
-                    >
-                      <input
-                        type="radio"
-                        name="external-model"
-                        className="mt-1 accent-violet-600"
-                        checked={modelChoice === model.id}
-                        onChange={() => {
-                          setModelChoice(model.id)
-                          setValidation(null)
-                          setError(null)
-                        }}
-                        disabled={saving}
-                      />
-                      <div className="min-w-0 space-y-0.5">
-                        <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                          {model.name}
-                          {model.probabilistic && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {t.labels.external.decisionModel}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="truncate font-mono text-xs text-muted-foreground">
-                          {model.id}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                  {provider.custom_models && (
-                    <label
-                      className={cn(
-                        modelOptionClass(modelChoice === CUSTOM_MODEL),
-                        "md:col-span-2",
+              {providerUnavailable && (
+                <div
+                  className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/10 dark:text-amber-300"
+                  data-testid="external-provider-unavailable"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    {t.labels.external.providerUnavailable.replace(
+                      "{provider}",
+                      providerName(shownProviderId),
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {provider && (
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <FieldLabel>{t.labels.external.model}</FieldLabel>
+                    {provider.id === LOCAL_MODELS_PROVIDER &&
+                      provider.connected && (
+                        <>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto gap-1 px-1"
+                            onClick={() => setManagerOpen(true)}
+                            data-testid="external-manage-models"
+                          >
+                            <Settings2 className="h-3.5 w-3.5" />
+                            {t.labels.external.manageModels}
+                          </Button>
+                          <LocalModelsManagerDialog
+                            open={managerOpen}
+                            onClose={closeManager}
+                            onModelsChange={refreshModels}
+                          />
+                        </>
                       )}
-                    >
-                      <input
-                        type="radio"
-                        name="external-model"
-                        className="mt-1 accent-violet-600"
-                        checked={modelChoice === CUSTOM_MODEL}
-                        onChange={() => {
-                          setModelChoice(CUSTOM_MODEL)
-                          setError(null)
-                        }}
+                  </div>
+                  {loadingDynamicModels && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <LoadingSpinner size="sm" className="h-3.5 w-3.5" />
+                      {t.labels.external.loadingModels}
+                    </div>
+                  )}
+                  {dynamicModelsFailed && (
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      {t.labels.external.modelsError}
+                    </p>
+                  )}
+                  {dynamicModels && dynamicModels.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {t.labels.external.noModelsAvailable}
+                    </p>
+                  )}
+                  {showModelSearch && (
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={modelQuery}
+                        onChange={event => setModelQuery(event.target.value)}
+                        placeholder={t.labels.external.searchModels}
+                        aria-label={t.labels.external.searchModels}
+                        className="h-9 pl-8"
                         disabled={saving}
                       />
-                      <div className="flex-1 space-y-2">
-                        <div className="text-sm font-medium">
-                          {t.labels.external.customModel}
-                        </div>
-                        {modelChoice === CUSTOM_MODEL && (
-                          <div className="space-y-1.5">
+                    </div>
+                  )}
+                  <div
+                    role="radiogroup"
+                    aria-label={t.labels.external.model}
+                    className="space-y-2"
+                  >
+                    {visibleModels.length > 0 && (
+                      <div
+                        className={cn(
+                          "grid grid-cols-1 gap-2 md:grid-cols-2",
+                          dynamicProviderId &&
+                            "-m-1 max-h-80 overflow-y-auto p-1",
+                        )}
+                        data-testid="external-model-options"
+                      >
+                        {visibleModels.map(model => {
+                          const checked = modelChoice === model.id
+                          return (
+                            <label
+                              key={model.id}
+                              className={modelOptionClass(checked)}
+                            >
+                              <input
+                                type="radio"
+                                name="external-model"
+                                className="sr-only"
+                                checked={checked}
+                                onChange={() => {
+                                  setModelChoice(model.id)
+                                  setValidation(null)
+                                  setError(null)
+                                }}
+                                disabled={saving}
+                              />
+                              <RadioMark checked={checked} />
+                              <span className="min-w-0 flex-1 space-y-1">
+                                <span className="block truncate text-sm font-medium leading-tight">
+                                  {model.name}
+                                </span>
+                                {model.name !== model.id && (
+                                  <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                                    {model.id}
+                                  </span>
+                                )}
+                                {(model.probabilistic ||
+                                  model.loaded ||
+                                  model.load_failed ||
+                                  !!model.size) && (
+                                  <span className="flex flex-wrap gap-1 pt-0.5">
+                                    {model.probabilistic && (
+                                      <ModelChip className="border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                                        <Sparkles className="h-2.5 w-2.5" />
+                                        {t.labels.external.decisionModel}
+                                      </ModelChip>
+                                    )}
+                                    {model.loaded && (
+                                      <ModelChip className="border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                        {t.labels.external.modelLoaded}
+                                      </ModelChip>
+                                    )}
+                                    {model.load_failed && (
+                                      <ModelChip className="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                        {t.labels.external.modelFailed}
+                                      </ModelChip>
+                                    )}
+                                    {!!model.size && (
+                                      <ModelChip className="border-border bg-muted/60 text-muted-foreground">
+                                        <HardDrive className="h-2.5 w-2.5" />
+                                        {formatFileSize(model.size)}
+                                      </ModelChip>
+                                    )}
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {query && visibleModels.length === 0 && (
+                      <p className="py-2 text-center text-xs text-muted-foreground">
+                        {t.labels.external.noModelsMatch}
+                      </p>
+                    )}
+                    {provider.custom_models && (
+                      <div
+                        className={cn(
+                          "rounded-lg border border-dashed transition-colors",
+                          customSelected
+                            ? "border-violet-500/60 bg-violet-500/5"
+                            : "border-border hover:border-violet-500/40",
+                        )}
+                      >
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-violet-500/50">
+                          <input
+                            type="radio"
+                            name="external-model"
+                            className="sr-only"
+                            checked={customSelected}
+                            onChange={() => {
+                              setModelChoice(CUSTOM_MODEL)
+                              setError(null)
+                            }}
+                            disabled={saving}
+                          />
+                          <RadioMark checked={customSelected} />
+                          <span className="min-w-0 flex-1 space-y-0.5">
+                            <span className="flex items-center gap-1.5 text-sm font-medium leading-tight">
+                              <PenLine className="h-3.5 w-3.5 text-muted-foreground" />
+                              {t.labels.external.customModel}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {provider.dynamic_models
+                                ? t.labels.external.customModelUnlistedHint
+                                : t.labels.external.customModelHint.replace(
+                                    "{provider}",
+                                    providerName(provider.id),
+                                  )}
+                            </span>
+                          </span>
+                        </label>
+                        {customSelected && (
+                          <div className="space-y-2 px-3 pb-3 sm:pl-10">
                             <div className="flex flex-wrap items-center gap-2">
                               <Input
                                 value={customModel}
@@ -466,7 +740,8 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                                   )[provider.id] ??
                                   t.labels.external.customModelPlaceholder
                                 }
-                                className="h-9 max-w-sm font-mono"
+                                aria-label={t.labels.external.customModel}
+                                className="h-9 min-w-0 flex-1 basis-56 font-mono"
                                 disabled={saving}
                               />
                               {provider.upstream_providers && (
@@ -489,58 +764,93 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                                   disabled={saving}
                                 />
                               )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleValidate}
-                                disabled={
-                                  saving ||
-                                  validating ||
-                                  !customModel.trim() ||
-                                  !provider.connected
-                                }
-                              >
-                                {validating
-                                  ? t.common.loading
-                                  : t.labels.external.validate}
-                              </Button>
-                              {validation === "valid" && (
-                                <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                  {t.labels.external.modelValid}
-                                </span>
-                              )}
-                              {validation === "invalid" && (
-                                <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
-                                  <XCircle className="h-3.5 w-3.5" />
-                                  {t.labels.external.modelInvalid}
-                                </span>
+                              {!provider.dynamic_models && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9"
+                                  onClick={handleValidate}
+                                  disabled={
+                                    saving ||
+                                    validating ||
+                                    !customModel.trim() ||
+                                    !provider.connected
+                                  }
+                                >
+                                  {validating
+                                    ? t.common.loading
+                                    : t.labels.external.validate}
+                                </Button>
                               )}
                             </div>
+                            {validation === "valid" && (
+                              <p className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                {t.labels.external.modelValid}
+                              </p>
+                            )}
+                            {validation === "invalid" && (
+                              <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                                <XCircle className="h-3.5 w-3.5" />
+                                {t.labels.external.modelInvalid}
+                              </p>
+                            )}
                             {provider.upstream_providers && (
                               <p className="text-xs text-muted-foreground">
                                 {t.labels.external.upstreamProviderHint}
                               </p>
                             )}
+                            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              {t.labels.external.customModelNotice}
+                            </p>
                           </div>
                         )}
                       </div>
-                    </label>
+                    )}
+                  </div>
+                  {modelUnavailable && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/10 dark:text-amber-300">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        {t.labels.external.modelUnavailable.replace(
+                          "{model}",
+                          stored.model ?? "",
+                        )}
+                      </span>
+                    </div>
                   )}
-                </div>
-              </div>
-
-              {modelChoice === CUSTOM_MODEL && (
-                <div className="flex items-start gap-2 rounded-md border border-blue-500/40 bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-900/10 dark:text-blue-300">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{t.labels.external.customModelNotice}</span>
+                  {selectedModelFailed && (
+                    <div
+                      className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-50 p-3 text-xs text-red-800 dark:bg-red-900/10 dark:text-red-300"
+                      data-testid="external-model-load-failed"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        {t.labels.external.modelLoadFailed.replace(
+                          "{model}",
+                          selectedRecommended?.name ?? "",
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {smallModelSelected && !selectedModelFailed && (
+                    <div
+                      className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/10 dark:text-amber-300"
+                      data-testid="external-small-model-warning"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{t.labels.external.smallModelWarning}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-50 p-3 text-xs text-yellow-800 dark:bg-yellow-900/10 dark:text-yellow-300">
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{t.labels.external.privacyNotice}</span>
-              </div>
+              {provider && (
+                <p className="text-xs text-muted-foreground">
+                  {t.labels.external.privacyNotice}
+                </p>
+              )}
 
               <div>
                 <button

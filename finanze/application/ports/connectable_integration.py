@@ -7,3 +7,6 @@ class ConnectableIntegration(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def setup(self, payload: ExternalIntegrationPayload):
         raise NotImplementedError
+
+    async def teardown(self):
+        pass

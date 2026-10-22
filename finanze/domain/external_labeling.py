@@ -58,6 +58,9 @@ class ExternalLabelingModel:
     name: str
     description: Optional[str] = None
     probabilistic: bool = False
+    size: Optional[int] = None
+    loaded: bool = False
+    load_failed: bool = False
 
 
 @dataclass
@@ -67,8 +70,14 @@ class ExternalLabelingProviderDetails:
     recommended_models: list[ExternalLabelingModel]
     custom_models: bool = True
     upstream_providers: bool = False
+    dynamic_models: bool = False
 
 
 @dataclass
 class ExternalLabelingProviders:
     providers: list[ExternalLabelingProviderDetails]
+
+
+@dataclass
+class ExternalLabelingModels:
+    models: list[ExternalLabelingModel]

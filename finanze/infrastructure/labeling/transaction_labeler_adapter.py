@@ -218,7 +218,7 @@ class TransactionLabelerAdapter(TransactionLabeler):
                 return result
 
             credentials = await self._external_integration_port.get_payload(provider_id)
-            if not credentials:
+            if credentials is None:
                 return result
 
             txs = await self._transaction_port.get_account_txs(

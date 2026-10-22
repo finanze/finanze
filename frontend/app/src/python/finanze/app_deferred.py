@@ -236,6 +236,7 @@ class DeferredComponents:
             ExternalIntegrationId.ETHPLORER: True,
             ExternalIntegrationId.OPENROUTER: True,
             ExternalIntegrationId.OPENAI: True,
+            ExternalIntegrationId.OPENAI_COMPATIBLE: True,
         }
         if INCLUDE_CONNECTIONS:
             external_integrations[ExternalIntegrationId.ENABLE_BANKING] = True

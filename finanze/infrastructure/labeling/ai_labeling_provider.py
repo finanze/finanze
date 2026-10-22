@@ -37,9 +37,15 @@ GENERATION_BATCH_SIZE = 25
 
 
 class AILabelingProvider(ExternalTxLabelingProvider):
-    def __init__(self, client: AIClient, presets: list[AILabelingPreset]):
+    def __init__(
+        self,
+        client: AIClient,
+        presets: list[AILabelingPreset],
+        batch_size: Optional[int] = None,
+    ):
         self._client = client
         self._presets = {preset.model.id: preset for preset in presets}
+        self._batch_size = batch_size
         self._model_cache: dict[str, AIModel] = {}
         self._log = logging.getLogger(__name__)
 
@@ -48,6 +54,31 @@ class AILabelingProvider(ExternalTxLabelingProvider):
 
     def supports_upstream_providers(self) -> bool:
         return AIClientFeature.UPSTREAM_PROVIDERS in self._client.features()
+
+    def custom_models(self) -> bool:
+        return AIClientFeature.CUSTOM_MODELS in self._client.features()
+
+    def dynamic_models(self) -> bool:
+        return AIClientFeature.MODEL_LISTING in self._client.features()
+
+    async def list_models(
+        self, credentials: ExternalIntegrationPayload
+    ) -> list[ExternalLabelingModel]:
+        try:
+            models = await self._client.list_models(credentials)
+        except AIProviderError as e:
+            raise ExternalLabelingUnavailable(e.details) from e
+        return [
+            ExternalLabelingModel(
+                id=model.id,
+                name=model.name,
+                probabilistic=AIModelCapability.DECISIONS in model.capabilities,
+                size=model.size,
+                loaded=model.loaded,
+                load_failed=model.load_failed,
+            )
+            for model in models
+        ]
 
     async def label(
         self,
@@ -78,7 +109,9 @@ class AILabelingProvider(ExternalTxLabelingProvider):
         )
         reasoning_effort = preset.reasoning_effort if preset else None
 
-        batch_size = DECISIONS_BATCH_SIZE if use_decisions else GENERATION_BATCH_SIZE
+        batch_size = self._batch_size or (
+            DECISIONS_BATCH_SIZE if use_decisions else GENERATION_BATCH_SIZE
+        )
         suggestions = []
         try:
             for index in range(0, len(request.txs), batch_size):

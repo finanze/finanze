@@ -14,6 +14,9 @@ services:
       # PASSWORD: myVerySecretPasswordToEncryptDB     # Optional, provided via API when logging in, or use .env, this will automatically log in
       # Selenium related envs, only if you want to use Selenium with finanze/finanze:latest-selenium
       # WEBDRIVER_ADDRESS: http://selenium:4444
+      # Local AI models, only if you enable the finanze-llama service below
+      # FINANZE_LLAMA_SERVER_URL: http://finanze-llama:8080
+      # FINANZE_LLAMA_SERVER_API_KEY: ${FINANZE_LLAMA_API_KEY}
     # env_file:
     #   - .env                                         # Load environment variables from .env file in case you want to provide USERNAME and PASSWORD this way
     volumes:
@@ -34,6 +37,45 @@ services:
 #      - "4444:4444"
 #      - "7900:7900"
 #    shm_size: "2g"
+
+#  Optional, local AI model runtime for Finanze (Settings > Integrations > Local models)
+#  Runs llama.cpp in router mode so models can be downloaded, loaded and removed from Finanze.
+#  - FINANZE_LLAMA_SERVER_URL / FINANZE_LLAMA_SERVER_API_KEY (finanze-server above) are only recommended
+#    when Finanze and llama.cpp run in this same compose file: private network and one key in .env
+#    (FINANZE_LLAMA_API_KEY=some-long-random-value).
+#  - For an external or self-managed llama.cpp server, leave them unset and set its URL and key in
+#    Settings > Integrations > Local models.
+#  - Values entered in the UI override these environment variables.
+#  - A single-model llama-server (started with -m) or Ollama goes in Custom endpoint instead.
+#  - GGUF files dropped in ./.storage/models/local are listed after pressing Refresh in Finanze.
+#  - For GPU use ghcr.io/ggml-org/llama.cpp:server-cuda-b11669 or server-vulkan-b11669 with the device setup.
+#  finanze-llama:
+#    image: ghcr.io/ggml-org/llama.cpp:server-b11669
+#    restart: unless-stopped
+#    environment:
+#      LLAMA_API_KEY: ${FINANZE_LLAMA_API_KEY}
+#      LLAMA_CACHE: /models/cache
+#    volumes:
+#      - ./.storage/models/local:/models/local
+#      - ./.storage/models/cache:/models/cache
+#    command: >
+#      --host 0.0.0.0
+#      --port 8080
+#      --models-dir /models/local
+#      --models-max 1
+#      --sleep-idle-seconds 600
+#      -c 8192
+#      -np 1
+#      --no-ui
+#      --reasoning-budget 0
+#    # mem_limit: 6g                                    # Small models (<4B params) need 1-4 GB of RAM
+
+#  Optional, Ollama as a Custom endpoint (Settings > Integrations > Custom endpoint, URL http://ollama:11434/v1)
+#  ollama:
+#    image: ollama/ollama:latest
+#    restart: unless-stopped
+#    volumes:
+#      - ./.storage/ollama:/root/.ollama
 
   finanze-front:
     restart: unless-stopped

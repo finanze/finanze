@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronUp,
@@ -9,6 +10,7 @@ import {
   Info,
   Link2,
   Link2Off,
+  Server,
   Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/Button"
@@ -41,6 +43,31 @@ import {
   type ExternalIntegration,
 } from "@/types"
 import { getPlatformType } from "@/lib/platform"
+import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
+import {
+  LocalModelsIntegration,
+  type IntegrationFieldOptions,
+} from "./LocalModelsIntegration"
+import { AIServerDetailsDialog } from "./AIServerDetailsDialog"
+
+const LOCAL_MODELS_ID = "LOCAL_MODELS"
+const SERVER_DETAILS_INTEGRATIONS = new Set(["OPENAI_COMPATIBLE"])
+const URL_FIELDS = ["base_url", "server_url"]
+const LOOPBACK_HOST_REGEX = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/i
+
+const sendsKeyInsecurely = (url: string, apiKey: string) => {
+  if (!apiKey.trim()) {
+    return false
+  }
+  try {
+    const parsed = new URL(url.trim())
+    return (
+      parsed.protocol === "http:" && !LOOPBACK_HOST_REGEX.test(parsed.hostname)
+    )
+  } catch {
+    return false
+  }
+}
 
 const INTEGRATION_CATEGORY_ORDER: ExternalIntegrationType[] = [
   ExternalIntegrationType.ENTITY_PROVIDER,
@@ -264,6 +291,7 @@ export function IntegrationsTab() {
     Record<string, boolean>
   >({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [serverDetailsFor, setServerDetailsFor] = useState<string | null>(null)
 
   const platform = getPlatformType()
 
@@ -392,7 +420,9 @@ export function IntegrationsTab() {
       const schema = integration.payload_schema ?? {}
       const payload = integrationPayloads[integrationId] ?? {}
 
-      const requiredFields = Object.keys(schema)
+      const optionalFields = new Set(integration.optional_fields ?? [])
+      const fields = Object.keys(schema)
+      const requiredFields = fields.filter(field => !optionalFields.has(field))
       const missingFields: Record<string, boolean> = {}
 
       requiredFields.forEach(field => {
@@ -414,9 +444,10 @@ export function IntegrationsTab() {
       }
 
       const sanitizedPayload: Record<string, string> = {}
-      requiredFields.forEach(field => {
-        if (payload[field] !== undefined) {
-          sanitizedPayload[field] = payload[field].trim()
+      fields.forEach(field => {
+        const value = payload[field]?.trim()
+        if (value) {
+          sanitizedPayload[field] = value
         }
       })
 
@@ -435,7 +466,7 @@ export function IntegrationsTab() {
         })
         setIntegrationPayloads(prev => {
           const clearedFields: Record<string, string> = {}
-          requiredFields.forEach(field => {
+          fields.forEach(field => {
             clearedFields[field] = ""
           })
           return { ...prev, [integrationId]: clearedFields }
@@ -519,6 +550,26 @@ export function IntegrationsTab() {
       [integrationId]: !prev[integrationId],
     }))
   }
+
+  const handleLocalModelsModeChange = useCallback((serverMode: boolean) => {
+    if (serverMode) {
+      return
+    }
+    setIntegrationPayloads(prev => ({
+      ...prev,
+      [LOCAL_MODELS_ID]: Object.fromEntries(
+        Object.keys(prev[LOCAL_MODELS_ID] ?? {}).map(field => [field, ""]),
+      ),
+    }))
+    setIntegrationErrors(prev => {
+      if (!prev[LOCAL_MODELS_ID]) {
+        return prev
+      }
+      const next = { ...prev }
+      delete next[LOCAL_MODELS_ID]
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     setIntegrationPayloads(prev => {
@@ -743,9 +794,214 @@ export function IntegrationsTab() {
     const hasHintLabel =
       typeof hintButtonLabel === "string" && hintButtonLabel.trim().length > 0
 
-    const canSubmit =
-      schemaEntries.length === 0 ||
-      schemaEntries.every(([field]) => (payload[field] ?? "").trim() !== "")
+    const optionalFields = new Set(integration.optional_fields ?? [])
+
+    const canSubmit = schemaEntries.every(
+      ([field]) =>
+        optionalFields.has(field) || (payload[field] ?? "").trim() !== "",
+    )
+
+    const urlField = schemaEntries.find(([field]) =>
+      URL_FIELDS.includes(field),
+    )?.[0]
+    const showInsecureWarning =
+      !!urlField &&
+      sendsKeyInsecurely(payload[urlField] ?? "", payload.api_key ?? "")
+
+    const renderFields = (options: IntegrationFieldOptions = {}) => (
+      <>
+        {schemaEntries.length > 0 ? (
+          schemaEntries.map(([field, label], index) => {
+            const value = payload[field] ?? ""
+            const hasError = !!errors[field]
+            const isSecure = /secret|password|token|key/i.test(field)
+            const showHintInline = Boolean(hintContent) && index === 0
+            const placeholder = options.placeholders?.[field] ?? String(label)
+            const labelSuffix = optionalFields.has(field)
+              ? (options.labelSuffix ?? t.common.optional)
+              : null
+
+            return (
+              <div key={field} className="space-y-2">
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <Label
+                    htmlFor={`${integration.id}-${field}`}
+                    className="leading-tight"
+                  >
+                    {label}
+                    {labelSuffix && (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                        ({labelSuffix})
+                      </span>
+                    )}
+                  </Label>
+                  {showHintInline && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size={hasHintLabel ? "sm" : "icon"}
+                          type="button"
+                          aria-label={
+                            hasHintLabel ? hintButtonLabel : t.common.help
+                          }
+                          className={cn(
+                            "text-xs text-muted-foreground",
+                            hasHintLabel
+                              ? "gap-1 h-auto px-2 py-1"
+                              : "h-8 w-8 p-0",
+                          )}
+                        >
+                          <Info className="h-4 w-4" />
+                          {hasHintLabel ? (
+                            <span>{hintButtonLabel}</span>
+                          ) : undefined}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        collisionPadding={12}
+                        className="w-80 p-3 space-y-2 overflow-y-auto max-h-[min(70vh,var(--radix-popover-content-available-height))]"
+                      >
+                        <h4 className="text-sm font-medium">
+                          {hint?.title ?? title}
+                        </h4>
+                        {hintContent}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {field === "private_key" ? (
+                  <PrivateKeyField
+                    id={`${integration.id}-${field}`}
+                    label={String(label)}
+                    value={value}
+                    hasError={hasError}
+                    disabled={isUnavailable || disabledForPlatform}
+                    onChange={newValue =>
+                      handleIntegrationFieldChange(
+                        integration.id,
+                        field,
+                        newValue,
+                      )
+                    }
+                  />
+                ) : isSecure ? (
+                  <SecretInput
+                    id={`${integration.id}-${field}`}
+                    value={value}
+                    onChange={event =>
+                      handleIntegrationFieldChange(
+                        integration.id,
+                        field,
+                        event.target.value,
+                      )
+                    }
+                    placeholder={placeholder}
+                    disabled={isUnavailable || disabledForPlatform}
+                    className={cn(hasError ? "border-red-500" : undefined)}
+                  />
+                ) : (
+                  <Input
+                    id={`${integration.id}-${field}`}
+                    type="text"
+                    value={value}
+                    onChange={event =>
+                      handleIntegrationFieldChange(
+                        integration.id,
+                        field,
+                        event.target.value,
+                      )
+                    }
+                    placeholder={placeholder}
+                    disabled={isUnavailable || disabledForPlatform}
+                    className={cn(hasError ? "border-red-500" : undefined)}
+                  />
+                )}
+              </div>
+            )
+          })
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t.common.notAvailable}
+          </p>
+        )}
+        {showInsecureWarning && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/10 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{t.settings.integrationInsecureKeyWarning}</span>
+          </div>
+        )}
+      </>
+    )
+
+    const renderActions = ({ setup }: { setup: boolean }) => (
+      <div className="flex items-center justify-end gap-2">
+        {disabledForPlatform && (
+          <span className="text-xs text-muted-foreground">
+            {`(${t.settings.googleSheetsWebDisabled})`}
+          </span>
+        )}
+        {isEnabled && SERVER_DETAILS_INTEGRATIONS.has(integration.id) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setServerDetailsFor(integration.id)}
+            aria-label={t.settings.aiServer.button}
+            title={t.settings.aiServer.button}
+            data-testid={`integration-server-details-${integration.id}`}
+          >
+            <Server className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">
+              {t.settings.aiServer.button}
+            </span>
+          </Button>
+        )}
+        {isEnabled && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDisableIntegration(integration.id)}
+            disabled={disableLoading}
+          >
+            {disableLoading ? (
+              <>
+                <LoadingSpinner size="sm" className="mr-2" />
+                {t.common.loading}
+              </>
+            ) : (
+              <>
+                <Link2Off className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">
+                  {t.entities.disconnect}
+                </span>
+              </>
+            )}
+          </Button>
+        )}
+        {setup && (
+          <Button
+            size="sm"
+            onClick={() => handleSetupIntegration(integration.id)}
+            disabled={
+              isLoading || !canSubmit || disabledForPlatform || isUnavailable
+            }
+          >
+            {isLoading ? (
+              <>
+                <LoadingSpinner size="sm" color="invert" className="mr-2" />
+                {t.common.loading}
+              </>
+            ) : (
+              <>
+                <Link2 className="mr-2 h-4 w-4" />
+                {t.common.setup}
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    )
 
     const iconSrc = `icons/external-integrations/${integration.id}.png`
     const isHighlighted = highlighted === integration.id
@@ -779,6 +1035,15 @@ export function IntegrationsTab() {
                   className="h-12 w-12 object-contain flex-shrink-0 pointer-events-none select-none"
                   draggable={false}
                   style={{ WebkitUserSelect: "none" }}
+                  onLoad={event => {
+                    if (isMostlyBlackLogo(event.currentTarget)) {
+                      event.currentTarget.classList.add(
+                        "rounded-lg",
+                        "bg-white",
+                        "p-1.5",
+                      )
+                    }
+                  }}
                   onError={event => {
                     event.currentTarget.style.visibility = "hidden"
                   }}
@@ -832,175 +1097,23 @@ export function IntegrationsTab() {
               className="overflow-hidden"
             >
               <CardContent className="space-y-4">
-                {schemaEntries.length > 0 ? (
-                  schemaEntries.map(([field, label], index) => {
-                    const value = payload[field] ?? ""
-                    const hasError = !!errors[field]
-                    const isSecure = /secret|password|token|key/i.test(field)
-                    const showHintInline = Boolean(hintContent) && index === 0
-
-                    return (
-                      <div key={field} className="space-y-2">
-                        <div className="flex items-start justify-between gap-2 flex-wrap">
-                          <Label
-                            htmlFor={`${integration.id}-${field}`}
-                            className="leading-tight"
-                          >
-                            {label}
-                          </Label>
-                          {showHintInline && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size={hasHintLabel ? "sm" : "icon"}
-                                  type="button"
-                                  aria-label={
-                                    hasHintLabel
-                                      ? hintButtonLabel
-                                      : t.common.help
-                                  }
-                                  className={cn(
-                                    "text-xs text-muted-foreground",
-                                    hasHintLabel
-                                      ? "gap-1 h-auto px-2 py-1"
-                                      : "h-8 w-8 p-0",
-                                  )}
-                                >
-                                  <Info className="h-4 w-4" />
-                                  {hasHintLabel ? (
-                                    <span>{hintButtonLabel}</span>
-                                  ) : undefined}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                align="start"
-                                collisionPadding={12}
-                                className="w-80 p-3 space-y-2 overflow-y-auto max-h-[min(70vh,var(--radix-popover-content-available-height))]"
-                              >
-                                <h4 className="text-sm font-medium">
-                                  {hint?.title ?? title}
-                                </h4>
-                                {hintContent}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        </div>
-                        {field === "private_key" ? (
-                          <PrivateKeyField
-                            id={`${integration.id}-${field}`}
-                            label={String(label)}
-                            value={value}
-                            hasError={hasError}
-                            disabled={isUnavailable || disabledForPlatform}
-                            onChange={newValue =>
-                              handleIntegrationFieldChange(
-                                integration.id,
-                                field,
-                                newValue,
-                              )
-                            }
-                          />
-                        ) : isSecure ? (
-                          <SecretInput
-                            id={`${integration.id}-${field}`}
-                            value={value}
-                            onChange={event =>
-                              handleIntegrationFieldChange(
-                                integration.id,
-                                field,
-                                event.target.value,
-                              )
-                            }
-                            placeholder={String(label)}
-                            disabled={isUnavailable || disabledForPlatform}
-                            className={cn(
-                              hasError ? "border-red-500" : undefined,
-                            )}
-                          />
-                        ) : (
-                          <Input
-                            id={`${integration.id}-${field}`}
-                            type="text"
-                            value={value}
-                            onChange={event =>
-                              handleIntegrationFieldChange(
-                                integration.id,
-                                field,
-                                event.target.value,
-                              )
-                            }
-                            placeholder={String(label)}
-                            disabled={isUnavailable || disabledForPlatform}
-                            className={cn(
-                              hasError ? "border-red-500" : undefined,
-                            )}
-                          />
-                        )}
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {t.common.notAvailable}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-end gap-2">
-                  {disabledForPlatform && (
-                    <span className="text-xs text-muted-foreground">
-                      {`(${t.settings.googleSheetsWebDisabled})`}
-                    </span>
-                  )}
-                  {isEnabled && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDisableIntegration(integration.id)}
-                      disabled={disableLoading}
-                    >
-                      {disableLoading ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          {t.common.loading}
-                        </>
-                      ) : (
-                        <>
-                          <Link2Off className="h-4 w-4 sm:mr-2" />
-                          <span className="hidden sm:inline">
-                            {t.entities.disconnect}
-                          </span>
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => handleSetupIntegration(integration.id)}
-                    disabled={
-                      isLoading ||
-                      !canSubmit ||
-                      disabledForPlatform ||
-                      isUnavailable
+                {integration.id === LOCAL_MODELS_ID ? (
+                  <LocalModelsIntegration
+                    enabled={isEnabled}
+                    openManager={
+                      searchParams.get("focus")?.toUpperCase() ===
+                      LOCAL_MODELS_ID
                     }
-                  >
-                    {isLoading ? (
-                      <>
-                        <LoadingSpinner
-                          size="sm"
-                          color="invert"
-                          className="mr-2"
-                        />
-                        {t.common.loading}
-                      </>
-                    ) : (
-                      <>
-                        <Link2 className="mr-2 h-4 w-4" />
-                        {t.common.setup}
-                      </>
-                    )}
-                  </Button>
-                </div>
+                    renderFields={renderFields}
+                    renderActions={renderActions}
+                    onServerModeChange={handleLocalModelsModeChange}
+                  />
+                ) : (
+                  <>
+                    {renderFields()}
+                    {renderActions({ setup: true })}
+                  </>
+                )}
               </CardContent>
             </motion.div>
           )}
@@ -1026,7 +1139,9 @@ export function IntegrationsTab() {
       ) : (
         INTEGRATION_CATEGORY_ORDER.map(category => {
           const items = externalIntegrations.filter(
-            integration => integration.type === category,
+            integration =>
+              integration.type === category &&
+              (integration.id !== LOCAL_MODELS_ID || integration.available),
           )
 
           if (items.length === 0) {
@@ -1045,6 +1160,10 @@ export function IntegrationsTab() {
           )
         })
       )}
+      <AIServerDetailsDialog
+        provider={serverDetailsFor}
+        onClose={() => setServerDetailsFor(null)}
+      />
     </motion.div>
   )
 }

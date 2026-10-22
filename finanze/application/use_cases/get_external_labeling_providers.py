@@ -30,7 +30,9 @@ class GetExternalLabelingProvidersImpl(GetExternalLabelingProviders):
                     id=provider_id,
                     connected=payload is not None,
                     recommended_models=provider.get_recommended_models(),
+                    custom_models=provider.custom_models(),
                     upstream_providers=provider.supports_upstream_providers(),
+                    dynamic_models=provider.dynamic_models(),
                 )
             )
         return ExternalLabelingProviders(providers=details)
