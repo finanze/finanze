@@ -440,10 +440,10 @@ export function EntityCard({
                         <Button
                           size="sm"
                           className="w-full mt-8"
-                          onClick={() => navigate("/settings?tab=integrations")}
+                          onClick={() => navigate("/entities?tab=providers")}
                         >
                           <Settings className="mr-2 h-3 w-3" />
-                          {t.entities.goToSettings}
+                          {t.entities.goToProviders}
                         </Button>
                       </div>
                     </PopoverContent>

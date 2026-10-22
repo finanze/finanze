@@ -574,6 +574,8 @@
   },
   "entities": {
     "title": "Integraciones",
+    "tabEntities": "Entidades",
+    "tabProviders": "Proveedores",
     "storeNotice": "Esta versión no soporta conexiones con entidades financieras. Puedes gestionar tus datos manualmente, importar desde archivos, visita {link} para más opciones.",
     "storeNoticeLink": "finanze.me",
     "connected": "Conectado",
@@ -586,7 +588,7 @@
     "cannotConnect": "No se puede conectar",
     "requiresExternalIntegrations": "Requiere configuración de integración",
     "setupIntegrationsMessage": "Configura las integraciones requeridas para conectar esta entidad:",
-    "goToSettings": "Ir a Configuración",
+    "goToProviders": "Configurar proveedores",
     "userEntered": "Datos de usuario",
     "importData": "Importar",
     "runImport": "Importar datos",

@@ -518,9 +518,7 @@ export function ExternalLabelingCard({ className }: { className?: string }) {
                       size="sm"
                       className="h-auto gap-1 px-1"
                       onClick={() =>
-                        navigate(
-                          `/settings?tab=integrations&focus=${provider.id}`,
-                        )
+                        navigate(`/entities?tab=providers&focus=${provider.id}`)
                       }
                     >
                       <ExternalLink className="h-3.5 w-3.5" />

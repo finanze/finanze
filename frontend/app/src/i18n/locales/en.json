@@ -576,6 +576,8 @@
   },
   "entities": {
     "title": "Integrations",
+    "tabEntities": "Entities",
+    "tabProviders": "Providers",
     "storeNotice": "This version does not support connections with financial entities. You can manage your data manually, import from files, visit {link} for more options.",
     "storeNoticeLink": "finanze.me",
     "connected": "Connected",
@@ -588,7 +590,7 @@
     "cannotConnect": "Cannot Connect",
     "requiresExternalIntegrations": "Requires integration setup",
     "setupIntegrationsMessage": "Setup required integrations to connect this entity:",
-    "goToSettings": "Go to Settings",
+    "goToProviders": "Set up providers",
     "userEntered": "User Entered",
     "importData": "Import",
     "runImport": "Import data",
