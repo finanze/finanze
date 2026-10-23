@@ -132,7 +132,7 @@ describe("Integration tabs", () => {
     expect(
       screen.queryByRole("tabpanel", { name: en.entities.tabEntities }),
     ).not.toBeInTheDocument()
-    expect(await screen.findByLabelText("API Key")).toBeVisible()
+    await waitFor(() => expect(screen.getByLabelText("API Key")).toBeVisible())
     expect(screen.getByText("OpenAI").closest(".ring-2")).not.toBeNull()
   })
 
