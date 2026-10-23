@@ -35,7 +35,9 @@ import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Calendar,
   Clock,
   Filter,
@@ -1295,9 +1297,9 @@ function RealEstateViewContent({
                   }
                 >
                   {sortOrder === "asc" ? (
-                    <ArrowRight size={16} className="rotate-[-90deg]" />
+                    <ArrowUpNarrowWide size={16} />
                   ) : (
-                    <ArrowRight size={16} className="rotate-90" />
+                    <ArrowDownWideNarrow size={16} />
                   )}
                 </button>
               </div>
@@ -1785,9 +1787,9 @@ function RealEstateViewContent({
               }
             >
               {historicSortOrder === "asc" ? (
-                <ArrowRight size={16} className="rotate-[-90deg]" />
+                <ArrowUpNarrowWide size={16} />
               ) : (
-                <ArrowRight size={16} className="rotate-90" />
+                <ArrowDownWideNarrow size={16} />
               )}
             </button>
           </div>

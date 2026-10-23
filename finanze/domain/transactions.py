@@ -214,6 +214,16 @@ class TransactionsResult:
     transactions: list[BaseTx]
 
 
+class TransactionSortBy(str, Enum):
+    DATE = "date"
+    AMOUNT = "amount"
+
+
+class TransactionSortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
 @dataclass
 class TransactionQueryRequest:
     page: int = 1
@@ -229,6 +239,8 @@ class TransactionQueryRequest:
     excluded_labels: Optional[list[UUID]] = None
     unlabeled: bool = False
     search: Optional[str] = None
+    sort_by: TransactionSortBy = TransactionSortBy.DATE
+    sort_order: TransactionSortOrder = TransactionSortOrder.DESC
 
 
 @dataclass

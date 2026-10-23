@@ -33,8 +33,9 @@ import { useEntityImages } from "@/hooks/useEntityImages"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Calendar,
   Percent,
   TrendingUp,
@@ -1155,9 +1156,9 @@ function FactoringViewContent({
                   }
                 >
                   {sortOrder === "asc" ? (
-                    <ArrowRight size={16} className="rotate-[-90deg]" />
+                    <ArrowUpNarrowWide size={16} />
                   ) : (
-                    <ArrowRight size={16} className="rotate-90" />
+                    <ArrowDownWideNarrow size={16} />
                   )}
                 </button>
               </div>
@@ -1648,9 +1649,9 @@ function FactoringViewContent({
               }
             >
               {historicSortOrder === "asc" ? (
-                <ArrowRight size={16} className="rotate-[-90deg]" />
+                <ArrowUpNarrowWide size={16} />
               ) : (
-                <ArrowRight size={16} className="rotate-90" />
+                <ArrowDownWideNarrow size={16} />
               )}
             </button>
           </div>

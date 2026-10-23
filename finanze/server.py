@@ -19,6 +19,9 @@ from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
 )
+from application.use_cases.complete_external_integration_connection import (
+    CompleteExternalIntegrationConnectionImpl,
+)
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
 from application.use_cases.connect_external_integration import (
@@ -943,6 +946,12 @@ class FinanzeServer:
             external_integration_repository,
             external_integrations,
         )
+        complete_external_integration_connection = (
+            CompleteExternalIntegrationConnectionImpl(
+                external_integration_repository,
+                external_integrations,
+            )
+        )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
         get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
@@ -1317,6 +1326,7 @@ class FinanzeServer:
             get_external_integrations,
             connect_external_integrations,
             disconnect_external_integrations,
+            complete_external_integration_connection,
             save_periodic_flow,
             update_periodic_flow,
             delete_periodic_flow,

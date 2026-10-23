@@ -534,6 +534,8 @@
     "UNREACHABLE": "Could not reach {integration}. Check that the server is running and the URL is correct.",
     "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom endpoint, or start llama-server without -m to manage models from Finanze.",
     "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
+    "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
+    "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available for {entity}",
     "UNEXPECTED_ERROR": "An unexpected error occurred with {entity}",
     "UNAUTHORIZED": "Invalid or expired credentials for {entity}",
@@ -1100,7 +1102,6 @@
       "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
     },
-    "googleSheetsWebDisabled": "Use desktop app",
     "integrationHintButton": "View instructions",
     "privateKeyField": {
       "dropHint": "Drop your private key file here",
@@ -1114,7 +1115,61 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
-        "description": "Configure your Google Sheets API to enable data import and export."
+        "description": "Configure your Google Sheets API to enable data import and export.",
+        "help": "How to get the credentials",
+        "hint": {
+          "title": "Set up Google Sheets access",
+          "steps": [
+            [
+              "Open the ",
+              {
+                "type": "link",
+                "label": "Google Cloud Console",
+                "url": "https://console.cloud.google.com/"
+              },
+              ", create or select a project and enable the ",
+              {
+                "type": "link",
+                "label": "Google Sheets API",
+                "url": "https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+              },
+              "."
+            ],
+            [
+              "Configure the ",
+              {
+                "type": "link",
+                "label": "OAuth consent screen",
+                "url": "https://console.cloud.google.com/auth/overview"
+              },
+              " and publish it **In production** (it can stay unverified), otherwise the access expires every 7 days."
+            ],
+            [
+              "Create an ",
+              {
+                "type": "link",
+                "label": "OAuth client",
+                "url": "https://console.cloud.google.com/auth/clients"
+              },
+              " of type **Web application** (Desktop app clients are no longer supported)."
+            ],
+            [
+              "Add this URL to the **Authorized redirect URIs** ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/oauth/v1/integration/callback/",
+                "url": "https://finanze.me/oauth/v1/integration/callback/"
+              },
+              ". This field is **so important**."
+            ],
+            [
+              "Paste the **Client ID** and **Client secret** below, press Setup and authorize access with your Google account."
+            ],
+            [
+              "*Google may warn that the app is not verified, as it is your own app you can continue through \"Advanced\".*"
+            ]
+          ]
+        }
       },
       "ETHERSCAN": {
         "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC (paid) nets (recommended only if standard fetch fails, or if using a paid API).",
@@ -1360,6 +1415,7 @@
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
+    "integrationAwaitingAuthorization": "Waiting for authorization in your browser...",
     "integrationDisabledSuccess": "{integration} integration disabled successfully",
     "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings.",
     "integrationInsecureKeyWarning": "This connection is not encrypted (http), so the API key is sent in plain text. Use https or only a network you trust.",

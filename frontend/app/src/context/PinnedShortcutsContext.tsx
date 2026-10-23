@@ -30,6 +30,8 @@ interface PinnedShortcutsContextType {
 }
 
 const STORAGE_KEY = "finanze-pinned-assets"
+const CASHFLOW_PIN_MIGRATION_KEY = "finanze-pinned-assets-cashflow-default-v1"
+const DEFAULT_CASHFLOW_SHORTCUT: PinnedShortcutId = "management-cashflow"
 export const KNOWN_SHORTCUT_IDS: PinnedShortcutId[] = [
   "banking",
   "stocks-etfs",
@@ -58,6 +60,8 @@ const PinnedShortcutsContext = createContext<
 function loadPinnedShortcuts(): PinnedShortcutId[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
+    const migrationComplete =
+      localStorage.getItem(CASHFLOW_PIN_MIGRATION_KEY) === "true"
     if (raw) {
       const parsed = JSON.parse(raw) as string[]
       const valid = parsed
@@ -67,7 +71,20 @@ function loadPinnedShortcuts(): PinnedShortcutId[] {
             KNOWN_SHORTCUT_IDS.includes(id as PinnedShortcutId) &&
             ids.indexOf(id) === index,
         )
-      return valid.length ? valid : DEFAULT_PINNED
+      const shortcuts = valid.length ? valid : DEFAULT_PINNED
+      if (migrationComplete) return shortcuts
+
+      const migrated = shortcuts.includes(DEFAULT_CASHFLOW_SHORTCUT)
+        ? shortcuts
+        : [...shortcuts, DEFAULT_CASHFLOW_SHORTCUT]
+      if (migrated !== shortcuts) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+      }
+      localStorage.setItem(CASHFLOW_PIN_MIGRATION_KEY, "true")
+      return migrated
+    }
+    if (!migrationComplete) {
+      localStorage.setItem(CASHFLOW_PIN_MIGRATION_KEY, "true")
     }
     return DEFAULT_PINNED
   } catch {

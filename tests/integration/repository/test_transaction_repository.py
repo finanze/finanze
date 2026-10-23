@@ -5,12 +5,19 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from dateutil.tz import tzlocal
+from pydantic import ValidationError
 
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
-from domain.transactions import StockTx, TransactionQueryRequest, Transactions, TxType
+from domain.transactions import (
+    AccountTx,
+    StockTx,
+    TransactionQueryRequest,
+    Transactions,
+    TxType,
+)
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.transaction.transaction_repository import (
     TransactionSQLRepository,
@@ -113,6 +120,10 @@ async def setup():
         )
         """
     )
+    connection.execute(
+        "CREATE TABLE account_transfer_pairs "
+        "(tx_id CHAR(36) PRIMARY KEY, paired_tx_id CHAR(36), rule_id CHAR(36))"
+    )
     connection.commit()
     yield TransactionSQLRepository(DBClient(connection)), connection
     connection.close()
@@ -175,3 +186,100 @@ async def test_stock_split_ratio_and_null_shares_roundtrip(setup):
     assert len(filtered) == 1
     assert isinstance(filtered[0], StockTx)
     assert filtered[0].split_ratio == Dezimal("2")
+
+
+@pytest_asyncio.fixture
+async def sortable_transactions(setup):
+    repository, connection = setup
+    entity = Entity(
+        id=uuid4(),
+        name="Bank and broker",
+        natural_id=None,
+        type=EntityType.FINANCIAL_INSTITUTION,
+        origin=EntityOrigin.MANUAL,
+        icon_url=None,
+    )
+    connection.execute(
+        "INSERT INTO entities (id, name, type, origin) VALUES (?, ?, ?, ?)",
+        (str(entity.id), entity.name, entity.type.value, entity.origin.value),
+    )
+    connection.commit()
+    account_txs = []
+    investment_txs = []
+    for index, amount in enumerate(["10", "-2.25", "100.25", "0", "2.5", "-10.5"]):
+        common = {
+            "id": uuid4(),
+            "ref": f"tx-{index}",
+            "name": f"Transaction {index}",
+            "amount": Dezimal(amount),
+            "currency": "EUR",
+            "date": datetime(2026, 1, index + 1, tzinfo=tzlocal()),
+            "entity": entity,
+            "source": DataSource.MANUAL,
+            "fees": Dezimal(0),
+            "retentions": Dezimal(0),
+        }
+        if index % 2:
+            account_txs.append(
+                AccountTx(
+                    **common, type=TxType.OUTFLOW, product_type=ProductType.ACCOUNT
+                )
+            )
+        else:
+            investment_txs.append(
+                StockTx(
+                    **common,
+                    type=TxType.BUY,
+                    product_type=ProductType.STOCK_ETF,
+                    shares=Dezimal(1),
+                    price=Dezimal(amount),
+                )
+            )
+    await repository.save(Transactions(investment=investment_txs, account=account_txs))
+    return repository
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("options", "expected_indices"),
+    [
+        ({}, [5, 4, 3, 2, 1, 0]),
+        ({"sort_by": "date", "sort_order": "desc"}, [5, 4, 3, 2, 1, 0]),
+        ({"sort_by": "date", "sort_order": "asc"}, [0, 1, 2, 3, 4, 5]),
+        ({"sort_by": "amount"}, [2, 0, 4, 3, 1, 5]),
+        ({"sort_by": "amount", "sort_order": "desc"}, [2, 0, 4, 3, 1, 5]),
+        ({"sort_by": "amount", "sort_order": "asc"}, [5, 1, 3, 4, 0, 2]),
+        ({"page": 2, "limit": 2}, [3, 2]),
+        ({"sort_order": "asc", "page": 2, "limit": 2}, [2, 3]),
+        ({"sort_by": "amount", "page": 2, "limit": 2}, [4, 3]),
+        ({"sort_by": "amount", "sort_order": "asc", "page": 2, "limit": 2}, [3, 4]),
+        (
+            {"sort_by": "amount", "types": [TxType.BUY], "limit": 2},
+            [2, 0],
+        ),
+    ],
+)
+async def test_get_by_filters_sorts_before_pagination(
+    sortable_transactions, options, expected_indices
+):
+    transactions = await sortable_transactions.get_by_filters(
+        TransactionQueryRequest(**options)
+    )
+
+    assert [tx.ref for tx in transactions] == [
+        f"tx-{index}" for index in expected_indices
+    ]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"sort_by": "name"},
+        {"sort_by": "amount; DROP TABLE account_transactions"},
+        {"sort_order": "ascending"},
+        {"sort_order": "desc; DROP TABLE account_transactions"},
+    ],
+)
+def test_transaction_query_rejects_invalid_sorting(options):
+    with pytest.raises(ValidationError):
+        TransactionQueryRequest(**options)

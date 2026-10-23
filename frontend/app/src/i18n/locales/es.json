@@ -532,6 +532,8 @@
     "UNREACHABLE": "No se ha podido conectar con {integration}. Comprueba que el servidor está en marcha y que la URL es correcta.",
     "NOT_A_MODEL_ROUTER": "Este servidor sirve un solo modelo. Conéctalo como Custom endpoint, o inicia llama-server sin -m para gestionar los modelos desde Finanze.",
     "MISSING_SERVER_URL": "Introduce la URL del servidor de {integration}.",
+    "AUTHORIZATION_DENIED": "Se denegó el acceso a {integration} o no se concedieron los permisos necesarios.",
+    "AUTHORIZATION_EXPIRED": "La autorización de {integration} ha caducado o ya no es válida. Inténtalo de nuevo.",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
     "UNEXPECTED_ERROR": "Error inesperado en {entity}",
     "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
@@ -681,7 +683,6 @@
   "settings": {
     "title": "Configuración",
     "general": "General",
-    "googleSheetsWebDisabled": "Usa la app de escritorio",
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "application": "Aplicación",
     "applicationDescription": "Ajusta las preferencias locales de este dispositivo",
@@ -1112,7 +1113,61 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
-        "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
+        "description": "Configura Google Sheets para habilitar la importación y exportación de datos.",
+        "help": "Cómo obtener las credenciales",
+        "hint": {
+          "title": "Configurar el acceso a Google Sheets",
+          "steps": [
+            [
+              "Abre la ",
+              {
+                "type": "link",
+                "label": "Google Cloud Console",
+                "url": "https://console.cloud.google.com/"
+              },
+              ", crea o selecciona un proyecto y habilita la ",
+              {
+                "type": "link",
+                "label": "API de Google Sheets",
+                "url": "https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+              },
+              "."
+            ],
+            [
+              "Configura la ",
+              {
+                "type": "link",
+                "label": "pantalla de consentimiento OAuth",
+                "url": "https://console.cloud.google.com/auth/overview"
+              },
+              " y publícala **En producción** (puede quedarse sin verificar), si no el acceso caduca cada 7 días."
+            ],
+            [
+              "Crea un ",
+              {
+                "type": "link",
+                "label": "cliente OAuth",
+                "url": "https://console.cloud.google.com/auth/clients"
+              },
+              " de tipo **Aplicación web** (los clientes de tipo App de escritorio ya no son compatibles)."
+            ],
+            [
+              "Añade esta URL a los **URI de redireccionamiento autorizados** ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/oauth/v1/integration/callback/",
+                "url": "https://finanze.me/oauth/v1/integration/callback/"
+              },
+              ". Este campo es **muy importante**."
+            ],
+            [
+              "Pega el **ID de cliente** y el **Secreto del cliente** abajo, pulsa Configurar y autoriza el acceso con tu cuenta de Google."
+            ],
+            [
+              "*Google puede avisar de que la app no está verificada, como es tu propia app puedes continuar desde \"Configuración avanzada\".*"
+            ]
+          ]
+        }
       },
       "ETHERSCAN": {
         "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (solo de pago) (recomendado solo si falla la obtención estándar, o si la API es de pago)",
@@ -1358,6 +1413,7 @@
     },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
+    "integrationAwaitingAuthorization": "Esperando la autorización en tu navegador...",
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
     "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes.",
     "integrationInsecureKeyWarning": "Esta conexión no está cifrada (http), así que la clave API se envía en texto plano. Usa https o solo una red de confianza.",

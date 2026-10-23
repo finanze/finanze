@@ -28,8 +28,9 @@ import {
 import { ProductType, type StockDetail, EquityType } from "@/types/position"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Layers,
   ChevronDown,
   ChartCandlestick,
@@ -856,9 +857,9 @@ function StocksViewContent({
                 }
               >
                 {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                  <ArrowUpNarrowWide size={16} />
                 ) : (
-                  <ArrowRight size={16} className="rotate-90" />
+                  <ArrowDownWideNarrow size={16} />
                 )}
               </button>
             </div>
