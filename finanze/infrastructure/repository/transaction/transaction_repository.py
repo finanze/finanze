@@ -28,6 +28,8 @@ from domain.transactions import (
     StockTx,
     TransactionQueryRequest,
     Transactions,
+    TransactionSortBy,
+    TransactionSortOrder,
     TxType,
 )
 from infrastructure.repository.db.client import DBClient, DBCursor
@@ -585,7 +587,17 @@ class TransactionSQLRepository(TransactionPort):
             params.extend([pattern, pattern])
 
         where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
-        order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
+        sort_column = {
+            TransactionSortBy.DATE: "tx.date",
+            TransactionSortBy.AMOUNT: "CAST(tx.amount AS NUMERIC)",
+        }[query.sort_by]
+        sort_direction = {
+            TransactionSortOrder.ASC: "ASC",
+            TransactionSortOrder.DESC: "DESC",
+        }[query.sort_order]
+        order_pagination = (
+            f"ORDER BY {sort_column} {sort_direction}, tx.id ASC LIMIT ? OFFSET ?"
+        )
         offset = (query.page - 1) * query.limit
         params.extend([query.limit, offset])
         sql = f"{base_sql} {where_clause} {order_pagination}"

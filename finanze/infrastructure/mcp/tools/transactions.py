@@ -5,7 +5,12 @@ from uuid import UUID, uuid4
 
 from domain.global_position import EquityType, FundType
 from domain.labeling import UpdateTransactionLabelsRequest
-from domain.transactions import TransactionQueryRequest, TxType
+from domain.transactions import (
+    TransactionQueryRequest,
+    TransactionSortBy,
+    TransactionSortOrder,
+    TxType,
+)
 from infrastructure.controller.mappers.transaction_mapper import (
     map_add_manual_transaction,
     map_update_manual_transaction,
@@ -148,8 +153,17 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         ] = None,
         page: Page = 1,
         limit: Annotated[int, Field(ge=1, le=200)] = 50,
+        sort_by: Annotated[
+            TransactionSortBy,
+            Field(
+                description="Sort by date or stored gross amount, without currency conversion."
+            ),
+        ] = TransactionSortBy.DATE,
+        sort_order: Annotated[
+            TransactionSortOrder, Field(description="Sort direction; defaults to desc.")
+        ] = TransactionSortOrder.DESC,
     ):
-        """Search transactions and account movements across all entities, newest first. Account movements include counterparty, IBAN and labels; investment transactions include shares, price, fees and taxes."""
+        """Search transactions and account movements across all entities, sorted by date descending by default. Supports date or amount sorting in either direction. Account movements include counterparty, IBAN and labels; investment transactions include shares, price, fees and taxes."""
         result = await ucs.get_transactions.execute(
             TransactionQueryRequest(
                 page=page,
@@ -163,6 +177,8 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
                 excluded_labels=excluded_labels,
                 unlabeled=unlabeled,
                 search=(search or "").strip() or None,
+                sort_by=sort_by,
+                sort_order=sort_order,
             )
         )
         return {

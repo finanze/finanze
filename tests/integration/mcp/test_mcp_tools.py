@@ -59,6 +59,12 @@ from domain.historic import (
     PartialAmortizeManualInvestmentRequest,
     SettleManualInvestmentRequest,
 )
+from domain.transactions import (
+    TransactionQueryRequest,
+    TransactionsResult,
+    TransactionSortBy,
+    TransactionSortOrder,
+)
 
 NOW = datetime(2025, 1, 15, 10, 30, tzinfo=tzlocal())
 MANUAL = DataSource.MANUAL
@@ -936,6 +942,83 @@ class TestContributionTools:
             "Missing required fields: target_type, target, amount, currency, "
             "frequency, since" in missing
         )
+
+
+class TestTransactionSearch:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("arguments", "sort_by", "sort_order"),
+        [
+            ({}, TransactionSortBy.DATE, TransactionSortOrder.DESC),
+            ({"sort_order": "asc"}, TransactionSortBy.DATE, TransactionSortOrder.ASC),
+            (
+                {"sort_by": "amount"},
+                TransactionSortBy.AMOUNT,
+                TransactionSortOrder.DESC,
+            ),
+            (
+                {"sort_by": "date", "sort_order": "desc"},
+                TransactionSortBy.DATE,
+                TransactionSortOrder.DESC,
+            ),
+            (
+                {"sort_by": "amount", "sort_order": "asc", "page": 2, "limit": 3},
+                TransactionSortBy.AMOUNT,
+                TransactionSortOrder.ASC,
+            ),
+        ],
+    )
+    async def test_sorting_arguments(
+        self, tools, mcp_env, arguments, sort_by, sort_order
+    ):
+        mcp_env.ucs.get_transactions.execute.return_value = TransactionsResult(
+            transactions=[]
+        )
+
+        result = await tools.ok("search_transactions", **arguments)
+
+        page = arguments.get("page", 1)
+        limit = arguments.get("limit", 50)
+        mcp_env.ucs.get_transactions.execute.assert_awaited_once_with(
+            TransactionQueryRequest(
+                page=page, limit=limit, sort_by=sort_by, sort_order=sort_order
+            )
+        )
+        assert result == {"page": page, "limit": limit}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            {"sort_by": "name"},
+            {"sort_by": "amount; DROP TABLE account_transactions"},
+            {"sort_order": "ascending"},
+            {"sort_order": "desc; DROP TABLE account_transactions"},
+        ],
+    )
+    async def test_invalid_sorting_is_rejected(self, tools, mcp_env, arguments):
+        error = await tools.error("search_transactions", **arguments)
+
+        assert next(iter(arguments)) in error
+        mcp_env.ucs.get_transactions.execute.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_schema_advertises_sorting(self, mcp_env):
+        token = (await mcp_env.configure(enabled=True, read_only=True))["token"]
+        async with mcp_env.connect(token) as client:
+            result = await client.list_tools()
+
+        tool = next(tool for tool in result.tools if tool.name == "search_transactions")
+        schema = tool.model_dump(by_alias=True)["inputSchema"]
+        for name, default, choices in [
+            ("sort_by", "date", ["date", "amount"]),
+            ("sort_order", "desc", ["asc", "desc"]),
+        ]:
+            field = schema["properties"][name]
+            assert field["default"] == default
+            assert name not in schema.get("required", [])
+            definition = schema["$defs"][field["$ref"].removeprefix("#/$defs/")]
+            assert definition["enum"] == choices
 
 
 class TestHistoricTools:
