@@ -12,7 +12,7 @@ from infrastructure.mcp.use_cases import McpUseCases
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases, version: str):
-    @registry.read("Get context")
+    @registry.read("Get context", category=None)
     async def get_context():
         """Get today's date, local timezone, the user's default currency and commodity weight unit, the Finanze version and whether access is read-only. Call it first to interpret dates and amounts."""
         settings = await ucs.get_settings.execute({SettingsSection.GENERAL})
@@ -27,7 +27,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases, version: str):
             "read_only": not registry.writes_enabled,
         }
 
-    @registry.read("List entities")
+    @registry.read("List entities", category=None)
     async def list_entities(
         include_available: Annotated[
             bool,

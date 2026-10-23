@@ -34,7 +34,7 @@ MovementType = Literal["INFLOW", "OUTFLOW"]
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Get cashflow")
+    @registry.read("Get cashflow", category="activity_labels")
     async def get_cashflow(
         from_date: FromDate = None,
         to_date: ToDate = None,
@@ -60,7 +60,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.read("Get recurring movements")
+    @registry.read("Get recurring movements", category="activity_labels")
     async def get_recurring_movements(
         currency: CurrencyCode = None,
         lookback_months: Annotated[
@@ -79,7 +79,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.write("Ignore recurring movement", idempotent=True)
+    @registry.write(
+        "Ignore recurring movement", category="activity_labels", idempotent=True
+    )
     async def ignore_recurring_movement(
         key: Annotated[
             str, Field(min_length=1, description="Key from get_recurring_movements.")
@@ -98,7 +100,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.write("Restore recurring movement", idempotent=True)
+    @registry.write(
+        "Restore recurring movement", category="activity_labels", idempotent=True
+    )
     async def restore_recurring_movement(
         ignored_id: Annotated[
             UUID, Field(description="ignored_id from get_recurring_movements.")

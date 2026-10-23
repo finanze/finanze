@@ -131,7 +131,11 @@ import type {
   IgnoreRecurringMovementRequest,
   IgnoredRecurringMovement,
 } from "../types/cashflow"
-import type { McpConfig, UpdateMcpConfigRequest } from "../types/mcp"
+import type {
+  McpConfig,
+  McpConfigResponse,
+  UpdateMcpConfigRequest,
+} from "../types/mcp"
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { setTelemetryContext } from "@/lib/telemetry"
@@ -1110,7 +1114,7 @@ export async function getNetworthTimeline(
   )
 }
 
-export async function getMcpConfig(): Promise<McpConfig> {
+export async function getMcpConfig(): Promise<McpConfigResponse> {
   return (await getApiClient()).get("/mcp/config")
 }
 

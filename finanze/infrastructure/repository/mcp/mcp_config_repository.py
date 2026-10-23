@@ -1,3 +1,5 @@
+import json
+from dataclasses import asdict
 from datetime import datetime
 
 from application.ports.mcp_config_port import McpConfigPort
@@ -21,6 +23,7 @@ class McpConfigRepository(McpConfigPort):
             enabled=bool(row["enabled"]),
             read_only=not bool(row["allow_writes"]),
             token=row["token"],
+            category_access=json.loads(row["category_access"]),
         )
 
     async def save(self, config: McpConfig):
@@ -31,6 +34,12 @@ class McpConfigRepository(McpConfigPort):
                     config.enabled,
                     not config.read_only,
                     config.token,
+                    json.dumps(
+                        {
+                            category.value: asdict(access)
+                            for category, access in config.category_access.items()
+                        }
+                    ),
                     datetime.now(tzlocal()).isoformat(),
                 ),
             )

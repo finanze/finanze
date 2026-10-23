@@ -25,12 +25,14 @@ ManageableIntegration = Literal[
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("List integrations")
+    @registry.read("List integrations", category="connections")
     async def list_integrations():
         """List the external integrations (blockchain explorers, crypto price providers, AI providers, banking aggregators, Google Sheets) with their status and the payload fields required to connect them."""
         return await ucs.get_external_integrations.execute()
 
-    @registry.write("Connect integration", idempotent=True, open_world=True)
+    @registry.write(
+        "Connect integration", category="connections", idempotent=True, open_world=True
+    )
     async def connect_integration(
         integration_id: ManageableIntegration,
         payload: Annotated[
@@ -48,7 +50,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"connected": integration_id}
 
-    @registry.write("Disconnect integration", destructive=True, idempotent=True)
+    @registry.write(
+        "Disconnect integration",
+        category="connections",
+        destructive=True,
+        idempotent=True,
+    )
     async def disconnect_integration(integration_id: ManageableIntegration):
         """Disconnect an external integration, deleting its stored credentials."""
         await ucs.disconnect_external_integration.execute(

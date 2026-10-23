@@ -20,7 +20,7 @@ def _instrument_request(type, name, isin, ticker) -> InstrumentDataRequest:
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Get exchange rates")
+    @registry.read("Get exchange rates", category="market_data")
     async def get_exchange_rates(
         base_currency: CurrencyCode = None,
         currencies: Annotated[
@@ -39,7 +39,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             base_rates = {k: v for k, v in base_rates.items() if k.upper() in wanted}
         return {"base_currency": base, "rates": base_rates}
 
-    @registry.read("Get Euribor rates")
+    @registry.read("Get Euribor rates", category="market_data")
     async def get_euribor_rates(
         last: Annotated[
             int, Field(ge=1, le=600, description="Number of latest entries.")
@@ -50,7 +50,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         rates = sorted(history.rates, key=lambda r: r.period, reverse=True)
         return rates[:last]
 
-    @registry.read("Search instruments", open_world=True)
+    @registry.read("Search instruments", category="market_data", open_world=True)
     async def search_instruments(
         type: InstrumentType,
         name: InstrumentName = None,
@@ -62,7 +62,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             _instrument_request(type, name, isin, ticker)
         )
 
-    @registry.read("Get instrument details", open_world=True)
+    @registry.read("Get instrument details", category="market_data", open_world=True)
     async def get_instrument_details(
         type: InstrumentType,
         name: InstrumentName = None,

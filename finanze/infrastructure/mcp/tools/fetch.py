@@ -48,7 +48,9 @@ def _next_step(
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.write("Fetch entity data", idempotent=False, open_world=True)
+    @registry.write(
+        "Fetch entity data", category="connections", idempotent=False, open_world=True
+    )
     async def fetch_entity_data(
         account_id: Annotated[
             UUID,

@@ -65,12 +65,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             raise FlowNotFound()
         return flow
 
-    @registry.read("List periodic flows")
+    @registry.read("List periodic flows", category="budget")
     async def list_periodic_flows():
         """List recurring earnings and expenses (salary, rent, subscriptions, loan installments...) with amount, frequency, active period, next date and linked label."""
         return await ucs.get_periodic_flows.execute()
 
-    @registry.read("List pending flows")
+    @registry.read("List pending flows", category="positions")
     async def list_pending_flows(
         statuses: Annotated[
             Optional[list[FlowStatus]],
@@ -83,7 +83,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             PendingFlowQuery(statuses=statuses, flow_type=flow_type, include_stats=True)
         )
 
-    @registry.read("Get money events")
+    @registry.read("Get money events", category="budget")
     async def get_money_events(
         from_date: FromDate = None,
         to_date: ToDate = None,
@@ -97,7 +97,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             MoneyEventQuery(from_date=start, to_date=end)
         )
 
-    @registry.write("Save periodic flow")
+    @registry.write("Save periodic flow", category="budget")
     async def save_periodic_flow(
         flow_id: OptionalFlowId = None,
         name: Annotated[Optional[str], Field(min_length=1)] = None,
@@ -167,13 +167,15 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         await ucs.save_periodic_flow.execute(flow)
         return {"created": str(flow.id)}
 
-    @registry.write("Delete periodic flow", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete periodic flow", category="budget", destructive=True, idempotent=True
+    )
     async def delete_periodic_flow(flow_id: FlowId):
         """Delete a recurring earning or expense."""
         await ucs.delete_periodic_flow.execute(flow_id)
         return {"deleted": str(flow_id)}
 
-    @registry.write("Save pending flow")
+    @registry.write("Save pending flow", category="positions")
     async def save_pending_flow(
         flow_id: OptionalFlowId = None,
         name: Annotated[Optional[str], Field(min_length=1)] = None,
@@ -217,13 +219,15 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         await ucs.save_pending_flow.execute(flow)
         return {"created": str(flow.id)}
 
-    @registry.write("Delete pending flow", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete pending flow", category="positions", destructive=True, idempotent=True
+    )
     async def delete_pending_flow(flow_id: FlowId):
         """Delete a one-off expected earning or expense."""
         await ucs.delete_pending_flow.execute(flow_id)
         return {"deleted": str(flow_id)}
 
-    @registry.write("Settle pending flow")
+    @registry.write("Settle pending flow", category="positions")
     async def settle_pending_flow(
         flow_id: FlowId,
         account_id: Annotated[

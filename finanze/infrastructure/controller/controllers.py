@@ -260,6 +260,7 @@ from infrastructure.controller.routes.historic import get_historic
 from infrastructure.controller.routes.gains_timeline import gains_timeline
 from infrastructure.controller.routes.networth_timeline import networth_timeline
 from infrastructure.controller.routes.get_mcp_config import get_mcp_config
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 from infrastructure.controller.routes.update_mcp_config import update_mcp_config
 from infrastructure.controller.routes.regenerate_mcp_token import (
     regenerate_mcp_token,
@@ -417,6 +418,7 @@ async def register_routes(
     get_mcp_config_uc: GetMcpConfig,
     update_mcp_config_uc: UpdateMcpConfig,
     regenerate_mcp_token_uc: RegenerateMcpToken,
+    mcp_tool_catalog: McpToolCatalog,
     get_local_models_uc: GetLocalModels,
     download_local_model_uc: DownloadLocalModel,
     delete_local_model_uc: DeleteLocalModel,
@@ -799,7 +801,7 @@ async def register_routes(
 
     @app.route("/api/v1/mcp/config", methods=["GET"])
     async def get_mcp_config_route():
-        return await get_mcp_config(get_mcp_config_uc)
+        return await get_mcp_config(get_mcp_config_uc, mcp_tool_catalog)
 
     @app.route("/api/v1/mcp/config", methods=["PUT"])
     async def update_mcp_config_route():

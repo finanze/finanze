@@ -15,6 +15,7 @@ class RegenerateMcpTokenImpl(RegenerateMcpToken):
             enabled=current.enabled,
             read_only=current.read_only,
             token=secrets.token_urlsafe(32),
+            category_access=current.category_access,
         )
         await self._mcp_config_port.save(config)
         return config

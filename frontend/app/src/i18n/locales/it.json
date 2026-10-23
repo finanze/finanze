@@ -803,6 +803,33 @@
       "installId": "ID di installazione"
     },
     "mcp": {
+      "toolCategories": {
+        "title": "Categorie di strumenti",
+        "category": "Categoria",
+        "read": "Lettura",
+        "write": "Scrittura",
+        "essential": "Essenziali",
+        "essentialLocked": "Contesto ed entità sono sempre disponibili",
+        "writesPaused": "La scrittura è sospesa dalla modalità globale di sola lettura",
+        "activeCount": "{active}/{total} attivi",
+        "toolCount": "{count} strumenti",
+        "readAccess": "Lettura di {category}",
+        "writeAccess": "Scrittura di {category}",
+        "readTools": "Strumenti di lettura di {category}",
+        "writeTools": "Strumenti di scrittura di {category}",
+        "restoreDefaults": "Ripristina predefiniti",
+        "names": {
+          "positions": "Posizioni e patrimonio",
+          "transactions": "Transazioni",
+          "activity_labels": "Attività ed etichette",
+          "budget": "Budget e contributi",
+          "crypto": "Cripto",
+          "real_estate": "Immobili",
+          "market_data": "Dati di mercato",
+          "calculators": "Calcolatori",
+          "connections": "Connessioni e aggiornamento"
+        }
+      },
       "tabTitle": "MCP",
       "title": "Server MCP",
       "description": "Consenti ad assistenti IA e client compatibili con MCP di consultare i tuoi dati Finanze tramite il Model Context Protocol.",
@@ -818,7 +845,7 @@
       "regenerateConfirmTitle": "Rigenerare il token di accesso?",
       "regenerateConfirmMessage": "I client che usano il token attuale smetteranno di funzionare finché non aggiornerai la loro configurazione.",
       "tokenRegenerated": "Token di accesso rigenerato",
-      "runningNote": "Finanze deve essere in esecuzione e sbloccato perché i client possano connettersi. Riconnetti i client dopo aver cambiato l'impostazione di sola lettura per aggiornare gli strumenti disponibili.",
+      "runningNote": "Finanze deve essere in esecuzione e sbloccato perché i client possano connettersi. Riconnetti i client dopo aver cambiato gli accessi o le categorie per aggiornare gli strumenti disponibili.",
       "clientsTitle": "Configurazione del client",
       "clientsDescription": "Copia la configurazione per il tuo client. Il testo copiato include il tuo token di accesso.",
       "clients": {

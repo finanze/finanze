@@ -3,6 +3,8 @@ import json
 from domain.mcp import McpAccess
 from domain.use_cases.authorize_mcp_access import AuthorizeMcpAccess
 
+MCP_AUTHORIZATION_STATE = "finanze_mcp_authorization"
+
 _DENIED = {
     McpAccess.DISABLED: (404, "MCP server is disabled"),
     McpAccess.LOCKED: (503, "Finanze is locked, log in to the app first"),
@@ -30,13 +32,23 @@ class McpGateway:
             await self._default_app(scope, receive, send)
             return
 
-        access = await self._authorize_mcp_access.execute(_bearer_token(scope))
-        if access == McpAccess.READ_WRITE:
-            await self._full_app(scope, receive, send)
-        elif access == McpAccess.READ_ONLY:
-            await self._read_app(scope, receive, send)
+        authorization = await self._authorize_mcp_access.execute(_bearer_token(scope))
+        if authorization.access in (McpAccess.READ_WRITE, McpAccess.READ_ONLY):
+            request_scope = {
+                **scope,
+                "state": {
+                    **scope.get("state", {}),
+                    MCP_AUTHORIZATION_STATE: authorization,
+                },
+            }
+            app = (
+                self._full_app
+                if authorization.access == McpAccess.READ_WRITE
+                else self._read_app
+            )
+            await app(request_scope, receive, send)
         else:
-            status, message = _DENIED[access]
+            status, message = _DENIED[authorization.access]
             await _send_error(send, status, message)
 
     def _is_mcp_path(self, path: str) -> bool:

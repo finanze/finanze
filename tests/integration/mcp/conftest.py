@@ -52,6 +52,7 @@ from infrastructure.mcp.server_factory import (
     build_mcp_server,
 )
 from infrastructure.mcp.use_cases import McpUseCases
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
@@ -80,6 +81,8 @@ class McpEnv:
     db_manager: DBManager
     ucs: McpUseCases
     position_port: PositionPort
+    config_repository: McpConfigRepository
+    catalog: McpToolCatalog
 
     def http(self, token: Optional[str] = None) -> httpx2.AsyncClient:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
@@ -98,11 +101,16 @@ class McpEnv:
             async with Client(transport) as client:
                 yield client
 
-    async def configure(self, enabled: bool, read_only: bool) -> dict:
+    async def configure(
+        self, enabled: bool, read_only: bool, category_access: Optional[dict] = None
+    ) -> dict:
+        body = {"enabled": enabled, "read_only": read_only}
+        if category_access is not None:
+            body["category_access"] = category_access
         async with self.http() as http_client:
             response = await http_client.put(
                 "/api/v1/mcp/config",
-                json={"enabled": enabled, "read_only": read_only},
+                json=body,
             )
             assert response.status_code == 200
             return response.json()
@@ -176,10 +184,11 @@ async def mcp_env(tmp_path):
     get_mcp_config_uc = GetMcpConfigImpl(mcp_config_repo)
     update_mcp_config_uc = UpdateMcpConfigImpl(mcp_config_repo)
     regenerate_mcp_token_uc = RegenerateMcpTokenImpl(mcp_config_repo)
+    catalog = McpToolCatalog()
 
     @default_app.route("/api/v1/mcp/config", methods=["GET"])
     async def get_mcp_config_route():
-        return await get_mcp_config(get_mcp_config_uc)
+        return await get_mcp_config(get_mcp_config_uc, catalog)
 
     @default_app.route("/api/v1/mcp/config", methods=["PUT"])
     async def update_mcp_config_route():
@@ -194,7 +203,7 @@ async def mcp_env(tmp_path):
         return jsonify({"pong": True}), 200
 
     servers = [
-        build_mcp_server(ucs, "0.0.0-test", writes_enabled)
+        build_mcp_server(ucs, "0.0.0-test", writes_enabled, catalog=catalog)
         for writes_enabled in (False, True)
     ]
     read_app, full_app = [build_http_app(server) for server in servers]
@@ -220,7 +229,12 @@ async def mcp_env(tmp_path):
     await ready.wait()
 
     yield McpEnv(
-        gateway=gateway, db_manager=db_manager, ucs=ucs, position_port=position_port
+        gateway=gateway,
+        db_manager=db_manager,
+        ucs=ucs,
+        position_port=position_port,
+        config_repository=mcp_config_repo,
+        catalog=catalog,
     )
 
     stop.set()
