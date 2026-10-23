@@ -55,7 +55,7 @@ def _optional_dezimal(value: Optional[Decimal]) -> Optional[Dezimal]:
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Search crypto assets", open_world=True)
+    @registry.read("Search crypto assets", category="crypto", open_world=True)
     async def search_crypto_assets(
         query: Annotated[str, Field(min_length=1, max_length=100)],
         by: Literal["symbol", "name"] = "symbol",
@@ -72,7 +72,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.read("Get crypto asset details", open_world=True)
+    @registry.read("Get crypto asset details", category="crypto", open_world=True)
     async def get_crypto_asset_details(
         provider_id: Annotated[
             str,
@@ -83,12 +83,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         """Get details of a crypto asset from a market data provider: current price, platforms and contract addresses."""
         return await ucs.get_crypto_asset_details.execute(provider_id, provider)
 
-    @registry.read("Get crypto wallet addresses")
+    @registry.read("Get crypto wallet addresses", category="crypto")
     async def get_crypto_wallet_addresses(wallet_id: WalletId):
         """Get all the addresses of a connected crypto wallet, including the ones derived from an HD wallet public key."""
         return await ucs.get_crypto_wallet_addresses.execute(wallet_id)
 
-    @registry.read("Derive crypto addresses")
+    @registry.read("Derive crypto addresses", category="crypto")
     async def derive_crypto_addresses(
         entity_id: CryptoEntityId,
         xpub: Annotated[
@@ -107,7 +107,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.write("Add crypto wallet")
+    @registry.write("Add crypto wallet", category="crypto")
     async def add_crypto_wallet(
         entity_id: CryptoEntityId,
         name: Annotated[str, Field(min_length=1, max_length=100)],
@@ -147,7 +147,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.write("Rename crypto wallet", idempotent=True)
+    @registry.write("Rename crypto wallet", category="crypto", idempotent=True)
     async def rename_crypto_wallet(
         wallet_id: WalletId,
         name: Annotated[str, Field(min_length=1, max_length=100)],
@@ -158,13 +158,17 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"updated": str(wallet_id)}
 
-    @registry.write("Delete crypto wallet", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete crypto wallet", category="crypto", destructive=True, idempotent=True
+    )
     async def delete_crypto_wallet(wallet_id: WalletId):
         """Disconnect a crypto wallet and remove its tracked positions."""
         await ucs.delete_crypto_wallet.execute(wallet_id)
         return {"deleted": str(wallet_id)}
 
-    @registry.write("Refresh crypto data", idempotent=True, open_world=True)
+    @registry.write(
+        "Refresh crypto data", category="crypto", idempotent=True, open_world=True
+    )
     async def refresh_crypto_data(
         entity_id: Annotated[
             Optional[UUID],
@@ -181,7 +185,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"code": result.code, "details": result.details}
 
-    @registry.write("Save commodities", destructive=True, idempotent=True)
+    @registry.write(
+        "Save commodities", category="positions", destructive=True, idempotent=True
+    )
     async def save_commodities(
         commodities: Annotated[
             list[CommodityInput],

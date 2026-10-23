@@ -19,6 +19,10 @@ class UpdateMcpConfigImpl(UpdateMcpConfig):
             enabled=request.enabled,
             read_only=request.read_only,
             token=token,
+            category_access={
+                **current.category_access,
+                **(request.category_access or {}),
+            },
         )
         await self._mcp_config_port.save(config)
         return config

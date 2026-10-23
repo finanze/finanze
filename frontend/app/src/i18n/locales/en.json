@@ -804,6 +804,33 @@
       "installId": "Installation ID"
     },
     "mcp": {
+      "toolCategories": {
+        "title": "Tool categories",
+        "category": "Category",
+        "read": "Read",
+        "write": "Write",
+        "essential": "Essential",
+        "essentialLocked": "Context and entities are always available",
+        "writesPaused": "Writes are paused by global read-only mode",
+        "activeCount": "{active}/{total} active",
+        "toolCount": "{count} tools",
+        "readAccess": "Read {category}",
+        "writeAccess": "Write {category}",
+        "readTools": "Read tools in {category}",
+        "writeTools": "Write tools in {category}",
+        "restoreDefaults": "Restore defaults",
+        "names": {
+          "positions": "Positions & Net Worth",
+          "transactions": "Transactions",
+          "activity_labels": "Activity & Labels",
+          "budget": "Budget & Contributions",
+          "crypto": "Crypto",
+          "real_estate": "Real Estate",
+          "market_data": "Market Data",
+          "calculators": "Calculators",
+          "connections": "Connections & Refresh"
+        }
+      },
       "tabTitle": "MCP",
       "title": "MCP server",
       "description": "Let AI assistants and MCP-compatible clients query your Finanze data through the Model Context Protocol.",
@@ -819,7 +846,7 @@
       "regenerateConfirmTitle": "Regenerate access token?",
       "regenerateConfirmMessage": "Clients using the current token will stop working until you update their configuration.",
       "tokenRegenerated": "Access token regenerated",
-      "runningNote": "Finanze must be running and unlocked for clients to connect. Reconnect your clients after changing the read-only setting so they refresh the available tools.",
+      "runningNote": "Finanze must be running and unlocked for clients to connect. Reconnect your clients after changing access or tool categories so they refresh the available tools.",
       "clientsTitle": "Client setup",
       "clientsDescription": "Copy the configuration for your client. The copied text includes your access token.",
       "clients": {

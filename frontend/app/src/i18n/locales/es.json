@@ -803,6 +803,33 @@
       "installId": "ID de instalación"
     },
     "mcp": {
+      "toolCategories": {
+        "title": "Categorías de herramientas",
+        "category": "Categoría",
+        "read": "Lectura",
+        "write": "Escritura",
+        "essential": "Esenciales",
+        "essentialLocked": "El contexto y las entidades están siempre disponibles",
+        "writesPaused": "La escritura está pausada por el modo global de solo lectura",
+        "activeCount": "{active}/{total} activas",
+        "toolCount": "{count} herramientas",
+        "readAccess": "Lectura de {category}",
+        "writeAccess": "Escritura de {category}",
+        "readTools": "Herramientas de lectura de {category}",
+        "writeTools": "Herramientas de escritura de {category}",
+        "restoreDefaults": "Restaurar valores",
+        "names": {
+          "positions": "Posiciones y patrimonio",
+          "transactions": "Transacciones",
+          "activity_labels": "Actividad y etiquetas",
+          "budget": "Presupuesto y aportaciones",
+          "crypto": "Cripto",
+          "real_estate": "Inmuebles",
+          "market_data": "Datos de mercado",
+          "calculators": "Calculadoras",
+          "connections": "Conexiones y actualización"
+        }
+      },
       "tabTitle": "MCP",
       "title": "Servidor MCP",
       "description": "Permite que asistentes de IA y clientes compatibles con MCP consulten tus datos de Finanze mediante el Model Context Protocol.",
@@ -818,7 +845,7 @@
       "regenerateConfirmTitle": "¿Regenerar el token de acceso?",
       "regenerateConfirmMessage": "Los clientes que usen el token actual dejarán de funcionar hasta que actualices su configuración.",
       "tokenRegenerated": "Token de acceso regenerado",
-      "runningNote": "Finanze debe estar en ejecución y desbloqueado para que los clientes se conecten. Reconecta tus clientes tras cambiar la opción de solo lectura para que actualicen las herramientas disponibles.",
+      "runningNote": "Finanze debe estar en ejecución y desbloqueado para que los clientes se conecten. Reconecta tus clientes tras cambiar el acceso o las categorías para que actualicen las herramientas disponibles.",
       "clientsTitle": "Configuración del cliente",
       "clientsDescription": "Copia la configuración para tu cliente. El texto copiado incluye tu token de acceso.",
       "clients": {

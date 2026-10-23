@@ -2,10 +2,10 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
-from domain.mcp import McpAccess
+from domain.mcp import McpAccess, McpAuthorization
 from domain.use_cases.authorize_mcp_access import AuthorizeMcpAccess
 
-from infrastructure.mcp.gateway import McpGateway
+from infrastructure.mcp.gateway import MCP_AUTHORIZATION_STATE, McpGateway
 
 
 class RecordingApp:
@@ -63,13 +63,17 @@ class TestMcpGateway:
     )
     async def test_routes_by_access(self, setup, access, app_index):
         gateway, authorize, apps = setup
-        authorize.execute.return_value = access
+        authorization = McpAuthorization(access)
+        authorize.execute.return_value = authorization
         scope = _scope(path="/mcp/", headers=[(b"authorization", b"Bearer abc ")])
 
         await _run(gateway, scope)
 
         authorize.execute.assert_awaited_once_with("abc")
-        assert apps[app_index].scopes == [scope]
+        forwarded = apps[app_index].scopes[0]
+        assert forwarded["state"][MCP_AUTHORIZATION_STATE] == authorization
+        assert "state" not in scope
+        assert forwarded["path"] == scope["path"]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -78,7 +82,7 @@ class TestMcpGateway:
     )
     async def test_missing_or_invalid_bearer_passes_no_token(self, setup, header):
         gateway, authorize, _ = setup
-        authorize.execute.return_value = McpAccess.UNAUTHORIZED
+        authorize.execute.return_value = McpAuthorization(McpAccess.UNAUTHORIZED)
         headers = [(b"authorization", header)] if header else []
 
         await _run(gateway, _scope(headers=headers))
@@ -96,7 +100,7 @@ class TestMcpGateway:
     )
     async def test_denied_responses(self, setup, access, status):
         gateway, authorize, apps = setup
-        authorize.execute.return_value = access
+        authorize.execute.return_value = McpAuthorization(access)
 
         start, body = await _run(gateway, _scope())
 

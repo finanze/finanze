@@ -7,6 +7,8 @@ from starlette.applications import Starlette
 
 from infrastructure.mcp.instructions import build_instructions
 from infrastructure.mcp.registry import ToolRegistry
+from infrastructure.mcp.tool_access import McpToolAccess
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 from infrastructure.mcp.tools import (
     calculations,
     cashflow,
@@ -51,14 +53,17 @@ def build_mcp_server(
     version: str,
     writes_enabled: bool,
     error_reporter: Optional[ErrorReporterPort] = None,
+    catalog: Optional[McpToolCatalog] = None,
 ) -> MCPServer:
+    catalog = catalog if catalog is not None else McpToolCatalog()
     server = MCPServer(
         name="finanze",
         title="Finanze",
         version=version,
         instructions=build_instructions(read_only=not writes_enabled),
+        middleware=[McpToolAccess(catalog)],
     )
-    registry = ToolRegistry(server, writes_enabled, error_reporter)
+    registry = ToolRegistry(server, writes_enabled, error_reporter, catalog)
     context.register(registry, ucs, version)
     for module in _MODULES:
         module.register(registry, ucs)

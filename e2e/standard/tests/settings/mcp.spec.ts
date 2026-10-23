@@ -67,6 +67,113 @@ test.describe('MCP server settings', () => {
         expect(readWrite.tools).toContain('get_net_worth')
         expect(readWrite.tools).toContain('save_label')
 
+        const categories = page.getByTestId('mcp-tool-categories')
+        await expect(categories).toHaveAttribute('aria-expanded', 'false')
+        await categories.click()
+        await page
+            .getByRole('button', {
+                name: 'Read tools in Positions & Net Worth',
+                exact: true,
+            })
+            .click()
+        const readToolNames = page.getByRole('dialog', {
+            name: 'Read tools in Positions & Net Worth',
+            exact: true,
+        })
+        await expect(readToolNames).toContainText('get_historic_positions')
+        await expect(readToolNames).toContainText('list_pending_flows')
+        await expect(readToolNames).not.toContainText('save_manual_position')
+        await page.keyboard.press('Escape')
+        await expect(readToolNames).toBeHidden()
+        await page
+            .getByRole('button', {
+                name: 'Read tools in Essential',
+                exact: true,
+            })
+            .click()
+        const essentialToolNames = page.getByRole('dialog', {
+            name: 'Read tools in Essential',
+            exact: true,
+        })
+        await expect(essentialToolNames.locator('code')).toHaveText([
+            'get_context',
+            'list_entities',
+        ])
+        await page.keyboard.press('Escape')
+        const positionsRead = page.getByTestId('mcp-category-positions-read')
+        const positionsWrite = page.getByTestId('mcp-category-positions-write')
+        const budgetRead = page.getByTestId('mcp-category-budget-read')
+        await positionsRead.click()
+        await expect(positionsRead).toHaveAttribute('data-state', 'unchecked')
+        await expect(positionsWrite).toHaveAttribute('data-state', 'unchecked')
+        await page
+            .getByRole('button', {
+                name: 'Write tools in Positions & Net Worth',
+                exact: true,
+            })
+            .click()
+        const writeToolNames = page.getByRole('dialog', {
+            name: 'Write tools in Positions & Net Worth',
+            exact: true,
+        })
+        await expect(writeToolNames).toContainText('settle_pending_flow')
+        await expect(writeToolNames).toContainText('save_commodities')
+        await expect(writeToolNames).not.toContainText('get_positions')
+        await page.keyboard.press('Escape')
+        const withoutPositions = await listTools(page, token)
+        expect(withoutPositions.tools).not.toContain('get_positions')
+        expect(withoutPositions.tools).not.toContain('get_historic_positions')
+        expect(withoutPositions.tools).not.toContain('list_pending_flows')
+        expect(withoutPositions.tools).toContain('get_contributions')
+        expect(withoutPositions.tools).toContain('get_context')
+        expect(withoutPositions.tools).toContain('list_entities')
+
+        await positionsWrite.click()
+        await expect(positionsRead).toHaveAttribute('data-state', 'checked')
+        await expect(positionsWrite).toHaveAttribute('data-state', 'checked')
+        expect((await listTools(page, token)).tools).toContain(
+            'settle_pending_flow',
+        )
+        await positionsWrite.click()
+        await expect(positionsWrite).toHaveAttribute('data-state', 'unchecked')
+        const positionsReadOnly = await listTools(page, token)
+        expect(positionsReadOnly.tools).toContain('get_historic_positions')
+        expect(positionsReadOnly.tools).not.toContain('settle_pending_flow')
+
+        await budgetRead.click()
+        await expect(budgetRead).toHaveAttribute('data-state', 'unchecked')
+        const withoutBudget = await listTools(page, token)
+        expect(withoutBudget.tools).not.toContain('get_contributions')
+        expect(withoutBudget.tools).not.toContain('save_contribution')
+        expect(withoutBudget.tools).not.toContain('list_periodic_flows')
+        expect(withoutBudget.tools).toContain('get_positions')
+
+        await page.getByRole('tab', { name: 'General', exact: true }).click()
+        await page.getByRole('tab', { name: 'MCP', exact: true }).click()
+        await expect(categories).toHaveAttribute('aria-expanded', 'false')
+        await categories.click()
+        await expect(budgetRead).toHaveAttribute('data-state', 'unchecked')
+        await expect(positionsWrite).toHaveAttribute('data-state', 'unchecked')
+        await readOnly.click()
+        await expect(readOnly).toHaveAttribute('data-state', 'checked')
+        await expect(positionsWrite).toBeDisabled()
+        await expect(
+            page.getByTestId('mcp-category-transactions-write'),
+        ).toHaveAttribute('data-state', 'checked')
+        expect((await listTools(page, token)).tools).not.toContain('save_label')
+        await readOnly.click()
+        await expect(readOnly).toHaveAttribute('data-state', 'unchecked')
+        await expect(positionsWrite).toHaveAttribute('data-state', 'unchecked')
+        expect((await listTools(page, token)).tools).toContain('save_label')
+
+        await page.getByTestId('mcp-categories-reset').click()
+        await expect(budgetRead).toHaveAttribute('data-state', 'checked')
+        await expect(positionsWrite).toHaveAttribute('data-state', 'checked')
+        await expect(page.getByTestId('mcp-categories-reset')).toBeDisabled()
+        expect((await listTools(page, token)).tools.sort()).toEqual(
+            readWrite.tools.sort(),
+        )
+
         await page.getByTestId('mcp-regenerate-token').click()
         await page
             .locator('div.fixed')

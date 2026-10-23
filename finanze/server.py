@@ -300,6 +300,7 @@ from infrastructure.mcp.server_factory import (
     build_mcp_server,
 )
 from infrastructure.mcp.use_cases import McpUseCases
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -1274,6 +1275,7 @@ class FinanzeServer:
         self._log.info("Setting up REST API...")
 
         self._quart_app = quart(static_upload_dir, self._error_reporter)
+        mcp_tool_catalog = McpToolCatalog()
         await register_routes(
             self._quart_app,
             user_login,
@@ -1385,6 +1387,7 @@ class FinanzeServer:
             get_mcp_config_uc=get_mcp_config,
             update_mcp_config_uc=update_mcp_config,
             regenerate_mcp_token_uc=regenerate_mcp_token,
+            mcp_tool_catalog=mcp_tool_catalog,
             get_local_models_uc=get_local_models,
             download_local_model_uc=download_local_model,
             delete_local_model_uc=delete_local_model,
@@ -1465,7 +1468,11 @@ class FinanzeServer:
         version = resolve_version()
         self._mcp_servers = [
             build_mcp_server(
-                mcp_use_cases, version, writes_enabled, self._error_reporter
+                mcp_use_cases,
+                version,
+                writes_enabled,
+                self._error_reporter,
+                mcp_tool_catalog,
             )
             for writes_enabled in (False, True)
         ]

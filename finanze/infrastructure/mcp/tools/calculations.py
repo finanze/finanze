@@ -47,7 +47,7 @@ def _dezimal(value: Optional[Decimal]) -> Optional[Dezimal]:
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Calculate savings")
+    @registry.read("Calculate savings", category="calculators")
     async def calculate_savings(
         periodicity: SavingsPeriodicity,
         scenarios: Annotated[
@@ -86,7 +86,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.read("Calculate loan")
+    @registry.read("Calculate loan", category="calculators")
     async def calculate_loan(
         interest_rate: Annotated[
             Decimal,
@@ -127,7 +127,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.read("Forecast net worth")
+    @registry.read("Forecast net worth", category="calculators")
     async def forecast_net_worth(
         target_date: Annotated[date, Field(description="Future date to forecast.")],
         avg_annual_market_increase: Annotated[

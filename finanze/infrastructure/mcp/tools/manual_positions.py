@@ -513,7 +513,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "Manual position entry not found. Use get_positions with real=false to get the current entry IDs."
         )
 
-    @registry.write("Save manual position")
+    @registry.write("Save manual position", category="positions")
     async def save_manual_position(
         position: PositionInput,
         entity_id: Annotated[
@@ -588,7 +588,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "entity_id": str(saved_entity_id),
         }
 
-    @registry.write("Delete manual position", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete manual position",
+        category="positions",
+        destructive=True,
+        idempotent=True,
+    )
     async def delete_manual_position(
         entity_id: Annotated[UUID, Field(description="Entity of the entry.")],
         product_type: ManualProductType,

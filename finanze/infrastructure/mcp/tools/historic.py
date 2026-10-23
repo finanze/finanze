@@ -43,7 +43,7 @@ def _datetime(value: Optional[date]) -> Optional[datetime]:
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.write("Settle manual investment")
+    @registry.write("Settle manual investment", category="positions")
     async def settle_manual_investment(
         entity_id: EntityId,
         entry_id: EntryId,
@@ -85,7 +85,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"settled": str(entry_id)}
 
-    @registry.write("Amortize manual investment")
+    @registry.write("Amortize manual investment", category="positions")
     async def amortize_manual_investment(
         entity_id: EntityId,
         entry_id: EntryId,
@@ -117,7 +117,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"amortized": str(entry_id)}
 
-    @registry.write("Unsettle manual investment")
+    @registry.write("Unsettle manual investment", category="positions")
     async def unsettle_manual_investment(historic_entry_id: HistoricEntryId):
         """Revert the settlement of a manual Factoring or Real Estate Crowdfunding investment: deletes its settlement transactions and moves it back to the current position."""
         await ucs.unsettle_manual_investment.execute(
@@ -125,7 +125,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"unsettled": str(historic_entry_id)}
 
-    @registry.write("Delete manual historic entry", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete manual historic entry",
+        category="positions",
+        destructive=True,
+        idempotent=True,
+    )
     async def delete_manual_historic_entry(
         historic_entry_id: HistoricEntryId,
         tx_deletion: Annotated[

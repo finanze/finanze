@@ -119,7 +119,7 @@ def _compact_tx(tx) -> dict:
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Search transactions")
+    @registry.read("Search transactions", category="transactions")
     async def search_transactions(
         entities: EntityIds = None,
         product_types: ProductTypes = None,
@@ -171,7 +171,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "transactions": [_compact_tx(tx) for tx in result.transactions],
         }
 
-    @registry.write("Add transactions")
+    @registry.write("Add transactions", category="transactions")
     async def add_transactions(
         transactions: Annotated[
             list[ManualTransactionInput], Field(min_length=1, max_length=100)
@@ -184,7 +184,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         await ucs.add_manual_transaction.execute(map_add_manual_transaction(bodies))
         return {"created": len(bodies)}
 
-    @registry.write("Update manual transaction", idempotent=True)
+    @registry.write(
+        "Update manual transaction", category="transactions", idempotent=True
+    )
     async def update_manual_transaction(
         tx_id: Annotated[UUID, Field(description="Transaction ID.")],
         transaction: Annotated[
@@ -200,7 +202,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"updated": str(tx_id)}
 
-    @registry.write("Delete manual transaction", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete manual transaction",
+        category="transactions",
+        destructive=True,
+        idempotent=True,
+    )
     async def delete_manual_transaction(
         tx_id: Annotated[UUID, Field(description="Transaction ID.")],
     ):
@@ -208,7 +215,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         await ucs.delete_manual_transaction.execute(tx_id)
         return {"deleted": str(tx_id)}
 
-    @registry.write("Set transaction labels", idempotent=True)
+    @registry.write(
+        "Set transaction labels", category="activity_labels", idempotent=True
+    )
     async def set_transaction_labels(
         tx_id: Annotated[UUID, Field(description="Account transaction ID.")],
         label_ids: Annotated[

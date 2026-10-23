@@ -84,17 +84,17 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             raise LabelingRuleNotFound()
         return rule
 
-    @registry.read("List labels")
+    @registry.read("List labels", category="activity_labels")
     async def list_labels():
         """List the labels used to categorize account movements, with category (INCOME, EXPENSE, EXCLUDED), budget subcategory (NEED, WANTS, SAVINGS) and usage count."""
         return await ucs.get_labels.execute()
 
-    @registry.read("List labeling rules")
+    @registry.read("List labeling rules", category="activity_labels")
     async def list_labeling_rules():
         """List the automatic labeling rules: MATCH rules label movements matching the conditions, TRANSFER rules detect transfers between own accounts."""
         return await ucs.get_labeling_rules.execute()
 
-    @registry.read("Preview labeling rule")
+    @registry.read("Preview labeling rule", category="activity_labels")
     async def preview_labeling_rule(
         conditions: RuleConditionsInput,
         limit: Annotated[int, Field(ge=1, le=50)] = 10,
@@ -104,7 +104,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             LabelingRulePreviewRequest(conditions=_conditions(conditions), limit=limit)
         )
 
-    @registry.write("Save label")
+    @registry.write("Save label", category="activity_labels")
     async def save_label(
         label_id: Annotated[
             Optional[UUID],
@@ -152,13 +152,15 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.write("Delete label", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete label", category="activity_labels", destructive=True, idempotent=True
+    )
     async def delete_label(label_id: LabelId):
         """Delete a label, removing it from all transactions and rules."""
         await ucs.delete_label.execute(label_id)
         return {"deleted": str(label_id)}
 
-    @registry.write("Save labeling rule")
+    @registry.write("Save labeling rule", category="activity_labels")
     async def save_labeling_rule(
         rule_id: Annotated[
             Optional[UUID],
@@ -206,13 +208,18 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             SaveLabelingRuleRequest(rule=rule, apply_to_existing=apply_to_existing)
         )
 
-    @registry.write("Delete labeling rule", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete labeling rule",
+        category="activity_labels",
+        destructive=True,
+        idempotent=True,
+    )
     async def delete_labeling_rule(rule_id: RuleId):
         """Delete an automatic labeling rule. Labels already applied are kept."""
         await ucs.delete_labeling_rule.execute(rule_id)
         return {"deleted": str(rule_id)}
 
-    @registry.write("Relabel transactions")
+    @registry.write("Relabel transactions", category="activity_labels")
     async def relabel_transactions(
         from_date: FromDate = None,
         to_date: ToDate = None,

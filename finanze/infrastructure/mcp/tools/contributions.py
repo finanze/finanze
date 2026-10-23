@@ -77,7 +77,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "Manual contribution not found. Only manual contributions can be changed."
         )
 
-    @registry.write("Save periodic contribution")
+    @registry.write("Save periodic contribution", category="budget")
     async def save_contribution(
         contribution_id: Annotated[
             Optional[UUID],
@@ -182,7 +182,12 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         await ucs.update_contributions.execute(updated)
         return {result: contribution.name}
 
-    @registry.write("Delete periodic contribution", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete periodic contribution",
+        category="budget",
+        destructive=True,
+        idempotent=True,
+    )
     async def delete_contribution(contribution_id: ContributionId):
         """Delete a manual periodic automatic contribution. Manual contribution IDs change after every save."""
         contributions = await load_manual()

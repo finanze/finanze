@@ -16,6 +16,7 @@ import { SecretInput } from "@/components/ui/SecretInput"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { McpToolCategories } from "@/components/settings/McpToolCategories"
 import { useAppContext } from "@/context/AppContext"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
@@ -24,7 +25,11 @@ import {
   regenerateMcpToken,
   updateMcpConfig,
 } from "@/services/api"
-import type { McpConfig } from "@/types/mcp"
+import type {
+  McpCategoryPreferences,
+  McpConfig,
+  McpToolCatalog,
+} from "@/types/mcp"
 
 type McpClient = "vscode" | "claudeCode" | "cursor" | "claudeDesktop"
 
@@ -101,6 +106,11 @@ export function McpTab() {
   const { t } = useI18n()
   const { showToast } = useAppContext()
   const [config, setConfig] = useState<McpConfig | null>(null)
+  const [catalog, setCatalog] = useState<McpToolCatalog>({
+    tool_categories: [],
+    essential_count: 0,
+    essential_tools: [],
+  })
   const [serverUrl, setServerUrl] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -112,6 +122,11 @@ export function McpTab() {
     Promise.all([getMcpConfig(), getApiServerInfo()])
       .then(([mcpConfig, serverInfo]) => {
         setConfig(mcpConfig)
+        setCatalog({
+          tool_categories: mcpConfig.tool_categories,
+          essential_count: mcpConfig.essential_count,
+          essential_tools: mcpConfig.essential_tools,
+        })
         setServerUrl(
           new URL(
             `${serverInfo.baseUrl}/mcp`,
@@ -123,10 +138,20 @@ export function McpTab() {
   }, [])
 
   const update = useCallback(
-    async (enabled: boolean, readOnly: boolean) => {
+    async (
+      enabled: boolean,
+      readOnly: boolean,
+      categoryAccess?: McpCategoryPreferences,
+    ) => {
       setIsSaving(true)
       try {
-        setConfig(await updateMcpConfig({ enabled, read_only: readOnly }))
+        setConfig(
+          await updateMcpConfig({
+            enabled,
+            read_only: readOnly,
+            category_access: categoryAccess,
+          }),
+        )
       } catch {
         showToast(t.settings.mcp.updateError, "error")
       } finally {
@@ -213,7 +238,7 @@ export function McpTab() {
             <Switch
               data-testid="mcp-enabled"
               checked={config.enabled}
-              disabled={isSaving}
+              disabled={isSaving || isRegenerating}
               onCheckedChange={checked => update(checked, config.read_only)}
             />
           </div>
@@ -229,7 +254,7 @@ export function McpTab() {
             <Switch
               data-testid="mcp-read-only"
               checked={config.read_only}
-              disabled={isSaving || !config.enabled}
+              disabled={isSaving || isRegenerating || !config.enabled}
               onCheckedChange={checked => update(config.enabled, checked)}
             />
           </div>
@@ -239,6 +264,14 @@ export function McpTab() {
               <span>{t.settings.mcp.readOnlyWarning}</span>
             </div>
           )}
+          <McpToolCategories
+            config={config}
+            catalog={catalog}
+            isSaving={isSaving || isRegenerating}
+            onChange={preferences =>
+              update(config.enabled, config.read_only, preferences)
+            }
+          />
         </CardContent>
       </Card>
 
@@ -278,7 +311,7 @@ export function McpTab() {
                   type="button"
                   variant="outline"
                   data-testid="mcp-regenerate-token"
-                  disabled={isRegenerating}
+                  disabled={isSaving || isRegenerating}
                   onClick={() => setShowRegenerateConfirm(true)}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />

@@ -32,7 +32,7 @@ RealFilter = Annotated[
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("Get net worth")
+    @registry.read("Get net worth", category="positions")
     async def get_net_worth(currency: CurrencyCode = None):
         """Get the current total net worth and its breakdown by asset bucket (product types, plus REAL_ESTATE and REAL_ESTATE_RESIDENCE), converted to one currency. Loans and credits are subtracted."""
         base_currency = await resolve_currency(ucs, currency)
@@ -40,7 +40,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             NetworthSummaryQuery(base_currency=base_currency)
         )
 
-    @registry.read("Get positions")
+    @registry.read("Get positions", category="positions")
     async def get_positions(
         entities: EntityIds = None,
         product_types: ProductTypes = None,
@@ -51,14 +51,14 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             PositionQueryRequest(entities=entities, products=product_types, real=real)
         )
 
-    @registry.read("Get periodic contributions")
+    @registry.read("Get periodic contributions", category="budget")
     async def get_contributions(entities: EntityIds = None, real: RealFilter = None):
         """Get the periodic automatic contributions (recurring investment orders, e.g. monthly fund or ETF purchases) grouped by entity ID."""
         return await ucs.get_contributions.execute(
             ContributionQueryRequest(entities=entities, real=real)
         )
 
-    @registry.read("Get historic positions")
+    @registry.read("Get historic positions", category="positions")
     async def get_historic_positions(
         entities: EntityIds = None,
         product_types: ProductTypes = None,
@@ -79,7 +79,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             )
         )
 
-    @registry.read("Get net worth timeline")
+    @registry.read("Get net worth timeline", category="positions")
     async def get_net_worth_timeline(
         currency: CurrencyCode = None,
         from_date: FromDate = None,
@@ -98,7 +98,7 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
             "points": sample(timeline.points, granularity, lambda p: p.date),
         }
 
-    @registry.read("Get gains timeline")
+    @registry.read("Get gains timeline", category="positions")
     async def get_gains_timeline(
         product_types: Annotated[
             list[ProductType],

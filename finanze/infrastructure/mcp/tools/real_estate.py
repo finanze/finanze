@@ -99,12 +99,12 @@ def _valuation_info(model: Optional[ValuationInfoInput]) -> Optional[ValuationIn
 
 
 def register(registry: ToolRegistry, ucs: McpUseCases):
-    @registry.read("List real estate")
+    @registry.read("List real estate", category="real_estate")
     async def list_real_estate():
         """List the user's real estate properties with purchase info, valuations, rental data and linked flows (rent, loans, costs, supplies)."""
         return await ucs.list_real_estate.execute()
 
-    @registry.write("Save real estate")
+    @registry.write("Save real estate", category="real_estate")
     async def save_real_estate(
         real_estate_id: Annotated[
             Optional[UUID],
@@ -180,7 +180,9 @@ def register(registry: ToolRegistry, ucs: McpUseCases):
         )
         return {"created": str(real_estate.id)}
 
-    @registry.write("Delete real estate", destructive=True, idempotent=True)
+    @registry.write(
+        "Delete real estate", category="real_estate", destructive=True, idempotent=True
+    )
     async def delete_real_estate(
         real_estate_id: Annotated[UUID, Field(description="Property ID.")],
         remove_related_flows: Annotated[

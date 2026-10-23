@@ -224,6 +224,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_5_mcp_config import (
 from infrastructure.repository.db.versions.v0.v11.v0110_6_local_ai_integrations import (
     V01106LocalAIIntegrations,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_7_mcp_tool_categories import (
+    V01107McpToolCategories,
+)
 
 versions = [
     V0Genesis(),
@@ -312,4 +315,5 @@ versions = [
     V01104Settings(),
     V01105McpConfig(),
     V01106LocalAIIntegrations(),
+    V01107McpToolCategories(),
 ]

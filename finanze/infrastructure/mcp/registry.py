@@ -9,6 +9,7 @@ from mcp.types import ToolAnnotations
 
 from infrastructure.mcp.errors import map_error
 from infrastructure.mcp.serialization import to_json
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 
 ToolFn = Callable[..., Awaitable[Any]]
 
@@ -19,12 +20,14 @@ class ToolRegistry:
         server: MCPServer,
         writes_enabled: bool,
         error_reporter: Optional[ErrorReporterPort] = None,
+        catalog: Optional[McpToolCatalog] = None,
     ):
         self._server = server
         self.writes_enabled = writes_enabled
         self._error_reporter = error_reporter
+        self._catalog = catalog if catalog is not None else McpToolCatalog()
 
-    def read(self, title: str, open_world: bool = False):
+    def read(self, title: str, *, category: str | None, open_world: bool = False):
         def decorator(fn: ToolFn) -> ToolFn:
             self._add(
                 fn,
@@ -33,6 +36,7 @@ class ToolRegistry:
                     read_only_hint=True,
                     open_world_hint=open_world,
                 ),
+                category,
             )
             return fn
 
@@ -41,28 +45,33 @@ class ToolRegistry:
     def write(
         self,
         title: str,
+        *,
+        category: str,
         destructive: bool = False,
         idempotent: bool = False,
         open_world: bool = False,
     ):
         def decorator(fn: ToolFn) -> ToolFn:
-            if self.writes_enabled:
-                self._add(
-                    fn,
-                    ToolAnnotations(
-                        title=title,
-                        read_only_hint=False,
-                        destructive_hint=destructive,
-                        idempotent_hint=idempotent,
-                        open_world_hint=open_world,
-                    ),
-                )
+            self._add(
+                fn,
+                ToolAnnotations(
+                    title=title,
+                    read_only_hint=False,
+                    destructive_hint=destructive,
+                    idempotent_hint=idempotent,
+                    open_world_hint=open_world,
+                ),
+                category,
+            )
             return fn
 
         return decorator
 
-    def _add(self, fn: ToolFn, annotations: ToolAnnotations):
+    def _add(self, fn: ToolFn, annotations: ToolAnnotations, category: str | None):
         name = fn.__name__
+        self._catalog.add(name, annotations.title, category, annotations.read_only_hint)
+        if not annotations.read_only_hint and not self.writes_enabled:
+            return
         error_reporter = self._error_reporter
 
         @functools.wraps(fn)
