@@ -520,11 +520,14 @@ export function ProvidersTab() {
       setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
 
       try {
-        const result = await setupIntegration(
-          integrationId,
-          sanitizedPayload,
-          buildIntegrationCompletionUrl(integrationId),
-        )
+        const result =
+          integrationId === "GOOGLE_SHEETS"
+            ? await setupIntegration(
+                integrationId,
+                sanitizedPayload,
+                buildIntegrationCompletionUrl(integrationId),
+              )
+            : await setupIntegration(integrationId, sanitizedPayload)
         if (result?.link) {
           setAwaitingAuthorization(integrationId)
           await openExternalAuthLink(result.link)
