@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 from pydantic.dataclasses import dataclass
 
@@ -55,6 +56,20 @@ ExternalIntegrationPayload = dict[str, str]
 class ConnectedExternalIntegrationRequest:
     integration_id: ExternalIntegrationId
     payload: ExternalIntegrationPayload
+    completion_url: Optional[str] = None
+
+
+@dataclass
+class ExternalIntegrationConnectionResult:
+    link: Optional[str] = None
+
+
+@dataclass
+class CompleteExternalIntegrationConnectionRequest:
+    integration_id: ExternalIntegrationId
+    state: str
+    code: Optional[str] = None
+    error: Optional[str] = None
 
 
 @dataclass

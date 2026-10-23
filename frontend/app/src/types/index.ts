@@ -768,6 +768,10 @@ declare global {
       onExternalCompleteUrl: (
         callback: (payload: { url: string }) => void,
       ) => () => void
+
+      onIntegrationCompleteUrl: (
+        callback: (payload: { url: string }) => void,
+      ) => () => void
     }
   }
 }
@@ -811,6 +815,16 @@ export interface ExternalIntegration {
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
+}
+
+export interface ExternalIntegrationConnectionResult {
+  link?: string | null
+}
+
+export interface CompleteIntegrationOAuthRequest {
+  state: string
+  code?: string | null
+  error?: string | null
 }
 
 export enum ExternalEntityStatus {

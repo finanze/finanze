@@ -7,6 +7,9 @@ from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
+from domain.use_cases.complete_external_integration_connection import (
+    CompleteExternalIntegrationConnection,
+)
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
 from domain.use_cases.connect_external_integration import ConnectExternalIntegration
@@ -178,6 +181,9 @@ from infrastructure.controller.routes.change_user_password import change_user_pa
 from infrastructure.controller.routes.complete_external_entity_connection import (
     complete_external_entity_connection,
 )
+from infrastructure.controller.routes.complete_external_integration_connection import (
+    complete_external_integration_connection,
+)
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.connect_external_entity import (
     connect_external_entity,
@@ -348,6 +354,7 @@ async def register_routes(
     get_external_integrations_uc: GetExternalIntegrations,
     connect_external_integrations_uc: ConnectExternalIntegration,
     disconnect_external_integrations_uc: DisconnectExternalIntegration,
+    complete_external_integration_connection_uc: CompleteExternalIntegrationConnection,
     save_periodic_flow_uc: SavePeriodicFlow,
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
@@ -689,6 +696,12 @@ async def register_routes(
     async def disconnect_external_integration_route(integration_id: str):
         return await disconnect_external_integration(
             disconnect_external_integrations_uc, integration_id
+        )
+
+    @app.route("/api/v1/integrations/<integration_id>/oauth/complete", methods=["POST"])
+    async def complete_external_integration_connection_route(integration_id: str):
+        return await complete_external_integration_connection(
+            complete_external_integration_connection_uc, integration_id
         )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])

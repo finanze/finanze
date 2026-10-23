@@ -25,7 +25,11 @@ import {
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
 import { isNativeMobile, isWeb } from "@/lib/platform"
-import { openInAppBrowser, closeInAppBrowser } from "@/lib/mobile"
+import {
+  INTEGRATION_OAUTH_PARAM,
+  closeExternalAuthBrowser,
+  openExternalAuthLink,
+} from "@/lib/externalAuth"
 import { useModalBackHandler } from "@/hooks/useModalBackHandler"
 
 export const ENABLE_BANKING_PROVIDER = "ENABLE_BANKING"
@@ -33,36 +37,6 @@ export const ENABLE_BANKING_PROVIDER = "ENABLE_BANKING"
 function buildWebCompletionUrl(): string | undefined {
   if (!isWeb()) return undefined
   return `${window.location.origin}${window.location.pathname}#/entities`
-}
-
-async function openExternalAuthLink(link: string) {
-  if (isNativeMobile()) {
-    try {
-      await openInAppBrowser(link)
-    } catch {
-      // ignore in-app browser open errors
-    }
-    return
-  }
-  if (isWeb()) {
-    // Web/Docker: navigate the same tab; the provider page redirects back
-    // to this app with the code/state once the authorization completes.
-    window.location.assign(link)
-    return
-  }
-  try {
-    window.open(link, "_blank")
-  } catch {
-    // ignore window open errors
-  }
-}
-
-async function closeExternalAuthBrowser() {
-  try {
-    await closeInAppBrowser()
-  } catch {
-    // ignore in-app browser close errors
-  }
 }
 
 interface ExternalCandidate {
@@ -400,6 +374,7 @@ export function useExternalEntityConnection() {
   useEffect(() => {
     if (!isWeb()) return
     const params = new URLSearchParams(window.location.search)
+    if (params.get(INTEGRATION_OAUTH_PARAM)) return
     const code = params.get("code")
     const state = params.get("state")
     const error = params.get("error")

@@ -39,16 +39,25 @@ import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
-import { setupIntegration, disableIntegration } from "@/services/api"
+import {
+  setupIntegration,
+  disableIntegration,
+  completeIntegrationOAuth,
+} from "@/services/api"
 import { cn } from "@/lib/utils"
 import { copyToClipboard } from "@/lib/clipboard"
 import {
-  PlatformType,
   ExternalIntegrationStatus,
   ExternalIntegrationType,
   type ExternalIntegration,
 } from "@/types"
-import { getPlatformType } from "@/lib/platform"
+import { isWeb } from "@/lib/platform"
+import {
+  buildIntegrationCompletionUrl,
+  openExternalAuthLink,
+  parseIntegrationOAuthCallback,
+  type IntegrationOAuthCallback,
+} from "@/lib/externalAuth"
 import { isMostlyBlackLogo } from "@/utils/iconAnalysis"
 import {
   LocalModelsIntegration,
@@ -307,8 +316,9 @@ export function ProvidersTab() {
   >({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
   const [serverDetailsFor, setServerDetailsFor] = useState<string | null>(null)
-
-  const platform = getPlatformType()
+  const [awaitingAuthorization, setAwaitingAuthorization] = useState<
+    string | null
+  >(null)
 
   const getIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {
@@ -415,6 +425,52 @@ export function ProvidersTab() {
     [],
   )
 
+  const showIntegrationError = useCallback(
+    (error: unknown, integrationName: string) => {
+      console.error(error)
+      const code = (error as any)?.code
+      const translated = (code && (t.errors as any)?.[code]) || t.common.error
+      showToast(formatIntegrationMessage(translated, integrationName), "error")
+    },
+    [formatIntegrationMessage, showToast, t],
+  )
+
+  const handleIntegrationEnabled = useCallback(
+    async (integration: ExternalIntegration) => {
+      const integrationId = integration.id
+      const fields = Object.keys(integration.payload_schema ?? {})
+      setIntegrationErrors(prev => {
+        if (!prev[integrationId]) {
+          return prev
+        }
+
+        const rest = { ...prev }
+        delete rest[integrationId]
+        return rest
+      })
+      setIntegrationPayloads(prev => {
+        const clearedFields: Record<string, string> = {}
+        fields.forEach(field => {
+          clearedFields[field] = ""
+        })
+        return { ...prev, [integrationId]: clearedFields }
+      })
+      const successMessage = formatIntegrationMessage(
+        t.settings.integrationEnabledSuccess,
+        getIntegrationCopy(integration).title,
+      )
+      showToast(successMessage, "success")
+      await fetchExternalIntegrations(true)
+    },
+    [
+      fetchExternalIntegrations,
+      formatIntegrationMessage,
+      getIntegrationCopy,
+      showToast,
+      t,
+    ],
+  )
+
   const handleSetupIntegration = useCallback(
     async (integrationId: string) => {
       const integration = externalIntegrations.find(
@@ -426,11 +482,6 @@ export function ProvidersTab() {
       }
 
       const { title: integrationName } = getIntegrationCopy(integration)
-
-      if (integrationId === "GOOGLE_SHEETS" && platform === PlatformType.WEB) {
-        showToast(t.settings.googleSheetsWebDisabled, "warning")
-        return
-      }
 
       const schema = integration.payload_schema ?? {}
       const payload = integrationPayloads[integrationId] ?? {}
@@ -469,53 +520,109 @@ export function ProvidersTab() {
       setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
 
       try {
-        await setupIntegration(integrationId, sanitizedPayload)
-        setIntegrationErrors(prev => {
-          if (!prev[integrationId]) {
-            return prev
-          }
-
-          const rest = { ...prev }
-          delete rest[integrationId]
-          return rest
-        })
-        setIntegrationPayloads(prev => {
-          const clearedFields: Record<string, string> = {}
-          fields.forEach(field => {
-            clearedFields[field] = ""
-          })
-          return { ...prev, [integrationId]: clearedFields }
-        })
-        const successMessage = formatIntegrationMessage(
-          t.settings.integrationEnabledSuccess,
-          integrationName,
+        const result = await setupIntegration(
+          integrationId,
+          sanitizedPayload,
+          buildIntegrationCompletionUrl(integrationId),
         )
-        showToast(successMessage, "success")
-        await fetchExternalIntegrations(true)
+        if (result?.link) {
+          setAwaitingAuthorization(integrationId)
+          await openExternalAuthLink(result.link)
+          return
+        }
+        await handleIntegrationEnabled(integration)
       } catch (error) {
-        console.error(error)
-        const code = (error as any)?.code
-        const translated = (code && (t.errors as any)?.[code]) || t.common.error
-        const formattedError = formatIntegrationMessage(
-          translated,
-          integrationName,
-        )
-        showToast(formattedError, "error")
+        showIntegrationError(error, integrationName)
       } finally {
         setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
       }
     },
     [
       externalIntegrations,
-      fetchExternalIntegrations,
-      formatIntegrationMessage,
       getIntegrationCopy,
+      handleIntegrationEnabled,
       integrationPayloads,
-      platform,
+      showIntegrationError,
       showToast,
       t,
     ],
   )
+
+  const handleIntegrationOAuthCallback = useCallback(
+    async ({ integrationId, state, code, error }: IntegrationOAuthCallback) => {
+      const integration = externalIntegrations.find(
+        item => item.id === integrationId,
+      )
+
+      if (!integration) {
+        return
+      }
+
+      const { title: integrationName } = getIntegrationCopy(integration)
+
+      setAwaitingAuthorization(null)
+
+      if (!state) {
+        showIntegrationError({ code: "AUTHORIZATION_EXPIRED" }, integrationName)
+        return
+      }
+
+      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
+
+      try {
+        await completeIntegrationOAuth(integrationId, { state, code, error })
+        await handleIntegrationEnabled(integration)
+      } catch (err) {
+        showIntegrationError(err, integrationName)
+      } finally {
+        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
+      }
+    },
+    [
+      externalIntegrations,
+      getIntegrationCopy,
+      handleIntegrationEnabled,
+      showIntegrationError,
+    ],
+  )
+
+  useEffect(() => {
+    if (!isWeb() || externalIntegrations.length === 0) {
+      return
+    }
+
+    const callback = parseIntegrationOAuthCallback(window.location.search)
+    if (!callback) {
+      return
+    }
+
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + window.location.hash,
+    )
+    void handleIntegrationOAuthCallback(callback)
+  }, [externalIntegrations.length, handleIntegrationOAuthCallback])
+
+  useEffect(() => {
+    if (!window.ipcAPI?.onIntegrationCompleteUrl) {
+      return
+    }
+
+    return window.ipcAPI.onIntegrationCompleteUrl(({ url }) => {
+      let search: string
+      try {
+        search = new URL(url).search
+      } catch {
+        return
+      }
+
+      const callback = parseIntegrationOAuthCallback(search)
+      if (callback) {
+        void handleIntegrationOAuthCallback(callback)
+      }
+    })
+  }, [handleIntegrationOAuthCallback])
 
   const handleDisableIntegration = useCallback(
     async (integrationId: string) => {
@@ -703,8 +810,7 @@ export function ProvidersTab() {
     const isEnabled = integration.status === ExternalIntegrationStatus.ON
     const isLoading = !!isSetupLoading[integration.id]
     const disableLoading = !!isDisableLoading[integration.id]
-    const disabledForPlatform =
-      integration.id === "GOOGLE_SHEETS" && platform === PlatformType.WEB
+    const isAwaitingAuthorization = awaitingAuthorization === integration.id
     const isUnavailable = !integration.available
 
     const { title, description, helpLabel, hint } =
@@ -892,7 +998,7 @@ export function ProvidersTab() {
                     label={String(label)}
                     value={value}
                     hasError={hasError}
-                    disabled={isUnavailable || disabledForPlatform}
+                    disabled={isUnavailable}
                     onChange={newValue =>
                       handleIntegrationFieldChange(
                         integration.id,
@@ -913,7 +1019,7 @@ export function ProvidersTab() {
                       )
                     }
                     placeholder={placeholder}
-                    disabled={isUnavailable || disabledForPlatform}
+                    disabled={isUnavailable}
                     className={cn(hasError ? "border-red-500" : undefined)}
                   />
                 ) : (
@@ -929,7 +1035,7 @@ export function ProvidersTab() {
                       )
                     }
                     placeholder={placeholder}
-                    disabled={isUnavailable || disabledForPlatform}
+                    disabled={isUnavailable}
                     className={cn(hasError ? "border-red-500" : undefined)}
                   />
                 )}
@@ -951,11 +1057,22 @@ export function ProvidersTab() {
     )
 
     const renderActions = ({ setup }: { setup: boolean }) => (
-      <div className="flex items-center justify-end gap-2">
-        {disabledForPlatform && (
-          <span className="text-xs text-muted-foreground">
-            {`(${t.settings.googleSheetsWebDisabled})`}
-          </span>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {isAwaitingAuthorization && (
+          <div
+            className="mr-auto flex items-center gap-2 text-xs text-muted-foreground"
+            data-testid={`integration-awaiting-authorization-${integration.id}`}
+          >
+            <LoadingSpinner size="sm" />
+            <span>{t.settings.integrationAwaitingAuthorization}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAwaitingAuthorization(null)}
+            >
+              {t.common.cancel}
+            </Button>
+          </div>
         )}
         {isEnabled && SERVER_DETAILS_INTEGRATIONS.has(integration.id) && (
           <Button
@@ -998,9 +1115,7 @@ export function ProvidersTab() {
           <Button
             size="sm"
             onClick={() => handleSetupIntegration(integration.id)}
-            disabled={
-              isLoading || !canSubmit || disabledForPlatform || isUnavailable
-            }
+            disabled={isLoading || !canSubmit || isUnavailable}
           >
             {isLoading ? (
               <>
@@ -1024,6 +1139,7 @@ export function ProvidersTab() {
     return (
       <Card
         key={integration.id}
+        data-testid={`integration-card-${integration.id}`}
         className={cn(
           "self-start",
           isUnavailable ? "opacity-60" : undefined,

@@ -189,4 +189,14 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
     return () => ipcRenderer.removeAllListeners("external-complete-url")
   },
+
+  onIntegrationCompleteUrl: (callback: (payload: { url: string }) => void) => {
+    ipcRenderer.removeAllListeners("integration-complete-url")
+
+    ipcRenderer.on("integration-complete-url", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("integration-complete-url")
+  },
 } as const)

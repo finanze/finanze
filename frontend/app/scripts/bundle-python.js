@@ -69,6 +69,9 @@ const EXCLUDED_PATHS = [
   "infrastructure/controller/routes/delete_local_model.py",
   "infrastructure/controller/routes/list_hugging_face_quants.py",
   "infrastructure/controller/routes/import_local_model.py",
+  "domain/use_cases/complete_external_integration_connection.py",
+  "application/use_cases/complete_external_integration_connection.py",
+  "infrastructure/controller/routes/complete_external_integration_connection.py",
 ]
 
 const EXCLUDED_FILES = [

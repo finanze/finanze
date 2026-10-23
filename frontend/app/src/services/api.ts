@@ -13,6 +13,8 @@ import {
   SaveCommodityRequest,
   ImportResult,
   ExternalIntegrations,
+  ExternalIntegrationConnectionResult,
+  CompleteIntegrationOAuthRequest,
   PeriodicFlow,
   PendingFlow,
   CreatePeriodicFlowRequest,
@@ -816,10 +818,22 @@ export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
 export async function setupIntegration(
   integrationId: string,
   payload: Record<string, string>,
-): Promise<void> {
+  completionUrl?: string,
+): Promise<ExternalIntegrationConnectionResult | null> {
   return (await getApiClient()).post(`/integrations/${integrationId}`, {
     payload,
+    completion_url: completionUrl,
   })
+}
+
+export async function completeIntegrationOAuth(
+  integrationId: string,
+  request: CompleteIntegrationOAuthRequest,
+): Promise<void> {
+  return (await getApiClient()).post(
+    `/integrations/${integrationId}/oauth/complete`,
+    request,
+  )
 }
 
 export async function disableIntegration(integrationId: string): Promise<void> {
