@@ -42,8 +42,8 @@ It connects to real financial entities via public ways and open banking (PSD2), 
 <p align="middle">
   <img src="resources/dashboard.png" alt="Finanze net worth dashboard aggregating banks, investments and crypto" width="49%" />
   <img src="resources/m-stocks.png" alt="Finanze mobile stocks and ETFs portfolio view" width="19%" /> 
-  <img src="resources/entitiespage.png" alt="Finanze connected financial entities and open banking accounts" width="49%" /> 
-  <img src="resources/earningsexpenses.png" alt="Finanze earnings and expenses tracking with contribution forecasting" width="49%" /> 
+  <img src="resources/integrations.png" alt="Finanze connected financial entities and open banking accounts" width="49%" /> 
+  <img src="resources/budget.png" alt="Finanze earnings and expenses tracking with contribution forecasting" width="49%" /> 
   <img src="resources/realestate.png" alt="Finanze real estate investment tracking with KPIs and metrics" width="49%" />
   <img src="resources/savingscalculator.png" alt="Finanze savings and retirement calculator with multiple scenarios" width="49%" /> 
   <img src="resources/crypto.png" alt="Finanze crypto portfolio tracking across wallets and exchanges" width="49%" /> 
