@@ -34,8 +34,9 @@ import {
 } from "@/types/position"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Filter,
   FilterX,
   Pencil,
@@ -936,9 +937,9 @@ function FundsInvestmentPageContent({
                 }
               >
                 {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                  <ArrowUpNarrowWide size={16} />
                 ) : (
-                  <ArrowRight size={16} className="rotate-90" />
+                  <ArrowDownWideNarrow size={16} />
                 )}
               </button>
             </div>
