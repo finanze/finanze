@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -327,3 +328,61 @@ class TestMyInvestorLoginDeviceId:
         assert client._device_id == device_id
         token_headers = client._post_request.call_args_list[1].kwargs["headers"]
         assert token_headers["x-device-id"] == device_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "version,account_id,expected_path",
+    [
+        (
+            2,
+            "cash-account",
+            "/cperf-server/api/v2/cash-accounts/cash-account/flows?dateFrom=20261001&dateTo=20261024",
+        ),
+        (
+            3,
+            "cash-uuid",
+            "/account/api/v3/account/cash-uuid/flows?dateFrom=2026-10-01&dateTo=2026-10-24",
+        ),
+    ],
+)
+async def test_account_movements_use_version_specific_dates(
+    version, account_id, expected_path
+):
+    client = MyInvestorAPIV2Client()
+    data = {"flowList": []}
+    client._get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    result = await client.get_account_movements(
+        account_id, date(2026, 10, 1), date(2026, 10, 24), version=version
+    )
+
+    assert result == data
+    client._get_request.assert_awaited_once_with(expected_path)
+
+
+@pytest.mark.asyncio
+async def test_financial_events_unwrap_payload():
+    client = MyInvestorAPIV2Client()
+    data = [{"eventId": "paid-event", "eventType": "DE"}]
+    client._get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    assert await client.get_financial_events("securities-account") == data
+    client._get_request.assert_awaited_once_with(
+        "/broker/v2/financial-events?accountId=securities-account"
+    )
+
+
+@pytest.mark.asyncio
+async def test_financial_event_details_unwrap_payload():
+    client = MyInvestorAPIV2Client()
+    data = {"eventType": "DE", "eventCurrency": "EUR"}
+    client._get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    assert (
+        await client.get_financial_event_details("securities-account", "paid-event")
+        == data
+    )
+    client._get_request.assert_awaited_once_with(
+        "/broker/v2/financial-events/paid-event?accountId=securities-account"
+    )

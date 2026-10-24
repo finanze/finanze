@@ -46,7 +46,7 @@ services:
 #  - For an external or self-managed llama.cpp server, leave them unset and set its URL and key in
 #    Settings > Integrations > Local models.
 #  - Values entered in the UI override these environment variables.
-#  - A single-model llama-server (started with -m) or Ollama goes in Custom endpoint instead.
+#  - A single-model llama-server (started with -m) or Ollama uses the Custom AI provider instead.
 #  - GGUF files dropped in ./.storage/models/local are listed after pressing Refresh in Finanze.
 #  - For GPU use ghcr.io/ggml-org/llama.cpp:server-cuda-b11669 or server-vulkan-b11669 with the device setup.
 #  finanze-llama:
@@ -70,7 +70,7 @@ services:
 #      --reasoning-budget 0
 #    # mem_limit: 6g                                    # Small models (<4B params) need 1-4 GB of RAM
 
-#  Optional, Ollama as a Custom endpoint (Settings > Integrations > Custom endpoint, URL http://ollama:11434/v1)
+#  Optional, Ollama via the Custom AI provider (Settings > Integrations > Custom AI, URL http://ollama:11434/v1)
 #  ollama:
 #    image: ollama/ollama:latest
 #    restart: unless-stopped

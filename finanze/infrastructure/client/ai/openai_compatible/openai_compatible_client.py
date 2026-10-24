@@ -63,7 +63,7 @@ def model_capabilities(entry: dict) -> set[AIModelCapability]:
 
 
 class OpenAICompatibleClient(HttpAIClient):
-    PROVIDER_NAME = "Custom endpoint"
+    PROVIDER_NAME = "Custom AI"
     REQUEST_TIMEOUT_SECONDS = 300.0
     SETUP_TIMEOUT_SECONDS = 15.0
     PROBE_TIMEOUT_SECONDS = 5.0

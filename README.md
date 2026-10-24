@@ -47,6 +47,7 @@ It connects to real financial entities via public ways and open banking (PSD2), 
   <img src="resources/realestate.png" alt="Finanze real estate investment tracking with KPIs and metrics" width="49%" />
   <img src="resources/savingscalculator.png" alt="Finanze savings and retirement calculator with multiple scenarios" width="49%" /> 
   <img src="resources/crypto.png" alt="Finanze crypto portfolio tracking across wallets and exchanges" width="49%" /> 
+  <img src="resources/activity.png" alt="Finanze crypto portfolio tracking across wallets and exchanges" width="49%" /> 
 </p>
 
 ## Table of Contents
@@ -90,7 +91,7 @@ For AI suggestions, connect OpenAI or OpenRouter, a custom OpenAI-compatible end
 Configure providers under **Entities > Providers > AI providers**.
 
 - **Local models:** Run GGUF models with the built-in llama.cpp engine on desktop. Download recommended or Hugging Face models, import a GGUF file, or connect your own llama.cpp server in router mode.
-- **Custom endpoint:** Connect Ollama, LM Studio, vLLM, or a single-model llama.cpp server with its base URL and optional API key.
+- **Custom AI:** Connect Ollama, LM Studio, vLLM, or a single-model llama.cpp server with its base URL and optional API key.
 
 The built-in engine runs models on-device and is desktop-only. External endpoints must be reachable from Finanze.
 

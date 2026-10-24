@@ -1,6 +1,6 @@
 import sqlite3
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +14,7 @@ from domain.auto_contributions import (
     ContributionTargetType,
     PeriodicContribution,
 )
+from domain.cashflow import is_counted
 from domain.data_init import DatasourceInitContext
 from domain.dezimal import Dezimal
 from domain.entity import Feature
@@ -32,6 +33,16 @@ from domain.native_entities import ING, MY_INVESTOR, UNICAJA
 from domain.transactions import AccountTx, Transactions, TxType
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
+from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client import (
+    MyInvestorAPIV2Client,
+)
+from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_fetcher import (
+    DIVIDENDS_POINTER,
+    MyInvestorFetcherV2,
+)
+from infrastructure.labeling.transaction_labeler_adapter import (
+    TransactionLabelerAdapter,
+)
 from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -41,6 +52,13 @@ from infrastructure.repository.entity_account.entity_account_repository import (
 )
 from infrastructure.repository.fetch.fetch_pointers_repository import (
     FetchPointersRepository,
+)
+from infrastructure.repository.labeling.label_repository import LabelRepository
+from infrastructure.repository.labeling.labeling_rule_repository import (
+    LabelingRuleRepository,
+)
+from infrastructure.repository.labeling.transaction_label_repository import (
+    TransactionLabelRepository,
 )
 from infrastructure.repository.transaction.transaction_repository import (
     TransactionSQLRepository,
@@ -903,6 +921,214 @@ class TestINGAccountTransactions:
         else:
             transaction_port.delete_by_entity_account_id.assert_not_awaited()
             fetch_pointers_port.delete_by_entity_account_id.assert_not_awaited()
+
+
+class TestMyInvestorDividends:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("delayed_event", [False, True])
+    async def test_fetch_links_paid_dividend_and_persists_retry_and_deep_refresh(
+        self,
+        client,
+        db_client,
+        entity_fetchers,
+        credentials_port,
+        sessions_port,
+        last_fetches_port,
+        entity_account_port,
+        transaction_port,
+        fetch_pointers_port,
+        transaction_handler_port,
+        transaction_labeler,
+        delayed_event,
+    ):
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        db_client.set_connection(connection)
+        await DatabaseUpgrader(
+            db_client, versions, DatasourceInitContext(config=AsyncMock())
+        ).upgrade()
+        account = EntityAccount(
+            id=uuid.UUID(ENTITY_ACCOUNT_ID),
+            entity_id=MY_INVESTOR.id,
+            created_at=datetime.now(tzlocal()),
+        )
+        account_repo = EntityAccountRepository(db_client)
+        await account_repo.create(account)
+        entity_account_port.get_by_id.side_effect = account_repo.get_by_id
+        tx_repo = TransactionSQLRepository(db_client)
+        pointer_repo = FetchPointersRepository(db_client)
+        label_repo = TransactionLabelRepository(db_client)
+        handler = TransactionHandler(db_client)
+        for method in (
+            "save",
+            "get_refs_by_entity_account",
+            "get_by_filters",
+            "delete_by_entity_account_id",
+        ):
+            getattr(transaction_port, method).side_effect = getattr(tx_repo, method)
+        for method in (
+            "save",
+            "get_by_entity_account_id",
+            "delete_by_entity_account_id",
+        ):
+            getattr(fetch_pointers_port, method).side_effect = getattr(
+                pointer_repo, method
+            )
+        transaction_handler_port.start.side_effect = handler.start
+        labeler = TransactionLabelerAdapter(
+            transaction_port=tx_repo,
+            transaction_label_port=label_repo,
+            labeling_rule_port=LabelingRuleRepository(db_client),
+            label_port=LabelRepository(db_client),
+            config_port=AsyncMock(),
+            external_integration_port=AsyncMock(),
+            providers={},
+            transaction_handler_port=handler,
+        )
+        transaction_labeler.classify.side_effect = labeler.classify
+        transaction_labeler.link_settlements.side_effect = labeler.link_settlements
+
+        today = date.today()
+        paid_date = today - timedelta(days=10)
+        paid_timestamp = f"{paid_date.isoformat()}T00:00:00Z"
+        description = "JPM GB EQ PR IN ACT UT E-U D"
+        event = {
+            "eventId": "paid-event",
+            "eventType": "DE",
+            "eventStatus": "VALIDATED",
+            "isin": "IE000AP27VA7",
+            "ticker": "JGPD GR",
+            "marketId": "XTR",
+            "toolDescription": description,
+            "operationDate": paid_timestamp,
+        }
+        unpaid_event = {
+            **event,
+            "eventId": "unpaid-event",
+            "operationDate": f"{(paid_date - timedelta(days=16)).isoformat()}T00:00:00Z",
+        }
+        bank_client = AsyncMock(spec=MyInvestorAPIV2Client)
+        bank_client.get_cash_accounts.return_value = [
+            {
+                "accountId": "cash-account",
+                "accountUuid": "cash-uuid",
+                "accountType": "CASH_ACCOUNT",
+                "status": "ACTIVE",
+                "holders": [{"me": True}],
+                "creationDate": (today - timedelta(days=40)).isoformat(),
+            }
+        ]
+        bank_client.get_security_accounts.return_value = [
+            {"accountId": "security-account", "cashAccountId": "cash-account"}
+        ]
+        bank_client.get_fund_orders.return_value = []
+        bank_client.get_stock_orders.return_value = []
+        bank_client.get_pension_accounts.return_value = []
+        bank_client.get_account_movements.return_value = {
+            "flowList": [
+                {
+                    "reference": "dividend-cash",
+                    "operationClass": "RENDIMIENTOS DE VALORES",
+                    "operationType": "ABONO DE DIVIDENDO",
+                    "operationDate": paid_timestamp,
+                    "valueDate": paid_timestamp,
+                    "currency": "EUR",
+                    "concept": f"{description} @",
+                    "operationRef": f"0000 {description} @ 1        000000001",
+                    "amount": "0.0800",
+                }
+            ]
+        }
+        bank_client.get_financial_events.return_value = (
+            [unpaid_event] if delayed_event else [event, unpaid_event]
+        )
+        bank_client.get_financial_event_details.return_value = {
+            "eventType": "DE",
+            "originEmissionIsin": event["isin"],
+            "originEmissionCurrency": "EUR",
+            "eventCurrency": "EUR",
+            "ticker": event["ticker"],
+            "toolDescription": description,
+            "execDate": paid_timestamp,
+            "taxSharesMarketExpenses": "0.0992",
+            "taxSharesOriginWithholding": "0",
+            "taxSharesDestinationWithholding": "0.018848",
+            "marketExpensesPercent": "0",
+        }
+        fetcher = MyInvestorFetcherV2()
+        fetcher._client = bank_client
+        fetcher.login = AsyncMock(
+            return_value=EntityLoginResult(code=LoginResultCode.RESUMED)
+        )
+        entity_fetchers[MY_INVESTOR] = fetcher
+        credentials_port.get.return_value = {
+            "user": "test-user",
+            "password": "test-password",
+        }
+        sessions_port.get.return_value = None
+        last_fetches_port.get_by_entity_account_id.return_value = []
+        payload = {"entityAccountId": str(account.id), "features": ["TRANSACTIONS"]}
+
+        response = await client.post(FETCH_URL, json=payload)
+
+        assert response.status_code == 200
+        assert (await response.get_json())["code"] == "COMPLETED"
+        first = await tx_repo.get_by_entity(MY_INVESTOR.id)
+        cash_id = first.account[0].id
+        assert len(first.account) == 1
+        assert len(first.investment) == (0 if delayed_event else 1)
+        assert is_counted(first.account[0], set()) == delayed_event
+        pointers = {
+            p.key: p for p in await pointer_repo.get_by_entity_account_id(account.id)
+        }
+        assert pointers[f"{DIVIDENDS_POINTER}:security-account"].threshold == (
+            paid_date if delayed_event else today
+        )
+        bank_client.get_account_movements.assert_awaited_once()
+        assert bank_client.get_account_movements.await_args.kwargs == {"version": 3}
+        bank_client.get_financial_events.return_value = [event, unpaid_event]
+
+        for _ in range(2):
+            response = await client.post(FETCH_URL, json=payload)
+            assert (await response.get_json())["code"] == "COMPLETED"
+
+        stored = await tx_repo.get_by_entity(MY_INVESTOR.id)
+        assert len(stored.account) == len(stored.investment) == 1
+        cash, dividend = stored.account[0], stored.investment[0]
+        assert cash.id == cash_id
+        assert cash.linked_tx == dividend.ref
+        assert dividend.linked_tx == cash.ref
+        assert dividend.amount == Dezimal("0.10")
+        assert dividend.retentions == Dezimal("0.02")
+        assert dividend.net_amount == cash.amount == Dezimal("0.08")
+        assert not is_counted(cash, set())
+        assert await tx_repo.get_refs_by_entity_account(account.id) == {
+            "dividend-cash",
+            "dividend:security-account:dividend-cash",
+        }
+        assert bank_client.get_financial_events.await_count == (
+            2 if delayed_event else 1
+        )
+        bank_client.get_financial_event_details.assert_awaited_once_with(
+            "security-account", "paid-event"
+        )
+        read_response = await client.get(GET_TRANSACTIONS_URL)
+        assert read_response.status_code == 200
+        rows = (await read_response.get_json())["transactions"]
+        assert {row["type"] for row in rows} == {"DIVIDEND", "INFLOW"}
+
+        response = await client.post(FETCH_URL, json={**payload, "deep": True})
+
+        assert (await response.get_json())["code"] == "COMPLETED"
+        rebuilt = await tx_repo.get_by_entity(MY_INVESTOR.id)
+        assert len(rebuilt.account) == len(rebuilt.investment) == 1
+        assert rebuilt.account[0].id != cash_id
+        assert rebuilt.account[0].linked_tx == rebuilt.investment[0].ref
+        pointers = {
+            p.key: p for p in await pointer_repo.get_by_entity_account_id(account.id)
+        }
+        assert pointers[f"{DIVIDENDS_POINTER}:security-account"].threshold == today
 
 
 class TestChallengeFlow:
