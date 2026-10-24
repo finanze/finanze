@@ -482,9 +482,10 @@ class MyInvestorAPIV2Client:
         flow_type: Optional[str] = None,
         version: int = 2,
     ):
-        to_date_str = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
+        date_format = GET_DATE_FORMAT if version == 2 else DATE_FORMAT
+        to_date_str = date.strftime(to_date or date.today(), date_format)
         from_date_str = date.strftime(
-            from_date or (date.today() - relativedelta(months=1)), GET_DATE_FORMAT
+            from_date or (date.today() - relativedelta(months=1)), date_format
         )
 
         base_path = (
@@ -567,6 +568,22 @@ class MyInvestorAPIV2Client:
         return (await self._get_request(f"/ms-broker/v2/stock-orders/{order_id}"))[
             "payload"
         ]["data"]
+
+    async def get_financial_events(self, securities_account_id: str):
+        return (
+            await self._get_request(
+                f"/broker/v2/financial-events?accountId={securities_account_id}"
+            )
+        )["payload"]["data"]
+
+    async def get_financial_event_details(
+        self, securities_account_id: str, event_id: str
+    ):
+        return (
+            await self._get_request(
+                f"/broker/v2/financial-events/{event_id}?accountId={securities_account_id}"
+            )
+        )["payload"]["data"]
 
     async def get_fund_orders(
         self,

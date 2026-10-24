@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -9,6 +10,7 @@ from domain.transactions import (
     AccountTx,
     AccountTxSelection,
     BaseInvestmentTx,
+    StockTx,
     TxType,
 )
 
@@ -66,6 +68,7 @@ def match_settlements(
 ) -> dict[UUID, str]:
     max_gap = timedelta(days=SETTLEMENT_MAX_DAYS)
     candidates = []
+    explicit_candidates = []
     for account_tx in account_txs:
         if account_tx.linked_tx or account_tx.labels_locked:
             continue
@@ -84,16 +87,42 @@ def match_settlements(
             gap = abs(_aware(account_tx.date) - _aware(investment_tx.date))
             if gap > max_gap:
                 continue
+            if (
+                isinstance(investment_tx, StockTx)
+                and investment_tx.type == TxType.DIVIDEND
+                and investment_tx.linked_tx
+            ):
+                if (
+                    investment_tx.linked_tx != account_tx.ref
+                    or investment_tx.entity_account_id != account_tx.entity_account_id
+                    or investment_tx.net_amount != abs(account_tx.amount)
+                ):
+                    continue
+                explicit_candidates.append((gap, Dezimal(0), account_tx, investment_tx))
+                continue
             distance = _amount_distance(account_tx, investment_tx)
             if distance is None:
                 continue
             candidates.append((gap, distance, account_tx, investment_tx))
 
+    account_counts = Counter(
+        account_tx.id for _, _, account_tx, _ in explicit_candidates
+    )
+    investment_counts = Counter(
+        (investment_tx.entity.id, investment_tx.ref)
+        for _, _, _, investment_tx in explicit_candidates
+    )
+    unique_explicit = [
+        candidate
+        for candidate in explicit_candidates
+        if account_counts[candidate[2].id] == 1
+        and investment_counts[(candidate[3].entity.id, candidate[3].ref)] == 1
+    ]
     candidates.sort(key=lambda c: (c[0], c[1].val))
 
     links: dict[UUID, str] = {}
     used_investment_refs: set[tuple[UUID, str]] = set()
-    for _, _, account_tx, investment_tx in candidates:
+    for _, _, account_tx, investment_tx in unique_explicit + candidates:
         investment_key = (investment_tx.entity.id, investment_tx.ref)
         if account_tx.id in links or investment_key in used_investment_refs:
             continue

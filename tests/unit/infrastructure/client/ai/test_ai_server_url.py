@@ -61,6 +61,6 @@ class TestServerRootUrl:
 
 
 def test_unreachable_maps_to_unavailable():
-    error = unreachable("Custom endpoint", httpx.ConnectError("refused"))
+    error = unreachable("Custom AI", httpx.ConnectError("refused"))
     assert error.code == AIProviderErrorCode.UNAVAILABLE
-    assert error.details == "Custom endpoint unreachable (ConnectError)"
+    assert error.details == "Custom AI unreachable (ConnectError)"

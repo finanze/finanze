@@ -530,7 +530,7 @@
     "INVALID_PRIVATE_KEY": "La clave privada proporcionada para {integration} no es válida.",
     "INVALID_URL": "La URL de {integration} no es válida.",
     "UNREACHABLE": "No se ha podido conectar con {integration}. Comprueba que el servidor está en marcha y que la URL es correcta.",
-    "NOT_A_MODEL_ROUTER": "Este servidor sirve un solo modelo. Conéctalo como Custom endpoint, o inicia llama-server sin -m para gestionar los modelos desde Finanze.",
+    "NOT_A_MODEL_ROUTER": "Este servidor sirve un solo modelo. Conéctalo como Custom AI, o inicia llama-server sin -m para gestionar los modelos desde Finanze.",
     "MISSING_SERVER_URL": "Introduce la URL del servidor de {integration}.",
     "AUTHORIZATION_DENIED": "Se denegó el acceso a {integration} o no se concedieron los permisos necesarios.",
     "AUTHORIZATION_EXPIRED": "La autorización de {integration} ha caducado o ya no es válida. Inténtalo de nuevo.",
@@ -1405,7 +1405,7 @@
             },
             {
               "type": "text",
-              "value": ". Para usar tu propio servidor, inicia llama-server en modo router (sin -m) e introduce su URL y clave API. Ollama, LM Studio o un llama-server con un solo modelo van en Custom endpoint."
+              "value": ". Para usar tu propio servidor, inicia llama-server en modo router (sin -m) e introduce su URL y clave API. Ollama, LM Studio o un llama-server con un solo modelo van en Custom AI."
             }
           ]
         }
@@ -1421,7 +1421,7 @@
       "builtInMode": "Motor integrado",
       "serverMode": "Mi servidor llama.cpp",
       "builtInNotice": "Los modelos se ejecutan en este dispositivo con el motor integrado. Solo se inicia cuando hace falta y se detiene tras un tiempo sin uso.",
-      "serverNotice": "Introduce la URL de un servidor llama.cpp iniciado en modo router (sin -m). Ollama, LM Studio o un llama-server con un solo modelo van en Custom endpoint.",
+      "serverNotice": "Introduce la URL de un servidor llama.cpp iniciado en modo router (sin -m). Ollama, LM Studio o un llama-server con un solo modelo van en Custom AI.",
       "envUrlNotice": "El entorno del servidor ya define FINANZE_LLAMA_SERVER_URL = {url}{key}. Deja los campos vacíos para usarlo, los valores introducidos aquí lo sustituyen.",
       "envKeySuffix": " y una clave API",
       "precedence": "Prioridad: valores introducidos, después el entorno y después el motor integrado.",
@@ -1488,7 +1488,7 @@
         "INVALID_URL": "La URL del servidor no es válida.",
         "UNREACHABLE": "No se ha podido conectar con el servidor. Comprueba que está en marcha y que la URL es correcta.",
         "UNAUTHORIZED": "El servidor ha rechazado la clave API.",
-        "NOT_A_MODEL_ROUTER": "Este servidor sirve un solo modelo. Conéctalo como Custom endpoint, o inicia llama-server sin -m para gestionar los modelos desde aquí.",
+        "NOT_A_MODEL_ROUTER": "Este servidor sirve un solo modelo. Conéctalo como Custom AI, o inicia llama-server sin -m para gestionar los modelos desde aquí.",
         "SERVER_ERROR": "El servidor ha devuelto un error.",
         "RUNTIME_FAILED": "No se ha podido iniciar el motor integrado.",
         "MODEL_NOT_FOUND": "No se ha encontrado el modelo.",

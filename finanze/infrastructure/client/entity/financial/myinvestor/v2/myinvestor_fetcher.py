@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
@@ -51,6 +52,7 @@ from domain.global_position import (
 )
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import MY_INVESTOR
+from domain.settlement import SETTLEMENT_MAX_DAYS
 from domain.transactions import (
     ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
     AccountTx,
@@ -126,9 +128,12 @@ FUND_ORDERS_POINTER = "fund_orders"
 PENSION_ORDERS_POINTER = "pension_orders"
 DEPOSIT_TXS_POINTER = "deposit_txs"
 ACCOUNT_TXS_POINTER = "account_txs"
+DIVIDENDS_POINTER = "dividends"
 
 DEPOSIT_MOVEMENT_CLASS = "MOVIMIENTOS DEPOSITOS"
 INTEREST_MOVEMENT_CLASS = "LIQUIDACION INTERESES CUENTA"
+DIVIDEND_MOVEMENT_CLASS = "RENDIMIENTOS DE VALORES"
+DIVIDEND_MOVEMENT_TYPE = "ABONO DE DIVIDENDO"
 
 
 def _is_generic_movement(tx_class: str, raw_tx_type: str) -> bool:
@@ -292,15 +297,17 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             creation_date = datetime.fromisoformat(account["creationDate"]).date()
             if creation_date < min_creation_date:
                 min_creation_date = creation_date
+            security_account = await self._get_related_security_account(account_id)
             related_security_account_id = (
-                await self._get_related_security_account(account_id)
-            )["accountId"]
-            investment_txs += await self._get_investment_txs(
-                registered_txs,
-                related_security_account_id,
-                creation_date,
-                options,
+                security_account["accountId"] if security_account else None
             )
+            if related_security_account_id:
+                investment_txs += await self._get_investment_txs(
+                    registered_txs,
+                    related_security_account_id,
+                    creation_date,
+                    options,
+                )
 
             account_related_txs = await self._classify_account_txs(
                 account,
@@ -311,6 +318,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
             investment_txs += account_related_txs["deposit"]
             investment_txs += account_related_txs["portfolio"]
+            investment_txs += account_related_txs["dividends"]
             account_txs += account_related_txs["interests"]
             account_txs += account_related_txs["movements"]
 
@@ -477,6 +485,22 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         )
         today = date.today()
         include_movements = account_type == "CASH_ACCOUNT"
+        include_dividends = include_movements and bool(related_security_account_id)
+        dividends_pointer_key = self._pointer_key(
+            DIVIDENDS_POINTER, related_security_account_id
+        )
+        dividends_min_date = min_date
+        if include_dividends:
+            fallback = min_date
+            if registered_txs and not (options and options.deep):
+                fallback = self._pointer_date(options, movements_pointer_key, today)
+            dividends_threshold = self._pointer_date(
+                options, dividends_pointer_key, fallback
+            )
+            dividends_min_date = max(
+                min_date,
+                min(dividends_threshold, today) - timedelta(days=SETTLEMENT_MAX_DAYS),
+            )
         movements_min_date = max(min_date, today - ACCOUNT_MOVEMENTS_MAX_LOOKBACK)
         if has_pointer_context:
             min_date = min(self._pointer_date(options, pointer_key, min_date), today)
@@ -486,6 +510,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
         if include_movements:
             min_date = min(min_date, movements_min_date)
+        if include_dividends:
+            min_date = min(min_date, dividends_min_date)
         portfolio_account_details = {}
 
         if account_type == "CASH_PORTFOLIO":
@@ -497,11 +523,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         interest_txs = []
         portfolio_txs = []
         movement_txs = []
+        dividend_candidates = {}
         result = {
             "deposit": deposit_txs,
             "interests": interest_txs,
             "portfolio": portfolio_txs,
             "movements": movement_txs,
+            "dividends": [],
         }
 
         to_date = from_date = today
@@ -511,9 +539,16 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             from_date -= ACCOUNT_TX_FETCH_STEP
             if has_pointer_context:
                 from_date = max(from_date, min_date)
-            raw_txs = (
-                await self._client.get_account_movements(account_id, from_date, to_date)
-            )["flowList"]
+            account_uuid = account.get("accountUuid")
+            if account_uuid and account_uuid != "null":
+                response = await self._client.get_account_movements(
+                    account_uuid, from_date, to_date, version=3
+                )
+            else:
+                response = await self._client.get_account_movements(
+                    account_id, from_date, to_date
+                )
+            raw_txs = response["flowList"]
             current_latest_tx_date = self._latest_account_tx_date(raw_txs)
             if current_latest_tx_date and (
                 latest_fetched_tx_date is None
@@ -523,6 +558,16 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             for tx in raw_txs:
                 ref = tx["reference"]
+                if (
+                    include_dividends
+                    and tx.get("operationClass") == DIVIDEND_MOVEMENT_CLASS
+                    and tx.get("operationType") == DIVIDEND_MOVEMENT_TYPE
+                    and self._account_tx_date(tx).date() >= dividends_min_date
+                    and Dezimal(tx["amount"]) > 0
+                    and self._dividend_ref(related_security_account_id, ref)
+                    not in registered_txs
+                ):
+                    dividend_candidates[ref] = tx
                 if ref in registered_txs:
                     continue
 
@@ -685,7 +730,214 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         self._update_pointer(options, pointer_key, latest_fetched_tx_date)
         if include_movements:
             self._update_pointer(options, movements_pointer_key, latest_fetched_tx_date)
+        if include_dividends:
+            dividends = await self._fetch_dividends(
+                related_security_account_id, list(dividend_candidates.values())
+            )
+            result["dividends"] = dividends
+            linked_refs = {tx.linked_tx: tx.ref for tx in dividends}
+            for movement in movement_txs:
+                movement.linked_tx = linked_refs.get(movement.ref)
+            unresolved_dates = [
+                self._account_tx_date(tx).date()
+                for ref, tx in dividend_candidates.items()
+                if ref not in linked_refs
+            ]
+            self._update_pointer(
+                options,
+                dividends_pointer_key,
+                min(unresolved_dates) if unresolved_dates else today,
+            )
         return result
+
+    @staticmethod
+    def _dividend_ref(securities_account_id: str, cash_ref: str) -> str:
+        return f"dividend:{securities_account_id}:{cash_ref}"
+
+    @staticmethod
+    def _dividend_name(value: str) -> str:
+        if not isinstance(value, str):
+            return ""
+        return " ".join(value.strip().removesuffix("@").split()).upper()
+
+    @staticmethod
+    def _dividend_dates(data: dict) -> list[date]:
+        dates = []
+        for key in ("operationDate", "execDate", "valueDate"):
+            value = data.get(key)
+            if not value:
+                continue
+            try:
+                dates.append(_parse_datetime(value).date())
+            except (TypeError, ValueError):
+                continue
+        return dates
+
+    @classmethod
+    def _dividend_event_matches(cls, flow: dict, event: dict) -> bool:
+        if (
+            event.get("eventType") != "DE"
+            or not all(
+                isinstance(event.get(key), str) and event[key]
+                for key in ("eventId", "isin", "toolDescription")
+            )
+            or cls._dividend_name(flow["concept"])
+            != cls._dividend_name(event["toolDescription"])
+        ):
+            return False
+        return any(
+            abs((flow_date - event_date).days) <= SETTLEMENT_MAX_DAYS
+            for flow_date in cls._dividend_dates(flow)
+            for event_date in cls._dividend_dates(event)
+            if event_date <= date.today()
+        )
+
+    def _map_dividend(
+        self, securities_account_id: str, flow: dict, event: dict, details: dict
+    ) -> Optional[StockTx]:
+        if (
+            details.get("eventType") != "DE"
+            or details.get("originEmissionIsin") != event["isin"]
+            or details.get("eventCurrency") != flow["currency"]
+            or details.get("originEmissionCurrency") != flow["currency"]
+            or flow["currency"] != "EUR"
+            or self._dividend_name(details.get("toolDescription") or "")
+            != self._dividend_name(event["toolDescription"])
+            or (details.get("ticker") and details["ticker"] != event.get("ticker"))
+            or not self._dividend_dates(details)
+        ):
+            return None
+        if not any(
+            abs((flow_date - event_date).days) <= SETTLEMENT_MAX_DAYS
+            for flow_date in self._dividend_dates(flow)
+            for event_date in self._dividend_dates(details)
+        ):
+            return None
+        operation_ref = flow.get("operationRef") or ""
+        if not isinstance(operation_ref, str):
+            return None
+        quantity_match = re.search(
+            r"@\s+([0-9]+(?:\.[0-9]+)?)\s+[0-9]+\s*$", operation_ref
+        )
+        if operation_ref.count("@") != 1 or not quantity_match:
+            return None
+        try:
+            shares = Dezimal(quantity_match.group(1))
+            gross_per_share = Dezimal(details["taxSharesMarketExpenses"])
+            origin_tax = Dezimal(details["taxSharesOriginWithholding"])
+            destination_tax = Dezimal(details["taxSharesDestinationWithholding"])
+            expense_rate = Dezimal(details["marketExpensesPercent"])
+            net_amount = Dezimal(flow["amount"])
+            values = (
+                shares,
+                gross_per_share,
+                origin_tax,
+                destination_tax,
+                expense_rate,
+                net_amount,
+            )
+            if not all(value.val.is_finite() for value in values):
+                return None
+            if (
+                shares <= 0
+                or gross_per_share <= 0
+                or origin_tax < 0
+                or destination_tax < 0
+                or expense_rate != 0
+                or net_amount <= 0
+            ):
+                return None
+            gross = gross_per_share * shares
+            withholding = (origin_tax + destination_tax) * shares
+            amount = round(gross, 2)
+            retentions = round(withholding, 2)
+            if (
+                round(gross - withholding, 2) != net_amount
+                or amount != net_amount + retentions
+            ):
+                return None
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            return None
+        return StockTx(
+            id=uuid4(),
+            ref=self._dividend_ref(securities_account_id, flow["reference"]),
+            name=event["toolDescription"].strip(),
+            amount=amount,
+            net_amount=net_amount,
+            currency=flow["currency"],
+            type=TxType.DIVIDEND,
+            date=self._account_tx_date(flow),
+            entity=MY_INVESTOR,
+            isin=event["isin"],
+            ticker=event.get("ticker"),
+            market=event.get("marketId"),
+            shares=shares,
+            price=Dezimal(0),
+            fees=Dezimal(0),
+            retentions=retentions,
+            product_type=ProductType.STOCK_ETF,
+            source=DataSource.REAL,
+            linked_tx=flow["reference"],
+        )
+
+    async def _fetch_dividends(
+        self, securities_account_id: str, flows: list[dict]
+    ) -> list[StockTx]:
+        if not flows:
+            return []
+        try:
+            events = await self._client.get_financial_events(securities_account_id)
+        except Exception:
+            self._log.exception("Could not fetch MyInvestor dividend events")
+            return []
+        if not isinstance(events, list) or any(
+            not isinstance(event, dict) for event in events
+        ):
+            self._log.warning("Invalid MyInvestor dividend events response")
+            return []
+        details_by_id = {}
+        matches = {}
+        event_uses = {}
+        for flow in flows:
+            candidates = []
+            for event in events:
+                if not self._dividend_event_matches(flow, event):
+                    continue
+                event_id = event["eventId"]
+                if event_id not in details_by_id:
+                    try:
+                        details_by_id[
+                            event_id
+                        ] = await self._client.get_financial_event_details(
+                            securities_account_id, event_id
+                        )
+                    except Exception:
+                        self._log.exception(
+                            "Could not fetch MyInvestor dividend details"
+                        )
+                        details_by_id[event_id] = None
+                details = details_by_id[event_id]
+                if not isinstance(details, dict):
+                    candidates.append((event_id, None))
+                    continue
+                dividend = self._map_dividend(
+                    securities_account_id, flow, event, details
+                )
+                if dividend:
+                    candidates.append((event_id, dividend))
+                    event_uses[event_id] = event_uses.get(event_id, 0) + 1
+            matches[flow["reference"]] = candidates
+        dividends = []
+        for cash_ref, candidates in matches.items():
+            if len(candidates) == 1:
+                event_id, dividend = candidates[0]
+                if dividend and event_uses[event_id] == 1:
+                    dividends.append(dividend)
+                    continue
+            self._log.warning(
+                "MyInvestor dividend flow %s could not be uniquely reconciled", cash_ref
+            )
+        return dividends
 
     async def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
         accounts = await self._get_active_owned_accounts()

@@ -350,7 +350,7 @@ async def test_integrations_are_listed_with_optional_fields(ctx):
     assert local["available"] is True
     assert local["optional_fields"] == ["api_key", "server_url"]
     custom = integrations["OPENAI_COMPATIBLE"]
-    assert custom["name"] == "Custom endpoint"
+    assert custom["name"] == "Custom AI"
     assert custom["optional_fields"] == ["api_key"]
     assert custom["available"] is False
 

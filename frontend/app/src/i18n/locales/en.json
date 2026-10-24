@@ -532,7 +532,7 @@
     "INVALID_PRIVATE_KEY": "The provided private key for {integration} is invalid.",
     "INVALID_URL": "The URL for {integration} is not valid.",
     "UNREACHABLE": "Could not reach {integration}. Check that the server is running and the URL is correct.",
-    "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom endpoint, or start llama-server without -m to manage models from Finanze.",
+    "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom AI, or start llama-server without -m to manage models from Finanze.",
     "MISSING_SERVER_URL": "Enter the server URL for {integration}.",
     "AUTHORIZATION_DENIED": "Access to {integration} was denied or the required permissions were not granted.",
     "AUTHORIZATION_EXPIRED": "The {integration} authorization expired or is no longer valid. Please try again.",
@@ -1407,7 +1407,7 @@
             },
             {
               "type": "text",
-              "value": ". To use your own server, start llama-server in router mode (without -m) and enter its URL and API key. Ollama, LM Studio or a single-model llama-server go in Custom endpoint."
+              "value": ". To use your own server, start llama-server in router mode (without -m) and enter its URL and API key. Ollama, LM Studio or a single-model llama-server go in Custom AI."
             }
           ]
         }
@@ -1423,7 +1423,7 @@
       "builtInMode": "Built-in engine",
       "serverMode": "My llama.cpp server",
       "builtInNotice": "Models run on this device with the built-in engine. It only starts when needed and stops after a while without use.",
-      "serverNotice": "Enter the URL of a llama.cpp server started in router mode (without -m). Ollama, LM Studio or a single-model llama-server go in Custom endpoint.",
+      "serverNotice": "Enter the URL of a llama.cpp server started in router mode (without -m). Ollama, LM Studio or a single-model llama-server go in Custom AI.",
       "envUrlNotice": "The server environment already sets FINANZE_LLAMA_SERVER_URL = {url}{key}. Leave the fields blank to use it, values entered here override it.",
       "envKeySuffix": " and an API key",
       "precedence": "Priority: entered values, then environment, then built-in engine.",
@@ -1490,7 +1490,7 @@
         "INVALID_URL": "The server URL is not valid.",
         "UNREACHABLE": "Could not reach the server. Check that it is running and the URL is correct.",
         "UNAUTHORIZED": "The server rejected the API key.",
-        "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom endpoint, or start llama-server without -m to manage models from here.",
+        "NOT_A_MODEL_ROUTER": "This server serves a single model. Connect it as Custom AI, or start llama-server without -m to manage models from here.",
         "SERVER_ERROR": "The server returned an error.",
         "RUNTIME_FAILED": "The built-in engine could not be started.",
         "MODEL_NOT_FOUND": "The model was not found.",
