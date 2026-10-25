@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { LabelSelector } from "@/components/labels/LabelSelector"
@@ -181,7 +182,7 @@ function CategoryFilterSelect({
       <button
         type="button"
         aria-expanded={isOpen}
-        aria-controls="recurring-category-menu"
+        aria-controls={isOpen ? "recurring-category-menu" : undefined}
         data-testid="recurring-category-select"
         onClick={() => {
           setIsOpen(open => !open)
@@ -204,14 +205,12 @@ function CategoryFilterSelect({
         />
       </button>
 
-      <div
+      <AnimatedPopup
         id="recurring-category-menu"
         role="group"
         aria-label={t.management.categoryFilter.title}
-        className={cn(
-          "absolute left-0 top-full z-50 mt-1 w-full min-w-[220px] rounded-md border border-input bg-background shadow-lg",
-          !isOpen && "hidden",
-        )}
+        open={isOpen}
+        className="absolute left-0 top-full z-50 mt-1 w-full min-w-[220px] rounded-md border border-input bg-background shadow-lg"
       >
         <div className="border-b p-2">
           <input
@@ -312,7 +311,7 @@ function CategoryFilterSelect({
             })
           )}
         </div>
-      </div>
+      </AnimatedPopup>
     </div>
   )
 }

@@ -29,7 +29,7 @@ from domain.entity_login import (
 )
 from domain.fetch_record import DataSource, FetchRecord
 from domain.global_position import GlobalPosition, ProductType
-from domain.native_entities import ING, MY_INVESTOR, UNICAJA
+from domain.native_entities import ING, MY_INVESTOR, TRADE_REPUBLIC, UNICAJA
 from domain.transactions import AccountTx, Transactions, TxType
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
@@ -1605,7 +1605,7 @@ class TestTwoFactorOldTxs:
         entity_account_port,
         external_integration_port,
     ):
-        entity_port.get_all = AsyncMock(return_value=[UNICAJA, MY_INVESTOR])
+        entity_port.get_all = AsyncMock(return_value=[UNICAJA, TRADE_REPUBLIC])
         credentials_port.get_available_entities = AsyncMock(return_value=[])
         last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
         virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
@@ -1617,4 +1617,4 @@ class TestTwoFactorOldTxs:
         body = await response.get_json()
         by_id = {e["id"]: e for e in body["entities"]}
         assert by_id[str(UNICAJA.id)]["internal_features"] == ["TWO_FACTOR_OLD_TXS"]
-        assert by_id[str(MY_INVESTOR.id)]["internal_features"] == []
+        assert by_id[str(TRADE_REPUBLIC.id)]["internal_features"] == []

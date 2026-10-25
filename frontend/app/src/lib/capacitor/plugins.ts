@@ -33,9 +33,15 @@ interface DeviceCountryPlugin {
   }>
 }
 
+interface LightHapticsPlugin {
+  prepare(): Promise<void>
+  impact(): Promise<void>
+}
+
 const BackupProcessor = registerPlugin<BackupProcessorPlugin>("BackupProcessor")
 const ImageProcessor = registerPlugin<ImageProcessorPlugin>("ImageProcessor")
 const DeviceCountry = registerPlugin<DeviceCountryPlugin>("DeviceCountry")
+const LightHaptics = registerPlugin<LightHapticsPlugin>("LightHaptics")
 
 declare global {
   interface Window {
@@ -61,5 +67,6 @@ export {
   BackupProcessor,
   ImageProcessor,
   DeviceCountry,
+  LightHaptics,
   TlsHttp,
 }

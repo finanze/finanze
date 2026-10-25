@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -5,9 +6,13 @@ from uuid import uuid4
 import pytest
 
 from domain.dezimal import Dezimal
+from domain.entity_login import LoginConfirmationType, LoginResultCode, TwoFactor
 from domain.fetch_pointer import FetchPointer, FetchPointerContext
-from domain.fetch_result import FetchOptions
+from domain.fetch_result import FetchOptions, FetchStage
 from domain.transactions import TxType
+from infrastructure.client.entity.financial.myinvestor.v2 import (
+    myinvestor_fetcher as myinvestor_module,
+)
 from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_fetcher import (
     ACCOUNT_TXS_POINTER,
     DEPOSIT_TXS_POINTER,
@@ -954,3 +959,201 @@ async def test_fractional_dividend_quantity_is_multiplied_before_rounding():
     assert dividend.amount == Dezimal("0.15")
     assert dividend.retentions == Dezimal("0.03")
     assert dividend.net_amount == Dezimal("0.12")
+
+
+SIGNED_ACCOUNT = {
+    "accountId": "account-id",
+    "accountUuid": "cash-uuid",
+    "accountType": "CASH_ACCOUNT",
+}
+
+
+def _movement_flow(ref, tx_date):
+    return {
+        "reference": ref,
+        "operationClass": "TRANSFERENCIAS",
+        "operationType": "TRANSFERENCIA RECIBIDA",
+        "operationDate": f"{tx_date.isoformat()}T12:00:00.000Z",
+        "currency": "EUR",
+        "concept": "transfer",
+        "amount": "10.00",
+    }
+
+
+def _signature_pending(signature_request_id):
+    return {
+        "dataToSign": None,
+        "pendingSignatureMethods": [["INAPP"]],
+        "signatureRequestId": signature_request_id,
+        "status": "PENDING",
+    }
+
+
+async def _requested_old_txs_fetcher():
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_account_movements = AsyncMock(
+        return_value=_signature_pending("old-request")
+    )
+    fetcher._client.start_inapp_signature = AsyncMock(return_value={})
+    fetcher._old_txs_cursors = [
+        myinvestor_module._OldTxsCursor(
+            account=SIGNED_ACCOUNT,
+            related_security_account_id=None,
+            from_date=date.today() - timedelta(days=300),
+            to_date=date.today() - timedelta(days=61),
+        )
+    ]
+    await fetcher.request_old_txs_code()
+    return fetcher
+
+
+@pytest.mark.asyncio
+async def test_signature_locked_movements_keep_recent_windows():
+    recent = date.today() - timedelta(days=3)
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_account_movements = AsyncMock(
+        side_effect=[
+            {"flowList": [_movement_flow("recent", recent)]},
+            _signature_pending("main-request"),
+        ]
+    )
+    options = _pointer_options()
+
+    result = await fetcher._classify_account_txs(
+        SIGNED_ACCOUNT, set(), None, date.today() - timedelta(days=300), options
+    )
+
+    assert [tx.ref for tx in result["movements"]] == ["recent"]
+    assert fetcher._client.get_account_movements.await_count == 2
+    pointer = options.pointer_context.pointers[f"{ACCOUNT_TXS_POINTER}:account-id"]
+    assert pointer.threshold == recent
+    assert await fetcher.request_old_txs_code() is None
+
+
+@pytest.mark.asyncio
+async def test_old_txs_signature_unlocks_older_movements(monkeypatch):
+    monkeypatch.setattr(myinvestor_module, "SIGNATURE_POLL_INTERVAL_SECONDS", 0.01)
+    today = date.today()
+    min_date = today - timedelta(days=300)
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_account_movements = AsyncMock(
+        side_effect=[
+            {"flowList": [_movement_flow("recent", today - timedelta(days=3))]},
+            _signature_pending("main-request"),
+            _signature_pending("old-request"),
+            {"flowList": [_movement_flow("old", today - timedelta(days=200))]},
+        ]
+    )
+    fetcher._client.start_inapp_signature = AsyncMock(return_value={})
+    fetcher._client.get_signature = AsyncMock(
+        side_effect=[
+            {"status": "PENDING", "pendingSignatureMethods": [["INAPP"]]},
+            {"status": "COMPLETE", "pendingSignatureMethods": []},
+        ]
+    )
+    options = _pointer_options()
+    for prefix in (DEPOSIT_TXS_POINTER, ACCOUNT_TXS_POINTER):
+        key = f"{prefix}:account-id"
+        options.pointer_context.pointers[key] = FetchPointer(
+            entity_id=options.pointer_context.entity_id,
+            entity_account_id=options.pointer_context.entity_account_id,
+            key=key,
+            threshold=today,
+        )
+    options.two_factor_old_txs = True
+
+    await fetcher._classify_account_txs(SIGNED_ACCOUNT, set(), None, min_date, options)
+    locked_to = fetcher._client.get_account_movements.await_args_list[1].args[2]
+
+    requested = await fetcher.request_old_txs_code()
+
+    assert requested.code == LoginResultCode.CODE_REQUESTED
+    assert requested.confirmation_type == LoginConfirmationType.IN_APP
+    assert requested.process_id == "old-request"
+    fetcher._client.start_inapp_signature.assert_awaited_once_with("old-request")
+
+    confirmed = await fetcher.confirm_old_txs_code(TwoFactor(process_id="old-request"))
+
+    assert confirmed.code == LoginResultCode.CREATED
+    assert fetcher._client.get_signature.await_count == 2
+
+    transactions = await fetcher.transactions(
+        set(),
+        FetchOptions(two_factor_old_txs=True, stage=FetchStage.TWO_FACTOR_OLD_TXS),
+    )
+
+    assert [tx.ref for tx in transactions.account] == ["old"]
+    calls = fetcher._client.get_account_movements.await_args_list
+    assert calls[2].args == calls[3].args == ("cash-uuid", min_date, locked_to)
+    assert calls[2].kwargs == {"version": 3}
+    assert calls[3].kwargs == {"version": 3, "signature_id": "old-request"}
+    assert await fetcher.request_old_txs_code() is None
+
+
+@pytest.mark.asyncio
+async def test_movement_without_operation_class_is_generic():
+    tx_date = date.today() - timedelta(days=3)
+    flow = _movement_flow("card-settlement", tx_date)
+    del flow["operationClass"]
+    flow["operationType"] = "CARGO LIQ. TCRED.NR"
+    flow["amount"] = -3000.0
+    fetcher = MyInvestorFetcherV2()
+    fetcher._client = MagicMock()
+    fetcher._client.get_account_movements = AsyncMock(return_value={"flowList": [flow]})
+
+    result = await fetcher._classify_account_txs(
+        SIGNED_ACCOUNT, set(), None, date.today() - timedelta(days=30)
+    )
+
+    [movement] = result["movements"]
+    assert movement.ref == "card-settlement"
+    assert movement.type == TxType.OUTFLOW
+    assert movement.amount == Dezimal("3000")
+
+
+@pytest.mark.asyncio
+async def test_old_txs_signature_not_completed_skips_signed_fetch():
+    fetcher = await _requested_old_txs_fetcher()
+    fetcher._client.get_signature = AsyncMock(
+        return_value={"status": "EXPIRED", "pendingSignatureMethods": []}
+    )
+
+    result = await fetcher.confirm_old_txs_code(TwoFactor(process_id="old-request"))
+    transactions = await fetcher.transactions(
+        set(), FetchOptions(stage=FetchStage.TWO_FACTOR_OLD_TXS)
+    )
+
+    assert result.code == LoginResultCode.NOT_LOGGED
+    assert transactions.account == transactions.investment == []
+    fetcher._client.get_account_movements.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_old_txs_signature_rejects_unknown_process():
+    fetcher = await _requested_old_txs_fetcher()
+    fetcher._client.get_signature = AsyncMock()
+
+    result = await fetcher.confirm_old_txs_code(TwoFactor(process_id="other"))
+
+    assert result.code == LoginResultCode.NOT_LOGGED
+    fetcher._client.get_signature.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_old_txs_signature_cancel_stops_waiting(monkeypatch):
+    monkeypatch.setattr(myinvestor_module, "SIGNATURE_POLL_INTERVAL_SECONDS", 10)
+    fetcher = await _requested_old_txs_fetcher()
+    fetcher._client.get_signature = AsyncMock(
+        return_value={"status": "PENDING", "pendingSignatureMethods": [["INAPP"]]}
+    )
+    asyncio.get_running_loop().call_later(0.05, fetcher.cancel_login)
+
+    result = await asyncio.wait_for(
+        fetcher.confirm_old_txs_code(TwoFactor(process_id="old-request")), timeout=2
+    )
+
+    assert result.code == LoginResultCode.UNEXPECTED_ERROR
+    assert result.message == "Approval cancelled by user."

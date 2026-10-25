@@ -362,6 +362,50 @@ async def test_account_movements_use_version_specific_dates(
 
 
 @pytest.mark.asyncio
+async def test_signed_account_movements_send_signature_header():
+    client = MyInvestorAPIV2Client()
+    client._headers = {"Authorization": "Bearer access"}
+    data = {"flowList": []}
+    client._base_get_request = AsyncMock(return_value={"payload": {"data": data}})
+
+    result = await client.get_account_movements(
+        "cash-uuid",
+        date(2026, 4, 25),
+        date(2026, 8, 25),
+        version=3,
+        signature_id=SIGNATURE_REQUEST_ID,
+    )
+
+    assert result == data
+    client._base_get_request.assert_awaited_once_with(
+        "/account/api/v3/account/cash-uuid/flows?dateFrom=2026-04-25&dateTo=2026-08-25",
+        client.BASE_URL,
+        headers={
+            "Authorization": "Bearer access",
+            "x-signature-id": SIGNATURE_REQUEST_ID,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_inapp_signature_endpoints_unwrap_payload():
+    client = MyInvestorAPIV2Client()
+    started = {"type": "INAPP", "signatureId": SIGNATURE_ID}
+    status = {"status": "COMPLETE", "pendingSignatureMethods": []}
+    client._post_request = AsyncMock(return_value={"payload": {"data": started}})
+    client._get_request = AsyncMock(return_value={"payload": {"data": status}})
+
+    assert await client.start_inapp_signature(SIGNATURE_REQUEST_ID) == started
+    assert await client.get_signature(SIGNATURE_REQUEST_ID) == status
+    client._post_request.assert_awaited_once_with(
+        f"/signature/api/v3/signature/{SIGNATURE_REQUEST_ID}?method=INAPP"
+    )
+    client._get_request.assert_awaited_once_with(
+        f"/signature/api/v3/signature?signatureRequestId={SIGNATURE_REQUEST_ID}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_financial_events_unwrap_payload():
     client = MyInvestorAPIV2Client()
     data = [{"eventId": "paid-event", "eventType": "DE"}]

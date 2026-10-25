@@ -1,5 +1,8 @@
 import json
 import logging
+import os
+import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -60,8 +63,30 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             )
             default_data = {"backup": {}, "auth": None}
             Path(self._cloud_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(self._cloud_file, "w") as f:
-                json.dump(default_data, f, indent=2)
+            self._write_cloud_data(default_data)
+
+    def _write_cloud_data(self, data: dict):
+        content = json.dumps(data, indent=2)
+        cloud_file = Path(self._cloud_file)
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=cloud_file.parent,
+                prefix=f".{cloud_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+                temporary_file.flush()
+                if sys.platform != "emscripten":
+                    os.fsync(temporary_file.fileno())
+            os.replace(temporary_path, cloud_file)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     @cached(
         ttl=30,
@@ -75,8 +100,7 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
 
     async def _save_cloud_data(self, data: dict):
         self._check_connected()
-        with open(self._cloud_file, "w") as f:
-            json.dump(data, f, indent=2)
+        self._write_cloud_data(data)
 
         key = f"cloud_data:{self._cloud_file}"
         await self._load_cloud_data.cache.delete(key)

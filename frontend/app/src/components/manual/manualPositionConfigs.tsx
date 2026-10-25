@@ -10,6 +10,7 @@ import { createPortal } from "react-dom"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
 import { DecimalInput } from "@/components/ui/DecimalInput"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Slider } from "@/components/ui/Slider"
 import { Badge } from "@/components/ui/Badge"
@@ -101,16 +102,22 @@ const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
   label: string,
   props: ManualFormFieldRenderProps<FormState>,
   options: { value: string; label: string; icon?: React.ReactNode }[],
+  clearable = false,
 ) => (
   <div className="space-y-1.5">
     <Label htmlFor={String(field)}>{label}</Label>
-    <div className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1">
+    <div
+      className="flex flex-wrap items-center gap-2 min-h-[2.5rem] py-1"
+      role="group"
+      aria-label={label}
+    >
       {options.map(option => {
         const isActive = (props.form[field] as string) === option.value
         return (
           <button
             key={option.value}
             type="button"
+            aria-pressed={isActive}
             onClick={() => {
               props.updateField(field, option.value)
               props.clearError(field)
@@ -127,6 +134,20 @@ const renderBadgeSelector = <FormState extends ManualPositionFormBase>(
           </button>
         )
       })}
+      {clearable && Boolean(props.form[field]) && (
+        <button
+          type="button"
+          aria-label={props.t("common.clear")}
+          title={props.t("common.clear")}
+          onClick={() => {
+            props.updateField(field, "")
+            props.clearError(field)
+          }}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
     {props.errors[field] && (
       <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -768,39 +789,40 @@ function EuriborSuggestField(
           />
         </button>
       </div>
-      {isOpen && (
-        <div className="rounded-md border bg-popover text-popover-foreground shadow-md max-h-48 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center p-3">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : rates.length === 0 ? (
-            <div className="p-3 text-xs text-muted-foreground text-center">
-              {props.t(
-                "management.manualPositions.bankLoans.helpers.euriborUnavailable",
-              )}
-            </div>
-          ) : (
-            <div className="py-1">
-              {rates.map(rate => (
-                <button
-                  key={rate.period}
-                  type="button"
-                  className="flex w-full items-center justify-between px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-                  onClick={() => handleSelect(rate.rate)}
-                >
-                  <span className="text-muted-foreground">
-                    {formatPeriodLabel(rate.period)}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {rate.rate.toFixed(3)}%
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <AnimatedPopup
+        open={isOpen}
+        className="rounded-md border bg-popover text-popover-foreground shadow-md max-h-48 overflow-y-auto"
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center p-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : rates.length === 0 ? (
+          <div className="p-3 text-xs text-muted-foreground text-center">
+            {props.t(
+              "management.manualPositions.bankLoans.helpers.euriborUnavailable",
+            )}
+          </div>
+        ) : (
+          <div className="py-1">
+            {rates.map(rate => (
+              <button
+                key={rate.period}
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                onClick={() => handleSelect(rate.rate)}
+              >
+                <span className="text-muted-foreground">
+                  {formatPeriodLabel(rate.period)}
+                </span>
+                <span className="font-medium tabular-nums">
+                  {rate.rate.toFixed(3)}%
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </AnimatedPopup>
       {props.errors.euribor_rate && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
           {props.errors.euribor_rate}
@@ -1777,60 +1799,61 @@ function FundInstrumentSearchField({
             <Search className="h-4 w-4" />
           )}
         </button>
-        {(hasSearched || searchError) && (
-          <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
-            {searchError ? (
-              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
-                {searchError}
-              </p>
-            ) : results.length > 0 ? (
-              <div className="max-h-60 overflow-y-auto py-1">
-                {results.map((entry, index) => {
-                  const resultKey = buildInstrumentResultKey(entry, index)
-                  const waiting = detailsLoadingId === resultKey
-                  const priceLabel = formatInstrumentPriceLabel(entry, locale)
-                  const secondaryInfo = buildInstrumentSecondaryInfo(
-                    entry,
-                    dropdownLabels,
-                  )
-                  return (
-                    <button
-                      key={resultKey}
-                      type="button"
-                      className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                      onClick={() => handleSelect(entry, index)}
-                      disabled={Boolean(detailsLoadingId)}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">
-                          {buildInstrumentPrimaryLabel(entry, t)}
-                        </span>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {entry.currency && (
-                            <span>{entry.currency.toUpperCase()}</span>
-                          )}
-                          {priceLabel && <span>{priceLabel}</span>}
-                          {waiting && (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          )}
-                        </div>
+        <AnimatedPopup
+          open={hasSearched || Boolean(searchError)}
+          className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg"
+        >
+          {searchError ? (
+            <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              {searchError}
+            </p>
+          ) : results.length > 0 ? (
+            <div className="max-h-60 overflow-y-auto py-1">
+              {results.map((entry, index) => {
+                const resultKey = buildInstrumentResultKey(entry, index)
+                const waiting = detailsLoadingId === resultKey
+                const priceLabel = formatInstrumentPriceLabel(entry, locale)
+                const secondaryInfo = buildInstrumentSecondaryInfo(
+                  entry,
+                  dropdownLabels,
+                )
+                return (
+                  <button
+                    key={resultKey}
+                    type="button"
+                    className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    onClick={() => handleSelect(entry, index)}
+                    disabled={Boolean(detailsLoadingId)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {buildInstrumentPrimaryLabel(entry, t)}
+                      </span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {entry.currency && (
+                          <span>{entry.currency.toUpperCase()}</span>
+                        )}
+                        {priceLabel && <span>{priceLabel}</span>}
+                        {waiting && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
                       </div>
-                      {secondaryInfo && (
-                        <p className="text-xs text-muted-foreground">
-                          {secondaryInfo}
-                        </p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="px-3 py-2 text-xs text-muted-foreground">
-                {t("common.noOptionsFound")}
-              </p>
-            )}
-          </div>
-        )}
+                    </div>
+                    {secondaryInfo && (
+                      <p className="text-xs text-muted-foreground">
+                        {secondaryInfo}
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              {t("common.noOptionsFound")}
+            </p>
+          )}
+        </AnimatedPopup>
       </div>
       {errors[field] && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -2269,60 +2292,61 @@ function StockInstrumentSearchField({
             <Search className="h-4 w-4" />
           )}
         </button>
-        {(hasSearched || searchError) && (
-          <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
-            {searchError ? (
-              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
-                {searchError}
-              </p>
-            ) : results.length > 0 ? (
-              <div className="max-h-60 overflow-y-auto py-1">
-                {results.map((entry, index) => {
-                  const resultKey = buildInstrumentResultKey(entry, index)
-                  const waiting = detailsLoadingId === resultKey
-                  const priceLabel = formatInstrumentPriceLabel(entry, locale)
-                  const secondaryInfo = buildInstrumentSecondaryInfo(
-                    entry,
-                    dropdownLabels,
-                  )
-                  return (
-                    <button
-                      key={resultKey}
-                      type="button"
-                      className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                      onClick={() => handleSelect(entry, index)}
-                      disabled={Boolean(detailsLoadingId)}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">
-                          {buildInstrumentPrimaryLabel(entry, t)}
-                        </span>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {entry.currency && (
-                            <span>{entry.currency.toUpperCase()}</span>
-                          )}
-                          {priceLabel && <span>{priceLabel}</span>}
-                          {waiting && (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          )}
-                        </div>
+        <AnimatedPopup
+          open={hasSearched || Boolean(searchError)}
+          className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg"
+        >
+          {searchError ? (
+            <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              {searchError}
+            </p>
+          ) : results.length > 0 ? (
+            <div className="max-h-60 overflow-y-auto py-1">
+              {results.map((entry, index) => {
+                const resultKey = buildInstrumentResultKey(entry, index)
+                const waiting = detailsLoadingId === resultKey
+                const priceLabel = formatInstrumentPriceLabel(entry, locale)
+                const secondaryInfo = buildInstrumentSecondaryInfo(
+                  entry,
+                  dropdownLabels,
+                )
+                return (
+                  <button
+                    key={resultKey}
+                    type="button"
+                    className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    onClick={() => handleSelect(entry, index)}
+                    disabled={Boolean(detailsLoadingId)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {buildInstrumentPrimaryLabel(entry, t)}
+                      </span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {entry.currency && (
+                          <span>{entry.currency.toUpperCase()}</span>
+                        )}
+                        {priceLabel && <span>{priceLabel}</span>}
+                        {waiting && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
                       </div>
-                      {secondaryInfo && (
-                        <p className="text-xs text-muted-foreground">
-                          {secondaryInfo}
-                        </p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="px-3 py-2 text-xs text-muted-foreground">
-                {t("common.noOptionsFound")}
-              </p>
-            )}
-          </div>
-        )}
+                    </div>
+                    {secondaryInfo && (
+                      <p className="text-xs text-muted-foreground">
+                        {secondaryInfo}
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              {t("common.noOptionsFound")}
+            </p>
+          )}
+        </AnimatedPopup>
       </div>
       {errors[field] && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -2566,71 +2590,68 @@ function CryptoSearchField({
             )}
           </button>
         )}
-        {(hasSearched || searchError) &&
-          createPortal(
-            <div
-              ref={dropdownRef}
-              className="fixed z-[99999] overflow-hidden rounded-md border border-border bg-popover shadow-lg"
-              style={dropdownStyle}
-            >
-              {searchError ? (
-                <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
-                  {searchError}
-                </p>
-              ) : results.length > 0 ? (
-                <div
-                  ref={resultsContainerRef}
-                  className="max-h-60 overflow-y-auto py-1"
-                  onScroll={handleScroll}
-                >
-                  {results.map((asset, index) => {
-                    const key = `${asset.provider_id}::${asset.symbol}::${index}`
-                    const isLoadingDetails =
-                      detailsLoadingId ===
-                      `${asset.provider_id}::${asset.symbol}`
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                        onClick={() => handleSelectAsset(asset)}
-                        disabled={Boolean(detailsLoadingId)}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">{asset.name}</span>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{asset.symbol.toUpperCase()}</span>
-                            {asset.platforms.length > 0 && (
-                              <span>
-                                • {asset.platforms.length} platform(s)
-                              </span>
-                            )}
-                            {isLoadingDetails && (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            )}
-                          </div>
+        {createPortal(
+          <AnimatedPopup
+            ref={dropdownRef}
+            open={hasSearched || Boolean(searchError)}
+            className="fixed z-[99999] overflow-hidden rounded-md border border-border bg-popover shadow-lg"
+            style={dropdownStyle}
+          >
+            {searchError ? (
+              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                {searchError}
+              </p>
+            ) : results.length > 0 ? (
+              <div
+                ref={resultsContainerRef}
+                className="max-h-60 overflow-y-auto py-1"
+                onScroll={handleScroll}
+              >
+                {results.map((asset, index) => {
+                  const key = `${asset.provider_id}::${asset.symbol}::${index}`
+                  const isLoadingDetails =
+                    detailsLoadingId === `${asset.provider_id}::${asset.symbol}`
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                      onClick={() => handleSelectAsset(asset)}
+                      disabled={Boolean(detailsLoadingId)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{asset.name}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{asset.symbol.toUpperCase()}</span>
+                          {asset.platforms.length > 0 && (
+                            <span>• {asset.platforms.length} platform(s)</span>
+                          )}
+                          {isLoadingDetails && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
                         </div>
-                      </button>
-                    )
-                  })}
-                  {(isLoadingMore || hasMore) && (
-                    <div className="flex items-center justify-center px-3 py-2 text-xs text-muted-foreground">
-                      {isLoadingMore ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <span>{t("common.loading")}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="px-3 py-2 text-xs text-muted-foreground">
-                  {t("common.noOptionsFound")}
-                </p>
-              )}
-            </div>,
-            document.body,
-          )}
+                      </div>
+                    </button>
+                  )
+                })}
+                {(isLoadingMore || hasMore) && (
+                  <div className="flex items-center justify-center px-3 py-2 text-xs text-muted-foreground">
+                    {isLoadingMore ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <span>{t("common.loading")}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {t("common.noOptionsFound")}
+              </p>
+            )}
+          </AnimatedPopup>,
+          document.body,
+        )}
       </div>
       {errors[field] && (
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -5177,7 +5198,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               </div>
             )
           })()}
-          {renderSelectInput(
+          {renderBadgeSelector(
             "asset_type",
             props.t("management.manualPositions.funds.fields.assetType"),
             props,
@@ -5185,6 +5206,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               value,
               label: props.t(`enums.assetType.${value}`) || value,
             })),
+            true,
           )}
           <div className="space-y-1.5">
             <Label htmlFor="portfolio_id">
@@ -6258,7 +6280,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "interest_rate",
           props.t("management.manualPositions.factoring.fields.interestRate"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 25, step: 0.1 },
+          },
         )}
         {renderTextInput(
           "late_interest_rate",
@@ -6266,7 +6294,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.factoring.fields.lateInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 25, step: 0.1 },
+          },
         )}
         {renderDateInput(
           "start",
@@ -6557,7 +6591,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.interestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 25, step: 0.1 },
+          },
         )}
         {renderTextInput(
           "extended_interest_rate",
@@ -6565,7 +6605,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "management.manualPositions.realEstateCf.fields.extendedInterestRate",
           ),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal", suffix: "%" },
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            suffix: "%",
+            slider: { min: 0, max: 25, step: 0.1 },
+          },
         )}
         {renderDateInput(
           "start",

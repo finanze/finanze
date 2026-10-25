@@ -103,7 +103,7 @@ import {
   getMonthlyFlowTotals,
   getSavingsTargetRate,
 } from "@/utils/savingsTarget"
-import { DataDisplayMode, EntityType, FlowType } from "@/types"
+import { DataDisplayMode, FlowType } from "@/types"
 import { TxType } from "@/types/transactions"
 import type { Label } from "@/types/labeling"
 import {
@@ -483,11 +483,11 @@ function CashflowAnalysis() {
 
   const entityOptions = useMemo(
     () =>
-      (entities ?? []).filter(
+      entities?.filter(
         entity =>
-          entity.type === EntityType.FINANCIAL_INSTITUTION ||
-          entity.type === EntityType.CRYPTO_EXCHANGE,
-      ),
+          "TRANSACTIONS" in entity.last_fetch ||
+          "TRANSACTIONS" in entity.virtual_features,
+      ) || [],
     [entities],
   )
 

@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { EntityBadge } from "@/components/ui/EntityBadge"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import {
   TransactionLabels,
   isLabelableTx,
@@ -326,23 +327,24 @@ export function TransactionsCalendarView({
               >
                 {currentYear}
               </Button>
-              {showYearPicker && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {yearOptions.map(year => (
-                    <button
-                      key={year}
-                      onClick={() => handleYearSelect(year)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                        year === currentYear
-                          ? "bg-gray-100 dark:bg-gray-700 font-medium"
-                          : ""
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <AnimatedPopup
+                open={showYearPicker}
+                className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto"
+              >
+                {yearOptions.map(year => (
+                  <button
+                    key={year}
+                    onClick={() => handleYearSelect(year)}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      year === currentYear
+                        ? "bg-gray-100 dark:bg-gray-700 font-medium"
+                        : ""
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </AnimatedPopup>
             </div>
           </div>
         </div>

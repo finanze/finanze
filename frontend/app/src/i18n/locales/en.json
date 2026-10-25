@@ -2903,7 +2903,9 @@
     "limit": "Limit",
     "utilization": "Utilization",
     "inactive": "Inactive",
-    "principalOutstanding": "Principal Outstanding",
+    "principalOutstanding": "Outstanding",
+    "installment": "Installment",
+    "next": "Next",
     "monthlyInstallment": "Monthly Installment",
     "installmentByFrequency": {
       "WEEKLY": "Weekly Installment",

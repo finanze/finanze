@@ -289,7 +289,7 @@ export const getAccountTypeIcon = (type: AccountType) => {
     case AccountType.CHECKING:
       return <Wallet className="h-4 w-4" />
     case AccountType.SAVINGS:
-      return <Building2 className="h-4 w-4" />
+      return <PiggyBank className="h-4 w-4" />
     case AccountType.BROKERAGE:
       return <TrendingUp className="h-4 w-4" />
     case AccountType.VIRTUAL_WALLET:

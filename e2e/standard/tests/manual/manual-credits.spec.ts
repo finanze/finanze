@@ -167,6 +167,33 @@ test.describe('Manual Credits - Banking', () => {
         await expect(saved.getByText('30.0%')).toBeVisible()
         await expect(saved).not.toHaveClass(/ring-blue-400/)
 
+        const desktopViewport = page.viewportSize()!
+        await page.setViewportSize({ width: 390, height: 844 })
+        const expand = saved.getByRole('button', {
+            name: 'View details: Test Credit Line',
+        })
+        await expect(expand).toHaveAttribute('aria-expanded', 'false')
+        await expect(saved.getByText('Drawn Amount')).toBeVisible()
+        await expect(saved.getByText('Credit Limit')).toBeVisible()
+        await expect(saved.getByText('Interest Rate')).toBeVisible()
+        await expect(
+            saved.getByText('Available', { exact: true }),
+        ).not.toBeVisible()
+        await expand.click()
+        await expect(saved.getByText('Available', { exact: true })).toBeVisible()
+        await expect(saved.getByText('Pledged guarantees value')).toBeVisible()
+        await saved
+            .getByRole('button', {
+                name: 'Show less: Test Credit Line',
+            })
+            .click()
+        await expect(
+            saved.getByText('Available', { exact: true }),
+        ).not.toBeVisible()
+        await page.setViewportSize(desktopViewport)
+        await expect(saved.getByText('Available', { exact: true })).toBeVisible()
+        await expect(expand).not.toBeVisible()
+
         // ── Cleanup ─────────────────────────────────────────────────
         await enterEditMode(page)
         await deleteCredit(page, 'Test Credit Line')

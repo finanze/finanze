@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { useMediaQuery } from "usehooks-ts"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -1331,6 +1332,131 @@ interface SectionCommonProps {
   onToggleCollapsed: () => void
 }
 
+function AnimatedBankingContent({
+  open,
+  id,
+  className,
+  children,
+}: {
+  open: boolean
+  id: string
+  className?: string
+  children: React.ReactNode
+}) {
+  const reducedMotion = useReducedMotion()
+
+  return (
+    <div id={id} aria-hidden={!open} inert={!open}>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0, overflow: "hidden" }}
+            animate={{
+              height: "auto",
+              opacity: 1,
+              overflow: "hidden",
+              transitionEnd: { overflow: "visible" },
+            }}
+            exit={{ height: 0, opacity: 0, overflow: "hidden" }}
+            transition={{
+              duration: reducedMotion ? 0 : 0.22,
+              ease: "easeInOut",
+            }}
+          >
+            <div className={className}>{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ExpandableDebtDetails({
+  isMobile,
+  name,
+  children,
+}: {
+  isMobile: boolean
+  name: string
+  children: React.ReactNode
+}) {
+  const { t } = useI18n()
+  const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
+  const label = expanded ? t.common.showLess : t.common.viewDetails
+
+  return (
+    <div>
+      {isMobile && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          aria-label={`${label}: ${name}`}
+          className="ml-auto flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setExpanded(current => !current)}
+        >
+          {label}
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
+              expanded && "rotate-180",
+            )}
+          />
+        </button>
+      )}
+      <AnimatedBankingContent
+        id={detailsId}
+        open={!isMobile || expanded}
+        className={cn("space-y-4", isMobile && "pt-3")}
+      >
+        {children}
+      </AnimatedBankingContent>
+    </div>
+  )
+}
+
+function AccountIndicator({
+  label,
+  className,
+  children,
+}: {
+  label: string
+  className: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            "flex cursor-help items-center gap-1 whitespace-nowrap rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            className,
+          )}
+          onClick={event => {
+            event.preventDefault()
+            setOpen(true)
+          }}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        sideOffset={6}
+        className="max-w-56 rounded-lg border border-border bg-popover text-popover-foreground shadow-md"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
   options: AccountViewOptions
@@ -1703,16 +1829,18 @@ function BankAccountsSection({
   )
 
   return (
-    <motion.div variants={fadeListItem} className="space-y-4">
+    <motion.div variants={fadeListItem}>
       <div className="flex items-center justify-between">
         <button
           type="button"
           className="flex items-center gap-2 cursor-pointer"
           onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls="banking-accounts-content"
         >
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform",
+              "h-4 w-4 text-muted-foreground transition-transform motion-reduce:transition-none",
               collapsed && "-rotate-90",
             )}
           />
@@ -1824,8 +1952,12 @@ function BankAccountsSection({
         )}
       </div>
 
-      {!collapsed &&
-        (summary.count === 0 ? (
+      <AnimatedBankingContent
+        id="banking-accounts-content"
+        open={!collapsed}
+        className="pt-4"
+      >
+        {summary.count === 0 ? (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <div className="text-blue-500 dark:text-blue-400">
               <Wallet className="mx-auto h-12 w-12" />
@@ -1868,7 +2000,7 @@ function BankAccountsSection({
                       const hasPendingTransfers =
                         isFiniteNumber(position.convertedPendingTransfers) &&
                         Math.abs(position.convertedPendingTransfers ?? 0) > 0
-                      const hasFooter =
+                      const hasIndicators =
                         hasInterest || hasRetained || hasPendingTransfers
 
                       const highlightClass = isDirty
@@ -1877,236 +2009,236 @@ function BankAccountsSection({
                       const showActions = isEditMode && isManual
 
                       return (
-                        <Card
+                        <div
                           key={item.key}
-                          className={cn(
-                            "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
-                            highlightClass,
-                          )}
+                          className="relative isolate self-center pb-1 pl-2"
                         >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-2">
-                              {getAccountTypeIcon(position.type as AccountType)}
-                              <Badge
-                                variant="secondary"
-                                className={cn(
-                                  "text-xs",
-                                  getAccountTypeColor(position.type),
-                                )}
-                              >
-                                {t.accountTypes[position.type] || position.type}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <SourceBadge
-                                source={position.source}
-                                onClick={
-                                  position.source === DataSource.MANUAL
-                                    ? onEnterGlobalEditMode
-                                    : undefined
-                                }
-                              />
-                              <EntityBadge
-                                name={position.entityName}
-                                origin={position.entityOrigin}
-                                onClick={() => onFocusEntity(position.entityId)}
-                                className="text-xs"
-                                title={position.entityName}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex flex-1 flex-col justify-between gap-4">
-                            <div className="space-y-2">
-                              {position.name && (
-                                <h3 className="text-lg font-semibold">
-                                  {position.name}
-                                </h3>
-                              )}
-                              {position.iban && (
-                                <div className="flex items-center gap-2 group">
-                                  <div className="font-mono text-sm text-muted-foreground">
-                                    {formatIban(
-                                      position.iban,
-                                      showAccountNumbers,
-                                    )}
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
-                                      copiedIban === position.iban
-                                        ? "text-green-600 dark:text-green-400"
-                                        : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                    }`}
-                                    onClick={() =>
-                                      handleCopyIban(position.iban!)
-                                    }
-                                    title={
-                                      copiedIban === position.iban
-                                        ? t.common.copied
-                                        : t.common.copy
-                                    }
-                                  >
-                                    {copiedIban === position.iban ? (
-                                      <Check className="h-3 w-3" />
-                                    ) : (
-                                      <Copy className="h-3 w-3" />
-                                    )}
-                                  </Button>
-                                </div>
-                              )}
-                              <div className="space-y-1">
-                                <div className="text-2xl font-bold">
-                                  <Sensitive>
-                                    <FormattedMarketValue
-                                      value={formatCurrency(
-                                        position.convertedTotal,
-                                        locale,
-                                        defaultCurrency,
-                                      )}
-                                      locale={locale}
-                                    />
-                                  </Sensitive>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {position.currency !== defaultCurrency && (
-                                    <span>
-                                      <Sensitive>
-                                        {formatCurrency(
-                                          position.total ?? 0,
-                                          locale,
-                                          position.currency,
-                                        )}
-                                      </Sensitive>
-                                      <span aria-hidden="true" className="px-1">
-                                        •
-                                      </span>
-                                    </span>
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute bottom-0 left-0 right-2 top-1 rounded-2xl rounded-tr-[2.5rem] rounded-bl-[2rem] border border-border/80 bg-transparent"
+                          />
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute bottom-0.5 left-1 right-1 top-0.5 rounded-2xl rounded-tr-[2.5rem] rounded-bl-[2rem] border border-border bg-card"
+                          />
+                          <Card
+                            className={cn(
+                              "relative flex w-full flex-col overflow-hidden rounded-2xl rounded-tr-[2.5rem] rounded-bl-[2rem] transition-shadow hover:shadow-lg",
+                              highlightClass,
+                            )}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-br from-muted/60 to-muted/10 px-4 py-3 pr-6">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={cn(
+                                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+                                    getAccountTypeColor(position.type),
+                                  )}
+                                >
+                                  {getAccountTypeIcon(
+                                    position.type as AccountType,
                                   )}
                                 </div>
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {t.accountTypes[position.type] ||
+                                    position.type}
+                                </span>
+                              </div>
+                              <div className="ml-auto flex min-w-0 items-center gap-2">
+                                <SourceBadge
+                                  source={position.source}
+                                  onClick={
+                                    position.source === DataSource.MANUAL
+                                      ? onEnterGlobalEditMode
+                                      : undefined
+                                  }
+                                />
+                                <EntityBadge
+                                  name={position.entityName}
+                                  origin={position.entityOrigin}
+                                  onClick={() =>
+                                    onFocusEntity(position.entityId)
+                                  }
+                                  className="text-xs"
+                                  title={position.entityName}
+                                />
                               </div>
                             </div>
 
-                            {hasFooter && (
-                              <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
-                                {hasInterest && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
+                            <div className="flex flex-1 flex-col justify-between gap-3 p-4">
+                              {(position.name || position.iban) && (
+                                <div className="space-y-2">
+                                  {position.name && (
+                                    <h3 className="text-lg font-semibold">
+                                      {position.name}
+                                    </h3>
+                                  )}
+                                  {position.iban && (
+                                    <div className="group flex w-fit max-w-full items-center gap-2">
+                                      <div className="min-w-0 break-all font-mono text-sm text-muted-foreground">
+                                        {formatIban(
+                                          position.iban,
+                                          showAccountNumbers,
+                                        )}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`p-1 h-6 w-6 shrink-0 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                                          copiedIban === position.iban
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                        }`}
+                                        onClick={() =>
+                                          handleCopyIban(position.iban!)
+                                        }
+                                        title={
+                                          copiedIban === position.iban
+                                            ? t.common.copied
+                                            : t.common.copy
+                                        }
                                       >
-                                        <Percent className="h-3 w-3" />
-                                        <Sensitive className="text-green-600 dark:text-green-400">
-                                          {formatPercentage(
-                                            (position.interest ?? 0) * 100,
-                                            locale,
-                                          )}
-                                        </Sensitive>
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      {t.banking.interestRate}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                                {hasRetained && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
-                                      >
-                                        <Shield className="h-3 w-3" />
-                                        <Sensitive className="text-orange-500">
-                                          {formatCurrency(
-                                            position.convertedRetained ?? 0,
-                                            locale,
-                                            defaultCurrency,
-                                          )}
-                                        </Sensitive>
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      {t.banking.retainedAmount}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                                {hasPendingTransfers && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
-                                      >
-                                        <AlertCircle className="h-3 w-3" />
-                                        <Sensitive className="text-blue-500">
-                                          {formatCurrency(
-                                            position.convertedPendingTransfers ??
-                                              0,
-                                            locale,
-                                            defaultCurrency,
-                                          )}
-                                        </Sensitive>
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      {t.banking.pendingTransfers}
-                                    </TooltipContent>
-                                  </Tooltip>
+                                        {copiedIban === position.iban ? (
+                                          <Check className="h-3 w-3" />
+                                        ) : (
+                                          <Copy className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="space-y-1">
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+                                  <div className="min-w-0 text-2xl font-bold">
+                                    <Sensitive>
+                                      <FormattedMarketValue
+                                        value={formatCurrency(
+                                          position.convertedTotal,
+                                          locale,
+                                          defaultCurrency,
+                                        )}
+                                        locale={locale}
+                                      />
+                                    </Sensitive>
+                                  </div>
+                                  {hasIndicators && (
+                                    <div className="ml-auto flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1 text-xs">
+                                      {hasInterest && (
+                                        <AccountIndicator
+                                          label={t.banking.interestRate}
+                                          className="text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
+                                        >
+                                          <Percent className="h-3 w-3" />
+                                          <Sensitive className="text-green-600 dark:text-green-400">
+                                            {formatPercentage(
+                                              (position.interest ?? 0) * 100,
+                                              locale,
+                                            )}
+                                          </Sensitive>
+                                        </AccountIndicator>
+                                      )}
+                                      {hasRetained && (
+                                        <AccountIndicator
+                                          label={t.banking.retainedAmount}
+                                          className="text-orange-500 hover:text-orange-400"
+                                        >
+                                          <Shield className="h-3 w-3" />
+                                          <Sensitive className="text-orange-500">
+                                            {formatCurrency(
+                                              position.convertedRetained ?? 0,
+                                              locale,
+                                              defaultCurrency,
+                                            )}
+                                          </Sensitive>
+                                        </AccountIndicator>
+                                      )}
+                                      {hasPendingTransfers && (
+                                        <AccountIndicator
+                                          label={t.banking.pendingTransfers}
+                                          className="text-blue-500 hover:text-blue-400"
+                                        >
+                                          <AlertCircle className="h-3 w-3" />
+                                          <Sensitive className="text-blue-500">
+                                            {formatCurrency(
+                                              position.convertedPendingTransfers ??
+                                                0,
+                                              locale,
+                                              defaultCurrency,
+                                            )}
+                                          </Sensitive>
+                                        </AccountIndicator>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {position.currency !== defaultCurrency && (
+                                  <div className="text-xs text-muted-foreground">
+                                    <Sensitive>
+                                      {formatCurrency(
+                                        position.total ?? 0,
+                                        locale,
+                                        position.currency,
+                                      )}
+                                    </Sensitive>
+                                  </div>
                                 )}
                               </div>
-                            )}
 
-                            {isDirty && (
-                              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                                {manualTranslate("management.unsavedChanges")}
-                              </p>
-                            )}
+                              {isDirty && (
+                                <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                  {manualTranslate("management.unsavedChanges")}
+                                </p>
+                              )}
 
-                            {showActions && (
-                              <div className="flex justify-end gap-0.5">
-                                <button
-                                  type="button"
-                                  aria-label={t.common.edit}
-                                  title={t.common.edit}
-                                  className={MANUAL_POSITION_ICON_ACTION_CLASS}
-                                  onClick={() => {
-                                    if (manualDraft?.originalId) {
-                                      editByOriginalId(manualDraft.originalId)
-                                    } else if (manualDraft) {
-                                      editByLocalId(manualDraft.localId)
-                                    } else if (item.originalId) {
-                                      editByOriginalId(item.originalId)
+                              {showActions && (
+                                <div className="flex justify-end gap-0.5">
+                                  <button
+                                    type="button"
+                                    aria-label={t.common.edit}
+                                    title={t.common.edit}
+                                    className={
+                                      MANUAL_POSITION_ICON_ACTION_CLASS
                                     }
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  aria-label={t.common.delete}
-                                  title={t.common.delete}
-                                  className={
-                                    MANUAL_POSITION_DELETE_ACTION_CLASS
-                                  }
-                                  onClick={() => {
-                                    if (manualDraft?.originalId) {
-                                      deleteByOriginalId(manualDraft.originalId)
-                                    } else if (manualDraft) {
-                                      deleteByLocalId(manualDraft.localId)
-                                    } else if (item.originalId) {
-                                      deleteByOriginalId(item.originalId)
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        editByOriginalId(manualDraft.originalId)
+                                      } else if (manualDraft) {
+                                        editByLocalId(manualDraft.localId)
+                                      } else if (item.originalId) {
+                                        editByOriginalId(item.originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={t.common.delete}
+                                    title={t.common.delete}
+                                    className={
+                                      MANUAL_POSITION_DELETE_ACTION_CLASS
                                     }
-                                  }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </Card>
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        deleteByOriginalId(
+                                          manualDraft.originalId,
+                                        )
+                                      } else if (manualDraft) {
+                                        deleteByLocalId(manualDraft.localId)
+                                      } else if (item.originalId) {
+                                        deleteByOriginalId(item.originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        </div>
                       )
                     })}
                   </div>
@@ -2128,7 +2260,8 @@ function BankAccountsSection({
                 )}
             </div>
           </TooltipProvider>
-        ))}
+        )}
+      </AnimatedBankingContent>
     </motion.div>
   )
 }
@@ -2405,16 +2538,18 @@ function BankCardsSection({
   )
 
   return (
-    <motion.div variants={fadeListItem} className="space-y-4">
+    <motion.div variants={fadeListItem}>
       <div className="flex items-center justify-between">
         <button
           type="button"
           className="flex items-center gap-2 cursor-pointer"
           onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls="banking-cards-content"
         >
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform",
+              "h-4 w-4 text-muted-foreground transition-transform motion-reduce:transition-none",
               collapsed && "-rotate-90",
             )}
           />
@@ -2478,8 +2613,12 @@ function BankCardsSection({
         )}
       </div>
 
-      {!collapsed &&
-        (summary.count === 0 ? (
+      <AnimatedBankingContent
+        id="banking-cards-content"
+        open={!collapsed}
+        className="pt-4"
+      >
+        {summary.count === 0 ? (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <div className="text-orange-500 dark:text-orange-400">
               <CreditCard className="mx-auto h-12 w-12" />
@@ -2522,14 +2661,11 @@ function BankCardsSection({
                         ? "from-blue-600 to-blue-800"
                         : "from-green-600 to-green-800"
 
-                    const utilization =
-                      position.convertedLimit && position.convertedLimit > 0
-                        ? Math.min(
-                            (position.convertedUsed / position.convertedLimit) *
-                              100,
-                            200,
-                          )
-                        : 0
+                    const limit = position.convertedLimit
+                    const hasLimit = limit !== null && limit > 0
+                    const utilization = hasLimit
+                      ? Math.min((position.convertedUsed / limit) * 100, 200)
+                      : 0
 
                     return (
                       <Card
@@ -2542,36 +2678,38 @@ function BankCardsSection({
                       >
                         <div
                           className={cn(
-                            "relative flex flex-col justify-center gap-2 p-6 text-white",
+                            "flex flex-col justify-center gap-2 px-5 py-4 text-white",
                             "bg-gradient-to-br",
                             gradientClass,
                           )}
                         >
-                          <div className="absolute right-3 top-3 flex items-center gap-2">
-                            <SourceBadge
-                              source={position.source}
-                              onClick={
-                                position.source === DataSource.MANUAL
-                                  ? onEnterGlobalEditMode
-                                  : undefined
-                              }
-                            />
-                            <EntityBadge
-                              name={position.entityName}
-                              origin={position.entityOrigin}
-                              onClick={() => onFocusEntity(position.entityId)}
-                              className="text-xs"
-                            />
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-5 w-5" />
+                              <span className="text-sm font-medium">
+                                {position.type === CardType.CREDIT
+                                  ? t.cardTypes.CREDIT
+                                  : t.cardTypes.DEBIT}
+                              </span>
+                            </div>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <SourceBadge
+                                source={position.source}
+                                onClick={
+                                  position.source === DataSource.MANUAL
+                                    ? onEnterGlobalEditMode
+                                    : undefined
+                                }
+                              />
+                              <EntityBadge
+                                name={position.entityName}
+                                origin={position.entityOrigin}
+                                onClick={() => onFocusEntity(position.entityId)}
+                                className="text-xs"
+                              />
+                            </div>
                           </div>
-                          <div className="mb-4 flex items-center gap-2">
-                            <CreditCard className="h-5 w-5" />
-                            <span className="text-sm font-medium">
-                              {position.type === CardType.CREDIT
-                                ? t.cardTypes.CREDIT
-                                : t.cardTypes.DEBIT}
-                            </span>
-                          </div>
-                          <div className="mb-2 font-mono text-lg">
+                          <div className="text-base font-semibold tracking-[0.12em] [font-family:'Courier_New',Courier,monospace] [text-shadow:0_1px_1px_rgb(0_0_0_/_0.45),0_-1px_0_rgb(255_255_255_/_0.2)] sm:text-lg">
                             {formatCardNumber(position.ending)}
                           </div>
                           {position.name && (
@@ -2582,73 +2720,49 @@ function BankCardsSection({
                           {!position.active && (
                             <Badge
                               variant="destructive"
-                              className="absolute left-3 bottom-3 text-xs"
+                              className="self-start text-xs"
                             >
                               {manualTranslate(`${assetPath}.summary.inactive`)}
                             </Badge>
                           )}
                         </div>
-                        <div className="flex flex-1 flex-col space-y-3 p-4">
-                          <div className="flex justify-between text-sm">
+                        <div className="flex flex-1 flex-col space-y-2 p-4">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                             <span className="text-muted-foreground">
                               {t.banking.used}
                             </span>
-                            <span className="font-semibold">
+                            <span className="ml-auto text-right tabular-nums">
                               <Sensitive>
-                                {formatCurrency(
-                                  position.convertedUsed,
-                                  locale,
-                                  defaultCurrency,
-                                )}
-                              </Sensitive>
-                            </span>
-                          </div>
-                          {Number(position.convertedLimit || 0) > 0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">
-                                {t.banking.limit}
-                              </span>
-                              <span>
-                                <Sensitive>
+                                <span className="whitespace-nowrap font-semibold">
                                   {formatCurrency(
-                                    position.convertedLimit!,
+                                    position.convertedUsed,
                                     locale,
                                     defaultCurrency,
                                   )}
-                                </Sensitive>
-                              </span>
-                            </div>
-                          )}
-                          {Number(position.convertedLimit || 0) > 0 && (
-                            <div className="space-y-1">
-                              <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>{t.banking.utilization}</span>
-                                <span>
-                                  <Sensitive>
+                                </span>
+                                {hasLimit && (
+                                  <span className="whitespace-nowrap text-muted-foreground">
+                                    {" / "}
+                                    {formatCurrency(
+                                      limit,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </span>
+                                )}
+                                {hasLimit && (
+                                  <span className="ml-1 whitespace-nowrap text-xs text-muted-foreground">
+                                    {" ("}
                                     {formatPercentage(
                                       Math.min(utilization, 100),
                                       locale,
                                     )}
-                                  </Sensitive>
-                                </span>
-                              </div>
-                              <div className="h-2 w-full rounded-full bg-muted">
-                                <div
-                                  className={cn(
-                                    "h-2 rounded-full",
-                                    utilization > 80
-                                      ? "bg-red-500"
-                                      : utilization > 60
-                                        ? "bg-yellow-400"
-                                        : "bg-emerald-500",
-                                  )}
-                                  style={{
-                                    width: `${Math.min(utilization, 100)}%`,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )}
+                                    {")"}
+                                  </span>
+                                )}
+                              </Sensitive>
+                            </span>
+                          </div>
                           {position.currency !== defaultCurrency && (
                             <div className="border-t border-border pt-2 text-xs text-muted-foreground">
                               <Sensitive>
@@ -2706,6 +2820,30 @@ function BankCardsSection({
                             </div>
                           )}
                         </div>
+                        {hasLimit && (
+                          <div
+                            role="progressbar"
+                            aria-label={t.banking.utilization}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.min(utilization, 100)}
+                            className="h-1 w-full shrink-0 bg-muted"
+                          >
+                            <div
+                              className={cn(
+                                "h-full",
+                                utilization > 80
+                                  ? "bg-red-500"
+                                  : utilization > 60
+                                    ? "bg-yellow-400"
+                                    : "bg-emerald-500",
+                              )}
+                              style={{
+                                width: `${Math.min(utilization, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
                       </Card>
                     )
                   })}
@@ -2713,7 +2851,8 @@ function BankCardsSection({
               </div>
             ))}
           </div>
-        ))}
+        )}
+      </AnimatedBankingContent>
     </motion.div>
   )
 }
@@ -2744,6 +2883,7 @@ function BankLoansSection({
   onToggleCollapsed,
   onBeginCreditCreate,
 }: BankLoansSectionProps) {
+  const isMobile = useMediaQuery("(max-width: 767px)")
   const {
     asset,
     drafts,
@@ -2990,16 +3130,18 @@ function BankLoansSection({
   )
 
   return (
-    <motion.div variants={fadeListItem} className="space-y-4">
+    <motion.div variants={fadeListItem}>
       <div className="flex items-center justify-between">
         <button
           type="button"
           className="flex items-center gap-2 cursor-pointer"
           onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls="banking-loans-content"
         >
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform",
+              "h-4 w-4 text-muted-foreground transition-transform motion-reduce:transition-none",
               collapsed && "-rotate-90",
             )}
           />
@@ -3067,8 +3209,12 @@ function BankLoansSection({
         )}
       </div>
 
-      {!collapsed &&
-        (totalSectionCount === 0 ? (
+      <AnimatedBankingContent
+        id="banking-loans-content"
+        open={!collapsed}
+        className="pt-4"
+      >
+        {totalSectionCount === 0 ? (
           <Card className="flex flex-col items-center gap-4 p-10 text-center">
             <div className="text-red-500 dark:text-red-400">
               <HandCoins className="mx-auto h-12 w-12" />
@@ -3122,15 +3268,29 @@ function BankLoansSection({
                 typeof position.fixed_years === "number"
                   ? position.fixed_years
                   : null
+              const installmentLabel = t.banking.installment
+              const paymentDate = (
+                <div>
+                  <span className="block text-sm text-muted-foreground">
+                    {t.banking.next}
+                  </span>
+                  <span className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    {position.next_payment_date
+                      ? formatDate(position.next_payment_date, locale)
+                      : t.common.notAvailable}
+                  </span>
+                </div>
+              )
               return (
                 <Card
                   key={item.key}
                   className={cn(
-                    "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                    "flex h-full flex-col gap-3 p-4 transition-shadow hover:shadow-lg md:gap-4 md:p-6",
                     highlightClass,
                   )}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 md:gap-4">
                     <Badge
                       variant="secondary"
                       className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
@@ -3139,7 +3299,7 @@ function BankLoansSection({
                         ? t.loanTypes.MORTGAGE
                         : t.loanTypes.STANDARD}
                     </Badge>
-                    <div className="flex items-center gap-2">
+                    <div className="ml-auto flex min-w-0 items-center gap-2">
                       <SourceBadge
                         source={position.source}
                         onClick={
@@ -3161,36 +3321,38 @@ function BankLoansSection({
                     <h3 className="text-lg font-semibold">{position.name}</h3>
                   )}
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
                     <div>
                       <span className="block text-sm text-muted-foreground">
                         {t.banking.principalOutstanding}
                       </span>
                       <span className="text-xl font-semibold text-red-500">
                         <Sensitive>
-                          {formatCurrency(
-                            position.convertedPrincipalOutstanding,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <FormattedMarketValue
+                            value={formatCurrency(
+                              position.convertedPrincipalOutstanding,
+                              locale,
+                              defaultCurrency,
+                            )}
+                            locale={locale}
+                          />
                         </Sensitive>
                       </span>
                     </div>
                     <div>
                       <span className="block text-sm text-muted-foreground">
-                        {(position.installment_frequency &&
-                          (t.banking as any).installmentByFrequency?.[
-                            position.installment_frequency
-                          ]) ||
-                          t.banking.monthlyInstallment}
+                        {installmentLabel}
                       </span>
                       <span className="text-lg font-semibold">
                         <Sensitive>
-                          {formatCurrency(
-                            position.convertedCurrentInstallment,
-                            locale,
-                            defaultCurrency,
-                          )}
+                          <FormattedMarketValue
+                            value={formatCurrency(
+                              position.convertedCurrentInstallment,
+                              locale,
+                              defaultCurrency,
+                            )}
+                            locale={locale}
+                          />
                         </Sensitive>
                       </span>
                     </div>
@@ -3216,167 +3378,161 @@ function BankLoansSection({
                         )}
                       </span>
                     </div>
+                    {isMobile && paymentDate}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {t.banking.principalPaid}
-                      </span>
-                      <span className="text-sm">
-                        <Sensitive>
-                          {formatCurrency(
-                            position.convertedPrincipalPaid,
-                            locale,
-                            defaultCurrency,
-                          )}
-                        </Sensitive>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {t.banking.originalAmount}
-                      </span>
-                      <span className="text-sm">
-                        <Sensitive>
-                          {formatCurrency(
-                            position.convertedLoanAmount,
-                            locale,
-                            defaultCurrency,
-                          )}
-                        </Sensitive>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-3">
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {t.banking.paymentDate}
-                      </span>
-                      <span className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        {position.next_payment_date
-                          ? formatDate(position.next_payment_date, locale)
-                          : t.common.notAvailable}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {manualTranslate(`${assetPath}.fields.creation`)} /{" "}
-                        {manualTranslate(`${assetPath}.fields.maturity`)}
-                      </span>
-                      <span className="text-sm">
-                        {position.creation
-                          ? formatDate(position.creation, locale)
-                          : t.common.notAvailable}
-                        <span aria-hidden="true" className="px-1">
-                          •
+                  <ExpandableDebtDetails
+                    isMobile={isMobile}
+                    name={
+                      position.name ||
+                      (position.type === LoanType.MORTGAGE
+                        ? t.loanTypes.MORTGAGE
+                        : t.loanTypes.STANDARD)
+                    }
+                  >
+                    <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
+                      <div>
+                        <span className="block text-sm text-muted-foreground">
+                          {t.banking.principalPaid}
                         </span>
-                        {position.maturity
-                          ? formatDate(position.maturity, locale)
-                          : t.common.notAvailable}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {manualTranslate(`${assetPath}.fields.interestType`)}
-                      </span>
-                      <div className="text-sm font-medium">
-                        {interestTypeLabel ||
-                          position.interest_type ||
-                          t.common.notAvailable}
+                        <span className="text-sm">
+                          <Sensitive>
+                            {formatCurrency(
+                              position.convertedPrincipalPaid,
+                              locale,
+                              defaultCurrency,
+                            )}
+                          </Sensitive>
+                        </span>
                       </div>
-                      {position.interest_type === InterestType.MIXED &&
-                        fixedYearsValue != null && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {manualTranslate(
-                              `${assetPath}.helpers.fixedRateDuration`,
-                              {
-                                years: fixedYearsValue,
-                              },
+                      <div>
+                        <span className="block text-sm text-muted-foreground">
+                          {t.banking.originalAmount}
+                        </span>
+                        <span className="text-sm">
+                          <Sensitive>
+                            {formatCurrency(
+                              position.convertedLoanAmount,
+                              locale,
+                              defaultCurrency,
                             )}
-                          </div>
-                        )}
-                      {position.interest_type === InterestType.MIXED &&
-                        isFiniteNumber(position.fixed_interest_rate) && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {manualTranslate(
-                              `${assetPath}.fields.fixedInterestRate`,
-                            )}
-                            {": "}
+                          </Sensitive>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-3">
+                      {!isMobile && paymentDate}
+                      <div>
+                        <span className="block text-sm text-muted-foreground">
+                          {manualTranslate(`${assetPath}.fields.creation`)} /{" "}
+                          {manualTranslate(`${assetPath}.fields.maturity`)}
+                        </span>
+                        <span className="text-sm">
+                          {position.creation
+                            ? formatDate(position.creation, locale)
+                            : t.common.notAvailable}
+                          <span aria-hidden="true" className="px-1">
+                            •
+                          </span>
+                          {position.maturity
+                            ? formatDate(position.maturity, locale)
+                            : t.common.notAvailable}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-sm text-muted-foreground">
+                          {manualTranslate(`${assetPath}.fields.interestType`)}
+                        </span>
+                        <div className="text-sm font-medium">
+                          {interestTypeLabel ||
+                            position.interest_type ||
+                            t.common.notAvailable}
+                        </div>
+                        {position.interest_type === InterestType.MIXED &&
+                          fixedYearsValue != null && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {manualTranslate(
+                                `${assetPath}.helpers.fixedRateDuration`,
+                                {
+                                  years: fixedYearsValue,
+                                },
+                              )}
+                            </div>
+                          )}
+                        {position.interest_type === InterestType.MIXED &&
+                          isFiniteNumber(position.fixed_interest_rate) && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {manualTranslate(
+                                `${assetPath}.fields.fixedInterestRate`,
+                              )}
+                              {": "}
+                              <Sensitive>
+                                {formatPercentage(
+                                  (position.fixed_interest_rate ?? 0) * 100,
+                                  locale,
+                                )}
+                              </Sensitive>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+
+                    {position.convertedLoanAmount > 0 && (
+                      <div className="mt-4 space-y-1">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{t.banking.repaymentProgress}</span>
+                          <span>
                             <Sensitive>
                               {formatPercentage(
-                                (position.fixed_interest_rate ?? 0) * 100,
+                                Math.min(repaymentProgress, 100),
                                 locale,
                               )}
                             </Sensitive>
-                          </div>
-                        )}
-                    </div>
-                  </div>
+                          </span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-muted">
+                          <div
+                            className="h-2 rounded-full bg-emerald-500"
+                            style={{
+                              width: `${Math.min(repaymentProgress, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
-                  {position.convertedLoanAmount > 0 && (
-                    <div className="mt-4 space-y-1">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{t.banking.repaymentProgress}</span>
-                        <span>
-                          <Sensitive>
-                            {formatPercentage(
-                              Math.min(repaymentProgress, 100),
-                              locale,
-                            )}
-                          </Sensitive>
-                        </span>
+                    {position.currency !== defaultCurrency && (
+                      <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                        <div>
+                          <span className="block">
+                            {t.banking.principalOutstanding}:
+                          </span>
+                          <span>
+                            <Sensitive>
+                              {formatCurrency(
+                                position.principal_outstanding ?? 0,
+                                locale,
+                                position.currency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block">{installmentLabel}:</span>
+                          <span>
+                            <Sensitive>
+                              {formatCurrency(
+                                position.current_installment ?? 0,
+                                locale,
+                                position.currency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
-                        <div
-                          className="h-2 rounded-full bg-emerald-500"
-                          style={{
-                            width: `${Math.min(repaymentProgress, 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {position.currency !== defaultCurrency && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
-                      <div>
-                        <span className="block">
-                          {t.banking.principalOutstanding}:
-                        </span>
-                        <span>
-                          <Sensitive>
-                            {formatCurrency(
-                              position.principal_outstanding ?? 0,
-                              locale,
-                              position.currency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block">
-                          {(position.installment_frequency &&
-                            (t.banking as any).installmentByFrequency?.[
-                              position.installment_frequency
-                            ]) ||
-                            t.banking.monthlyInstallment}
-                          :
-                        </span>
-                        <span>
-                          <Sensitive>
-                            {formatCurrency(
-                              position.current_installment ?? 0,
-                              locale,
-                              position.currency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </ExpandableDebtDetails>
 
                   {isDirty && (
                     <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -3450,18 +3606,18 @@ function BankLoansSection({
                 <Card
                   key={item.key}
                   className={cn(
-                    "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                    "flex h-full flex-col gap-3 p-4 transition-shadow hover:shadow-lg md:gap-4 md:p-6",
                     creditHighlightClass,
                   )}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 md:gap-4">
                     <Badge
                       variant="secondary"
                       className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     >
                       {t.enums.productType.CREDIT}
                     </Badge>
-                    <div className="flex items-center gap-2">
+                    <div className="ml-auto flex min-w-0 items-center gap-2">
                       <SourceBadge
                         source={credit.source}
                         onClick={
@@ -3483,7 +3639,7 @@ function BankLoansSection({
                     <h3 className="text-lg font-semibold">{credit.name}</h3>
                   )}
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
                     <div>
                       <span className="block text-sm text-muted-foreground">
                         {t.banking.creditDrawn}
@@ -3528,107 +3684,116 @@ function BankLoansSection({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
-                    <div>
-                      <span className="block text-sm text-muted-foreground">
-                        {t.banking.availableCredit}
-                      </span>
-                      <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                        <Sensitive>
-                          {formatCurrency(available, locale, defaultCurrency)}
-                        </Sensitive>
-                      </span>
-                    </div>
-                    {credit.pledged_amount != null &&
-                      credit.pledged_amount > 0 && (
-                        <div>
-                          <span className="block text-sm text-muted-foreground">
-                            {manualTranslate(
-                              "management.manualPositions.bankCredits.fields.pledgedAmount",
-                            )}
-                          </span>
-                          <span className="text-sm">
-                            <Sensitive>
-                              {formatCurrency(
-                                convertCurrency(
-                                  credit.pledged_amount,
-                                  credit.currency,
+                  <ExpandableDebtDetails
+                    isMobile={isMobile}
+                    name={credit.name || t.enums.productType.CREDIT}
+                  >
+                    <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
+                      <div>
+                        <span className="block text-sm text-muted-foreground">
+                          {t.banking.availableCredit}
+                        </span>
+                        <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                          <Sensitive>
+                            {formatCurrency(available, locale, defaultCurrency)}
+                          </Sensitive>
+                        </span>
+                      </div>
+                      {credit.pledged_amount != null &&
+                        credit.pledged_amount > 0 && (
+                          <div>
+                            <span className="block text-sm text-muted-foreground">
+                              {manualTranslate(
+                                "management.manualPositions.bankCredits.fields.pledgedAmount",
+                              )}
+                            </span>
+                            <span className="text-sm">
+                              <Sensitive>
+                                {formatCurrency(
+                                  convertCurrency(
+                                    credit.pledged_amount,
+                                    credit.currency,
+                                    defaultCurrency,
+                                    exchangeRates,
+                                  ),
+                                  locale,
                                   defaultCurrency,
-                                  exchangeRates,
-                                ),
+                                )}
+                              </Sensitive>
+                            </span>
+                          </div>
+                        )}
+                    </div>
+
+                    {credit.creation && (
+                      <div className="border-t border-border pt-4">
+                        <span className="block text-sm text-muted-foreground">
+                          {manualTranslate(
+                            "management.manualPositions.bankCredits.fields.creation",
+                          )}
+                        </span>
+                        <span className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          {formatDate(credit.creation, locale)}
+                        </span>
+                      </div>
+                    )}
+
+                    {credit.convertedCreditLimit > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{t.banking.utilization}</span>
+                          <span>
+                            <Sensitive>
+                              {formatPercentage(
+                                Math.min(utilization, 100),
                                 locale,
-                                defaultCurrency,
                               )}
                             </Sensitive>
                           </span>
                         </div>
-                      )}
-                  </div>
+                        <div className="h-2 w-full rounded-full bg-muted">
+                          <div
+                            className="h-2 rounded-full bg-rose-500"
+                            style={{ width: `${Math.min(utilization, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
-                  {credit.creation && (
-                    <div className="border-t border-border pt-4">
-                      <span className="block text-sm text-muted-foreground">
-                        {manualTranslate(
-                          "management.manualPositions.bankCredits.fields.creation",
-                        )}
-                      </span>
-                      <span className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        {formatDate(credit.creation, locale)}
-                      </span>
-                    </div>
-                  )}
-
-                  {credit.convertedCreditLimit > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{t.banking.utilization}</span>
-                        <span>
-                          <Sensitive>
-                            {formatPercentage(
-                              Math.min(utilization, 100),
-                              locale,
-                            )}
-                          </Sensitive>
-                        </span>
+                    {credit.currency !== defaultCurrency && (
+                      <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                        <div>
+                          <span className="block">
+                            {t.banking.creditDrawn}:
+                          </span>
+                          <span>
+                            <Sensitive>
+                              {formatCurrency(
+                                credit.drawn_amount ?? 0,
+                                locale,
+                                credit.currency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block">
+                            {t.banking.creditLimit}:
+                          </span>
+                          <span>
+                            <Sensitive>
+                              {formatCurrency(
+                                credit.credit_limit ?? 0,
+                                locale,
+                                credit.currency,
+                              )}
+                            </Sensitive>
+                          </span>
+                        </div>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
-                        <div
-                          className="h-2 rounded-full bg-rose-500"
-                          style={{ width: `${Math.min(utilization, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {credit.currency !== defaultCurrency && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
-                      <div>
-                        <span className="block">{t.banking.creditDrawn}:</span>
-                        <span>
-                          <Sensitive>
-                            {formatCurrency(
-                              credit.drawn_amount ?? 0,
-                              locale,
-                              credit.currency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block">{t.banking.creditLimit}:</span>
-                        <span>
-                          <Sensitive>
-                            {formatCurrency(
-                              credit.credit_limit ?? 0,
-                              locale,
-                              credit.currency,
-                            )}
-                          </Sensitive>
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </ExpandableDebtDetails>
 
                   {creditIsDirty && (
                     <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -3690,7 +3855,8 @@ function BankLoansSection({
               )
             })}
           </div>
-        ))}
+        )}
+      </AnimatedBankingContent>
     </motion.div>
   )
 }
