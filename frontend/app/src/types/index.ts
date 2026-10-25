@@ -849,6 +849,7 @@ export interface ProviderExternalEntityDetails {
   bic: string
   type: EntityType
   icon?: string | null
+  psu_types?: string[] | null
 }
 
 export interface ExternalEntityCandidates {
@@ -858,6 +859,11 @@ export interface ExternalEntityCandidates {
 export enum ExternalEntitySetupResponseCode {
   ALREADY_LINKED = "ALREADY_LINKED",
   CONTINUE_WITH_LINK = "CONTINUE_WITH_LINK",
+}
+
+export enum ExternalEntityPsuType {
+  PERSONAL = "personal",
+  BUSINESS = "business",
 }
 
 export interface ExternalEntityConnectionResult {
@@ -874,6 +880,7 @@ export interface ConnectExternalEntityRequest {
   provider?: string | null
   relink?: boolean
   completion_url?: string | null
+  psu_type?: ExternalEntityPsuType | null
 }
 
 export interface GoogleIntegrationCredentials {

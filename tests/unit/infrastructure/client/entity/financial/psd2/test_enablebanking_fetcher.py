@@ -8,6 +8,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import (
     ExternalEntityLinkError,
     ExternalIntegrationRequired,
+    ProviderPsuTypeNotSupported,
 )
 from domain.external_entity import (
     ExternalEntity,
@@ -16,6 +17,7 @@ from domain.external_entity import (
     ExternalEntityStatus,
     ExternalEntitySetupResponseCode,
     ExternalEntityTxFetchRequest,
+    PsuType,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import AccountType, ProductType
@@ -212,6 +214,169 @@ class TestCompleteLink:
         fetcher, _ = _make_fetcher()
         with pytest.raises(ExternalEntityLinkError):
             await fetcher.complete_link(_external_entity(), {})
+
+
+class TestPsuType:
+    @staticmethod
+    def _aspsp(**extra):
+        return {
+            "name": "Bank",
+            "country": "ES",
+            "maximum_consent_validity": 7776000,
+            **extra,
+        }
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_personal_when_bank_lists_no_types(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(return_value=[self._aspsp()])
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(), institution_id="ES:Bank"
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "personal"
+        assert result.payload["psu_type"] == "personal"
+
+    @pytest.mark.asyncio
+    async def test_sends_requested_type_and_stores_it(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["personal", "business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(),
+                institution_id="ES:Bank",
+                psu_type=PsuType.BUSINESS,
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_auto_selects_the_only_listed_type(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(), institution_id="ES:Bank"
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_rejects_requested_type_not_listed_by_bank(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["business"])]
+        )
+        client.start_auth = AsyncMock()
+
+        with pytest.raises(ProviderPsuTypeNotSupported):
+            await fetcher.create_or_link(
+                ExternalEntityLoginRequest(
+                    external_entity=_external_entity(),
+                    institution_id="ES:Bank",
+                    psu_type=PsuType.PERSONAL,
+                )
+            )
+
+        client.start_auth.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_relink_reuses_stored_type(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["personal", "business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-2"}
+        )
+        external_entity = _external_entity(
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "psu_type": "business",
+            },
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(external_entity=external_entity, relink=True)
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_complete_link_stores_session_type(self):
+        fetcher, client = _make_fetcher()
+        client.create_session = AsyncMock(
+            return_value={
+                "session_id": "sess-1",
+                "accounts": [],
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "access": {"valid_until": "2024-01-01T00:00:00+00:00"},
+                "psu_type": "business",
+            }
+        )
+
+        completion = await fetcher.complete_link(
+            _external_entity(payload={"psu_type": "personal"}), {"code": "code-1"}
+        )
+
+        assert completion.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_complete_link_falls_back_to_stored_type(self):
+        fetcher, client = _make_fetcher()
+        client.create_session = AsyncMock(
+            return_value={
+                "session_id": "sess-1",
+                "accounts": [],
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "access": {"valid_until": "2024-01-01T00:00:00+00:00"},
+            }
+        )
+
+        completion = await fetcher.complete_link(
+            _external_entity(payload={"psu_type": "business"}), {"code": "code-1"}
+        )
+
+        assert completion.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_get_entities_exposes_listed_types(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[
+                self._aspsp(psu_types=["personal", "business"]),
+                {"name": "Other", "country": "ES"},
+            ]
+        )
+
+        entities = await fetcher.get_entities(country="ES")
+
+        assert entities[0].psu_types == ["personal", "business"]
+        assert entities[1].psu_types is None
 
 
 class TestGlobalPosition:

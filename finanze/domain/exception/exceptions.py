@@ -226,6 +226,10 @@ class ProviderInstitutionNotFound(Exception):
     pass
 
 
+class ProviderPsuTypeNotSupported(Exception):
+    pass
+
+
 class TransactionNotFound(Exception):
     pass
 

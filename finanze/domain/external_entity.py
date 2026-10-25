@@ -31,6 +31,11 @@ EXTERNAL_ENTITY_FEATURES = [Feature.POSITION, Feature.TRANSACTIONS]
 EXTERNAL_ENTITY_TRANSACTION_KINDS = [TransactionKind.ACCOUNT]
 
 
+class PsuType(str, Enum):
+    PERSONAL = "personal"
+    BUSINESS = "business"
+
+
 @dataclass
 class ProviderExternalEntityDetails:
     id: str
@@ -38,6 +43,7 @@ class ProviderExternalEntityDetails:
     bic: str
     type: EntityType
     icon: Optional[str]
+    psu_types: Optional[list[str]] = None
 
 
 @dataclass
@@ -59,6 +65,7 @@ class ExternalEntityLoginRequest:
     institution_id: Optional[str] = None
     user_language: Optional[str] = None
     completion_url: Optional[str] = None
+    psu_type: Optional[PsuType] = None
 
 
 @dataclass
@@ -110,6 +117,7 @@ class ConnectExternalEntityRequest:
     redirect_host: Optional[str] = None
     user_language: Optional[str] = None
     completion_url: Optional[str] = None
+    psu_type: Optional[PsuType] = None
 
 
 @dataclass

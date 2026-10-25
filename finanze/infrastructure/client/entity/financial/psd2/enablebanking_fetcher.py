@@ -18,6 +18,7 @@ from domain.exception.exceptions import (
     ExternalEntityNotFound,
     ExternalIntegrationRequired,
     ProviderInstitutionNotFound,
+    ProviderPsuTypeNotSupported,
     TooManyRequests,
 )
 from domain.external_entity import (
@@ -28,6 +29,7 @@ from domain.external_entity import (
     ExternalEntitySetupResponseCode,
     ExternalEntityTxFetchRequest,
     ProviderExternalEntityDetails,
+    PsuType,
 )
 from domain.external_integration import (
     EnabledExternalIntegrations,
@@ -63,6 +65,7 @@ ACCOUNT_TYPE_MAP = {
 }
 
 BALANCE_TYPE_PREFERENCE = ["CLAV", "ITAV", "CLBD", "XPCD", "OTHR"]
+PSU_TYPE_VALUES = {psu_type.value for psu_type in PsuType}
 
 
 def _build_auth_state(external_entity_id: str, completion_url: Optional[str]) -> str:
@@ -107,17 +110,24 @@ class EnableBankingFetcher(ExternalEntityFetcher):
                 pass
 
         valid_until = self._compute_valid_until(aspsp)
+        psu_type = self._resolve_psu_type(
+            request.psu_type,
+            (external_entity.payload or {}).get("psu_type"),
+            aspsp.get("psu_types"),
+        )
         auth = await self._client.start_auth(
             aspsp_name=aspsp["name"],
             aspsp_country=aspsp["country"],
             state=_build_auth_state(str(external_entity.id), request.completion_url),
             valid_until=valid_until,
+            psu_type=psu_type.value,
         )
 
         authorization_id = auth.get("authorization_id")
         payload = {
             "aspsp": {"name": aspsp["name"], "country": aspsp["country"]},
             "authorization_id": authorization_id,
+            "psu_type": psu_type.value,
         }
 
         return ExternalEntityConnectionResult(
@@ -149,11 +159,17 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         accounts = self._map_session_accounts(session.get("accounts", []))
         aspsp = session.get("aspsp") or (external_entity.payload or {}).get("aspsp")
         valid_until = (session.get("access") or {}).get("valid_until")
+        psu_type = (
+            session.get("psu_type")
+            or (external_entity.payload or {}).get("psu_type")
+            or PsuType.PERSONAL.value
+        )
 
         payload = {
             "accounts": accounts,
             "aspsp": aspsp,
             "valid_until": valid_until,
+            "psu_type": psu_type,
         }
 
         return ExternalEntityLinkCompletion(
@@ -390,6 +406,25 @@ class EnableBankingFetcher(ExternalEntityFetcher):
         return valid_until.isoformat()
 
     @staticmethod
+    def _resolve_psu_type(
+        requested: Optional[PsuType],
+        stored: Optional[str],
+        listed: Optional[list[str]],
+    ) -> PsuType:
+        supported = {PsuType(t) for t in (listed or []) if t in PSU_TYPE_VALUES}
+        if requested:
+            psu_type = PsuType(requested)
+        elif stored:
+            psu_type = PsuType(stored)
+        elif len(supported) == 1:
+            psu_type = next(iter(supported))
+        else:
+            psu_type = PsuType.PERSONAL
+        if supported and psu_type not in supported:
+            raise ProviderPsuTypeNotSupported()
+        return psu_type
+
+    @staticmethod
     def _parse_institution_id(
         institution_id: str,
     ) -> Tuple[Optional[str], Optional[str]]:
@@ -410,6 +445,7 @@ class EnableBankingFetcher(ExternalEntityFetcher):
             bic=aspsp.get("bic") or "",
             type=EntityType.FINANCIAL_INSTITUTION,
             icon=aspsp.get("logo"),
+            psu_types=aspsp.get("psu_types") or None,
         )
 
     @staticmethod

@@ -181,6 +181,21 @@ class TestRequests:
             "balances": True,
             "transactions": True,
         }
+        assert body["psu_type"] == "personal"
+
+    @pytest.mark.asyncio
+    async def test_start_auth_sends_requested_psu_type(self, rsa_private_key_pem):
+        client = _make_client(
+            FakeResponse(json_data={"url": "https://x", "authorization_id": "auth-1"}),
+            rsa_private_key_pem,
+        )
+
+        await client.start_auth(
+            "Bank", "ES", "state-1", "2024-01-01T00:00:00+00:00", psu_type="business"
+        )
+
+        body = client._session.request.call_args.kwargs["json"]
+        assert body["psu_type"] == "business"
 
     @pytest.mark.asyncio
     async def test_get_account_transactions_requests_booked_page(
