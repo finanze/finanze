@@ -2027,7 +2027,7 @@ function BankAccountsSection({
                               highlightClass,
                             )}
                           >
-                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-br from-muted/60 to-muted/10 px-4 py-3 pr-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-br from-muted/30 to-muted/5 px-4 py-3 pr-6">
                               <div className="flex items-center gap-2.5">
                                 <div
                                   className={cn(

@@ -1651,10 +1651,7 @@ export function ContributionsView() {
           </motion.div>
         )}
 
-        <motion.div
-          variants={fadeListItem}
-          className={chartData.length > 0 ? "-mb-2" : undefined}
-        >
+        <div className={chartData.length > 0 ? "-mb-2" : undefined}>
           <InvestmentFilters
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
@@ -1662,9 +1659,9 @@ export function ContributionsView() {
             showClearFilters={false}
             hideLabelOnMobile
           />
-        </motion.div>
+        </div>
 
-        <motion.div variants={fadeListItem}>
+        <div>
           {chartData.length > 0 && (
             <Card
               className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x"
@@ -1751,7 +1748,7 @@ export function ContributionsView() {
               })()}
             </Card>
           )}
-        </motion.div>
+        </div>
 
         {showEmptyState && (
           <motion.div variants={fadeListItem}>
