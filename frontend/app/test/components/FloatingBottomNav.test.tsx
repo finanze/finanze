@@ -8,11 +8,20 @@ import {
 } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { I18nProvider } from "@/i18n"
+import { PlatformType } from "@/types"
 import { BottomNavProvider } from "@/context/BottomNavContext"
 import { FloatingBottomNav } from "@/components/layout/FloatingBottomNav"
 import { BottomNavCard } from "@/components/settings/BottomNavCard"
 
 const scroll = vi.hoisted(() => ({ scrolling: false }))
+const haptics = vi.hoisted(() => ({
+  prepare: vi.fn().mockResolvedValue(undefined),
+  impact: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@/lib/capacitor/plugins", () => ({
+  LightHaptics: { prepare: haptics.prepare, impact: haptics.impact },
+}))
 
 vi.mock("@/context/LayoutScrollContext", () => ({
   useLayoutScroll: () => ({
@@ -59,6 +68,9 @@ beforeEach(() => {
   localStorage.clear()
   scroll.scrolling = false
   window.innerWidth = 390
+  window.platform = { type: PlatformType.WEB }
+  haptics.prepare.mockReset().mockResolvedValue(undefined)
+  haptics.impact.mockReset().mockResolvedValue(undefined)
 })
 afterEach(cleanup)
 
@@ -116,6 +128,75 @@ describe("FloatingBottomNav", () => {
       "page",
     )
   })
+
+  it("prepares feedback silently when the iOS navigation mounts", () => {
+    window.platform = { type: PlatformType.IOS }
+    renderNav()
+
+    expect(haptics.prepare).toHaveBeenCalledExactlyOnceWith()
+    expect(haptics.impact).not.toHaveBeenCalled()
+  })
+
+  it("triggers a light haptic on iOS section selections from the bar and menu", async () => {
+    window.platform = { type: PlatformType.IOS }
+    renderNav(
+      "/",
+      ["transactions", "dashboard", "crypto", "management"],
+      ["settings", "export", "investments", "calculations", "entities"],
+    )
+
+    const transactions = screen.getByRole("button", { name: "Transactions" })
+    fireEvent.pointerDown(transactions, { pointerType: "touch" })
+    expect(haptics.prepare).toHaveBeenCalledTimes(2)
+    expect(haptics.impact).not.toHaveBeenCalled()
+    fireEvent.pointerUp(transactions)
+    fireEvent.click(transactions)
+    expect(screen.getByRole("status")).toHaveTextContent("/transactions")
+    await waitFor(() =>
+      expect(haptics.impact).toHaveBeenCalledExactlyOnceWith(),
+    )
+
+    haptics.impact.mockClear()
+    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    expect(haptics.impact).not.toHaveBeenCalled()
+    const calculations = await screen.findByRole("button", {
+      name: "Calculations",
+    })
+    fireEvent.pointerDown(calculations, { pointerType: "touch" })
+    expect(haptics.prepare).toHaveBeenCalledTimes(3)
+    expect(haptics.impact).not.toHaveBeenCalled()
+    fireEvent.click(calculations)
+    expect(screen.getByRole("status")).toHaveTextContent("/calculations")
+    await waitFor(() =>
+      expect(haptics.impact).toHaveBeenCalledExactlyOnceWith(),
+    )
+  })
+
+  it("does not wait for iOS feedback to finish before navigating", async () => {
+    window.platform = { type: PlatformType.IOS }
+    haptics.prepare.mockImplementationOnce(() => new Promise<void>(() => {}))
+    haptics.impact.mockImplementationOnce(() => new Promise<void>(() => {}))
+    renderNav()
+
+    fireEvent.click(screen.getByRole("button", { name: "Investments" }))
+
+    expect(screen.getByRole("status")).toHaveTextContent("/investments")
+    await waitFor(() => expect(haptics.impact).toHaveBeenCalledTimes(1))
+  })
+
+  it.each([PlatformType.WEB, PlatformType.ANDROID])(
+    "does not trigger haptics on %s",
+    platform => {
+      window.platform = { type: platform }
+      renderNav()
+
+      fireEvent.click(screen.getByRole("button", { name: "Investments" }))
+
+      expect(screen.getByRole("status")).toHaveTextContent("/investments")
+      expect(haptics.prepare).not.toHaveBeenCalled()
+      expect(haptics.impact).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([
     ["/investments/crypto", "Crypto"],

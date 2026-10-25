@@ -30,6 +30,7 @@ import {
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { Button } from "@/components/ui/Button"
 import {
   Card,
@@ -1650,10 +1651,7 @@ export function ContributionsView() {
           </motion.div>
         )}
 
-        <motion.div
-          variants={fadeListItem}
-          className={chartData.length > 0 ? "-mb-2" : undefined}
-        >
+        <div className={chartData.length > 0 ? "-mb-2" : undefined}>
           <InvestmentFilters
             filteredEntities={filteredEntities}
             selectedEntities={selectedEntities}
@@ -1661,9 +1659,9 @@ export function ContributionsView() {
             showClearFilters={false}
             hideLabelOnMobile
           />
-        </motion.div>
+        </div>
 
-        <motion.div variants={fadeListItem}>
+        <div>
           {chartData.length > 0 && (
             <Card
               className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x"
@@ -1750,7 +1748,7 @@ export function ContributionsView() {
               })()}
             </Card>
           )}
-        </motion.div>
+        </div>
 
         {showEmptyState && (
           <motion.div variants={fadeListItem}>
@@ -2006,56 +2004,55 @@ export function ContributionsView() {
                                   )}
                                 />
                               </div>
-                              {subtypeDropdownOpen && !isCryptoOnly && (
-                                <div
-                                  role="listbox"
-                                  className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
-                                >
-                                  {filteredOptions.map(option => (
-                                    <div
-                                      key={option.value}
-                                      role="option"
-                                      aria-selected={
-                                        currentValue === option.value
-                                      }
-                                      className={cn(
-                                        "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
-                                        currentValue === option.value &&
-                                          "bg-accent text-accent-foreground",
+                              <AnimatedPopup
+                                open={subtypeDropdownOpen && !isCryptoOnly}
+                                role="listbox"
+                                className="absolute z-50 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto"
+                              >
+                                {filteredOptions.map(option => (
+                                  <div
+                                    key={option.value}
+                                    role="option"
+                                    aria-selected={
+                                      currentValue === option.value
+                                    }
+                                    className={cn(
+                                      "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                      currentValue === option.value &&
+                                        "bg-accent text-accent-foreground",
+                                    )}
+                                    onClick={() => {
+                                      setModalForm(prev =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              target_type: option.targetType,
+                                              target_subtype:
+                                                option.value ===
+                                                  "FUND_PORTFOLIO" ||
+                                                option.value === "CRYPTO"
+                                                  ? ""
+                                                  : option.value,
+                                            }
+                                          : prev,
+                                      )
+                                      clearFormError("target_type")
+                                      setSubtypeDropdownOpen(false)
+                                    }}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      {getIconForProductType(
+                                        option.targetType as unknown as ProductType,
+                                        "h-4 w-4",
                                       )}
-                                      onClick={() => {
-                                        setModalForm(prev =>
-                                          prev
-                                            ? {
-                                                ...prev,
-                                                target_type: option.targetType,
-                                                target_subtype:
-                                                  option.value ===
-                                                    "FUND_PORTFOLIO" ||
-                                                  option.value === "CRYPTO"
-                                                    ? ""
-                                                    : option.value,
-                                              }
-                                            : prev,
-                                        )
-                                        clearFormError("target_type")
-                                        setSubtypeDropdownOpen(false)
-                                      }}
-                                    >
-                                      <span className="flex items-center gap-2">
-                                        {getIconForProductType(
-                                          option.targetType as unknown as ProductType,
-                                          "h-4 w-4",
-                                        )}
-                                        {option.label}
-                                      </span>
-                                      {currentValue === option.value && (
-                                        <Check className="h-4 w-4" />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                                      {option.label}
+                                    </span>
+                                    {currentValue === option.value && (
+                                      <Check className="h-4 w-4" />
+                                    )}
+                                  </div>
+                                ))}
+                              </AnimatedPopup>
                             </div>
                           )
                         })()}

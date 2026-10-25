@@ -264,6 +264,88 @@ class TestGlobalPosition:
         assert accounts[0].type == AccountType.SAVINGS
         assert accounts[0].iban == "ES123"
 
+    @pytest.mark.asyncio
+    async def test_builds_checking_account_when_it_is_the_only_account(self):
+        fetcher, client = _make_fetcher()
+        client.get_account_balances = AsyncMock(
+            return_value={
+                "balances": [
+                    {
+                        "balance_type": "CLAV",
+                        "balance_amount": {"amount": "42.00", "currency": "EUR"},
+                    }
+                ]
+            }
+        )
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "N26"},
+                "accounts": [
+                    {
+                        "uid": "checking-account",
+                        "currency": "EUR",
+                        "name": "Main",
+                        "cash_account_type": "CACC",
+                    }
+                ],
+            },
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="N26",
+            natural_id="N26",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        position = await fetcher.global_position(
+            ExternalEntityFetchRequest(external_entity=external_entity, entity=entity)
+        )
+
+        accounts = position.products[ProductType.ACCOUNT].entries
+        assert len(accounts) == 1
+        assert str(accounts[0].total) == "42.00"
+        assert accounts[0].type == AccountType.CHECKING
+
+    @pytest.mark.asyncio
+    async def test_missing_balance_log_includes_safe_account_metadata(self, caplog):
+        fetcher, client = _make_fetcher()
+        client.get_account_balances = AsyncMock(return_value={"balances": []})
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "N26"},
+                "accounts": [
+                    {
+                        "uid": "private-account-uid",
+                        "currency": "EUR",
+                        "cash_account_type": "CACC",
+                    }
+                ],
+            },
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="N26",
+            natural_id="N26",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        await fetcher.global_position(
+            ExternalEntityFetchRequest(external_entity=external_entity, entity=entity)
+        )
+
+        assert "N26" in caplog.text
+        assert "CACC" in caplog.text
+        assert "balance count 0" in caplog.text
+        assert "private-account-uid" not in caplog.text
+
 
 class TestTransactions:
     @pytest.mark.asyncio

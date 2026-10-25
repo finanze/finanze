@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { MoreVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { prepareLightHaptic, triggerLightHaptic } from "@/lib/capacitor/haptics"
 import { useI18n } from "@/i18n"
 import { useLayoutScroll } from "@/context/LayoutScrollContext"
 import { useBackupAlert } from "@/context/BackupAlertContext"
@@ -101,6 +102,7 @@ export function FloatingBottomNav() {
 
       if (event.pointerType === "mouse" && event.button !== 0) return
 
+      prepareLightHaptic()
       didLongPressRef.current = false
       isPressingRef.current = true
       pressStartRef.current = { x: event.clientX, y: event.clientY }
@@ -137,6 +139,10 @@ export function FloatingBottomNav() {
     },
     [cancelPress],
   )
+
+  useEffect(() => {
+    prepareLightHaptic()
+  }, [])
 
   useEffect(() => {
     setIndicatorReady(false)
@@ -267,6 +273,7 @@ export function FloatingBottomNav() {
       didLongPressRef.current = false
       return
     }
+    triggerLightHaptic()
     navigate(path)
   }
 
@@ -436,8 +443,10 @@ export function FloatingBottomNav() {
                               aria-current={
                                 activePageId === id ? "page" : undefined
                               }
+                              onPointerDown={prepareLightHaptic}
                               onClick={() => {
                                 setMoreOpen(false)
+                                triggerLightHaptic()
                                 navigate(catalog[id].path)
                               }}
                             >

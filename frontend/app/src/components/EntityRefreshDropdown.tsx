@@ -1,8 +1,8 @@
 import type React from "react"
-import { motion, AnimatePresence } from "framer-motion"
 
 import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
@@ -285,213 +285,202 @@ export function EntityRefreshDropdown({
         <ChevronDown className="h-4 w-4" />
       </Button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="absolute right-0 mt-2 w-72 rounded-md shadow-md bg-popover z-50 border"
-          >
-            <div className="py-1" role="menu" aria-orientation="vertical">
-              <div className="px-4 py-3 text-sm font-medium flex items-center">
-                <History className="h-4 w-4 mr-2" />
-                {t.entities.refreshEntity}
-              </div>
-              {pendingAutoRefreshCandidates.length > 0 && (
-                <div className="px-4 pb-2 flex items-center justify-between">
-                  <span className="text-xs text-neutral-400">
-                    {autoRefreshCountdown !== null
-                      ? t.entities.autoRefreshCountdown.replace(
-                          "{countdown}",
-                          String(autoRefreshCountdown),
-                        )
-                      : t.entities.autoRefreshWaiting}
-                  </span>
-                  <button
-                    onClick={e => {
-                      e.stopPropagation()
-                      cancelAutoRefresh()
-                    }}
-                    className="p-0.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-                    aria-label={t.entities.cancelAutoRefresh}
+      <AnimatedPopup
+        open={isOpen}
+        className="absolute right-0 mt-2 w-72 rounded-md shadow-md bg-popover z-50 border"
+      >
+        <div className="py-1" role="menu" aria-orientation="vertical">
+          <div className="px-4 py-3 text-sm font-medium flex items-center">
+            <History className="h-4 w-4 mr-2" />
+            {t.entities.refreshEntity}
+          </div>
+          {pendingAutoRefreshCandidates.length > 0 && (
+            <div className="px-4 pb-2 flex items-center justify-between">
+              <span className="text-xs text-neutral-400">
+                {autoRefreshCountdown !== null
+                  ? t.entities.autoRefreshCountdown.replace(
+                      "{countdown}",
+                      String(autoRefreshCountdown),
+                    )
+                  : t.entities.autoRefreshWaiting}
+              </span>
+              <button
+                onClick={e => {
+                  e.stopPropagation()
+                  cancelAutoRefresh()
+                }}
+                className="p-0.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                aria-label={t.entities.cancelAutoRefresh}
+              >
+                <X className="h-4 w-4 text-red-400" />
+              </button>
+            </div>
+          )}
+          <div className="max-h-80 overflow-y-auto overscroll-contain">
+            {entitiesWithLastUpdate.map(item => {
+              if (item.type === "entity") {
+                const { entity, lastUpdatedAt } = item
+                return (
+                  <div
+                    key={entity.id}
+                    className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   >
-                    <X className="h-4 w-4 text-red-400" />
-                  </button>
-                </div>
-              )}
-              <div className="max-h-80 overflow-y-auto overscroll-contain">
-                {entitiesWithLastUpdate.map(item => {
-                  if (item.type === "entity") {
-                    const { entity, lastUpdatedAt } = item
-                    return (
-                      <div
-                        key={entity.id}
-                        className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <AdaptiveLogo
-                            src={entityImages[entity.id]}
-                            alt={entity.name}
-                            fallbackSrc="entities/entity_placeholder.png"
-                            className="h-5 w-5 flex-shrink-0 overflow-hidden rounded flex items-center justify-center"
-                            imgClassName="h-full w-full object-contain"
-                            lightBgClassName="bg-white p-0.5"
-                          />
-                          <div className="min-w-0">
-                            <span className="truncate block">
-                              {entity.name}
-                            </span>
-                            {lastUpdatedAt ? (
-                              <p
-                                className={`text-xs mt-0.5 ${
-                                  isUpdateOld(lastUpdatedAt)
-                                    ? "text-orange-300"
-                                    : "text-neutral-400"
-                                }`}
-                              >
-                                {formatTimeAgoAbbr(lastUpdatedAt, t)}
-                              </p>
-                            ) : (
-                              <p className="text-xs mt-0.5 text-neutral-500">
-                                {t.common.never}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {entityRequiresLogin(entity) && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="p-1.5 text-amber-500 hover:text-amber-400 transition-colors"
-                                  onClick={e => e.stopPropagation()}
-                                >
-                                  <AlertCircle className="h-4 w-4" />
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                className="w-56 p-2 text-xs"
-                                side="left"
-                                align="center"
-                              >
-                                {t.entities.sessionExpiredHint}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                          {entity.fetchable &&
-                            (fetchingEntityIds.includes(entity.id) ? (
-                              <div className="p-1.5">
-                                <LoadingSpinner size="sm" className="p-1.5" />
-                              </div>
-                            ) : pendingAutoRefreshIds.has(entity.id) ? (
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation()
-                                  cancelAutoRefresh(entity.id)
-                                }}
-                                className="p-1.5 rounded-full transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-700"
-                                aria-label={t.entities.cancelAutoRefresh}
-                              >
-                                <X className="h-4 w-4 text-red-400" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={e => handleRefreshEntity(entity, e)}
-                                disabled={refreshCooldown}
-                                className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                                aria-label={`Refresh ${entity.name}`}
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </button>
-                            ))}
-                        </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <AdaptiveLogo
+                        src={entityImages[entity.id]}
+                        alt={entity.name}
+                        fallbackSrc="entities/entity_placeholder.png"
+                        className="h-5 w-5 flex-shrink-0 overflow-hidden rounded flex items-center justify-center"
+                        imgClassName="h-full w-full object-contain"
+                        lightBgClassName="bg-white p-0.5"
+                      />
+                      <div className="min-w-0">
+                        <span className="truncate block">{entity.name}</span>
+                        {lastUpdatedAt ? (
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              isUpdateOld(lastUpdatedAt)
+                                ? "text-orange-300"
+                                : "text-neutral-400"
+                            }`}
+                          >
+                            {formatTimeAgoAbbr(lastUpdatedAt, t)}
+                          </p>
+                        ) : (
+                          <p className="text-xs mt-0.5 text-neutral-500">
+                            {t.common.never}
+                          </p>
+                        )}
                       </div>
-                    )
-                  } else {
-                    // Crypto group
-                    const { lastUpdatedAt, cryptoEntities: cryptoItems } = item
-
-                    // Format crypto entities display - only show entities with connected wallets
-                    const activeCryptoEntities = cryptoItems.filter(
-                      entity => entity.connected && entity.connected.length > 0,
-                    )
-
-                    const cryptoDisplay =
-                      activeCryptoEntities.length <= 2
-                        ? activeCryptoEntities.map(e => e.name).join(", ")
-                        : `${activeCryptoEntities[0].name}, +${activeCryptoEntities.length - 1}`
-
-                    return (
-                      <div
-                        key="crypto-group"
-                        className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex -space-x-2 flex-shrink-0 w-5">
-                            {activeCryptoEntities
-                              .slice(0, 3)
-                              .map(cryptoEntity => (
-                                <AdaptiveLogo
-                                  key={cryptoEntity.id}
-                                  src={entityImages[cryptoEntity.id]}
-                                  alt={cryptoEntity.name}
-                                  fallbackSrc="entities/entity_placeholder.png"
-                                  className="h-5 w-5 overflow-hidden rounded flex items-center justify-center"
-                                  imgClassName="h-full w-full object-contain"
-                                  lightBgClassName="bg-white p-0.5"
-                                />
-                              ))}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span>{t.common.crypto}</span>
-                              <span className="text-xs text-neutral-500 truncate">
-                                {cryptoDisplay}
-                              </span>
-                            </div>
-                            {lastUpdatedAt ? (
-                              <p
-                                className={`text-xs mt-0.5 ${
-                                  isUpdateOld(lastUpdatedAt)
-                                    ? "text-orange-300"
-                                    : "text-neutral-400"
-                                }`}
-                              >
-                                {formatTimeAgoAbbr(lastUpdatedAt, t)}
-                              </p>
-                            ) : (
-                              <p className="text-xs mt-0.5 text-neutral-500">
-                                {t.common.never}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {isCryptoFetching ? (
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {entityRequiresLogin(entity) && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 text-amber-500 hover:text-amber-400 transition-colors"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <AlertCircle className="h-4 w-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-56 p-2 text-xs"
+                            side="left"
+                            align="center"
+                          >
+                            {t.entities.sessionExpiredHint}
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                      {entity.fetchable &&
+                        (fetchingEntityIds.includes(entity.id) ? (
                           <div className="p-1.5">
                             <LoadingSpinner size="sm" className="p-1.5" />
                           </div>
+                        ) : pendingAutoRefreshIds.has(entity.id) ? (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              cancelAutoRefresh(entity.id)
+                            }}
+                            className="p-1.5 rounded-full transition-all duration-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            aria-label={t.entities.cancelAutoRefresh}
+                          >
+                            <X className="h-4 w-4 text-red-400" />
+                          </button>
                         ) : (
                           <button
-                            onClick={handleRefreshCrypto}
+                            onClick={e => handleRefreshEntity(entity, e)}
                             disabled={refreshCooldown}
                             className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                            aria-label={`Refresh ${t.common.crypto}`}
+                            aria-label={`Refresh ${entity.name}`}
                           >
                             <RefreshCw className="h-4 w-4" />
                           </button>
+                        ))}
+                    </div>
+                  </div>
+                )
+              } else {
+                // Crypto group
+                const { lastUpdatedAt, cryptoEntities: cryptoItems } = item
+
+                // Format crypto entities display - only show entities with connected wallets
+                const activeCryptoEntities = cryptoItems.filter(
+                  entity => entity.connected && entity.connected.length > 0,
+                )
+
+                const cryptoDisplay =
+                  activeCryptoEntities.length <= 2
+                    ? activeCryptoEntities.map(e => e.name).join(", ")
+                    : `${activeCryptoEntities[0].name}, +${activeCryptoEntities.length - 1}`
+
+                return (
+                  <div
+                    key="crypto-group"
+                    className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex -space-x-2 flex-shrink-0 w-5">
+                        {activeCryptoEntities.slice(0, 3).map(cryptoEntity => (
+                          <AdaptiveLogo
+                            key={cryptoEntity.id}
+                            src={entityImages[cryptoEntity.id]}
+                            alt={cryptoEntity.name}
+                            fallbackSrc="entities/entity_placeholder.png"
+                            className="h-5 w-5 overflow-hidden rounded flex items-center justify-center"
+                            imgClassName="h-full w-full object-contain"
+                            lightBgClassName="bg-white p-0.5"
+                          />
+                        ))}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span>{t.common.crypto}</span>
+                          <span className="text-xs text-neutral-500 truncate">
+                            {cryptoDisplay}
+                          </span>
+                        </div>
+                        {lastUpdatedAt ? (
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              isUpdateOld(lastUpdatedAt)
+                                ? "text-orange-300"
+                                : "text-neutral-400"
+                            }`}
+                          >
+                            {formatTimeAgoAbbr(lastUpdatedAt, t)}
+                          </p>
+                        ) : (
+                          <p className="text-xs mt-0.5 text-neutral-500">
+                            {t.common.never}
+                          </p>
                         )}
                       </div>
-                    )
-                  }
-                })}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                    </div>
+                    {isCryptoFetching ? (
+                      <div className="p-1.5">
+                        <LoadingSpinner size="sm" className="p-1.5" />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleRefreshCrypto}
+                        disabled={refreshCooldown}
+                        className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                        aria-label={`Refresh ${t.common.crypto}`}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              }
+            })}
+          </div>
+        </div>
+      </AnimatedPopup>
 
       {isOpen && (
         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />

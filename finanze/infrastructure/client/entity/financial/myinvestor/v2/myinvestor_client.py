@@ -481,6 +481,7 @@ class MyInvestorAPIV2Client:
         amount_to: Optional[float] = None,
         flow_type: Optional[str] = None,
         version: int = 2,
+        signature_id: Optional[str] = None,
     ):
         date_format = GET_DATE_FORMAT if version == 2 else DATE_FORMAT
         to_date_str = date.strftime(to_date or date.today(), date_format)
@@ -508,7 +509,29 @@ class MyInvestorAPIV2Client:
         if flow_type:
             path += f"&flowType={flow_type}"  # IN, OUT
 
-        return (await self._get_request(path))["payload"]["data"]
+        if signature_id:
+            response = await self._base_get_request(
+                path,
+                self.BASE_URL,
+                headers={**self._headers, "x-signature-id": signature_id},
+            )
+        else:
+            response = await self._get_request(path)
+        return response["payload"]["data"]
+
+    async def start_inapp_signature(self, signature_request_id: str) -> dict:
+        return (
+            await self._post_request(
+                f"/signature/api/v3/signature/{signature_request_id}?method=INAPP"
+            )
+        )["payload"]["data"]
+
+    async def get_signature(self, signature_request_id: str) -> dict:
+        return (
+            await self._get_request(
+                f"/signature/api/v3/signature?signatureRequestId={signature_request_id}"
+            )
+        )["payload"]["data"]
 
     @cached(cache=Cache.MEMORY, ttl=120)
     async def get_security_accounts(self):

@@ -2902,7 +2902,9 @@
     "limit": "Límite",
     "utilization": "Utilización",
     "inactive": "Inactiva",
-    "principalOutstanding": "Capital pendiente",
+    "principalOutstanding": "Saldo pendiente",
+    "installment": "Cuota",
+    "next": "Próximo",
     "monthlyInstallment": "Cuota mensual",
     "installmentByFrequency": {
       "WEEKLY": "Cuota semanal",

@@ -202,12 +202,27 @@ class EnableBankingFetcher(ExternalEntityFetcher):
     ) -> GlobalPosition:
         payload = request.external_entity.payload or {}
         raw_accounts = payload.get("accounts", [])
+        aspsp = payload.get("aspsp") or {}
+        institution_name = aspsp.get("name") or "unknown"
+        account_count = len(raw_accounts)
 
         accounts: list[Account] = []
 
-        for raw_account in raw_accounts:
+        if not raw_accounts:
+            self._log.warning(
+                "Enable Banking returned no accounts for institution %s",
+                institution_name,
+            )
+
+        for account_index, raw_account in enumerate(raw_accounts, start=1):
             uid = raw_account.get("uid")
             if not uid:
+                self._log.warning(
+                    "Enable Banking account %d/%d for institution %s has no UID",
+                    account_index,
+                    account_count,
+                    institution_name,
+                )
                 continue
 
             try:
@@ -221,18 +236,56 @@ class EnableBankingFetcher(ExternalEntityFetcher):
                 else:
                     raise ExternalEntityFailed() from e
 
-            balance = self._select_balance(balances.get("balances", []))
+            balance_entries = balances.get("balances") or []
+            balance_types = [
+                entry.get("balance_type")
+                for entry in balance_entries
+                if entry.get("balance_type")
+            ]
+            balance = self._select_balance(balance_entries)
+            cat = (raw_account.get("cash_account_type") or "CACC").upper()
             if not balance:
-                self._log.error("Account %s has no usable balance", uid)
+                self._log.error(
+                    "Enable Banking returned no usable balance for institution %s account %d/%d "
+                    "(cash account type %s, balance count %d, balance types %s)",
+                    institution_name,
+                    account_index,
+                    account_count,
+                    cat,
+                    len(balance_entries),
+                    balance_types,
+                )
                 continue
 
             amount = balance.get("balance_amount", {})
+            balance_type = balance.get("balance_type") or "unknown"
             currency = amount.get("currency") or raw_account.get("currency")
+            self._log.debug(
+                "Enable Banking balance for institution %s account %d/%d "
+                "(cash account type %s, balance count %d, balance types %s, "
+                "selected type %s, amount present %s, currency present %s)",
+                institution_name,
+                account_index,
+                account_count,
+                cat,
+                len(balance_entries),
+                balance_types,
+                balance_type,
+                amount.get("amount") is not None,
+                bool(currency),
+            )
             if not currency:
-                self._log.error("Account %s without currency", uid)
+                self._log.error(
+                    "Enable Banking balance has no currency for institution %s "
+                    "account %d/%d (cash account type %s, balance type %s)",
+                    institution_name,
+                    account_index,
+                    account_count,
+                    cat,
+                    balance_type,
+                )
                 continue
 
-            cat = (raw_account.get("cash_account_type") or "CACC").upper()
             acc_type = ACCOUNT_TYPE_MAP.get(cat, AccountType.CHECKING)
 
             account = Account(

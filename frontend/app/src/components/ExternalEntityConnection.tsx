@@ -9,6 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { AdaptiveLogo } from "@/components/ui/AdaptiveLogo"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { CountryFlag } from "@/components/CountryFlag"
 import { Search, Landmark, Check, X } from "lucide-react"
 import {
   ExternalEntityConnectionResult,
@@ -23,7 +24,7 @@ import {
   getImageUrl,
   disconnectExternalEntity,
 } from "@/services/api"
-import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
+import { AVAILABLE_COUNTRIES } from "@/constants/countries"
 import { isNativeMobile, isWeb } from "@/lib/platform"
 import {
   INTEGRATION_OAUTH_PARAM,
@@ -595,9 +596,10 @@ export function ExternalEntityConnectionModals({
                       {selectedCountry ? (
                         <div className="flex items-center justify-between gap-2 border rounded-md px-3 py-2 border-gray-200 dark:border-gray-700">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xl leading-none">
-                              {getCountryFlag(selectedCountry)}
-                            </span>
+                            <CountryFlag
+                              code={selectedCountry}
+                              className="h-5 w-[30px] shrink-0"
+                            />
                             <span className="text-sm font-medium">
                               {selectedCountry}
                             </span>
@@ -620,9 +622,10 @@ export function ExternalEntityConnectionModals({
                               onClick={() => fetchCandidates(code)}
                               className="border rounded-md py-2 text-sm flex flex-col items-center justify-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
                             >
-                              <span className="text-xl leading-none">
-                                {getCountryFlag(code)}
-                              </span>
+                              <CountryFlag
+                                code={code}
+                                className="h-5 w-[30px]"
+                              />
                               <span className="text-[10px] font-medium">
                                 {code}
                               </span>
