@@ -1643,7 +1643,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             quantity_flows_by_day: dict[date, list[GainsFlow]] = defaultdict(list)
             for flow in flows:
                 flow_day = flow.moment.date()
-                if previous_day is not None and flow_day < previous_day:
+                if (
+                    previous_day is not None
+                    and flow_day < previous_day
+                    and flow.transaction_type == TxType.SPLIT
+                ):
                     continue
                 if current_day is not None and flow_day > current_day:
                     continue

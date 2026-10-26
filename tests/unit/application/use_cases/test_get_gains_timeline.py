@@ -912,6 +912,28 @@ class TestGetGainsTimeline:
         )
 
     @pytest.mark.asyncio
+    async def test_keeps_late_released_buy_out_of_quantity_residual(self):
+        first_day = date(2025, 1, 1)
+        buy_day = date(2025, 1, 2)
+        unchanged_day = date(2025, 1, 3)
+        released_day = date(2025, 1, 4)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "100", cost_basis="100"),
+                _snapshot(unchanged_day, "10", "100", cost_basis="100"),
+                _snapshot(released_day, "11", "110", cost_basis="110"),
+            ],
+            [_flow(buy_day, TxType.BUY, "10", quantity="1")],
+        )
+
+        result = await use_case.execute(_query())
+
+        metrics = {point.date: point.metrics for point in result.points}[released_day]
+        assert metrics.value == Dezimal(110)
+        assert metrics.net_contributions == Dezimal(110)
+        assert metrics.gain == Dezimal(0)
+
+    @pytest.mark.asyncio
     async def test_waits_for_quantity_change_after_stale_asset_snapshot(self):
         first_day = date(2025, 1, 1)
         buy_day = date(2025, 1, 2)

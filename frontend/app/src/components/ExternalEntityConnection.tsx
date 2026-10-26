@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
+import type { PluginListenerHandle } from "@capacitor/core"
 import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
@@ -421,11 +422,14 @@ export function useExternalEntityConnection() {
 
     import("@capacitor/app").then(({ App }) => {
       if (!mounted) return
-      const listener = App.addListener("appUrlOpen", ({ url }) => {
-        void handleExternalCompleteUrl(url)
-      })
+      const listener = App.addListener(
+        "appUrlOpen",
+        ({ url }: { url: string }) => {
+          void handleExternalCompleteUrl(url)
+        },
+      )
       cleanup = () => {
-        listener.then(l => l.remove())
+        listener.then((l: PluginListenerHandle) => l.remove())
       }
     })
 
