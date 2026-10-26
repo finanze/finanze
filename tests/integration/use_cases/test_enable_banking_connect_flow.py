@@ -8,13 +8,17 @@ from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
 )
 from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
+from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from domain.entity import Entity, EntityOrigin, EntityType
+from domain.exception.exceptions import ProviderPsuTypeNotSupported
 from domain.external_entity import (
     CompleteExternalEntityLinkRequest,
     ConnectExternalEntityRequest,
+    DeleteExternalEntityRequest,
     ExternalEntity,
     ExternalEntitySetupResponseCode,
     ExternalEntityStatus,
+    PsuType,
 )
 from domain.external_integration import ExternalIntegrationId, ExternalIntegrationType
 from infrastructure.client.entity.financial.psd2.enablebanking_fetcher import (
@@ -30,6 +34,7 @@ ASPSP = {
     "bic": "TESTESMMXXX",
     "logo": "https://example.com/logo.png",
     "maximum_consent_validity": 7776000,
+    "psu_types": ["personal", "business"],
 }
 
 
@@ -142,6 +147,7 @@ def setup():
             }
         ],
         "aspsp": {"name": ASPSP["name"], "country": ASPSP["country"]},
+        "psu_type": "personal",
         "access": {"valid_until": "2030-01-01T00:00:00+00:00"},
     }
 
@@ -296,3 +302,99 @@ class TestEnableBankingConnectFlow:
         assert len(entities) == 1
         assert entities[0].id == existing_entity.id
         assert entities[0].icon_url == ASPSP["logo"]
+
+    @pytest.mark.asyncio
+    async def test_business_connect_then_complete_stores_business_type(self, setup):
+        connect_uc, complete_uc, _, external_entity_port, client = setup
+        client.create_session.return_value["psu_type"] = "business"
+
+        await connect_uc.execute(
+            ConnectExternalEntityRequest(
+                institution_id="ES:Test Bank",
+                external_entity_id=None,
+                provider=ExternalIntegrationId.ENABLE_BANKING,
+                psu_type=PsuType.BUSINESS,
+            )
+        )
+        external_entity = (await external_entity_port.get_all())[0]
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+
+        await complete_uc.execute(
+            CompleteExternalEntityLinkRequest(
+                payload={"code": "auth-code-123", "state": str(external_entity.id)},
+                external_entity_id=str(external_entity.id),
+            )
+        )
+
+        linked = await external_entity_port.get_by_id(external_entity.id)
+        assert linked.status == ExternalEntityStatus.LINKED
+        assert linked.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_unlink_then_reconnect_as_other_type(self, setup):
+        connect_uc, complete_uc, _, external_entity_port, client = setup
+        delete_uc = DeleteExternalEntityImpl(
+            external_entity_port,
+            {ExternalIntegrationId.ENABLE_BANKING: EnableBankingFetcher(client)},
+            InMemoryExternalIntegrationPort(
+                {
+                    ExternalIntegrationId.ENABLE_BANKING: {
+                        "application_id": "app-id",
+                        "private_key": "pem",
+                    }
+                }
+            ),
+        )
+
+        await connect_uc.execute(
+            ConnectExternalEntityRequest(
+                institution_id="ES:Test Bank",
+                external_entity_id=None,
+                provider=ExternalIntegrationId.ENABLE_BANKING,
+            )
+        )
+        external_entity = (await external_entity_port.get_all())[0]
+        assert client.start_auth.await_args.kwargs["psu_type"] == "personal"
+        await complete_uc.execute(
+            CompleteExternalEntityLinkRequest(
+                payload={"code": "auth-code-123", "state": str(external_entity.id)},
+                external_entity_id=str(external_entity.id),
+            )
+        )
+
+        await delete_uc.execute(
+            DeleteExternalEntityRequest(external_entity_id=external_entity.id)
+        )
+        assert await external_entity_port.get_all() == []
+
+        await connect_uc.execute(
+            ConnectExternalEntityRequest(
+                institution_id="ES:Test Bank",
+                external_entity_id=None,
+                provider=ExternalIntegrationId.ENABLE_BANKING,
+                psu_type=PsuType.BUSINESS,
+            )
+        )
+
+        reconnected = (await external_entity_port.get_all())[0]
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert reconnected.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_unsupported_psu_type_leaves_no_entity_behind(self, setup):
+        connect_uc, _, entity_port, external_entity_port, client = setup
+        client.get_aspsps.return_value = [{**ASPSP, "psu_types": ["personal"]}]
+
+        with pytest.raises(ProviderPsuTypeNotSupported):
+            await connect_uc.execute(
+                ConnectExternalEntityRequest(
+                    institution_id="ES:Test Bank",
+                    external_entity_id=None,
+                    provider=ExternalIntegrationId.ENABLE_BANKING,
+                    psu_type=PsuType.BUSINESS,
+                )
+            )
+
+        assert await entity_port.get_all() == []
+        assert await external_entity_port.get_all() == []
+        client.start_auth.assert_not_awaited()
