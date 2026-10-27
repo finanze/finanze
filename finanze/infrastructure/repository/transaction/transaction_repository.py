@@ -581,10 +581,21 @@ class TransactionSQLRepository(TransactionPort):
             )
         if query.search and query.search.strip():
             pattern = _like_pattern(query.search.strip())
-            conditions.append(
-                "(tx.name LIKE ? ESCAPE '\\' OR tx.counterparty LIKE ? ESCAPE '\\')"
-            )
+            search_conditions = [
+                "tx.name LIKE ? ESCAPE '\\'",
+                "tx.counterparty LIKE ? ESCAPE '\\'",
+            ]
             params.extend([pattern, pattern])
+            if not query.unlabeled and (
+                not query.product_types
+                or ProductType.STOCK_ETF in query.product_types
+                or ProductType.FUND in query.product_types
+            ):
+                search_conditions.append(
+                    "(tx.product_type IN ('STOCK_ETF', 'FUND') AND tx.isin LIKE ? ESCAPE '\\')"
+                )
+                params.append(pattern)
+            conditions.append(f"({' OR '.join(search_conditions)})")
 
         where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
         sort_column = {

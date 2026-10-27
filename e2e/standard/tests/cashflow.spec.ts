@@ -410,6 +410,7 @@ test.describe('Cashflow', () => {
         await expect(page).toHaveURL(initialUrl)
         await recurring.click()
         await expect(page).toHaveURL(/\/management\/recurring$/)
+        await expect(myMoney).toHaveAttribute('aria-expanded', 'true')
 
         const recurringUrl = page.url()
         await myMoney.click()

@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
@@ -13,6 +14,8 @@ from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
+    DepositTx,
+    FundTx,
     StockTx,
     TransactionQueryRequest,
     Transactions,
@@ -237,6 +240,240 @@ async def sortable_transactions(setup):
             )
     await repository.save(Transactions(investment=investment_txs, account=account_txs))
     return repository
+
+
+@pytest_asyncio.fixture
+async def searchable_transactions(setup):
+    repository, connection = setup
+    entity = Entity(
+        id=uuid4(),
+        name="Bank and broker",
+        natural_id=None,
+        type=EntityType.FINANCIAL_INSTITUTION,
+        origin=EntityOrigin.MANUAL,
+        icon_url=None,
+    )
+    connection.execute(
+        "INSERT INTO entities (id, name, type, origin) VALUES (?, ?, ?, ?)",
+        (str(entity.id), entity.name, entity.type.value, entity.origin.value),
+    )
+    connection.commit()
+    common = {
+        "amount": Dezimal("100"),
+        "currency": "EUR",
+        "date": datetime(2026, 1, 1, tzinfo=tzlocal()),
+        "entity": entity,
+        "source": DataSource.MANUAL,
+        "fees": Dezimal(0),
+        "retentions": Dezimal(0),
+    }
+    stock = StockTx(
+        **common,
+        id=uuid4(),
+        ref="stock",
+        name="Technology stock",
+        type=TxType.BUY,
+        product_type=ProductType.STOCK_ETF,
+        isin="US0378331005",
+        price=Dezimal("100"),
+    )
+    fund = FundTx(
+        **common,
+        id=uuid4(),
+        ref="fund",
+        name="Global fund",
+        type=TxType.BUY,
+        product_type=ProductType.FUND,
+        isin="IE00B4L5Y983",
+        price=Dezimal("100"),
+        net_amount=Dezimal("100"),
+    )
+    account = AccountTx(
+        **common,
+        id=uuid4(),
+        ref="account",
+        name="Card payment",
+        type=TxType.OUTFLOW,
+        product_type=ProductType.ACCOUNT,
+        counterparty="Merchant Ltd",
+    )
+    await repository.save(Transactions(investment=[stock, fund], account=[account]))
+    return repository, connection
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("search", "product_types", "expected_refs"),
+    [
+        ("us0378331005", None, ["stock"]),
+        ("  us0378331005  ", [], ["stock"]),
+        ("378331", [ProductType.STOCK_ETF], ["stock"]),
+        ("us0378", [ProductType.ACCOUNT, ProductType.STOCK_ETF], ["stock"]),
+        ("ie00b4l5y983", None, ["fund"]),
+        ("b4l5y", [ProductType.FUND], ["fund"]),
+        ("b4l5y", [ProductType.STOCK_ETF, ProductType.FUND], ["fund"]),
+        ("us0378", [ProductType.ACCOUNT], []),
+        ("ie00b4l5y983", [ProductType.STOCK_ETF], []),
+        ("global", [ProductType.FUND], ["fund"]),
+        ("merchant", [ProductType.ACCOUNT], ["account"]),
+    ],
+)
+async def test_get_by_filters_searches_investment_isins(
+    searchable_transactions, search, product_types, expected_refs
+):
+    repository, _ = searchable_transactions
+    transactions = await repository.get_by_filters(
+        TransactionQueryRequest(search=search, product_types=product_types)
+    )
+
+    assert [transaction.ref for transaction in transactions] == expected_refs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("product_types", "unlabeled", "searches_isin"),
+    [
+        (None, False, True),
+        ([], False, True),
+        ([ProductType.STOCK_ETF], False, True),
+        ([ProductType.FUND], False, True),
+        ([ProductType.ACCOUNT, ProductType.FUND], False, True),
+        ([ProductType.ACCOUNT], False, False),
+        ([ProductType.DEPOSIT], False, False),
+        ([ProductType.ACCOUNT, ProductType.CRYPTO], False, False),
+        (None, True, False),
+        ([ProductType.FUND], True, False),
+    ],
+)
+async def test_get_by_filters_only_searches_isin_when_eligible(
+    searchable_transactions, product_types, unlabeled, searches_isin
+):
+    repository, connection = searchable_transactions
+    statements = []
+    connection.set_trace_callback(statements.append)
+    try:
+        await repository.get_by_filters(
+            TransactionQueryRequest(
+                search="unmatched", product_types=product_types, unlabeled=unlabeled
+            )
+        )
+    finally:
+        connection.set_trace_callback(None)
+
+    search_statement = next(
+        statement for statement in statements if "tx.counterparty LIKE" in statement
+    )
+    assert ("tx.isin LIKE" in search_statement) is searches_isin
+
+
+@pytest.mark.asyncio
+async def test_isin_search_respects_other_filters_and_pagination(
+    searchable_transactions,
+):
+    repository, connection = searchable_transactions
+    stock = (
+        await repository.get_by_filters(TransactionQueryRequest(search="technology"))
+    )[0]
+    other_entity = replace(stock.entity, id=uuid4(), name="Other broker")
+    connection.execute(
+        "INSERT INTO entities (id, name, type, origin) VALUES (?, ?, ?, ?)",
+        (
+            str(other_entity.id),
+            other_entity.name,
+            other_entity.type.value,
+            other_entity.origin.value,
+        ),
+    )
+    connection.commit()
+    other_stock = replace(
+        stock,
+        id=uuid4(),
+        ref="other-stock",
+        name=f"Sale {stock.isin}",
+        type=TxType.SELL,
+        date=datetime(2026, 1, 2, tzinfo=tzlocal()),
+        entity=other_entity,
+        source=DataSource.REAL,
+    )
+    await repository.save(Transactions(investment=[other_stock]))
+
+    async def refs(**filters):
+        transactions = await repository.get_by_filters(
+            TransactionQueryRequest(search=stock.isin, **filters)
+        )
+        return [transaction.ref for transaction in transactions]
+
+    assert await refs() == ["other-stock", "stock"]
+    assert await refs(page=1, limit=1) == ["other-stock"]
+    assert await refs(page=2, limit=1) == ["stock"]
+    assert await refs(page=3, limit=1) == []
+    assert await refs(entities=[other_entity.id]) == ["other-stock"]
+    assert await refs(excluded_entities=[other_entity.id]) == ["stock"]
+    assert await refs(types=[TxType.SELL]) == ["other-stock"]
+    assert await refs(from_date=other_stock.date) == ["other-stock"]
+
+
+@pytest.mark.asyncio
+async def test_isin_search_escapes_wildcards_and_handles_missing_isin(
+    searchable_transactions,
+):
+    repository, _ = searchable_transactions
+    stock = (
+        await repository.get_by_filters(TransactionQueryRequest(search="technology"))
+    )[0]
+    literal = replace(stock, id=uuid4(), ref="literal", isin="US%_\\TEST")
+    decoy = replace(stock, id=uuid4(), ref="decoy", isin="USABXTEST")
+    missing = replace(
+        stock, id=uuid4(), ref="missing", name="Missing ISIN asset", isin=None
+    )
+    await repository.save(Transactions(investment=[literal, decoy, missing]))
+
+    literal_matches = await repository.get_by_filters(
+        TransactionQueryRequest(search="%_\\")
+    )
+    name_matches = await repository.get_by_filters(
+        TransactionQueryRequest(search="missing isin")
+    )
+
+    assert [transaction.ref for transaction in literal_matches] == ["literal"]
+    assert [transaction.ref for transaction in name_matches] == ["missing"]
+
+
+@pytest.mark.asyncio
+async def test_isin_search_does_not_match_other_investment_products(
+    searchable_transactions,
+):
+    repository, connection = searchable_transactions
+    stock = (
+        await repository.get_by_filters(TransactionQueryRequest(search="technology"))
+    )[0]
+    deposit = DepositTx(
+        id=uuid4(),
+        ref="deposit",
+        name="Deposit",
+        amount=stock.amount,
+        currency=stock.currency,
+        type=TxType.INTEREST,
+        date=stock.date,
+        entity=stock.entity,
+        source=stock.source,
+        product_type=ProductType.DEPOSIT,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        net_amount=stock.amount,
+    )
+    await repository.save(Transactions(investment=[deposit]))
+    connection.execute(
+        "UPDATE investment_transactions SET isin = ? WHERE id = ?",
+        (stock.isin, str(deposit.id)),
+    )
+    connection.commit()
+
+    transactions = await repository.get_by_filters(
+        TransactionQueryRequest(search=stock.isin)
+    )
+
+    assert [transaction.ref for transaction in transactions] == ["stock"]
 
 
 @pytest.mark.asyncio

@@ -251,8 +251,10 @@ test.describe('Fetch Entity Data - Disconnect Cleanup', () => {
 
         // Verify contributions are gone
         await navigateToAutoContributions(page)
-        await expect(page.getByText('No auto contributions')).toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(
+            page
+                .getByText('No auto contributions')
+                .filter({ visible: true }),
+        ).toBeVisible({ timeout: 5_000 })
     })
 })
