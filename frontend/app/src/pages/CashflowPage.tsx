@@ -656,6 +656,7 @@ function CashflowAnalysis() {
       }),
     [summary, summaryGranularity, locale, savingsTargetRate],
   )
+  const hasActiveFilters = preset !== DEFAULT_PRESET || entityIds.length > 0
 
   const breakdown = useMemo(() => {
     if (!summary) return []
@@ -1104,21 +1105,80 @@ function CashflowAnalysis() {
 
           {chartData.length === 0 ? (
             <Card className={EDGE_CARD}>
-              <EmptyState
-                icon={BarChart3}
-                title={t.cashflow.empty.title}
-                description={t.cashflow.empty.description}
-                className="py-16"
-                action={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateWithReturn("/transactions")}
+              {hasActiveFilters ? (
+                <EmptyState
+                  icon={Filter}
+                  title={t.cashflow.empty.filteredTitle}
+                  description={t.cashflow.empty.filteredDescription}
+                  className="py-16"
+                />
+              ) : (
+                <div className="space-y-6 p-4 sm:p-6">
+                  <div
+                    aria-hidden="true"
+                    className="relative h-52 overflow-hidden rounded-xl border border-border/60 bg-muted/20"
                   >
-                    {t.cashflow.empty.goToTransactions}
-                  </Button>
-                }
-              />
+                    <div className="absolute inset-x-5 top-4 bottom-8 flex flex-col justify-between">
+                      {Array.from({ length: 4 }, (_, index) => (
+                        <div
+                          key={index}
+                          className="border-t border-dashed border-border/60"
+                        />
+                      ))}
+                    </div>
+                    <div className="absolute inset-x-5 bottom-8 top-4 flex items-end justify-around gap-1 sm:gap-3">
+                      {[
+                        [38, 22],
+                        [55, 39],
+                        [43, 26],
+                        [68, 51],
+                        [49, 33],
+                        [62, 42],
+                      ].map(([earningsHeight, expensesHeight], index) => (
+                        <div
+                          key={index}
+                          className="flex h-full flex-1 items-end justify-center gap-1"
+                        >
+                          <div
+                            style={{ height: `${earningsHeight}%` }}
+                            className="w-2.5 rounded-t bg-emerald-500/20 sm:w-4"
+                          />
+                          <div
+                            style={{ height: `${expensesHeight}%` }}
+                            className="w-2.5 rounded-t bg-rose-500/20 sm:w-4"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="absolute inset-x-5 bottom-8 h-px bg-border/70" />
+                    <div className="absolute inset-x-5 bottom-2 flex justify-between">
+                      {Array.from({ length: 6 }, (_, index) => (
+                        <div
+                          key={index}
+                          className="h-2 w-6 rounded-full bg-muted-foreground/10 sm:w-10"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-center">
+                    <h3 className="text-lg font-semibold">
+                      {t.cashflow.empty.title}
+                    </h3>
+                    <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+                      {t.cashflow.empty.description}
+                    </p>
+                  </div>
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigateWithReturn("/transactions")}
+                    >
+                      {t.cashflow.empty.goToTransactions}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           ) : (
             <>

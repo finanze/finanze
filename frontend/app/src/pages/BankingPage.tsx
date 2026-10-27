@@ -8,6 +8,7 @@ import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
@@ -1958,15 +1959,24 @@ function BankAccountsSection({
         className="pt-4"
       >
         {summary.count === 0 ? (
-          <Card className="flex flex-col items-center gap-4 p-10 text-center">
-            <div className="text-blue-500 dark:text-blue-400">
-              <Wallet className="mx-auto h-12 w-12" />
-            </div>
-            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-            <p className="text-sm text-muted-foreground">
-              {manualEmptyDescription}
-            </p>
-          </Card>
+          <>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={Wallet}
+                title={manualEmptyTitle}
+                description={manualEmptyDescription}
+                iconClassName="text-blue-500 dark:text-blue-400"
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              icon={Wallet}
+              title={manualEmptyTitle}
+              description={manualEmptyDescription}
+              iconClassName="text-blue-500 dark:text-blue-400"
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <TooltipProvider delayDuration={120}>
             <div className="space-y-4">
@@ -2619,15 +2629,24 @@ function BankCardsSection({
         className="pt-4"
       >
         {summary.count === 0 ? (
-          <Card className="flex flex-col items-center gap-4 p-10 text-center">
-            <div className="text-orange-500 dark:text-orange-400">
-              <CreditCard className="mx-auto h-12 w-12" />
-            </div>
-            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-            <p className="text-sm text-muted-foreground">
-              {manualEmptyDescription}
-            </p>
-          </Card>
+          <>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={CreditCard}
+                title={manualEmptyTitle}
+                description={manualEmptyDescription}
+                iconClassName="text-orange-500 dark:text-orange-400"
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              icon={CreditCard}
+              title={manualEmptyTitle}
+              description={manualEmptyDescription}
+              iconClassName="text-orange-500 dark:text-orange-400"
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-4">
             {(
@@ -3215,15 +3234,24 @@ function BankLoansSection({
         className="pt-4"
       >
         {totalSectionCount === 0 ? (
-          <Card className="flex flex-col items-center gap-4 p-10 text-center">
-            <div className="text-red-500 dark:text-red-400">
-              <HandCoins className="mx-auto h-12 w-12" />
-            </div>
-            <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
-            <p className="text-sm text-muted-foreground">
-              {manualEmptyDescription}
-            </p>
-          </Card>
+          <>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={HandCoins}
+                title={manualEmptyTitle}
+                description={manualEmptyDescription}
+                iconClassName="text-red-500 dark:text-red-400"
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              icon={HandCoins}
+              title={manualEmptyTitle}
+              description={manualEmptyDescription}
+              iconClassName="text-red-500 dark:text-red-400"
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
             {displayItems.map(item => {

@@ -11,6 +11,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { BaseCalendar, CalendarDay } from "@/components/ui/BaseCalendar"
 import { Card } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import {
   X,
@@ -386,9 +387,14 @@ export function EventsCalendarView({
     }
     if (agendaGroups.length === 0) {
       return (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {t.management.upcoming.empty.replace("{days}", `${AGENDA_DAYS}`)}
-        </p>
+        <EmptyState
+          icon={CalendarDays}
+          title={t.management.upcoming.empty.replace(
+            "{days}",
+            `${AGENDA_DAYS}`,
+          )}
+          className="py-16"
+        />
       )
     }
     return (

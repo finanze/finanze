@@ -267,13 +267,13 @@ export function FloatingBottomNav() {
     }
   }
 
-  const handleNavigation = (path: string) => {
+  const handleNavigation = (id: string, path: string) => {
     if (collapsed) return
     if (didLongPressRef.current) {
       didLongPressRef.current = false
       return
     }
-    triggerLightHaptic()
+    if (activePageId !== id) triggerLightHaptic()
     navigate(path)
   }
 
@@ -446,7 +446,7 @@ export function FloatingBottomNav() {
                               onPointerDown={prepareLightHaptic}
                               onClick={() => {
                                 setMoreOpen(false)
-                                triggerLightHaptic()
+                                if (activePageId !== id) triggerLightHaptic()
                                 navigate(catalog[id].path)
                               }}
                             >
@@ -467,7 +467,7 @@ export function FloatingBottomNav() {
                       ref={el => {
                         buttonRefs.current[index] = el
                       }}
-                      onClick={() => handleNavigation(item.path)}
+                      onClick={() => handleNavigation(item.key, item.path)}
                       onPointerDown={handleTabPointerDown(item.label)}
                       onPointerMove={handleTabPointerMove}
                       onPointerUp={cancelPress}

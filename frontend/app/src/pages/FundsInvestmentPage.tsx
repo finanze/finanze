@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -61,6 +62,7 @@ import {
 import { EntitySelector } from "@/components/EntitySelector"
 import { useNavigate } from "react-router-dom"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { CopyableValue } from "@/components/ui/CopyableValue"
 import {
   ManualPositionsManager,
   useManualPositions,
@@ -665,6 +667,14 @@ function FundsInvestmentPageContent({
     [displayItems, sortBy, sortOrder],
   )
 
+  const emptyPositionsTitle =
+    selectedEntities.length > 0
+      ? t.investments.noPositionsFound.replace(
+          "{type}",
+          t.common.fundsInvestments.toLowerCase(),
+        )
+      : t.investments.noInvestmentsRegistered
+
   const showDraftList = portfolioManual.isEditMode
 
   const handleAddPortfolioDraft = useCallback(() => {
@@ -780,24 +790,20 @@ function FundsInvestmentPageContent({
 
       <motion.div variants={fadeListItem}>
         {sortedDisplayItems.length === 0 ? (
-          <Card className="p-14 text-center flex flex-col items-center gap-4">
-            {getIconForAssetType(
-              ProductType.FUND,
-              "h-16 w-16",
-              "text-gray-400 dark:text-gray-600",
-            )}
-            <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {selectedEntities.length > 0
-                ? t.investments.noPositionsFound.replace(
-                    "{type}",
-                    t.common.fundsInvestments.toLowerCase(),
-                  )
-                : t.investments.noPositionsAvailable.replace(
-                    "{type}",
-                    t.common.fundsInvestments.toLowerCase(),
-                  )}
-            </div>
-          </Card>
+          <>
+            <Card className="hidden md:block overflow-hidden">
+              <EmptyState
+                iconNode={getIconForAssetType(ProductType.FUND, "h-5 w-5")}
+                title={emptyPositionsTitle}
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.FUND, "h-5 w-5")}
+              title={emptyPositionsTitle}
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
@@ -1256,13 +1262,13 @@ function FundsInvestmentPageContent({
                         >
                           <div className="px-4 pb-4">
                             <div className="border-t border-border/50 pt-3 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                              <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 sm:gap-x-6 gap-y-2.5 text-sm">
                                 {(formattedShares || formattedMarketPrice) && (
-                                  <div>
+                                  <div className="col-span-2 sm:col-span-1">
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.shares}
                                     </div>
-                                    <div className="flex items-center gap-1 text-foreground">
+                                    <div className="flex flex-wrap items-center gap-1 text-foreground">
                                       {formattedShares && (
                                         <>
                                           <span>
@@ -1277,21 +1283,20 @@ function FundsInvestmentPageContent({
                                           )}
                                         </>
                                       )}
-                                      {formattedShares &&
-                                        formattedMarketPrice && (
-                                          <span className="text-muted-foreground">
-                                            ×
-                                          </span>
-                                        )}
                                       {formattedMarketPrice && (
-                                        <>
+                                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                                          {formattedShares && (
+                                            <span className="text-muted-foreground">
+                                              ×
+                                            </span>
+                                          )}
                                           <span>{formattedMarketPrice}</span>
                                           {formattedShares && eachLabel && (
                                             <span className="text-muted-foreground">
                                               {eachLabel}
                                             </span>
                                           )}
-                                        </>
+                                        </span>
                                       )}
                                     </div>
                                     {formattedAvgBuyPrice && (
@@ -1306,14 +1311,14 @@ function FundsInvestmentPageContent({
                                     )}
                                   </div>
                                 )}
-                                {position.isin && (
+                                {position.isin?.trim() && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                                      ISIN
+                                      {t.investments.isin}
                                     </div>
-                                    <div className="text-foreground font-mono text-xs">
-                                      {position.isin}
-                                    </div>
+                                    <CopyableValue
+                                      value={position.isin.trim()}
+                                    />
                                   </div>
                                 )}
                                 {position.issuer && (

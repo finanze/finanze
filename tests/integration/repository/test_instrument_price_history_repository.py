@@ -40,7 +40,9 @@ _SCHEMA = """
     CREATE TABLE instrument_split_checked (
         id CHAR(36) PRIMARY KEY,
         instrument_key VARCHAR(255) NOT NULL UNIQUE,
-        checked_at TIMESTAMP NOT NULL
+        checked_at TIMESTAMP NOT NULL,
+        checked_from DATE,
+        checked_to DATE
     );
 """
 
@@ -120,3 +122,25 @@ async def test_splits_roundtrip(setup):
     assert await repository.is_splits_checked("IE00TEST") is True
     stored = await repository.get_splits("IE00TEST")
     assert stored[0].ratio == Dezimal(10)
+
+
+@pytest.mark.asyncio
+async def test_split_check_requires_coverage_of_requested_range(setup):
+    repository = setup
+    first_day = date(2025, 1, 1)
+    last_day = date(2025, 12, 31)
+    await repository.mark_splits_checked("IE00TEST")
+    assert not await repository.is_splits_checked("IE00TEST", first_day, last_day)
+
+    await repository.mark_splits_checked("IE00TEST", first_day, last_day)
+
+    assert await repository.is_splits_checked("IE00TEST", first_day, last_day)
+    assert await repository.is_splits_checked(
+        "IE00TEST", date(2025, 2, 1), date(2025, 11, 30)
+    )
+    assert not await repository.is_splits_checked(
+        "IE00TEST", date(2024, 12, 31), last_day
+    )
+    assert not await repository.is_splits_checked(
+        "IE00TEST", first_day, date(2026, 1, 1)
+    )

@@ -230,6 +230,9 @@ from infrastructure.repository.db.versions.v0.v11.v0110_7_mcp_tool_categories im
 from infrastructure.repository.db.versions.v0.v11.v0110_8_custom_ai_integration_name import (
     V01108CustomAIIntegrationName,
 )
+from infrastructure.repository.db.versions.v0.v11.v0110_9_split_cache_coverage import (
+    V01109SplitCacheCoverage,
+)
 
 versions = [
     V0Genesis(),
@@ -320,4 +323,5 @@ versions = [
     V01106LocalAIIntegrations(),
     V01107McpToolCategories(),
     V01108CustomAIIntegrationName(),
+    V01109SplitCacheCoverage(),
 ]

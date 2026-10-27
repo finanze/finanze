@@ -5,6 +5,7 @@ import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
@@ -953,6 +954,14 @@ function FactoringViewContent({
     [displayItems, sortBy, sortOrder],
   )
 
+  const emptyPositionsTitle =
+    selectedEntities.length > 0
+      ? t.investments.noPositionsFound.replace(
+          "{type}",
+          t.common.factoring.toLowerCase(),
+        )
+      : t.investments.noInvestmentsRegistered
+
   const handleSliceClick = useCallback((slice: { name: string }) => {
     const ref = itemRefs.current[slice.name]
     if (ref) {
@@ -1015,24 +1024,20 @@ function FactoringViewContent({
 
       <motion.div variants={fadeListItem}>
         {sortedDisplayItems.length === 0 ? (
-          <Card className="p-14 text-center flex flex-col items-center gap-4">
-            {getIconForAssetType(
-              ProductType.FACTORING,
-              "h-16 w-16",
-              "text-gray-400 dark:text-gray-600",
-            )}
-            <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {selectedEntities.length > 0
-                ? t.investments.noPositionsFound.replace(
-                    "{type}",
-                    t.common.factoring.toLowerCase(),
-                  )
-                : t.investments.noPositionsAvailable.replace(
-                    "{type}",
-                    t.common.factoring.toLowerCase(),
-                  )}
-            </div>
-          </Card>
+          <>
+            <Card className="hidden md:block overflow-hidden">
+              <EmptyState
+                iconNode={getIconForAssetType(ProductType.FACTORING, "h-5 w-5")}
+                title={emptyPositionsTitle}
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.FACTORING, "h-5 w-5")}
+              title={emptyPositionsTitle}
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">

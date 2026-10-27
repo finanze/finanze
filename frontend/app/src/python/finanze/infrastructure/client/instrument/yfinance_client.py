@@ -232,6 +232,8 @@ class YFinanceClient:
                 symbol, from_date.isoformat(), to_date.isoformat()
             )
             items = json.loads(raw)
+            if items is None:
+                return None
             return [
                 InstrumentSplit(date=item["date"], ratio=Dezimal(str(item["ratio"])))
                 for item in items
