@@ -77,6 +77,7 @@ export function Sidebar() {
   const [managementExpanded, setManagementExpanded] = useState(() => {
     return location.pathname.startsWith("/management")
   })
+  const previousPathname = useRef(location.pathname)
 
   const investmentRoutes = useMemo(() => {
     const hasProductEntries = (pt: ProductType) => {
@@ -231,6 +232,9 @@ export function Sidebar() {
   }, [])
 
   useEffect(() => {
+    if (previousPathname.current === location.pathname) return
+    previousPathname.current = location.pathname
+
     const isPinnedRoute = pinnedShortcuts.some(pinnedKey => {
       const investmentRoute = investmentRoutes.find(r => r.key === pinnedKey)
       const managementRoute = managementRoutes.find(r => r.key === pinnedKey)

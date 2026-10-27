@@ -45,7 +45,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.settings import AssetConfig, CryptoAssetConfig, Settings
-from domain.transactions import AccountTx, FundTx, Transactions, TxType
+from domain.transactions import AccountTx, FundTx, StockTx, Transactions, TxType
 from infrastructure.controller.config import quart
 from infrastructure.controller.exception_handler import register_exception_handlers
 from infrastructure.controller.routes.cashflow_summary import cashflow_summary
@@ -752,6 +752,69 @@ async def test_create_label_requires_name(ctx):
 
     assert response.status_code == 400
     assert (await response.get_json())["code"] == "INVALID_LABELING_RULE"
+
+
+@pytest.mark.asyncio
+async def test_transactions_route_searches_stock_and_fund_isins(ctx):
+    day = date(2026, 3, 10)
+    common = {
+        "amount": Dezimal("100"),
+        "currency": "EUR",
+        "type": TxType.BUY,
+        "date": datetime(day.year, day.month, day.day, 12, tzinfo=tzlocal()),
+        "entity": ENTITY,
+        "source": DataSource.REAL,
+        "price": Dezimal("100"),
+        "fees": Dezimal(0),
+        "retentions": Dezimal(0),
+    }
+    stock = StockTx(
+        **common,
+        id=uuid4(),
+        ref=str(uuid4()),
+        name="Technology stock",
+        product_type=ProductType.STOCK_ETF,
+        isin="US0378331005",
+    )
+    fund = FundTx(
+        **common,
+        id=uuid4(),
+        ref=str(uuid4()),
+        name="Global fund",
+        product_type=ProductType.FUND,
+        isin="IE00B4L5Y983",
+        net_amount=Dezimal("100"),
+    )
+    account = _tx("Card payment", "10", TxType.OUTFLOW, day, counterparty="Merchant")
+    await ctx.tx_repo.save(Transactions(investment=[stock, fund], account=[account]))
+
+    response = await ctx.http.get("/api/v1/transactions?search=us0378331005")
+    assert response.status_code == 200
+    payload = await response.get_json()
+    assert _tx_names(payload) == ["Technology stock"]
+    assert payload["transactions"][0]["isin"] == stock.isin
+
+    response = await ctx.http.get(
+        "/api/v1/transactions?search=b4l5y&product_type=STOCK_ETF&product_type=FUND"
+    )
+    payload = await response.get_json()
+    assert _tx_names(payload) == ["Global fund"]
+    assert payload["transactions"][0]["isin"] == fund.isin
+
+    response = await ctx.http.get(
+        "/api/v1/transactions?search=%20US0378%20&product_type=ACCOUNT&product_type=STOCK_ETF"
+    )
+    assert _tx_names(await response.get_json()) == ["Technology stock"]
+
+    response = await ctx.http.get(
+        "/api/v1/transactions?search=us0378331005&product_type=ACCOUNT"
+    )
+    assert _tx_names(await response.get_json()) == []
+
+    response = await ctx.http.get(
+        "/api/v1/transactions?search=merchant&product_type=ACCOUNT"
+    )
+    assert _tx_names(await response.get_json()) == ["Card payment"]
 
 
 @pytest.mark.asyncio

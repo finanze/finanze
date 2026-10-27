@@ -124,9 +124,11 @@ test.describe('Manual Commodities', () => {
         await navigateToCommodities(page)
 
         // Empty state should show initially
-        await expect(page.getByText('No commodities registered')).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(
+            page
+                .getByText('No investments registered')
+                .filter({ visible: true }),
+        ).toBeVisible({ timeout: 10_000 })
 
         await createCommodity(page, 'E2E Gold Coin')
     })
