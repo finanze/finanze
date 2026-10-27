@@ -21,6 +21,7 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { InvestmentEvolutionTimeline } from "@/components/InvestmentEvolutionTimeline"
 import type { OrbitBubbleItem } from "@/components/DonutOrbitBubbles"
@@ -44,7 +45,8 @@ import { CommodityRegister } from "@/types"
 import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import { saveCommodity } from "@/services/api"
 import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
-import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
+import { CommodityIcon } from "@/utils/commodityIcons"
+import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
 import { Sensitive } from "@/components/ui/Sensitive"
@@ -991,19 +993,22 @@ export default function CommoditiesInvestmentPage() {
       </AnimatePresence>
 
       {commodities.length === 0 ? (
-        <Card className="mt-6 p-14 text-center flex flex-col items-center gap-4">
-          <CommodityIconsStack
-            size="lg"
-            overlap="md"
-            className="justify-center"
+        <>
+          <Card className="mt-6 hidden md:block overflow-hidden">
+            <EmptyState
+              iconNode={getIconForAssetType("COMMODITY", "h-5 w-5")}
+              title={t.investments.noInvestmentsRegistered}
+              description={t.commodityManagement.addFirstCommodity}
+              className="py-16"
+            />
+          </Card>
+          <EmptyState
+            iconNode={getIconForAssetType("COMMODITY", "h-5 w-5")}
+            title={t.investments.noInvestmentsRegistered}
+            description={t.commodityManagement.addFirstCommodity}
+            className="mt-6 py-16 md:hidden"
           />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {t.commodityManagement.noCommodities}
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-            {t.commodityManagement.addFirstCommodity}
-          </p>
-        </Card>
+        </>
       ) : (
         <motion.div
           variants={fadeListContainer}

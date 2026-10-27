@@ -25,6 +25,7 @@ import { LabelSelector } from "@/components/labels/LabelSelector"
 import { LabelChip } from "@/components/labels/LabelChip"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { type MultiSelectOption } from "@/components/ui/MultiSelect"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
@@ -1181,17 +1182,39 @@ export default function RecurringMoneyPage() {
             variants={fadeListItem}
             initial={initialVariant}
             animate="show"
-            className="text-center py-12 text-gray-500"
           >
-            <div className="flex justify-center mb-4">
-              {flowType === FlowType.EARNING ? (
-                <BanknoteArrowUp className="text-green-400" size={48} />
-              ) : (
-                <BanknoteArrowDown className="text-red-400" size={48} />
-              )}
-            </div>
-            <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-            <p className="text-sm">{addMessage}</p>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={
+                  flowType === FlowType.EARNING
+                    ? BanknoteArrowUp
+                    : BanknoteArrowDown
+                }
+                title={emptyMessage}
+                description={addMessage}
+                iconClassName={
+                  flowType === FlowType.EARNING
+                    ? "text-green-400"
+                    : "text-red-400"
+                }
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              icon={
+                flowType === FlowType.EARNING
+                  ? BanknoteArrowUp
+                  : BanknoteArrowDown
+              }
+              title={emptyMessage}
+              description={addMessage}
+              iconClassName={
+                flowType === FlowType.EARNING
+                  ? "text-green-400"
+                  : "text-red-400"
+              }
+              className="py-16 md:hidden"
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -2018,8 +2041,8 @@ export default function RecurringMoneyPage() {
         {tab === "overview" && (
           <>
             {/* Earnings vs Expenses Consumption Bars */}
-            {(flowDistribution.totalEarnings > 0 ||
-              flowDistribution.totalExpenses > 0) && (
+            {flowDistribution.totalEarnings > 0 ||
+            flowDistribution.totalExpenses > 0 ? (
               <motion.div variants={fadeListItem}>
                 <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
                   {(() => {
@@ -2507,6 +2530,46 @@ export default function RecurringMoneyPage() {
                         </button>
                       )}
                     </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div variants={fadeListItem}>
+                <Card className="p-4 space-y-4 -mx-6 md:mx-0 rounded-none md:rounded-lg border-x-0 md:border-x">
+                  <div className="space-y-3" aria-hidden="true">
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-green-600 dark:text-green-400">
+                        {t.management.earnings}
+                      </div>
+                      <div className="h-6 overflow-hidden rounded-md bg-green-50 dark:bg-green-950/20">
+                        <div className="flex h-full">
+                          <div className="w-[34%] bg-green-500/20" />
+                          <div className="w-[22%] bg-emerald-500/20" />
+                          <div className="w-[16%] bg-lime-500/20" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-red-600 dark:text-red-400">
+                        {t.management.expenses}
+                      </div>
+                      <div className="h-6 overflow-hidden rounded-md bg-red-50 dark:bg-red-950/20">
+                        <div className="flex h-full">
+                          <div className="w-[27%] bg-red-500/20" />
+                          <div className="w-[20%] bg-rose-500/20" />
+                          <div className="w-[14%] bg-orange-500/20" />
+                          <div className="w-[10%] bg-amber-500/20" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1 pt-1 text-center">
+                    <h3 className="text-base font-semibold">
+                      {t.management.flowDistributionEmptyTitle}
+                    </h3>
+                    <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+                      {t.management.flowDistributionEmptyDescription}
+                    </p>
                   </div>
                 </Card>
               </motion.div>

@@ -633,6 +633,360 @@ class TestGainsTimelineRepositoryIntegration:
         assert flows[0].split_ratio == Dezimal(2)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "pending_buy",
+        [
+            pytest.param(False, id="split-only"),
+            pytest.param(True, id="pending-buy"),
+        ],
+    )
+    async def test_stock_split_reconciles_repository_snapshots(
+        self, setup, pending_buy
+    ):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        snapshots = [
+            ("2025-01-01", "10", "1000", "1000"),
+            ("2025-01-03", "20", "1000", "1000"),
+        ]
+        if pending_buy:
+            snapshots.append(("2025-01-04", "44", "2200", "2200"))
+        for day, shares, market_value, initial_investment in snapshots:
+            position_id = _insert_position(conn, entity_id, day)
+            conn.execute(
+                "UPDATE global_positions SET entity_account_id = ? WHERE id = ?",
+                (str(account_id), position_id),
+            )
+            conn.execute(
+                "INSERT INTO stock_positions "
+                "(id, global_position_id, name, ticker, isin, currency, market_value, "
+                "shares, initial_investment, type) "
+                "VALUES (?, ?, 'Stock', 'TEST', 'IE00STOCK0001', 'EUR', ?, ?, ?, 'STOCK')",
+                (str(uuid4()), position_id, market_value, shares, initial_investment),
+            )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, price, split_ratio, net_amount, fees, retentions, "
+            "isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'split', ?, ?, 'REAL', 'STOCK_ETF', 'SPLIT', "
+            "'2025-01-03T12:00:00', '0', 'EUR', NULL, NULL, '2', '0', '0', '0', "
+            "'IE00STOCK0001', 'TEST', NULL, 'Stock')",
+            (str(uuid4()), str(entity_id), str(account_id)),
+        )
+        if pending_buy:
+            conn.execute(
+                "INSERT INTO investment_transactions "
+                "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+                "amount, currency, shares, price, split_ratio, net_amount, fees, retentions, "
+                "isin, ticker, asset_contract_address, name) "
+                "VALUES (?, 'buy', ?, ?, 'REAL', 'STOCK_ETF', 'BUY', "
+                "'2025-01-02T12:00:00', '1200', 'EUR', '12', '100', NULL, '1200', '0', '0', "
+                "'IE00STOCK0001', 'TEST', NULL, 'Stock')",
+                (str(uuid4()), str(entity_id), str(account_id)),
+            )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[entity_id],
+                from_date=date(2025, 1, 1),
+                to_date=date(2025, 1, 4) if pending_buy else date(2025, 1, 3),
+            )
+        )
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(2200 if pending_buy else 1000)
+        assert metrics.net_contributions == Dezimal(2200 if pending_buy else 1000)
+        assert metrics.gain == Dezimal(0)
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_stock_trade_reconciles_with_single_account_fallback(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        for day, shares, market_value, initial_investment in (
+            ("2025-01-01", "10", "1000", "1000"),
+            ("2025-01-03", "11", "1100", "1102"),
+        ):
+            position_id = _insert_position(conn, entity_id, day)
+            conn.execute(
+                "INSERT INTO stock_positions "
+                "(id, global_position_id, name, ticker, isin, currency, market_value, "
+                "shares, initial_investment, type) "
+                "VALUES (?, ?, 'Stock', 'TEST', 'IE00STOCK0001', 'EUR', ?, ?, ?, 'STOCK')",
+                (str(uuid4()), position_id, market_value, shares, initial_investment),
+            )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, price, split_ratio, net_amount, fees, retentions, "
+            "isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'buy', ?, ?, 'REAL', 'STOCK_ETF', 'BUY', "
+            "'2025-01-02T12:00:00', '102', 'EUR', '1', '102', NULL, '102', '0', '0', "
+            "'IE00STOCK0001', 'TEST', NULL, 'Stock')",
+            (str(uuid4()), str(entity_id), str(account_id)),
+        )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.STOCK_ETF)],
+                entities=[entity_id],
+                from_date=date(2025, 1, 1),
+                to_date=date(2025, 1, 3),
+            )
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1102)
+        assert result.points[-1].metrics.gain == Dezimal(-2)
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_fund_trade_reconciles_with_single_account_fallback(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        for day, shares, market_value, initial_investment in (
+            ("2025-01-01", "10", "1000", "1000"),
+            ("2025-01-03", "11", "1100", "1102"),
+        ):
+            position_id = _insert_position(conn, entity_id, day)
+            portfolio_id = str(uuid4())
+            conn.execute(
+                "INSERT INTO fund_portfolios (id, global_position_id, name) VALUES (?, ?, 'Retirement')",
+                (portfolio_id, position_id),
+            )
+            conn.execute(
+                "INSERT INTO fund_positions "
+                "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+                "VALUES (?, ?, 'Fund', 'IE00FUND0001', 'EUR', ?, ?, ?, ?)",
+                (
+                    str(uuid4()),
+                    position_id,
+                    market_value,
+                    shares,
+                    initial_investment,
+                    portfolio_id,
+                ),
+            )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'buy', ?, ?, 'REAL', 'FUND', 'BUY', '2025-01-02T12:00:00', "
+            "'102', 'EUR', '1', '102', '0', '0', 'IE00FUND0001', NULL, NULL, 'Fund')",
+            (str(uuid4()), str(entity_id), str(account_id)),
+        )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[
+                    GainsAssetFilter(
+                        product_type=ProductType.FUND, portfolio_names=["Retirement"]
+                    )
+                ],
+                entities=[entity_id],
+                from_date=date(2025, 1, 1),
+                to_date=date(2025, 1, 3),
+            )
+        )
+
+        assert result.points[-1].metrics.net_contributions == Dezimal(1102)
+        assert result.points[-1].metrics.gain == Dezimal(-2)
+        assert result.quality == GainsQuality.COMPLETE
+
+    @pytest.mark.asyncio
+    async def test_deposit_flow_uses_single_account_fallback(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        position_id = _insert_position(conn, entity_id, "2025-01-01")
+        conn.execute(
+            "INSERT INTO deposit_positions "
+            "(id, global_position_id, name, currency, amount, interest_rate, creation, maturity) "
+            "VALUES (?, ?, 'Deposit', 'EUR', '100', '0', '2025-01-01T12:00:00', '2025-01-30')",
+            (str(uuid4()), position_id),
+        )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'investment', ?, ?, 'REAL', 'DEPOSIT', 'INVESTMENT', "
+            "'2025-01-01T12:00:00', '100', 'EUR', NULL, '100', '0', '0', NULL, NULL, NULL, 'Deposit')",
+            (str(uuid4()), str(entity_id), str(account_id)),
+        )
+        conn.commit()
+
+        flows = await repository.get_flows(
+            [GainsAssetFilter(product_type=ProductType.DEPOSIT)], [str(entity_id)]
+        )
+
+        assert len(flows) == 1
+        assert flows[0].asset_key == "DEPOSIT:2025-01-01:2025-01-30:100:EUR"
+
+    @pytest.mark.asyncio
+    async def test_fund_transfer_and_buy_only_count_external_cash(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        snapshots = [
+            ("2025-01-01", "100", "1000", "900", "10", "100", "90"),
+            ("2025-01-02", "100", "1000", "900", "10", "100", "90"),
+            ("2025-01-03", "40", "400", "360", "71", "710", "640"),
+        ]
+        for (
+            day,
+            source_shares,
+            source_value,
+            source_cost,
+            target_shares,
+            target_value,
+            target_cost,
+        ) in snapshots:
+            position_id = _insert_position(conn, entity_id, day)
+            conn.execute(
+                "UPDATE global_positions SET entity_account_id = ? WHERE id = ?",
+                (str(account_id), position_id),
+            )
+            for name, isin, shares, value, cost in (
+                ("Source", "IE00SRC00001", source_shares, source_value, source_cost),
+                ("Target", "IE00DST00001", target_shares, target_value, target_cost),
+            ):
+                conn.execute(
+                    "INSERT INTO fund_positions "
+                    "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+                    "VALUES (?, ?, ?, ?, 'EUR', ?, ?, ?, NULL)",
+                    (str(uuid4()), position_id, name, isin, value, shares, cost),
+                )
+        for ref, transaction_type, isin, amount, shares in (
+            ("out", "TRANSFER_OUT", "IE00SRC00001", "600", "60"),
+            ("in", "TRANSFER_IN", "IE00DST00001", "600", "60"),
+            ("buy", "BUY", "IE00DST00001", "10", "1"),
+        ):
+            conn.execute(
+                "INSERT INTO investment_transactions "
+                "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+                "amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+                "VALUES (?, ?, ?, ?, 'REAL', 'FUND', ?, '2025-01-02T12:00:00', "
+                "?, 'EUR', ?, ?, '0', '0', ?, NULL, NULL, 'Fund')",
+                (
+                    str(uuid4()),
+                    ref,
+                    str(entity_id),
+                    str(account_id),
+                    transaction_type,
+                    amount,
+                    shares,
+                    amount,
+                    isin,
+                ),
+            )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[entity_id],
+                from_date=date(2025, 1, 1),
+                to_date=date(2025, 1, 3),
+            )
+        )
+
+        metrics = result.points[-1].metrics
+        assert metrics.value == Dezimal(1110)
+        assert metrics.net_contributions == Dezimal(1000)
+        assert metrics.gain == Dezimal(110)
+        assert metrics.index == Dezimal(100)
+
+    @pytest.mark.asyncio
+    async def test_bounded_range_carries_unsettled_fund_buy(self, setup):
+        repository, conn = setup
+        entity_id = uuid4()
+        account_id = uuid4()
+        conn.execute(
+            "INSERT INTO entity_accounts (id, entity_id, deleted_at) VALUES (?, ?, NULL)",
+            (str(account_id), str(entity_id)),
+        )
+        for day, shares, market_value, initial_investment in (
+            ("2025-01-01", "10", "1000", "1000"),
+            ("2025-01-03", "10", "1000", "1000"),
+            ("2025-01-05", "11", "1100", "1102"),
+        ):
+            position_id = _insert_position(conn, entity_id, day)
+            conn.execute(
+                "UPDATE global_positions SET entity_account_id = ? WHERE id = ?",
+                (str(account_id), position_id),
+            )
+            conn.execute(
+                "INSERT INTO fund_positions "
+                "(id, global_position_id, name, isin, currency, market_value, shares, initial_investment, portfolio_id) "
+                "VALUES (?, ?, 'Fund', 'IE00FUND0001', 'EUR', ?, ?, ?, NULL)",
+                (str(uuid4()), position_id, market_value, shares, initial_investment),
+            )
+        conn.execute(
+            "INSERT INTO investment_transactions "
+            "(id, ref, entity_id, entity_account_id, source, product_type, type, date, "
+            "amount, currency, shares, net_amount, fees, retentions, isin, ticker, asset_contract_address, name) "
+            "VALUES (?, 'buy', ?, ?, 'REAL', 'FUND', 'BUY', '2025-01-02T12:00:00', "
+            "'102', 'EUR', '1', '102', '0', '0', 'IE00FUND0001', NULL, NULL, 'Fund')",
+            (str(uuid4()), str(entity_id), str(account_id)),
+        )
+        conn.execute(
+            "INSERT INTO sys_config (key, value) VALUES ('last_update', 'version-1')"
+        )
+        conn.commit()
+
+        result = await _use_case(repository).execute(
+            GainsTimelineQuery(
+                assets=[GainsAssetFilter(product_type=ProductType.FUND)],
+                entities=[entity_id],
+                from_date=date(2025, 1, 4),
+                to_date=date(2025, 1, 5),
+            )
+        )
+
+        assert result.opening_value == Dezimal(1000)
+        assert result.points[-1].metrics.net_contributions == Dezimal(102)
+        assert result.points[-1].metrics.gain == Dezimal(-2)
+
+    @pytest.mark.asyncio
     async def test_split_ratios_are_available_without_entity_filter(self, setup):
         repository, conn = setup
         split_entity_id = uuid4()

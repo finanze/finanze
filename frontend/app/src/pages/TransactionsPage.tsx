@@ -26,6 +26,7 @@ import {
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { Card } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -2113,14 +2114,11 @@ export default function TransactionsPage() {
             {/* Desktop Results Card */}
             <Card className="hidden md:block overflow-hidden">
               {transactions.transactions.length === 0 ? (
-                <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
-                  <div className="text-gray-400 dark:text-gray-600">
-                    <Search className="mx-auto h-12 w-12" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {t.transactions.noTransactionsFound}
-                  </h3>
-                </div>
+                <EmptyState
+                  icon={Search}
+                  title={t.transactions.noTransactionsFound}
+                  className="py-16"
+                />
               ) : (
                 <>
                   {/* Desktop Grouped List */}
@@ -2378,14 +2376,11 @@ export default function TransactionsPage() {
 
             {/* Mobile No Results */}
             {transactions.transactions.length === 0 && (
-              <Card className="flex flex-col items-center gap-4 p-10 text-center md:hidden">
-                <div className="text-gray-400 dark:text-gray-600">
-                  <Search className="mx-auto h-12 w-12" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  {t.transactions.noTransactionsFound}
-                </h3>
-              </Card>
+              <EmptyState
+                icon={Search}
+                title={t.transactions.noTransactionsFound}
+                className="py-16 md:hidden"
+              />
             )}
 
             {/* Mobile Grouped List */}

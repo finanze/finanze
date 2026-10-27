@@ -2,21 +2,21 @@ import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface EmptyStateProps {
-  icon: LucideIcon
+type EmptyStateProps = {
   title: string
   description?: string
   action?: ReactNode
   className?: string
-}
+  iconClassName?: string
+} & (
+  { icon: LucideIcon; iconNode?: never } | { icon?: never; iconNode: ReactNode }
+)
 
-export function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-  className,
-}: EmptyStateProps) {
+export function EmptyState(props: EmptyStateProps) {
+  const { title, description, action, className, iconClassName } = props
+  const Icon = "icon" in props ? props.icon : undefined
+  const iconNode = "iconNode" in props ? props.iconNode : undefined
+
   return (
     <div
       className={cn(
@@ -27,7 +27,12 @@ export function EmptyState({
       <div className="relative flex h-12 w-12 items-center justify-center">
         <div className="absolute inset-0 rounded-2xl bg-muted/70 rotate-6" />
         <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background shadow-sm">
-          <Icon className="h-5 w-5 text-muted-foreground" />
+          {iconNode ??
+            (Icon ? (
+              <Icon
+                className={cn("h-5 w-5 text-muted-foreground", iconClassName)}
+              />
+            ) : null)}
         </div>
       </div>
       <div className="max-w-xs space-y-1">

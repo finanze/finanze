@@ -19,6 +19,7 @@ import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import {
   MultiSelect,
   type MultiSelectOption,
@@ -1294,17 +1295,40 @@ export default function PendingMoneyPage() {
           className="space-y-2"
         >
           {entries.length === 0 && !isLoading ? (
-            <div className="text-center py-12 text-gray-500">
-              <div className="flex justify-center mb-4">
-                {activeTab === FlowType.EARNING ? (
-                  <BanknoteArrowUp className="text-green-400" size={48} />
-                ) : (
-                  <BanknoteArrowDown className="text-red-400" size={48} />
-                )}
-              </div>
-              <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-              <p className="text-sm">{addMessage}</p>
-            </div>
+            <>
+              <Card className="hidden overflow-hidden md:block">
+                <EmptyState
+                  icon={
+                    activeTab === FlowType.EARNING
+                      ? BanknoteArrowUp
+                      : BanknoteArrowDown
+                  }
+                  title={emptyMessage}
+                  description={addMessage}
+                  iconClassName={
+                    activeTab === FlowType.EARNING
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }
+                  className="py-16"
+                />
+              </Card>
+              <EmptyState
+                icon={
+                  activeTab === FlowType.EARNING
+                    ? BanknoteArrowUp
+                    : BanknoteArrowDown
+                }
+                title={emptyMessage}
+                description={addMessage}
+                iconClassName={
+                  activeTab === FlowType.EARNING
+                    ? "text-green-400"
+                    : "text-red-400"
+                }
+                className="py-16 md:hidden"
+              />
+            </>
           ) : groupByCategory ? (
             renderGroupedList()
           ) : (

@@ -32,6 +32,7 @@ import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import { Button } from "@/components/ui/Button"
+import { EmptyState } from "@/components/ui/EmptyState"
 import {
   Card,
   CardContent,
@@ -1569,20 +1570,9 @@ export function ContributionsView() {
           {t.management.manualContributions.add}
         </span>
       </Button>
-      {isEditMode ? (
-        isQuickMode ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-            onClick={handleRequestCancelEdit}
-            disabled={isSaving}
-          >
-            <Check className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">{t.common.done}</span>
-          </Button>
-        ) : (
-          <>
+      {!showEmptyState &&
+        (isEditMode ? (
+          isQuickMode ? (
             <Button
               variant="outline"
               size="sm"
@@ -1590,40 +1580,52 @@ export function ContributionsView() {
               onClick={handleRequestCancelEdit}
               disabled={isSaving}
             >
-              <X className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">{t.common.cancel}</span>
+              <Check className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">{t.common.done}</span>
             </Button>
-            <Button
-              size="sm"
-              className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-              onClick={() => handleSaveAll()}
-              disabled={isSaving || !hasLocalChanges}
-            >
-              {isSaving ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="hidden sm:inline">{t.common.saving}</span>
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <Save className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t.common.save}</span>
-                </span>
-              )}
-            </Button>
-          </>
-        )
-      ) : (
-        <Button
-          variant="default"
-          size="sm"
-          className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
-          onClick={handleEnterEditMode}
-        >
-          <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-          <span className="hidden sm:inline">{t.common.edit}</span>
-        </Button>
-      )}
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+                onClick={handleRequestCancelEdit}
+                disabled={isSaving}
+              >
+                <X className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">{t.common.cancel}</span>
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+                onClick={() => handleSaveAll()}
+                disabled={isSaving || !hasLocalChanges}
+              >
+                {isSaving ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span className="hidden sm:inline">{t.common.saving}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Save className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{t.common.save}</span>
+                  </span>
+                )}
+              </Button>
+            </>
+          )
+        ) : (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-7 px-2 min-[400px]:h-9 min-[400px]:px-3"
+            onClick={handleEnterEditMode}
+          >
+            <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">{t.common.edit}</span>
+          </Button>
+        ))}
     </div>
   )
 
@@ -1651,15 +1653,17 @@ export function ContributionsView() {
           </motion.div>
         )}
 
-        <div className={chartData.length > 0 ? "-mb-2" : undefined}>
-          <InvestmentFilters
-            filteredEntities={filteredEntities}
-            selectedEntities={selectedEntities}
-            onEntitiesChange={setSelectedEntities}
-            showClearFilters={false}
-            hideLabelOnMobile
-          />
-        </div>
+        {!showEmptyState && (
+          <div className={chartData.length > 0 ? "-mb-2" : undefined}>
+            <InvestmentFilters
+              filteredEntities={filteredEntities}
+              selectedEntities={selectedEntities}
+              onEntitiesChange={setSelectedEntities}
+              showClearFilters={false}
+              hideLabelOnMobile
+            />
+          </div>
+        )}
 
         <div>
           {chartData.length > 0 && (
@@ -1752,17 +1756,22 @@ export function ContributionsView() {
 
         {showEmptyState && (
           <motion.div variants={fadeListItem}>
-            <Card className="p-10 flex flex-col items-center gap-4 text-center">
-              <PiggyBank className="h-12 w-12 text-muted-foreground" />
-              <div>
-                <h2 className="text-lg font-semibold mb-1">
-                  {t.management.noAutoContributionsTitle}
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-md">
-                  {t.management.noAutoContributionsDescription}
-                </p>
-              </div>
+            <Card className="hidden overflow-hidden md:block">
+              <EmptyState
+                icon={PiggyBank}
+                title={t.management.noAutoContributionsTitle}
+                description={t.management.noAutoContributionsDescription}
+                iconClassName="text-cyan-500 dark:text-cyan-400"
+                className="py-16"
+              />
             </Card>
+            <EmptyState
+              icon={PiggyBank}
+              title={t.management.noAutoContributionsTitle}
+              description={t.management.noAutoContributionsDescription}
+              iconClassName="text-cyan-500 dark:text-cyan-400"
+              className="py-16 md:hidden"
+            />
           </motion.div>
         )}
 

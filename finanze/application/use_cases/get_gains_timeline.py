@@ -3,6 +3,7 @@ import hashlib
 import logging
 import math
 import time
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -102,6 +103,8 @@ _CUSTODY_TRANSFER_TYPES = {
     TxType.TRANSFER_OUT,
 }
 _AssetIdentity = tuple[str, ProductType, str, str, str, str, str]
+_InstrumentKey = tuple[ProductType, str]
+_PriceHistory = dict[_InstrumentKey, dict[date, Dezimal]]
 _HistoricRates = dict[CommodityType, Optional[HistoricMetalRates]]
 
 # Only blacklist a fetch's empty tail once providers have had time to publish it.
@@ -160,7 +163,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         self._instrument_price_history = instrument_price_history
         self._lock = asyncio.Lock()
         self._cache: dict[str, tuple[str, float, GainsTimeline]] = {}
-        self._splits_by_key: dict[str, dict[date, Dezimal]] = {}
+        self._splits_by_key: dict[_InstrumentKey, dict[date, Dezimal]] = {}
         self._log = logging.getLogger(__name__)
 
     async def execute(self, query: GainsTimelineQuery) -> GainsTimeline:
@@ -190,9 +193,14 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     query, snapshots, rates, historic, yesterday
                 )
             else:
+                snapshot_from = query.from_date
+                if snapshot_from is not None:
+                    snapshot_from -= timedelta(
+                        days=min(_INFLOW_SETTLE_DAYS, (snapshot_from - date.min).days)
+                    )
                 snapshots, flows, settlements, split_ratios = await asyncio.gather(
                     self._port.get_asset_snapshots(
-                        query.assets, entity_ids, from_date=query.from_date
+                        query.assets, entity_ids, from_date=snapshot_from
                     ),
                     self._port.get_flows(query.assets, entity_ids),
                     self._port.get_settlements(query.assets, entity_ids),
@@ -306,7 +314,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         rates,
         historic: _HistoricRates,
         yesterday: date,
-        history_by_key: Optional[dict[str, dict[date, Dezimal]]] = None,
+        history_by_key: Optional[_PriceHistory] = None,
         unvalued_transfer_in_ids: Optional[set[int]] = None,
         unvalued_transfer_out_ids: Optional[set[int]] = None,
     ) -> GainsTimeline:
@@ -425,6 +433,8 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         opening_values: dict[_AssetIdentity, Dezimal] = {}
         opening_costs: dict[tuple[str, ProductType, str, str, str], Dezimal] = {}
         seeded_opening_keys: set[tuple[str, ProductType, str, str, str]] = set()
+        pending_market_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
+        pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]] = {}
 
         if bounded:
             for holder, snapshot in seed_snapshots.items():
@@ -445,6 +455,79 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 current[holder] = holder_assets
                 if snapshot.holder_deleted_at is not None:
                     deleted_at[holder] = snapshot.holder_deleted_at
+            snapshot_history: dict[
+                _AssetIdentity, list[tuple[date, AssetValuation]]
+            ] = defaultdict(list)
+            for snapshot in snapshots:
+                snapshot_day = snapshot.moment.date()
+                if snapshot_day >= range_from:
+                    continue
+                for valuation in snapshot.valuations:
+                    identity = self._valuation_identity(snapshot.holder, valuation)
+                    snapshot_history[identity].append((snapshot_day, valuation))
+            for flow in flows:
+                flow_day = flow.moment.date()
+                if (
+                    flow_day >= range_from
+                    or (range_from - flow_day).days > _INFLOW_SETTLE_DAYS
+                    or flow.transaction_type not in {TxType.BUY, TxType.SELL}
+                    or flow.quantity is None
+                    or id(flow) in internal_transfer_flow_ids
+                ):
+                    continue
+                identity = self._flow_identity(flow)
+                if self._identity_key(identity) in replay_identity_by_key:
+                    continue
+                seed = seed_snapshots.get(flow.holder)
+                current_valuation = current.get(flow.holder, {}).get(identity)
+                if (
+                    seed is None
+                    or seed.moment.date() < flow_day
+                    or current_valuation is None
+                ):
+                    continue
+                earlier = [
+                    item
+                    for item in snapshot_history.get(identity, [])
+                    if item[0] < flow_day
+                ]
+                if not earlier:
+                    continue
+                previous_day, previous = max(earlier, key=lambda item: item[0])
+                self._defer_market_flow(
+                    pending_market_flows,
+                    pending_market_anchors,
+                    identity,
+                    flow,
+                    {identity: previous},
+                    previous_day,
+                )
+            for identity, pending in list(pending_market_flows.items()):
+                seed_day = seed_snapshots[identity[0]].moment.date()
+                current_valuation = current[identity[0]][identity]
+                anchor = pending_market_anchors.get(identity)
+                if (
+                    anchor is None
+                    or current_valuation.quantity is None
+                    or current_valuation.quantity
+                    * self._split_factor(identity[1], identity[2], seed_day)
+                    == anchor
+                ):
+                    continue
+                released = self._releasable_market_flows(
+                    pending, anchor, current_valuation, seed_day, allow_stale=False
+                )
+                released_ids = {id(flow) for flow in released}
+                pending[:] = [flow for flow in pending if id(flow) not in released_ids]
+                if not pending:
+                    pending_market_flows.pop(identity, None)
+                    pending_market_anchors.pop(identity, None)
+                else:
+                    pending_market_anchors[identity] = anchor + sum(
+                        self._adjusted_quantity(flow, self._signed_flow_quantity(flow))
+                        or Dezimal(0)
+                        for flow in released
+                    )
             while (
                 flow_index < len(flows) and flows[flow_index].moment.date() < range_from
             ):
@@ -458,15 +541,20 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     and replay_windows[replay_identity][0] <= flow.moment.date()
                     and id(flow) not in unvalued_transfer_in_ids
                 ):
-                    self._carry_replay_transfer_book(
-                        replay_positions,
-                        replay_identity_by_key,
-                        transfer_pairs,
-                        incoming_by_outgoing,
-                        carried_transfer_books,
-                        flow,
-                        replay_identity,
-                    )
+                    if flow.transaction_type == TxType.SPLIT:
+                        self._apply_split_cash_in_lieu(
+                            replay_positions, flow, replay_identity
+                        )
+                    else:
+                        self._carry_replay_transfer_book(
+                            replay_positions,
+                            replay_identity_by_key,
+                            transfer_pairs,
+                            incoming_by_outgoing,
+                            carried_transfer_books,
+                            flow,
+                            replay_identity,
+                        )
                 flow_index += 1
             while (
                 settlement_index < len(settlements)
@@ -548,8 +636,6 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 last_snapshot_days.setdefault(identity, range_from)
         daily_net_flows: list[tuple[date, Dezimal]] = []
         unreconciled_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
-        pending_market_flows: dict[_AssetIdentity, list[GainsFlow]] = defaultdict(list)
-        pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]] = {}
         pending_period_flows: dict[_AssetIdentity, Dezimal] = defaultdict(
             lambda: Dezimal(0)
         )
@@ -671,6 +757,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             identity,
                             flow,
                             previous_assets,
+                            last_snapshot_days.get(identity, day),
                         )
                 else:
                     if replay_active:
@@ -694,6 +781,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                             identity,
                             flow,
                             previous_assets,
+                            last_snapshot_days.get(identity, day),
                         )
                     else:
                         self._record_flow(
@@ -821,6 +909,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         position,
                         day,
                         history_by_key,
+                        observed_snapshot_days_today.get(
+                            snapshot_identity,
+                            last_snapshot_days.get(snapshot_identity, day),
+                        ),
                     )
                     if overlaid is not None:
                         current_assets[snapshot_identity] = overlaid
@@ -833,7 +925,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     # the book amount is already the exact figure
                     and (position.quantity is None or position.quantity > 0)
                     and not self._has_replay_price(
-                        identity[2], position, day, history_by_key
+                        identity[1], identity[2], position, day, history_by_key
                     )
                 ):
                     day_estimated = True
@@ -1071,6 +1163,81 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     previous_day=last_snapshot_days.get(identity),
                     current_day=day,
                 )
+                pending = pending_market_flows.get(identity)
+                previous = previous_assets.get(identity)
+                current_valuation = current_assets.get(identity)
+                if (
+                    inferred is not None
+                    and inferred_provenance == GainsFlowProvenance.QUANTITY_RESIDUAL
+                    and pending
+                    and previous is not None
+                    and current_valuation is not None
+                    and previous.quantity is not None
+                    and current_valuation.quantity is not None
+                ):
+                    unit_value = self._unit_value(
+                        current_valuation.quantity,
+                        current_keyed.get(identity, Dezimal(0)),
+                        previous.quantity,
+                        prior_keyed.get(identity, Dezimal(0)),
+                    )
+                    match = self._pending_residual_match(
+                        pending,
+                        inferred,
+                        unit_value,
+                        day,
+                        previous,
+                        current_valuation,
+                        last_snapshot_days.get(identity),
+                    )
+                    if match is not None:
+                        original, fraction = match
+                        matched = self._proportional_flow(original, fraction)
+                        self._record_flow(
+                            matched,
+                            identity,
+                            period_flows,
+                            contributions,
+                            unreconciled_flows,
+                            query.base_currency,
+                            rates,
+                            query.accrue_fixed_income,
+                            provenance,
+                        )
+                        if fraction < 1:
+                            remainder = self._proportional_flow(original, 1 - fraction)
+                            pending[:] = [
+                                remainder if flow is original else flow
+                                for flow in pending
+                            ]
+                        else:
+                            pending[:] = [
+                                flow for flow in pending if flow is not original
+                            ]
+                        if pending:
+                            anchor = pending_market_anchors.get(identity)
+                            quantity = self._adjusted_quantity(
+                                matched, self._signed_flow_quantity(matched)
+                            )
+                            if anchor is not None and quantity is not None:
+                                pending_market_anchors[identity] = anchor + quantity
+                        else:
+                            pending_market_flows.pop(identity, None)
+                            pending_market_anchors.pop(identity, None)
+                        provenance.add(GainsFlowProvenance.QUANTITY_RESIDUAL)
+                        inferred, inferred_provenance = self._inferred_flow(
+                            identity,
+                            previous,
+                            current_valuation,
+                            previous_values_by_asset=current_keyed,
+                            prior_values_by_asset=prior_keyed,
+                            flows=unreconciled_flows.get(identity, []),
+                            has_settlement=identity in settlement_identities,
+                            target_currency=query.base_currency,
+                            rates=rates,
+                            previous_day=last_snapshot_days.get(identity),
+                            current_day=day,
+                        )
                 if inferred is not None:
                     period_flows[identity] += inferred
                     contributions[identity] += inferred
@@ -1185,6 +1352,24 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             previous_asset_values = current_values
             pending_period_flows.clear()
 
+        stale_before = upper - timedelta(
+            days=min(_INFLOW_SETTLE_DAYS, (upper - date.min).days)
+        )
+        stale_pending = any(
+            flow.transaction_type in {TxType.BUY, TxType.SELL}
+            and flow.moment.date() <= stale_before
+            for pending in pending_market_flows.values()
+            for flow in pending
+        )
+        stale_unprocessed = any(
+            flow.transaction_type in {TxType.BUY, TxType.SELL}
+            and self._requires_market_position_observation(flow)
+            and id(flow) not in internal_transfer_flow_ids
+            and flow.moment.date() <= stale_before
+            for flow in flows[flow_index:]
+        )
+        if stale_pending or stale_unprocessed:
+            provenance.add(GainsFlowProvenance.UNKNOWN)
         quality, warnings = self._hybrid_quality(provenance)
         if orphan_sell_flow_ids:
             warnings.append(GainsWarning.ORPHAN_SELLS)
@@ -1634,7 +1819,9 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             has_unquantified_trade = False
             split_ratios = {
                 split_day: ratio
-                for split_day, ratio in self._splits_by_key.get(identity[2], {}).items()
+                for split_day, ratio in self._splits_by_key.get(
+                    (identity[1], identity[2]), {}
+                ).items()
                 if previous_day is not None
                 and current_day is not None
                 and previous_day < split_day <= current_day
@@ -1678,10 +1865,19 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 for flow in quantity_flows_by_day.get(event_day, []):
                     if flow.quantity is None:
                         has_unquantified_trade = True
-                    elif flow.transaction_type in _INFLOW_TYPES:
-                        expected_quantity += flow.quantity
                     else:
-                        expected_quantity -= flow.quantity
+                        quantity = flow.quantity
+                        if previous_day is not None and event_day < previous_day:
+                            quantity *= self._split_factor(
+                                identity[1], identity[2], event_day
+                            )
+                            quantity /= self._split_factor(
+                                identity[1], identity[2], previous_day
+                            )
+                        if flow.transaction_type in _INFLOW_TYPES:
+                            expected_quantity += quantity
+                        else:
+                            expected_quantity -= quantity
             if has_unquantified_trade:
                 return None, None
             residual_quantity = current.quantity - expected_quantity
@@ -1723,6 +1919,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         query: GainsTimelineQuery,
         yesterday: date,
         range_from: Optional[date] = None,
+        collect_days: bool = True,
     ) -> tuple[dict[_AssetIdentity, tuple[date, date, date]], set[date]]:
         latest_pre_range: dict[tuple[str, ProductType, str, str, str], date] = {}
         covering_snapshot_day: dict[tuple[str, ProductType, str, str, str], date] = {}
@@ -1846,11 +2043,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             window_identity = covering_identity.get(key, identities_by_key[key])
             tail_end = (covering - timedelta(days=1)) if covering else yesterday
             windows[window_identity] = (first, end, tail_end)
-            days.update(day for day in eligible if first <= day <= end)
-            day = first
-            while day <= tail_end:
-                days.add(day)
-                day += timedelta(days=1)
+            if collect_days:
+                days.update(day for day in eligible if first <= day <= end)
+                day = first
+                while day <= tail_end:
+                    days.add(day)
+                    day += timedelta(days=1)
         return windows, days
 
     def _split_adjusted_quantity(self, flow: GainsFlow) -> Optional[Dezimal]:
@@ -1861,20 +2059,26 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     ) -> Optional[Dezimal]:
         if quantity is None:
             return None
-        splits = self._splits_by_key.get(flow.asset_key)
+        return quantity * self._split_factor(
+            flow.product_type, flow.asset_key, flow.moment.date()
+        )
+
+    def _split_factor(
+        self, product_type: ProductType, asset_key: str, after: date
+    ) -> Dezimal:
+        splits = self._splits_by_key.get((product_type, asset_key))
         if not splits:
-            return quantity
+            return Dezimal(1)
         ratio = Dezimal(1)
-        flow_day = flow.moment.date()
         for split_day, split_ratio in splits.items():
-            if flow_day < split_day:
+            if after < split_day:
                 ratio *= split_ratio
-        return quantity * ratio
+        return ratio
 
     def _value_unmatched_transfers(
         self,
         flows: list[GainsFlow],
-        history_by_key: dict[str, dict[date, Dezimal]],
+        history_by_key: _PriceHistory,
     ) -> tuple[set[int], set[int]]:
         """Prices custody transfers that have no counterpart leg.
 
@@ -1896,8 +2100,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 continue
             quantity = self._split_adjusted_quantity(flow)
             price = None
-            if quantity is not None and quantity > 0:
-                prices = history_by_key.get(flow.asset_key)
+            if (
+                quantity is not None
+                and quantity > 0
+                and flow.product_type in {ProductType.STOCK_ETF, ProductType.FUND}
+            ):
+                prices = history_by_key.get((flow.product_type, flow.asset_key))
                 price = self._price_at(prices, flow.moment.date()) if prices else None
             if price is None:
                 if flow.transaction_type == TxType.TRANSFER_OUT:
@@ -2044,7 +2252,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         yesterday: date,
         range_from: Optional[date],
         explicit_splits: Optional[list[GainsSplit]] = None,
-    ) -> dict[str, dict[date, Dezimal]]:
+    ) -> _PriceHistory:
         self._splits_by_key = {}
 
         def matches_split(product_type: ProductType, asset_key: str) -> bool:
@@ -2056,10 +2264,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 for asset_filter in query.assets
             )
 
-        def add_explicit_split(asset_key: str, split_day: date, ratio: Dezimal):
+        def add_explicit_split(
+            product_type: ProductType, asset_key: str, split_day: date, ratio: Dezimal
+        ):
             if ratio <= 0:
                 return
-            ratios = self._splits_by_key.setdefault(asset_key, {})
+            ratios = self._splits_by_key.setdefault((product_type, asset_key), {})
             existing = ratios.get(split_day)
             if existing is not None and existing != ratio:
                 raise ValueError(
@@ -2069,63 +2279,202 @@ class GetGainsTimelineImpl(GetGainsTimeline):
 
         for split in explicit_splits or []:
             if matches_split(split.product_type, split.asset_key):
-                add_explicit_split(split.asset_key, split.day, split.ratio)
+                add_explicit_split(
+                    split.product_type, split.asset_key, split.day, split.ratio
+                )
         for flow in flows:
             if (
                 flow.transaction_type == TxType.SPLIT
                 and flow.split_ratio is not None
                 and matches_split(flow.product_type, flow.asset_key)
             ):
-                add_explicit_split(flow.asset_key, flow.moment.date(), flow.split_ratio)
-        if self._instrument_history_provider is None:
+                add_explicit_split(
+                    flow.product_type,
+                    flow.asset_key,
+                    flow.moment.date(),
+                    flow.split_ratio,
+                )
+        if (
+            self._instrument_history_provider is None
+            and self._instrument_price_history is None
+        ):
             return {}
         upper = min(query.to_date or yesterday, yesterday)
+        potential_replay, _ = self._replay_windows(
+            flows, snapshots, query, yesterday, collect_days=False
+        )
+        transaction_events: dict[
+            tuple[str, ProductType, str, str, str], list[tuple[date, Optional[Dezimal]]]
+        ] = defaultdict(list)
+        for flow in flows:
+            if (
+                flow.product_type == ProductType.STOCK_ETF
+                and flow.transaction_type in _POSITION_CHANGING_TYPES
+            ):
+                transaction_events[
+                    self._identity_key(self._flow_identity(flow))
+                ].append((flow.moment.date(), self._signed_flow_quantity(flow)))
+        transaction_totals = {}
+        for identity, events in transaction_events.items():
+            event_days = []
+            quantities = [Dezimal(0)]
+            unquantified = [0]
+            for event_day, quantity in sorted(events, key=lambda item: item[0]):
+                event_days.append(event_day)
+                quantities.append(quantities[-1] + (quantity or Dezimal(0)))
+                unquantified.append(unquantified[-1] + (quantity is None))
+            transaction_totals[identity] = (event_days, quantities, unquantified)
+        snapshot_quantities: dict[
+            tuple[str, ProductType, str, str, str], tuple[date, Dezimal]
+        ] = {}
+        snapshot_requests: dict[str, InstrumentDataRequest] = {}
+        snapshot_windows: dict[str, tuple[date, date]] = {}
+        stock_flows = {
+            self._identity_key(self._flow_identity(flow)): flow
+            for flow in flows
+            if flow.product_type == ProductType.STOCK_ETF
+        }
+        for identity, (first_day, last_day, _) in potential_replay.items():
+            if identity[1] != ProductType.STOCK_ETF:
+                continue
+            flow = stock_flows.get(self._identity_key(identity))
+            instrument_type = (
+                InstrumentType.ETF
+                if flow is not None and flow.equity_type == EquityType.ETF
+                else InstrumentType.STOCK
+            )
+            snapshot_requests.setdefault(
+                identity[2],
+                self._history_request(
+                    identity[2],
+                    instrument_type,
+                    name=flow.name if flow is not None else None,
+                    currency=identity[3],
+                ),
+            )
+            existing = snapshot_windows.get(identity[2])
+            snapshot_windows[identity[2]] = (
+                min(existing[0], first_day) if existing else first_day,
+                max(existing[1], last_day) if existing else last_day,
+            )
+        for snapshot in sorted(snapshots, key=lambda item: item.moment):
+            snapshot_day = snapshot.moment.date()
+            if snapshot_day > upper:
+                continue
+            for valuation in snapshot.valuations:
+                if (
+                    valuation.product_type != ProductType.STOCK_ETF
+                    or valuation.quantity is None
+                    or not self._matches(
+                        valuation.product_type,
+                        valuation.asset_key,
+                        query.assets,
+                        valuation.portfolio_name,
+                        valuation.equity_type,
+                        valuation.wallet_id,
+                    )
+                ):
+                    continue
+                identity = self._identity_key(
+                    self._valuation_identity(snapshot.holder, valuation)
+                )
+                previous = snapshot_quantities.get(identity)
+                snapshot_quantities[identity] = (snapshot_day, valuation.quantity)
+                if previous is None or any(
+                    previous[0] < split_day <= snapshot_day
+                    for split_day in self._splits_by_key.get(
+                        (valuation.product_type, valuation.asset_key), {}
+                    )
+                ):
+                    continue
+                event_days, quantities, unquantified = transaction_totals.get(
+                    identity, ([], [Dezimal(0)], [0])
+                )
+                first_event = bisect_left(event_days, previous[0])
+                last_event = bisect_right(event_days, snapshot_day)
+                if (
+                    unquantified[last_event] == unquantified[first_event]
+                    and valuation.quantity - previous[1]
+                    == quantities[last_event] - quantities[first_event]
+                ):
+                    continue
+                asset_key = valuation.asset_key
+                instrument_type = (
+                    InstrumentType.ETF
+                    if valuation.equity_type == EquityType.ETF
+                    else InstrumentType.STOCK
+                )
+                snapshot_requests.setdefault(
+                    asset_key,
+                    self._history_request(
+                        asset_key, instrument_type, currency=valuation.currency
+                    ),
+                )
+                existing = snapshot_windows.get(asset_key)
+                snapshot_windows[asset_key] = (
+                    min(existing[0], previous[0]) if existing else previous[0],
+                    snapshot_day,
+                )
+        if snapshot_requests:
+            snapshot_splits = await self._load_splits(
+                snapshot_requests, snapshot_windows
+            )
+            for asset_key, splits in snapshot_splits.items():
+                explicit = self._splits_by_key.setdefault(
+                    (ProductType.STOCK_ETF, asset_key), {}
+                )
+                for split_day, ratio in splits.items():
+                    explicit.setdefault(split_day, ratio)
+        if self._instrument_history_provider is None:
+            return {}
         replay_windows, _ = self._replay_windows(
             flows, snapshots, query, yesterday, range_from
         )
         if not replay_windows:
             return {}
 
-        requests: dict[str, InstrumentDataRequest] = {}
-        windows_by_key: dict[str, tuple[date, date]] = {}
-        names_by_key: dict[str, str] = {}
-        currencies_by_key: dict[str, str] = {}
-        etf_keys: set[str] = set()
+        requests: dict[_InstrumentKey, InstrumentDataRequest] = {}
+        windows_by_key: dict[_InstrumentKey, tuple[date, date]] = {}
+        names_by_key: dict[_InstrumentKey, str] = {}
+        currencies_by_key: dict[_InstrumentKey, str] = {}
+        etf_keys: set[_InstrumentKey] = set()
         flows_by_identity: dict[
             tuple[str, ProductType, str, str, str], list[GainsFlow]
         ] = defaultdict(list)
         for snapshot in snapshots:
             for valuation in snapshot.valuations:
                 if valuation.equity_type == EquityType.ETF:
-                    etf_keys.add(valuation.asset_key)
+                    etf_keys.add((valuation.product_type, valuation.asset_key))
         for flow in flows:
-            if flow.name and flow.asset_key not in names_by_key:
-                names_by_key[flow.asset_key] = flow.name
-            if flow.currency and flow.asset_key not in currencies_by_key:
-                currencies_by_key[flow.asset_key] = flow.currency
+            instrument_key = (flow.product_type, flow.asset_key)
+            if flow.name and instrument_key not in names_by_key:
+                names_by_key[instrument_key] = flow.name
+            if flow.currency and instrument_key not in currencies_by_key:
+                currencies_by_key[instrument_key] = flow.currency
             if flow.equity_type == EquityType.ETF:
-                etf_keys.add(flow.asset_key)
+                etf_keys.add(instrument_key)
             flows_by_identity[self._identity_key(self._flow_identity(flow))].append(
                 flow
             )
         for identity, (first_day, last_day, tail_end) in replay_windows.items():
             product_type, asset_key = identity[1], identity[2]
+            instrument_key = (product_type, asset_key)
             if product_type == ProductType.FUND:
                 instrument_type = InstrumentType.MUTUAL_FUND
             elif product_type == ProductType.STOCK_ETF:
                 instrument_type = (
                     InstrumentType.ETF
-                    if asset_key in etf_keys
+                    if instrument_key in etf_keys
                     else InstrumentType.STOCK
                 )
             else:
                 continue
-            if asset_key not in requests:
-                requests[asset_key] = self._history_request(
+            if instrument_key not in requests:
+                requests[instrument_key] = self._history_request(
                     asset_key,
                     instrument_type,
-                    names_by_key.get(asset_key),
-                    currencies_by_key.get(asset_key),
+                    names_by_key.get(instrument_key),
+                    currencies_by_key.get(instrument_key),
                 )
             # a position still held after its last flow has to stay priced for
             # the rest of the replay instead of freezing at that day
@@ -2136,20 +2485,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 )
                 else max(last_day, min(tail_end, upper))
             )
-            current = windows_by_key.get(asset_key)
+            current = windows_by_key.get(instrument_key)
             if current is None:
-                windows_by_key[asset_key] = (first_day, priced_until)
+                windows_by_key[instrument_key] = (first_day, priced_until)
             else:
-                windows_by_key[asset_key] = (
+                windows_by_key[instrument_key] = (
                     min(current[0], first_day),
                     max(current[1], priced_until),
                 )
         if not requests:
             return {}
 
-        history_points: dict[str, list] = {}
-        for key, request in requests.items():
-            window_start, window_end = windows_by_key[key]
+        history_points: dict[_InstrumentKey, list] = {}
+        for instrument_key, request in requests.items():
+            product_type, asset_key = instrument_key
+            key = f"{product_type.value}:{asset_key}"
+            window_start, window_end = windows_by_key[instrument_key]
             if self._instrument_price_history is None:
                 stored = []
                 covered = None
@@ -2265,7 +2616,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         )
                 merged.extend(fetched)
             if merged:
-                history_points[key] = sorted(
+                history_points[instrument_key] = sorted(
                     {point.date: point for point in merged}.values(),
                     key=lambda point: point.date,
                 )
@@ -2276,9 +2627,23 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             ):
                 await self._instrument_price_history.mark_no_result(key)
         if history_points:
-            provider_splits = await self._load_splits(requests, windows_by_key)
+            remaining_requests = {
+                key[1]: request
+                for key, request in requests.items()
+                if key[0] == ProductType.STOCK_ETF and key[1] not in snapshot_requests
+            }
+            remaining_windows = {
+                key[1]: window
+                for key, window in windows_by_key.items()
+                if key[0] == ProductType.STOCK_ETF and key[1] in remaining_requests
+            }
+            provider_splits = await self._load_splits(
+                remaining_requests, remaining_windows
+            )
             for key, splits in provider_splits.items():
-                explicit_splits = self._splits_by_key.setdefault(key, {})
+                explicit_splits = self._splits_by_key.setdefault(
+                    (ProductType.STOCK_ETF, key), {}
+                )
                 for split_day, ratio in splits.items():
                     explicit_splits.setdefault(split_day, ratio)
         prices = {
@@ -2287,20 +2652,28 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         }
         return prices
 
-    @staticmethod
-    def _net_quantity_is_zero(flows) -> bool:
+    def _net_quantity_is_zero(self, flows) -> bool:
         quantity = Dezimal(0)
         has_quantified = False
         for flow in flows:
+            if flow.transaction_type == TxType.SPLIT and flow.amount > 0:
+                if flow.price is None or flow.price <= 0:
+                    return False
+                cash_quantity = self._adjusted_quantity(flow, flow.amount / flow.price)
+                if cash_quantity is None:
+                    return False
+                quantity -= cash_quantity
+                continue
             if flow.transaction_type not in _POSITION_CHANGING_TYPES:
                 continue
-            if flow.quantity is None:
+            adjusted_quantity = self._split_adjusted_quantity(flow)
+            if adjusted_quantity is None:
                 return False
             has_quantified = True
             if flow.transaction_type in _INFLOW_TYPES:
-                quantity += flow.quantity
+                quantity += adjusted_quantity
             else:
-                quantity -= flow.quantity
+                quantity -= adjusted_quantity
         return has_quantified and quantity <= 0
 
     @staticmethod
@@ -2329,22 +2702,24 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         requests: dict[str, InstrumentDataRequest],
         windows_by_key: dict[str, tuple[date, date]],
     ) -> dict[str, dict[date, Dezimal]]:
-        if self._instrument_history_provider is None:
-            return {}
         get_splits = getattr(self._instrument_history_provider, "get_splits", None)
-        if get_splits is None:
-            return {}
         result: dict[str, dict[date, Dezimal]] = {}
         today = datetime.now(tzlocal()).date()
+        checked_until = today - timedelta(days=1)
         storage = self._instrument_price_history
         for key, request in requests.items():
             if request.type == InstrumentType.MUTUAL_FUND:
                 continue
             window_start, _ = windows_by_key[key]
+            price_key = f"{ProductType.STOCK_ETF.value}:{key}"
+            if get_splits is None:
+                if storage is not None:
+                    cached = await storage.get_splits(key)
+                    if cached:
+                        result[key] = {split.date: split.ratio for split in cached}
+                continue
             if storage is not None:
-                if await storage.is_no_result(key):
-                    continue
-                if await storage.is_splits_checked(key):
+                if await storage.is_splits_checked(key, window_start, checked_until):
                     cached = await storage.get_splits(key)
                     if cached:
                         result[key] = {split.date: split.ratio for split in cached}
@@ -2352,18 +2727,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             preferred_symbol = None
             preferred_source = None
             if storage is not None:
-                resolved = await storage.get_resolved_symbol(key)
+                resolved = await storage.get_resolved_symbol(price_key)
                 if resolved:
                     preferred_symbol, preferred_source = resolved
             splits = await get_splits(
                 request, window_start, today, preferred_symbol, preferred_source
             )
             if splits is None:
+                if storage is not None:
+                    cached = await storage.get_splits(key)
+                    if cached:
+                        result[key] = {split.date: split.ratio for split in cached}
                 continue
             if storage is not None:
                 if splits:
                     await storage.save_splits(key, splits)
-                await storage.mark_splits_checked(key)
+                await storage.mark_splits_checked(key, window_start, checked_until)
             if splits:
                 result[key] = {split.date: split.ratio for split in splits}
         return result
@@ -2411,18 +2790,34 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         snapshot: AssetValuation,
         position: _ReplayPosition,
         day: date,
-        history_by_key: Optional[dict[str, dict[date, Dezimal]]],
+        history_by_key: Optional[_PriceHistory],
+        snapshot_day: date,
     ) -> Optional[AssetValuation]:
         replay_qty = position.quantity
         if (replay_qty is None or replay_qty == 0) and position.book_value <= 0:
             return None
         quantity = snapshot.quantity
+        price_quantity = None
         if quantity is not None and replay_qty is not None:
-            quantity = quantity + replay_qty
+            price_quantity = (
+                quantity
+                * self._split_factor(
+                    snapshot.product_type, snapshot.asset_key, snapshot_day
+                )
+                + replay_qty
+            )
+            quantity = price_quantity / self._split_factor(
+                snapshot.product_type, snapshot.asset_key, day
+            )
             if quantity < 0:
                 quantity = Dezimal(0)
+                price_quantity = Dezimal(0)
         elif quantity is None:
-            quantity = replay_qty
+            price_quantity = replay_qty
+            if replay_qty is not None:
+                quantity = replay_qty / self._split_factor(
+                    snapshot.product_type, snapshot.asset_key, day
+                )
         cost_basis = snapshot.cost_basis
         if position.book_value != 0:
             cost_basis = (
@@ -2431,12 +2826,17 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 else cost_basis + position.book_value
             )
         market_value = snapshot.market_value + position.book_value
-        if quantity is not None and quantity > 0 and history_by_key:
-            prices = history_by_key.get(snapshot.asset_key)
+        if (
+            quantity is not None
+            and quantity > 0
+            and history_by_key
+            and snapshot.product_type in {ProductType.STOCK_ETF, ProductType.FUND}
+        ):
+            prices = history_by_key.get((snapshot.product_type, snapshot.asset_key))
             if prices:
                 price = self._price_at(prices, day)
                 if price is not None:
-                    market_value = quantity * price
+                    market_value = (price_quantity or quantity) * price
         return replace(
             snapshot,
             quantity=quantity,
@@ -2447,14 +2847,20 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     @classmethod
     def _has_replay_price(
         cls,
+        product_type: ProductType,
         asset_key: str,
         position: _ReplayPosition,
         day: date,
-        history_by_key: Optional[dict[str, dict[date, Dezimal]]],
+        history_by_key: Optional[_PriceHistory],
     ) -> bool:
-        if not history_by_key or position.quantity is None or position.quantity <= 0:
+        if (
+            product_type not in {ProductType.STOCK_ETF, ProductType.FUND}
+            or not history_by_key
+            or position.quantity is None
+            or position.quantity <= 0
+        ):
             return False
-        prices = history_by_key.get(asset_key)
+        prices = history_by_key.get((product_type, asset_key))
         return bool(prices) and cls._price_at(prices, day) is not None
 
     def _replay_valuation(
@@ -2462,7 +2868,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         identity: _AssetIdentity,
         position: _ReplayPosition,
         day: Optional[date] = None,
-        history_by_key: Optional[dict[str, dict[date, Dezimal]]] = None,
+        history_by_key: Optional[_PriceHistory] = None,
         rates=None,
         target_currency: Optional[str] = None,
     ) -> AssetValuation:
@@ -2479,10 +2885,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         if (
             day is not None
             and history_by_key
+            and product_type in {ProductType.STOCK_ETF, ProductType.FUND}
             and position.quantity is not None
             and position.quantity > 0
         ):
-            prices = history_by_key.get(asset_key)
+            prices = history_by_key.get((product_type, asset_key))
             if prices:
                 price = self._price_at(prices, day)
                 if price is not None:
@@ -2596,18 +3003,22 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             return True
         return previous.quantity != current.quantity
 
-    @staticmethod
     def _defer_market_flow(
+        self,
         pending_market_flows: dict[_AssetIdentity, list[GainsFlow]],
         pending_market_anchors: dict[_AssetIdentity, Optional[Dezimal]],
         identity: _AssetIdentity,
         flow: GainsFlow,
         previous_assets: dict[_AssetIdentity, AssetValuation],
+        snapshot_day: date,
     ):
         if identity not in pending_market_flows:
             previous = previous_assets.get(identity)
+            quantity = previous.quantity if previous is not None else Dezimal(0)
             pending_market_anchors[identity] = (
-                previous.quantity if previous is not None else Dezimal(0)
+                quantity * self._split_factor(identity[1], identity[2], snapshot_day)
+                if quantity is not None
+                else None
             )
         pending_market_flows[identity].append(flow)
 
@@ -2619,18 +3030,97 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             return flow.quantity
         return -flow.quantity
 
-    @classmethod
+    def _pending_residual_match(
+        self,
+        pending: list[GainsFlow],
+        inferred: Dezimal,
+        unit_value: Optional[Dezimal],
+        day: date,
+        previous: AssetValuation,
+        current: AssetValuation,
+        previous_day: Optional[date],
+    ) -> Optional[tuple[GainsFlow, Dezimal]]:
+        if unit_value is None or unit_value <= 0:
+            return None
+        residual_quantity = inferred / unit_value
+        exact = []
+        partial = []
+        for flow in pending:
+            if flow.transaction_type not in {TxType.BUY, TxType.SELL}:
+                continue
+            quantity = self._adjusted_quantity(flow, self._signed_flow_quantity(flow))
+            if quantity is None or quantity == 0:
+                continue
+            quantity /= self._split_factor(flow.product_type, flow.asset_key, day)
+            if quantity * residual_quantity <= 0:
+                continue
+            fraction = abs(residual_quantity / quantity)
+            if abs(fraction - 1) <= _QUANTITY_MATCH_TOLERANCE:
+                exact.append((flow, Dezimal(1)))
+            elif fraction < 1:
+                if previous.cost_basis is None or current.cost_basis is None:
+                    continue
+                if flow.transaction_type == TxType.BUY:
+                    cost_change = current.cost_basis - previous.cost_basis
+                    cash = self._transaction_cash(flow)
+                    expected_cost = cash * fraction if cash is not None else None
+                else:
+                    cost_change = previous.cost_basis - current.cost_basis
+                    previous_quantity = previous.quantity
+                    if previous_quantity is not None and previous_day is not None:
+                        previous_quantity *= self._split_factor(
+                            flow.product_type, flow.asset_key, previous_day
+                        )
+                        previous_quantity /= self._split_factor(
+                            flow.product_type, flow.asset_key, day
+                        )
+                    expected_cost = (
+                        previous.cost_basis * abs(residual_quantity) / previous_quantity
+                        if previous_quantity is not None and previous_quantity > 0
+                        else None
+                    )
+                if expected_cost is not None and abs(
+                    cost_change - expected_cost
+                ) <= Dezimal("0.02"):
+                    partial.append((flow, fraction))
+        if len(exact) == 1:
+            return exact[0]
+        if not exact and len(partial) == 1:
+            return partial[0]
+        return None
+
+    @staticmethod
+    def _proportional_flow(flow: GainsFlow, fraction: Dezimal) -> GainsFlow:
+        return replace(
+            flow,
+            amount=flow.amount * fraction,
+            quantity=flow.quantity * fraction if flow.quantity is not None else None,
+            net_amount=flow.net_amount * fraction
+            if flow.net_amount is not None
+            else None,
+            fees=flow.fees * fraction,
+            retentions=flow.retentions * fraction,
+        )
+
     def _releasable_market_flows(
-        cls,
+        self,
         flows: list[GainsFlow],
         anchor: Optional[Dezimal],
         current: Optional[AssetValuation],
         day: date,
+        allow_stale: bool = True,
     ) -> list[GainsFlow]:
         if anchor is None or current is None or current.quantity is None:
             return list(flows)
-        remaining = current.quantity - anchor
-        signed = [cls._signed_flow_quantity(flow) for flow in flows]
+        remaining = (
+            current.quantity
+            * self._split_factor(current.product_type, current.asset_key, day)
+            - anchor
+        )
+        signed = [
+            self._adjusted_quantity(flow, self._signed_flow_quantity(flow))
+            for flow in flows
+        ]
         if all(quantity is not None for quantity in signed):
             total = sum(signed, Dezimal(0))
             if abs(total - remaining) <= _QUANTITY_MATCH_TOLERANCE * (
@@ -2640,7 +3130,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         stale_before = day - timedelta(days=_INFLOW_SETTLE_DAYS)
         selected: set[int] = set()
         for index, flow in enumerate(flows):
-            if signed[index] is None or flow.moment.date() <= stale_before:
+            if signed[index] is None or (
+                allow_stale
+                and flow.moment.date() <= stale_before
+                and flow.transaction_type not in {TxType.BUY, TxType.SELL}
+            ):
                 selected.add(index)
                 remaining -= signed[index] or Dezimal(0)
         # settlement does not follow trade order, so the largest legs are matched
@@ -2652,6 +3146,19 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         ):
             quantity = signed[index]
             tolerance = _QUANTITY_MATCH_TOLERANCE * abs(quantity)
+            if flows[index].transaction_type in {TxType.BUY, TxType.SELL} and any(
+                other_index != index
+                and other_index not in selected
+                and other_flow.transaction_type == flows[index].transaction_type
+                and signed[other_index] is not None
+                and abs(signed[other_index] - quantity) <= tolerance
+                and self._transaction_cash(other_flow)
+                != self._transaction_cash(flows[index])
+                and abs(remaining) + tolerance
+                < abs(quantity) + abs(signed[other_index])
+                for other_index, other_flow in enumerate(flows)
+            ):
+                continue
             # a leg may only be booked once the snapshot has moved far enough,
             # and in the same direction, to account for it
             if quantity >= 0:
@@ -2722,7 +3229,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 # what is left has to reconcile against the position the booked
                 # legs already moved, not against the original one
                 pending_market_anchors[identity] = anchor + sum(
-                    (self._signed_flow_quantity(flow) or Dezimal(0))
+                    (
+                        self._adjusted_quantity(flow, self._signed_flow_quantity(flow))
+                        or Dezimal(0)
+                    )
                     for flow in released
                 )
 
