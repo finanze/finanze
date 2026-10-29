@@ -733,6 +733,14 @@
     },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
+    "currencyOptions": {
+      "EUR": "EUR - Euro",
+      "USD": "USD - Dólar estadounidense"
+    },
+    "currencyChangeTitle": "¿Cambiar la moneda principal?",
+    "currencyChangeMessage": "¿Seguro que quieres cambiar la moneda principal a {currency}?",
+    "currencyChangeWarning": "Todos los activos y datos se mostrarán en {currency}. Las nuevas entradas también se registrarán en {currency}.",
+    "currencyChangeConfirm": "Usar {currency}",
     "editMode": "Modo de edición manual",
     "editModeDescription": "Elige cómo actualizas tus posiciones y aportaciones.",
     "editModeOptions": {

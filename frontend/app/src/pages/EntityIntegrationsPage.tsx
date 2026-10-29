@@ -90,7 +90,20 @@ function CollapsibleEntityCategory({
           className={`h-5 w-5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
       </button>
-      {isExpanded && <div id={contentId}>{children}</div>}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            id={contentId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
