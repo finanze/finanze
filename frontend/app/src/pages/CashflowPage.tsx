@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { useDataDisplayMode } from "@/context/DataDisplayModeContext"
 import {
   endOfMonth,
@@ -984,26 +984,37 @@ function CashflowAnalysis() {
             </button>
           ))}
         </div>
-        {preset === "custom" && (
-          <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex">
-            <div className="min-w-0 sm:w-40">
-              <DatePicker
-                value={fromDate}
-                onChange={value => setRange([value, toDate])}
-                placeholder={t.transactions.fromDate}
-                className="w-full min-w-0"
-              />
-            </div>
-            <div className="min-w-0 sm:w-40">
-              <DatePicker
-                value={toDate}
-                onChange={value => setRange([fromDate, value])}
-                placeholder={t.transactions.toDate}
-                className="w-full min-w-0"
-              />
-            </div>
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {preset === "custom" && (
+            <motion.div
+              key="custom-date-range"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex">
+                <div className="min-w-0 sm:w-40">
+                  <DatePicker
+                    value={fromDate}
+                    onChange={value => setRange([value, toDate])}
+                    placeholder={t.transactions.fromDate}
+                    className="w-full min-w-0"
+                  />
+                </div>
+                <div className="min-w-0 sm:w-40">
+                  <DatePicker
+                    value={toDate}
+                    onChange={value => setRange([fromDate, value])}
+                    placeholder={t.transactions.toDate}
+                    className="w-full min-w-0"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="flex w-full min-w-0 items-center gap-2 sm:ml-auto sm:w-64">
           <Filter
             className="h-4 w-4 shrink-0 text-muted-foreground"

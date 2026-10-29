@@ -735,6 +735,14 @@
     },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "currencyOptions": {
+      "EUR": "EUR - Euro",
+      "USD": "USD - US Dollar"
+    },
+    "currencyChangeTitle": "Change main currency?",
+    "currencyChangeMessage": "Are you sure you want to change the main currency to {currency}?",
+    "currencyChangeWarning": "All assets and data will be displayed in {currency}. New entries you add will also use {currency}.",
+    "currencyChangeConfirm": "Use {currency}",
     "editMode": "Manual edit mode",
     "editModeDescription": "Choose how you update your positions and contributions.",
     "editModeOptions": {
