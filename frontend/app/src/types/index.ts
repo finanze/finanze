@@ -336,6 +336,7 @@ export interface FetchRequest {
 
 export enum LoginConfirmationType {
   IN_APP = "IN_APP",
+  AUTHENTICATOR = "AUTHENTICATOR",
   CHALLENGE = "CHALLENGE",
 }
 
@@ -352,6 +353,7 @@ export interface LoginResponse {
   details?: {
     challengeDomain?: string
     wait?: number
+    pinLength?: number
     [key: string]: any
   }
   entityAccountId?: string

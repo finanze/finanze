@@ -517,6 +517,7 @@
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
+    "authenticatorHint": "Enter the code from your authenticator app.",
     "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
     "twoFactorOldTxsHint": "Main data is already fetched. Enter the extra code to also fetch older account transactions.",
     "twoFactorOldTxsHintDestination": "Main data is already fetched. Enter the extra code sent to {destination} to also fetch older account transactions.",

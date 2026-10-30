@@ -745,6 +745,7 @@ async def app(tmp_path):
         fetch_pointers_port,
         transaction_handler_port,
         transaction_labeler,
+        feature_flag_port,
     )
 
     await db_client.silent_close()
@@ -765,6 +766,11 @@ async def db_client(app):
 @pytest_asyncio.fixture
 async def entity_fetchers(app):
     return app[2]
+
+
+@pytest_asyncio.fixture
+async def feature_flag_port(app):
+    return app[35]
 
 
 @pytest_asyncio.fixture

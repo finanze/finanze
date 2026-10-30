@@ -515,6 +515,7 @@
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
+    "authenticatorHint": "Introduce el código de tu aplicación de autenticación.",
     "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
     "twoFactorOldTxsHint": "Los datos principales ya se han obtenido. Introduce el código adicional para obtener también los movimientos antiguos de las cuentas.",
     "twoFactorOldTxsHintDestination": "Los datos principales ya se han obtenido. Introduce el código adicional enviado a {destination} para obtener también los movimientos antiguos de las cuentas.",

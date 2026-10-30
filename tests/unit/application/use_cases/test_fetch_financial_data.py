@@ -936,6 +936,30 @@ async def _prepare_logged_in_execute(
     return fetcher
 
 
+class TestAuthenticatorLogin:
+    @pytest.mark.asyncio
+    async def test_preserves_authenticator_details_for_fetch(self):
+        uc, _, _, _ = _build_use_case()
+        account_id = uuid4()
+        fetcher = await _prepare_logged_in_execute(uc, TRADE_REPUBLIC, account_id)
+        fetcher.login.return_value = EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.AUTHENTICATOR,
+            process_id="auth-process",
+            details={"pinLength": 6, "internal": "not returned"},
+        )
+
+        result = await uc.execute(
+            FetchRequest(entity_account_id=account_id, features=[Feature.POSITION])
+        )
+
+        assert result.code == FetchResultCode.CODE_REQUESTED
+        assert result.confirmation_type == LoginConfirmationType.AUTHENTICATOR
+        assert result.details["processId"] == "auth-process"
+        assert result.details["pinLength"] == 6
+        assert "internal" not in result.details
+
+
 class TestFetchPointers:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("entity", [MY_INVESTOR, ING])

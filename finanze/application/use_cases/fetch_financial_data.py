@@ -325,6 +325,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 login_details = login_result.details or {}
                 if "challenge_domain" in login_details:
                     details["challengeDomain"] = login_details["challenge_domain"]
+                if "pinLength" in login_details:
+                    details["pinLength"] = login_details["pinLength"]
                 return FetchResult(
                     FetchResultCode.CODE_REQUESTED,
                     details=details,
