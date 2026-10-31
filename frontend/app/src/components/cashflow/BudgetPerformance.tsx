@@ -72,6 +72,7 @@ export function BudgetPerformance({
       : `${month(budget.from_month)} - ${month(budget.to_month)}`
   const incomplete = budget.missing_conversion_count > 0
   const earnings = budget.income.actual
+  const plannedEarnings = budget.income.expected
   const labelTargets = budget.by_label.filter(
     row =>
       row.label_id !== null &&
@@ -220,8 +221,8 @@ export function BudgetPerformance({
                       const hasTarget =
                         budget.entry_count > 0 && comparison.expected > 0
                       const targetShare =
-                        hasTarget && earnings !== null && earnings > 0
-                          ? comparison.expected / earnings
+                        hasTarget && plannedEarnings > 0
+                          ? comparison.expected / plannedEarnings
                           : null
                       const overSpent =
                         expense && (comparison.difference ?? 0) > 0 && hasTarget

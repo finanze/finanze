@@ -99,14 +99,9 @@ def target_months(
     flow: PeriodicFlow | PeriodicContribution, from_date: date, to_date: date
 ) -> int:
     enabled = flow.enabled if isinstance(flow, PeriodicFlow) else flow.active
-    if not enabled or (flow.until and flow.until < flow.since):
+    if not enabled:
         return 0
-    start = max(_month_index(from_date), _month_index(flow.since))
-    end = min(
-        _month_index(to_date),
-        _month_index(flow.until) if flow.until else _month_index(to_date),
-    )
-    return max(end - start + 1, 0)
+    return max(_month_index(to_date) - _month_index(from_date) + 1, 0)
 
 
 def _comparison(

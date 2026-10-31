@@ -485,7 +485,9 @@ def test_budget_spending_split_uses_exact_activity_dates():
 
 
 @pytest.mark.parametrize("is_wants", [False, True])
-def test_budget_spending_targets_keep_full_months_and_currency_conversion(is_wants):
+def test_budget_spending_targets_use_every_period_month_and_currency_conversion(
+    is_wants,
+):
     label_id = uuid4()
     flow = _flow("Budget item", "625")
     flow.label_id = label_id
@@ -499,8 +501,8 @@ def test_budget_spending_targets_keep_full_months_and_currency_conversion(is_wan
         wants_label_ids={label_id} if is_wants else set(),
     )
 
-    assert result.needs.expected == (Dezimal(0) if is_wants else Dezimal("1000"))
-    assert result.wants.expected == (Dezimal("1000") if is_wants else Dezimal(0))
+    assert result.needs.expected == (Dezimal(0) if is_wants else Dezimal("1500"))
+    assert result.wants.expected == (Dezimal("1500") if is_wants else Dezimal(0))
     flow.enabled = False
     disabled = _budget([flow], wants_label_ids={label_id})
     assert disabled.needs.expected == 0
@@ -871,7 +873,7 @@ def test_budget_investment_targets_support_all_contribution_frequencies(frequenc
     assert result.entry_count == 1
 
 
-def test_budget_investment_targets_count_full_active_months():
+def test_budget_investment_targets_ignore_contribution_dates():
     contribution = _contribution()
     contribution.since = date(2024, 12, 30)
     contribution.until = date(2025, 1, 2)
@@ -881,7 +883,7 @@ def test_budget_investment_targets_count_full_active_months():
         to_date=date(2025, 2, 11),
         contributions=[contribution],
     )
-    assert result.invested.expected == Dezimal("240")
+    assert result.invested.expected == Dezimal("360")
     contribution.active = False
     assert _budget([], contributions=[contribution]).invested.expected == 0
 
@@ -900,16 +902,19 @@ def test_budget_investment_missing_conversion_is_not_reported_as_zero_actual(tx_
     assert result.invested.difference is None
 
 
-def test_budget_targets_count_full_active_months_across_year_boundary():
-    flow = _flow("Rent", "600")
-    flow.since = date(2024, 12, 30)
-    flow.until = date(2025, 1, 2)
-    result = _budget([flow], from_date=date(2024, 12, 31), to_date=date(2025, 2, 11))
-    assert result.expenses.expected == Dezimal("1200")
+def test_budget_targets_apply_to_every_month_regardless_of_entry_dates():
+    upcoming, ended = _flow("Rent", "600"), _flow("Gym", "30")
+    upcoming.since = date(2025, 5, 1)
+    ended.until = date(2024, 6, 1)
+    result = _budget(
+        [upcoming, ended], from_date=date(2024, 12, 31), to_date=date(2025, 2, 11)
+    )
+    assert result.entry_count == 2
+    assert result.expenses.expected == Dezimal("1890")
     assert result.from_month == date(2024, 12, 1)
     assert result.to_month == date(2025, 2, 1)
-    flow.enabled = False
-    assert target_months(flow, date(2024, 12, 1), date(2025, 2, 11)) == 0
+    upcoming.enabled = False
+    assert target_months(upcoming, date(2024, 12, 1), date(2025, 2, 11)) == 0
 
 
 @pytest.mark.parametrize("frequency", list(FlowFrequency))

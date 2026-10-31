@@ -4809,6 +4809,75 @@ class TestGetGainsTimelineBoundedRange:
         assert result.annualized_xirr is None
 
 
+class TestGetGainsTimelineIndexRebasing:
+    @staticmethod
+    def _query(from_date=None):
+        return GainsTimelineQuery(
+            assets=[GainsAssetFilter(product_type=ProductType.CRYPTO)],
+            entities=[uuid4()],
+            from_date=from_date,
+            to_date=date(2025, 1, 7),
+        )
+
+    @pytest.mark.asyncio
+    async def test_range_starting_on_a_wiped_out_position_keeps_a_flat_index(self):
+        wiped_day = date(2025, 1, 5)
+        last_day = date(2025, 1, 6)
+        use_case, _ = _build(
+            [
+                _snapshot(date(2025, 1, 1), "10", "1000", cost_basis="1000"),
+                _snapshot(wiped_day, "10", "0", cost_basis="1000"),
+                _snapshot(last_day, "10", "0", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query(wiped_day))
+
+        assert [point.date for point in result.points] == [wiped_day, last_day]
+        for point in result.points:
+            assert point.metrics.value == Dezimal(0)
+            assert point.metrics.gain == Dezimal(-1000)
+            assert point.metrics.index == Dezimal(100)
+            assert point.breakdown[ProductType.CRYPTO.value].index == Dezimal(100)
+        assert result.opening_value == Dezimal(1000)
+
+    @pytest.mark.asyncio
+    async def test_position_opened_without_value_keeps_a_flat_index(self):
+        first_day = date(2025, 1, 1)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "0", cost_basis="1000"),
+                _snapshot(date(2025, 1, 3), "10", "500", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query())
+
+        assert result.points[0].date == first_day
+        assert all(point.metrics.index == Dezimal(100) for point in result.points)
+        assert result.points[-1].metrics.value == Dezimal(500)
+        assert result.points[-1].metrics.gain == Dezimal(-500)
+
+    @pytest.mark.asyncio
+    async def test_later_wipe_out_is_still_rebased_on_the_first_day(self):
+        first_day = date(2025, 1, 1)
+        wiped_day = date(2025, 1, 3)
+        use_case, _ = _build(
+            [
+                _snapshot(first_day, "10", "1000", cost_basis="1000"),
+                _snapshot(date(2025, 1, 2), "10", "1100", cost_basis="1000"),
+                _snapshot(wiped_day, "10", "0", cost_basis="1000"),
+            ]
+        )
+
+        result = await use_case.execute(self._query(date(2025, 1, 2)))
+
+        by_day = {point.date: point.metrics for point in result.points}
+        assert by_day[date(2025, 1, 2)].index == Dezimal(100)
+        assert by_day[wiped_day].index == Dezimal(0)
+        assert by_day[wiped_day].gain == Dezimal(-1000)
+
+
 class TestGetGainsTimelineSnapshotsMode:
     def _snapshots_query(self):
         return GainsTimelineQuery(

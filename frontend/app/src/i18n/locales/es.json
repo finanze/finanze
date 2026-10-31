@@ -2525,7 +2525,7 @@
       "saved": "Ahorrado",
       "needs": "Necesidades",
       "wants": "Deseos",
-      "targetInfo": "Objetivos por meses completos y fechas activas; importes reales para el periodo de Actividad. Los gastos siguen su subcategoría: sin etiqueta, Necesidades; mixtos, Deseos. Lo invertido combina ahorro e inversiones netos, sin duplicar el efectivo vinculado.",
+      "targetInfo": "Objetivos del presupuesto recurrente actual para cada mes completo del periodo; sus porcentajes son sobre tus ingresos recurrentes. Importes reales para el periodo de Actividad. Los gastos siguen su subcategoría: sin etiqueta, Necesidades; mixtos, Deseos. Lo invertido combina ahorro e inversiones netos, sin duplicar el efectivo vinculado.",
       "investedBreakdown": "Desglose de lo invertido",
       "savingsMovements": "Movimientos de ahorro",
       "investmentTransactions": "Operaciones de inversión",

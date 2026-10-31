@@ -159,13 +159,28 @@ class InstrumentPriceHistorySQLRepository(InstrumentPriceHistoryPort):
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> None:
+        # past splits do not change, so a contiguous earlier check stays valid
+        contiguous = (
+            "excluded.checked_from IS NOT NULL AND excluded.checked_to IS NOT NULL "
+            "AND instrument_split_checked.checked_from IS NOT NULL "
+            "AND instrument_split_checked.checked_to IS NOT NULL "
+            "AND excluded.checked_from "
+            "<= date(instrument_split_checked.checked_to, '+1 day') "
+            "AND instrument_split_checked.checked_from "
+            "<= date(excluded.checked_to, '+1 day')"
+        )
         sql = (
             "INSERT INTO instrument_split_checked "
             "(id, instrument_key, checked_at, checked_from, checked_to) "
             "VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?) "
             "ON CONFLICT (instrument_key) DO UPDATE SET "
-            "checked_at = CURRENT_TIMESTAMP, checked_from = excluded.checked_from, "
-            "checked_to = excluded.checked_to"
+            "checked_at = CURRENT_TIMESTAMP, "
+            f"checked_from = CASE WHEN {contiguous} "
+            "THEN MIN(instrument_split_checked.checked_from, excluded.checked_from) "
+            "ELSE excluded.checked_from END, "
+            f"checked_to = CASE WHEN {contiguous} "
+            "THEN MAX(instrument_split_checked.checked_to, excluded.checked_to) "
+            "ELSE excluded.checked_to END"
         )
         async with self._db_client.tx(skip_last_update=True) as cursor:
             await cursor.execute(
