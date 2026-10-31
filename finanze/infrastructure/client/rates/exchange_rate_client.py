@@ -30,6 +30,9 @@ class ExchangeRateClient(ExchangeRateProvider):
 
     BASE_URL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"
     CURRENCIES_URL = f"{BASE_URL}/currencies.min.json"
+    # Keyless fallback with ECB reference rates (~30 currencies),
+    # "Exchange rates by AllRatesToday" https://allratestoday.com
+    FALLBACK_RATES_URL = "https://allratestoday.com/api/open/latest/{currency}"
     DATE_FORMAT = "%Y-%m-%d"
 
     def __init__(self):
@@ -65,7 +68,23 @@ class ExchangeRateClient(ExchangeRateProvider):
 
     async def _fetch_rates(self, currency: str, request_timeout: int) -> dict:
         url = f"{self.BASE_URL}/currencies/{currency.lower()}.min.json"
-        return await self._fetch(url, request_timeout)
+        try:
+            return await self._fetch(url, request_timeout)
+        except Exception as e:
+            self._log.warning(
+                f"Failed fetching {currency} rates ({e}), trying fallback source"
+            )
+            return await self._fetch_fallback_rates(currency, request_timeout)
+
+    async def _fetch_fallback_rates(self, currency: str, request_timeout: int) -> dict:
+        url = self.FALLBACK_RATES_URL.format(currency=currency.upper())
+        result = await self._fetch(url, request_timeout)
+        return {
+            "date": result["date"],
+            currency.lower(): {
+                code.lower(): rate for code, rate in result["rates"].items()
+            },
+        }
 
     async def _fetch(self, url: str, request_timeout: int) -> dict:
         response = await self._session.get(url, timeout=request_timeout)
