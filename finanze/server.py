@@ -899,6 +899,9 @@ class FinanzeServer:
             external_entity_repository,
             external_entity_fetchers,
             external_integration_repository,
+            transaction_repository,
+            last_fetches_repository,
+            transaction_handler,
         )
         get_available_external_entities = GetAvailableExternalEntitiesImpl(
             entity_repository,

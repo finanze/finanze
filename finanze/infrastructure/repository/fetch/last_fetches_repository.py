@@ -59,3 +59,10 @@ class LastFetchesRepository(LastFetchesPort):
                         else None,
                     ),
                 )
+
+    async def delete_by_entity_id(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                LastFetchesQueries.DELETE_BY_ENTITY_ID,
+                (str(entity_id),),
+            )

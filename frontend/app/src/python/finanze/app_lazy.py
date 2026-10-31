@@ -521,6 +521,9 @@ class LazyComponents:
                 d.ext_ent_repo,
                 external_entity_fetchers,
                 d.ext_int_repo,
+                d.tx_repo,
+                d.last_fetches_repo,
+                d.tx_handler,
             )
             self.get_external_candidates = GetAvailableExternalEntitiesImpl(
                 d.entity_repo,

@@ -267,3 +267,10 @@ class TransactionQueries(str, Enum):
     DELETE_ACCOUNT_BY_ENTITY_ACCOUNT = (
         "DELETE FROM account_transactions WHERE entity_account_id = ?"
     )
+
+    DELETE_INVESTMENT_BY_ENTITY_AND_SOURCE = (
+        "DELETE FROM investment_transactions WHERE entity_id = ? AND source = ?"
+    )
+    DELETE_ACCOUNT_BY_ENTITY_AND_SOURCE = (
+        "DELETE FROM account_transactions WHERE entity_id = ? AND source = ?"
+    )

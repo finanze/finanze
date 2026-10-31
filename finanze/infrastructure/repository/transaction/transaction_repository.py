@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date, datetime, timedelta
 from typing import List, Optional, Set
 from uuid import UUID
@@ -44,6 +45,50 @@ from infrastructure.repository.transaction.queries import TransactionQueries
 def _like_pattern(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+GLOB_SPECIAL_CHARS = "*?["
+LATIN_ACCENTED_RANGE = range(0x00C0, 0x0180)
+
+
+def _base_letter(char: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", char)
+    if len(decomposed) > 1 and all(unicodedata.combining(c) for c in decomposed[1:]):
+        return decomposed[0].lower()
+    return char.lower()
+
+
+def _accent_variants() -> dict[str, set[str]]:
+    variants: dict[str, set[str]] = {}
+    for code in LATIN_ACCENTED_RANGE:
+        char = chr(code)
+        base = _base_letter(char)
+        if base.isascii() and base != char.lower():
+            variants.setdefault(base, set()).add(char)
+    return variants
+
+
+ACCENT_VARIANTS = _accent_variants()
+
+
+def _glob_char(char: str) -> str:
+    if char in GLOB_SPECIAL_CHARS:
+        return f"[{char}]"
+    base = _base_letter(char)
+    options = {
+        char,
+        base,
+        base.upper(),
+        char.lower(),
+        char.upper(),
+        *ACCENT_VARIANTS.get(base, ()),
+    }
+    options = sorted(option for option in options if len(option) == 1)
+    return f"[{''.join(options)}]" if len(options) > 1 else char
+
+
+def _glob_pattern(value: str) -> str:
+    return f"*{''.join(_glob_char(char) for char in value)}*"
 
 
 def _day_after(value: date) -> str:
@@ -580,12 +625,13 @@ class TransactionSQLRepository(TransactionPort):
                 "tx.product_type = 'ACCOUNT' AND tx.linked_tx IS NULL AND NOT EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = tx.id)"
             )
         if query.search and query.search.strip():
-            pattern = _like_pattern(query.search.strip())
+            search = query.search.strip()
+            glob = _glob_pattern(search)
             search_conditions = [
-                "tx.name LIKE ? ESCAPE '\\'",
-                "tx.counterparty LIKE ? ESCAPE '\\'",
+                "tx.name GLOB ?",
+                "tx.counterparty GLOB ?",
             ]
-            params.extend([pattern, pattern])
+            params.extend([glob, glob])
             if not query.unlabeled and (
                 not query.product_types
                 or ProductType.STOCK_ETF in query.product_types
@@ -594,7 +640,7 @@ class TransactionSQLRepository(TransactionPort):
                 search_conditions.append(
                     "(tx.product_type IN ('STOCK_ETF', 'FUND') AND tx.isin LIKE ? ESCAPE '\\')"
                 )
-                params.append(pattern)
+                params.append(_like_pattern(search))
             conditions.append(f"({' OR '.join(search_conditions)})")
 
         where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
@@ -685,6 +731,17 @@ class TransactionSQLRepository(TransactionPort):
                 (str(entity_account_id),),
             )
 
+    async def delete_by_entity_and_source(self, entity_id: UUID, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_INVESTMENT_BY_ENTITY_AND_SOURCE,
+                (str(entity_id), source.value),
+            )
+            await cursor.execute(
+                TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_AND_SOURCE,
+                (str(entity_id), source.value),
+            )
+
     @staticmethod
     async def _hydrate_labels(cursor: DBCursor, txs: list[AccountTx]):
         if not txs:
@@ -742,10 +799,8 @@ class TransactionSQLRepository(TransactionPort):
         if selection.exclude_external_unmatched:
             conditions.append("at.external_unmatched_at IS NULL")
         if selection.search and selection.search.strip():
-            pattern = _like_pattern(selection.search.strip())
-            conditions.append(
-                "(at.name LIKE ? ESCAPE '\\' OR at.counterparty LIKE ? ESCAPE '\\')"
-            )
+            pattern = _glob_pattern(selection.search.strip())
+            conditions.append("(at.name GLOB ? OR at.counterparty GLOB ?)")
             params.extend([pattern, pattern])
         return conditions, params
 

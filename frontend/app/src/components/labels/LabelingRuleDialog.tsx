@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowLeftRight,
   ChevronDown,
@@ -30,7 +31,6 @@ import {
 } from "@/services/api"
 import { formatCurrency, formatDate, shortIban } from "@/lib/formatters"
 import { cn } from "@/lib/utils"
-import { EntityType } from "@/types"
 import { ProductType, type Accounts } from "@/types/position"
 import { LABELABLE_TX_TYPES, TxType } from "@/types/transactions"
 import {
@@ -212,6 +212,7 @@ export function LabelingRuleDialog({
   const [form, setForm] = useState<RuleFormState>(emptyForm)
   const [applyToExisting, setApplyToExisting] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [advancedAnimating, setAdvancedAnimating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [preview, setPreview] = useState<LabelingRulePreview | null>(null)
@@ -228,6 +229,7 @@ export function LabelingRuleDialog({
     setApplyToExisting(true)
     setPreview(null)
     setError(null)
+    setAdvancedAnimating(false)
     setShowAdvanced(
       Boolean(
         next.minAmount ||
@@ -270,11 +272,11 @@ export function LabelingRuleDialog({
 
   const entityOptions = useMemo(
     () =>
-      (entities ?? []).filter(
+      entities?.filter(
         entity =>
-          entity.type === EntityType.FINANCIAL_INSTITUTION ||
-          entity.type === EntityType.CRYPTO_EXCHANGE,
-      ),
+          "TRANSACTIONS" in entity.last_fetch ||
+          "TRANSACTIONS" in entity.virtual_features,
+      ) || [],
     [entities],
   )
 
@@ -736,111 +738,125 @@ export function LabelingRuleDialog({
             />
           </button>
 
-          {showAdvanced && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <FieldLabel>{t.labels.rules.amount}</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <DecimalInput
-                    value={form.minAmount}
-                    onStringChange={value => update("minAmount", value)}
-                    placeholder={t.labels.rules.min}
-                    aria-label={t.labels.rules.minAmount}
-                    disabled={saving}
-                  />
-                  <span className="text-muted-foreground">–</span>
-                  <DecimalInput
-                    value={form.maxAmount}
-                    onStringChange={value => update("maxAmount", value)}
-                    placeholder={t.labels.rules.max}
-                    aria-label={t.labels.rules.maxAmount}
-                    disabled={saving}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <FieldLabel htmlFor="rule-currency">
-                  {t.transactions.currency}
-                </FieldLabel>
-                <Input
-                  id="rule-currency"
-                  value={form.currency}
-                  maxLength={10}
-                  placeholder={t.labels.rules.anyCurrency}
-                  onChange={event =>
-                    update("currency", event.target.value.toUpperCase())
-                  }
-                  disabled={saving}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <FieldLabel className="block">
-                  {t.labels.rules.dateRange}
-                </FieldLabel>
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <DatePicker
-                      value={form.fromDate}
-                      onChange={value => update("fromDate", value)}
-                      placeholder={t.transactions.fromDate}
+          <AnimatePresence initial={false}>
+            {showAdvanced && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                onAnimationStart={() => setAdvancedAnimating(true)}
+                onAnimationComplete={() => setAdvancedAnimating(false)}
+                className={cn(advancedAnimating && "overflow-hidden")}
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <FieldLabel>{t.labels.rules.amount}</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <DecimalInput
+                        value={form.minAmount}
+                        onStringChange={value => update("minAmount", value)}
+                        placeholder={t.labels.rules.min}
+                        aria-label={t.labels.rules.minAmount}
+                        disabled={saving}
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <DecimalInput
+                        value={form.maxAmount}
+                        onStringChange={value => update("maxAmount", value)}
+                        placeholder={t.labels.rules.max}
+                        aria-label={t.labels.rules.maxAmount}
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <FieldLabel htmlFor="rule-currency">
+                      {t.transactions.currency}
+                    </FieldLabel>
+                    <Input
+                      id="rule-currency"
+                      value={form.currency}
+                      maxLength={10}
+                      placeholder={t.labels.rules.anyCurrency}
+                      onChange={event =>
+                        update("currency", event.target.value.toUpperCase())
+                      }
                       disabled={saving}
                     />
                   </div>
-                  <span className="text-muted-foreground">–</span>
-                  <div className="min-w-0 flex-1">
-                    <DatePicker
-                      value={form.toDate}
-                      onChange={value => update("toDate", value)}
-                      placeholder={t.transactions.toDate}
+                  <div className="space-y-1.5">
+                    <FieldLabel className="block">
+                      {t.labels.rules.dateRange}
+                    </FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <DatePicker
+                          value={form.fromDate}
+                          onChange={value => update("fromDate", value)}
+                          placeholder={t.transactions.fromDate}
+                          disabled={saving}
+                        />
+                      </div>
+                      <span className="text-muted-foreground">–</span>
+                      <div className="min-w-0 flex-1">
+                        <DatePicker
+                          value={form.toDate}
+                          onChange={value => update("toDate", value)}
+                          placeholder={t.transactions.toDate}
+                          disabled={saving}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <FieldLabel>{t.labels.rules.dayOfMonth}</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={form.dayFrom}
+                        placeholder="1"
+                        onChange={event =>
+                          update("dayFrom", event.target.value)
+                        }
+                        aria-label={t.labels.rules.dayFrom}
+                        disabled={saving}
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={form.dayTo}
+                        placeholder="31"
+                        onChange={event => update("dayTo", event.target.value)}
+                        aria-label={t.labels.rules.dayTo}
+                        disabled={saving}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t.labels.rules.dayOfMonthHint}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <FieldLabel className="block">
+                      {t.transactions.entities}
+                    </FieldLabel>
+                    <EntitySelector
+                      entities={entityOptions}
+                      selectedEntityIds={form.entities}
+                      onSelectionChange={value => update("entities", value)}
                       disabled={saving}
+                      className="max-w-none"
                     />
                   </div>
+                  {accountsField}
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <FieldLabel>{t.labels.rules.dayOfMonth}</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={form.dayFrom}
-                    placeholder="1"
-                    onChange={event => update("dayFrom", event.target.value)}
-                    aria-label={t.labels.rules.dayFrom}
-                    disabled={saving}
-                  />
-                  <span className="text-muted-foreground">–</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={form.dayTo}
-                    placeholder="31"
-                    onChange={event => update("dayTo", event.target.value)}
-                    aria-label={t.labels.rules.dayTo}
-                    disabled={saving}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t.labels.rules.dayOfMonthHint}
-                </p>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <FieldLabel className="block">
-                  {t.transactions.entities}
-                </FieldLabel>
-                <EntitySelector
-                  entities={entityOptions}
-                  selectedEntityIds={form.entities}
-                  onSelectionChange={value => update("entities", value)}
-                  disabled={saving}
-                  className="max-w-none"
-                />
-              </div>
-              {accountsField}
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
