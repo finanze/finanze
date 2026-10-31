@@ -14,6 +14,7 @@ from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
+    AccountTxSelection,
     DepositTx,
     FundTx,
     StockTx,
@@ -361,9 +362,58 @@ async def test_get_by_filters_only_searches_isin_when_eligible(
         connection.set_trace_callback(None)
 
     search_statement = next(
-        statement for statement in statements if "tx.counterparty LIKE" in statement
+        statement for statement in statements if "tx.counterparty GLOB" in statement
     )
     assert ("tx.isin LIKE" in search_statement) is searches_isin
+
+
+@pytest_asyncio.fixture
+async def accented_transaction(searchable_transactions):
+    repository, _ = searchable_transactions
+    account = (
+        await repository.get_by_filters(TransactionQueryRequest(search="merchant"))
+    )[0]
+    accented = replace(
+        account,
+        id=uuid4(),
+        ref="accented",
+        name="Bizum enviado a SENÉN FERN",
+        counterparty="Peña [50%]*?",
+    )
+    await repository.save(Transactions(account=[accented]))
+    return repository
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("search", "expected_refs"),
+    [
+        ("sen", ["accented"]),
+        ("sene", ["accented"]),
+        ("SENE", ["accented"]),
+        ("sené", ["accented"]),
+        ("SENÉ", ["accented"]),
+        ("senÉn fern", ["accented"]),
+        ("pena", ["accented"]),
+        ("PEÑA", ["accented"]),
+        ("[50%]*?", ["accented"]),
+        ("sen*", []),
+        ("sen?n", []),
+        ("senan", []),
+    ],
+)
+async def test_search_ignores_accents_and_case(
+    accented_transaction, search, expected_refs
+):
+    transactions = await accented_transaction.get_by_filters(
+        TransactionQueryRequest(search=search)
+    )
+    selected = await accented_transaction.get_account_txs(
+        AccountTxSelection(search=search)
+    )
+
+    assert [transaction.ref for transaction in transactions] == expected_refs
+    assert [transaction.ref for transaction in selected] == expected_refs
 
 
 @pytest.mark.asyncio

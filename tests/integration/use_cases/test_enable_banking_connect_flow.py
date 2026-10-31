@@ -1,9 +1,11 @@
 from typing import Optional
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 
+from application.ports.last_fetches_port import LastFetchesPort
+from application.ports.transaction_port import TransactionPort
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
 )
@@ -344,6 +346,9 @@ class TestEnableBankingConnectFlow:
                     }
                 }
             ),
+            AsyncMock(spec=TransactionPort),
+            AsyncMock(spec=LastFetchesPort),
+            MagicMock(),
         )
 
         await connect_uc.execute(
