@@ -2521,7 +2521,7 @@
       "saved": "Risparmiato",
       "needs": "Necessità",
       "wants": "Desideri",
-      "targetInfo": "Obiettivi per mesi interi dal budget attuale, in base alle date attive di ogni voce. Gli importi effettivi coprono le date selezionate in Attività. Le spese per necessità e desideri seguono le sottocategorie delle etichette di spesa. Le spese senza etichetta sono considerate necessarie; quelle con entrambe le sottocategorie vengono contate una sola volta come desideri. L'importo investito include i movimenti netti etichettati come risparmio più acquisti e investimenti meno vendite e rimborsi di capitale. I movimenti di denaro collegati a investimenti sono conteggiati solo tramite l'operazione di investimento.",
+      "targetInfo": "Obiettivi dal budget ricorrente attuale, applicati a ogni mese intero del periodo; le percentuali obiettivo sono calcolate sulle entrate ricorrenti. Gli importi effettivi coprono le date selezionate in Attività. Le spese per necessità e desideri seguono le sottocategorie delle etichette di spesa. Le spese senza etichetta sono considerate necessarie; quelle con entrambe le sottocategorie vengono contate una sola volta come desideri. L'importo investito include i movimenti netti etichettati come risparmio più acquisti e investimenti meno vendite e rimborsi di capitale. I movimenti di denaro collegati a investimenti sono conteggiati solo tramite l'operazione di investimento.",
       "investedBreakdown": "Dettaglio investimenti",
       "savingsMovements": "Movimenti di risparmio",
       "investmentTransactions": "Operazioni di investimento",

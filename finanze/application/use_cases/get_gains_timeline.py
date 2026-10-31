@@ -112,6 +112,8 @@ _TAIL_SETTLE_DAYS = 7
 
 # How long an unreconciled inflow is still considered money in flight.
 _INFLOW_SETTLE_DAYS = 7
+# slow legs can still land this long after the trade
+_LATE_SETTLE_DAYS = 14
 # brokers round traded quantities more coarsely than held ones
 _QUANTITY_MATCH_TOLERANCE = Dezimal("0.02")
 
@@ -1047,18 +1049,25 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     self._identity_key(identity) for identity in replay_handover
                 },
                 excluded_flow_ids=internal_transfer_flow_ids,
+                upcoming_snapshots=snapshots_by_day,
             )
+            # only trades still settling can explain a snapshot that did not move
+            in_flight_market_identities = {
+                identity
+                for identity, pending in pending_market_flows.items()
+                if self._has_in_flight_market_flow(pending, day)
+            }
             unobserved_market_snapshot_identities = {
                 identity
                 for identity in changed_identities
-                if identity in pending_market_flows
+                if identity in in_flight_market_identities
                 and not self._market_position_change_is_observed(
                     previous_assets.get(identity),
                     current_assets.get(identity),
                 )
             }
             has_only_unobserved_market_snapshot_changes = (
-                bool(pending_market_flows)
+                bool(in_flight_market_identities)
                 and bool(changed_holders)
                 and not (changed_identities - unobserved_market_snapshot_identities)
             )
@@ -2413,7 +2422,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 existing = snapshot_windows.get(asset_key)
                 snapshot_windows[asset_key] = (
                     min(existing[0], previous[0]) if existing else previous[0],
-                    snapshot_day,
+                    max(existing[1], snapshot_day) if existing else snapshot_day,
                 )
         if snapshot_requests:
             snapshot_splits = await self._load_splits(
@@ -2435,6 +2444,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
 
         requests: dict[_InstrumentKey, InstrumentDataRequest] = {}
         windows_by_key: dict[_InstrumentKey, tuple[date, date]] = {}
+        split_windows_by_key: dict[_InstrumentKey, tuple[date, date]] = {}
         names_by_key: dict[_InstrumentKey, str] = {}
         currencies_by_key: dict[_InstrumentKey, str] = {}
         etf_keys: set[_InstrumentKey] = set()
@@ -2493,6 +2503,12 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                     min(current[0], first_day),
                     max(current[1], priced_until),
                 )
+            split_window = split_windows_by_key.get(instrument_key)
+            split_windows_by_key[instrument_key] = (
+                (min(split_window[0], first_day), max(split_window[1], last_day))
+                if split_window
+                else (first_day, last_day)
+            )
         if not requests:
             return {}
 
@@ -2634,7 +2650,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
             }
             remaining_windows = {
                 key[1]: window
-                for key, window in windows_by_key.items()
+                for key, window in split_windows_by_key.items()
                 if key[0] == ProductType.STOCK_ETF and key[1] in remaining_requests
             }
             provider_splits = await self._load_splits(
@@ -2710,7 +2726,7 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         for key, request in requests.items():
             if request.type == InstrumentType.MUTUAL_FUND:
                 continue
-            window_start, _ = windows_by_key[key]
+            window_start, window_end = windows_by_key[key]
             price_key = f"{ProductType.STOCK_ETF.value}:{key}"
             if get_splits is None:
                 if storage is not None:
@@ -2719,7 +2735,10 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                         result[key] = {split.date: split.ratio for split in cached}
                 continue
             if storage is not None:
-                if await storage.is_splits_checked(key, window_start, checked_until):
+                # new splits are caught by the weekly expiry, not by requiring today
+                if await storage.is_splits_checked(
+                    key, window_start, min(window_end, checked_until)
+                ):
                     cached = await storage.get_splits(key)
                     if cached:
                         result[key] = {split.date: split.ratio for split in cached}
@@ -3127,9 +3146,42 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 abs(total) + Dezimal(1)
             ):
                 return list(flows)
+        selected, unexplained = self._match_market_flows(
+            flows, signed, remaining, day, allow_stale
+        )
+        round_trip = (
+            self._settled_round_trip_indices(flows, signed, day)
+            if allow_stale
+            else set()
+        )
+        # a settled round trip cannot explain the move, so it is never split up
+        if (
+            round_trip
+            and not round_trip <= selected
+            and abs(unexplained)
+            > _QUANTITY_MATCH_TOLERANCE * (abs(remaining) + Dezimal(1))
+        ):
+            selected, _ = self._match_market_flows(
+                flows, signed, remaining, day, allow_stale, round_trip
+            )
+        return [flow for index, flow in enumerate(flows) if index in selected]
+
+    def _match_market_flows(
+        self,
+        flows: list[GainsFlow],
+        signed: list[Optional[Dezimal]],
+        remaining: Dezimal,
+        day: date,
+        allow_stale: bool,
+        preselected: Optional[set[int]] = None,
+    ) -> tuple[set[int], Dezimal]:
         stale_before = day - timedelta(days=_INFLOW_SETTLE_DAYS)
-        selected: set[int] = set()
+        selected: set[int] = set(preselected or ())
+        for index in selected:
+            remaining -= signed[index] or Dezimal(0)
         for index, flow in enumerate(flows):
+            if index in selected:
+                continue
             if signed[index] is None or (
                 allow_stale
                 and flow.moment.date() <= stale_before
@@ -3168,7 +3220,79 @@ class GetGainsTimelineImpl(GetGainsTimeline):
                 continue
             remaining -= quantity
             selected.add(index)
-        return [flow for index, flow in enumerate(flows) if index in selected]
+        return selected, remaining
+
+    @staticmethod
+    def _settled_round_trip_indices(
+        flows: list[GainsFlow], signed: list[Optional[Dezimal]], day: date
+    ) -> set[int]:
+        settled_before = day - timedelta(days=_INFLOW_SETTLE_DAYS)
+        legs = {
+            index: quantity
+            for index, (flow, quantity) in enumerate(zip(flows, signed))
+            if flow.transaction_type in {TxType.BUY, TxType.SELL}
+            and quantity is not None
+            and quantity != 0
+            and flow.moment.date() <= settled_before
+        }
+        bought = sum(
+            (quantity for quantity in legs.values() if quantity > 0), Dezimal(0)
+        )
+        sold = -sum(
+            (quantity for quantity in legs.values() if quantity < 0), Dezimal(0)
+        )
+        if (
+            bought <= 0
+            or sold <= 0
+            or abs(bought - sold) > _QUANTITY_MATCH_TOLERANCE * min(bought, sold)
+        ):
+            return set()
+        return set(legs)
+
+    def _settled_round_trip(self, flows: list[GainsFlow], day: date) -> list[GainsFlow]:
+        signed = [
+            self._adjusted_quantity(flow, self._signed_flow_quantity(flow))
+            for flow in flows
+        ]
+        legs = self._settled_round_trip_indices(flows, signed, day)
+        return [flow for index, flow in enumerate(flows) if index in legs]
+
+    @staticmethod
+    def _has_in_flight_market_flow(flows: list[GainsFlow], day: date) -> bool:
+        settled_before = day - timedelta(days=_INFLOW_SETTLE_DAYS)
+        return any(flow.moment.date() > settled_before for flow in flows)
+
+    def _position_moves_while_legs_settle(
+        self,
+        upcoming_snapshots: dict[date, list[AssetSnapshot]],
+        identity: _AssetIdentity,
+        current: Optional[AssetValuation],
+        day: date,
+        newest_leg_day: date,
+    ) -> bool:
+        settles_by = newest_leg_day + timedelta(days=_LATE_SETTLE_DAYS)
+        upcoming = day + timedelta(days=1)
+        while upcoming <= settles_by:
+            holder_snapshots = [
+                snapshot
+                for snapshot in upcoming_snapshots.get(upcoming, [])
+                if snapshot.holder == identity[0]
+            ]
+            if holder_snapshots:
+                latest = max(holder_snapshots, key=lambda snapshot: snapshot.moment)
+                valuation = next(
+                    (
+                        valuation
+                        for valuation in latest.valuations
+                        if self._valuation_identity(latest.holder, valuation)
+                        == identity
+                    ),
+                    None,
+                )
+                if self._market_position_change_is_observed(current, valuation):
+                    return True
+            upcoming += timedelta(days=1)
+        return False
 
     def _record_observed_market_flows(
         self,
@@ -3187,22 +3311,35 @@ class GetGainsTimelineImpl(GetGainsTimeline):
         provenance: set[GainsFlowProvenance],
         replay_keys: Optional[set[tuple[str, ProductType, str, str, str]]] = None,
         excluded_flow_ids: Optional[set[int]] = None,
+        upcoming_snapshots: Optional[dict[date, list[AssetSnapshot]]] = None,
     ):
         replay_keys = replay_keys or set()
         for identity in changed_identities:
             if self._identity_key(identity) in replay_keys:
                 continue
             flows = pending_market_flows.get(identity)
-            if not flows or not self._market_position_change_is_observed(
+            if not flows:
+                continue
+            if self._market_position_change_is_observed(
                 previous_assets.get(identity), current_assets.get(identity)
             ):
-                continue
-            released = self._releasable_market_flows(
-                flows,
-                pending_market_anchors.get(identity),
-                current_assets.get(identity),
-                day,
-            )
+                released = self._releasable_market_flows(
+                    flows,
+                    pending_market_anchors.get(identity),
+                    current_assets.get(identity),
+                    day,
+                )
+            else:
+                # an untouched position past settlement confirms legs that net out
+                released = self._settled_round_trip(flows, day)
+                if released and self._position_moves_while_legs_settle(
+                    upcoming_snapshots or {},
+                    identity,
+                    current_assets.get(identity),
+                    day,
+                    max(flow.moment.date() for flow in released),
+                ):
+                    released = []
             if not released:
                 continue
             for flow in released:
@@ -4184,7 +4321,11 @@ class GetGainsTimelineImpl(GetGainsTimeline):
     ) -> GainsMetrics:
         index = metrics.index
         if index is not None:
-            index = (index * Dezimal(100) / index_base) if index_base else Dezimal(100)
+            index = (
+                index * Dezimal(100) / index_base
+                if index_base is not None and index_base != 0
+                else Dezimal(100)
+            )
         return GainsMetrics(
             value=metrics.value,
             cost_basis=metrics.cost_basis,

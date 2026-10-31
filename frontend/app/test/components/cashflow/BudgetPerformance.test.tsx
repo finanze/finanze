@@ -338,6 +338,36 @@ describe("BudgetPerformance", () => {
     expect(onTargetClick).toHaveBeenLastCalledWith("investments")
   })
 
+  it("shows targets as shares of recurring earnings instead of actual earnings", () => {
+    renderBudget()
+    const target = (key: string) =>
+      within(screen.getByTestId(`budget-${key}`)).getByRole("button", {
+        name: /target/,
+      })
+    expect(target("needs")).toHaveTextContent("target 60%")
+    expect(target("wants")).toHaveTextContent("target 20%")
+    expect(target("invested")).toHaveTextContent("target 50%")
+    expect(screen.getByTestId("budget-needs-target-marker")).toHaveStyle({
+      left: "60%",
+    })
+  })
+
+  it("hides target shares without recurring earnings but keeps monetary targets", () => {
+    renderBudget(
+      budget({
+        income: { expected: 0, actual: 650, ratio: null, difference: 650 },
+      }),
+    )
+    const needs = screen.getByTestId("budget-needs")
+    expect(
+      within(needs).queryByRole("button", { name: /target/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId("budget-needs-target-marker"),
+    ).not.toBeInTheDocument()
+    expect(needs).toHaveTextContent(/Exceeded.*150/)
+  })
+
   it("shows net investment withdrawals without a negative-width bar", () => {
     renderBudget(
       budget({

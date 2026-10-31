@@ -2526,7 +2526,7 @@
       "saved": "Saved",
       "needs": "Needs",
       "wants": "Wants",
-      "targetInfo": "Full calendar-month targets from the current budget, using each entry's active dates. Actual amounts cover the selected Activity dates. Needs and Wants follow expense label subcategories. Unlabeled expenses count as Needs; movements with both subcategories count once as Wants. Invested includes net SAVINGS-labeled movements plus purchases and investments minus sales and principal repayments. Linked investment cash movements are counted only through the investment transaction.",
+      "targetInfo": "Targets come from your current recurring budget, applied to every calendar month in the period. Target percentages are shares of your recurring earnings. Actual amounts cover the selected Activity dates. Needs and Wants follow expense label subcategories. Unlabeled expenses count as Needs; movements with both subcategories count once as Wants. Invested includes net SAVINGS-labeled movements plus purchases and investments minus sales and principal repayments. Linked investment cash movements are counted only through the investment transaction.",
       "investedBreakdown": "Invested breakdown",
       "savingsMovements": "Savings movements",
       "investmentTransactions": "Investment transactions",
