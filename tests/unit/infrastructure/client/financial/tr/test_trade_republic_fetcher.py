@@ -16,6 +16,7 @@ from domain.global_position import (
     StockDetail,
 )
 from domain.public_keychain import PublicKeychain
+from domain.status import FFStatus
 from domain.transactions import StockTx, TxType
 from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
     TradeRepublicFetcher,
@@ -33,6 +34,26 @@ def _make_keychain():
 
 
 class TestFetcherLogin:
+    @pytest.mark.asyncio
+    async def test_v2_code_completes_the_existing_login(self):
+        fetcher = _make_fetcher()
+        fetcher._client.complete_login = AsyncMock(
+            return_value=EntityLoginResult(LoginResultCode.CODE_REQUESTED)
+        )
+        params = EntityLoginParams(
+            credentials={"phone": "+49123", "password": "1234", "awsWafToken": "waf"},
+            keychain=_make_keychain(),
+            two_factor=TwoFactor(process_id="proc-123", code="654321"),
+            feature_flags={"TR_V2_AUTH_API": FFStatus.ON},
+        )
+
+        await fetcher.login(params)
+
+        fetcher._client.complete_login.assert_awaited_once_with(
+            "proc-123", "waf", "654321"
+        )
+        fetcher._client.login.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_login_delegates_to_client(self):
         fetcher = _make_fetcher()

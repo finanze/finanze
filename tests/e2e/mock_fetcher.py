@@ -234,6 +234,7 @@ class MockFinancialEntityFetcher(FinancialEntityFetcher):
 
 MOCK_PIN_CODE = "123456"
 MOCK_PROCESS_ID = "mock-process-123"
+MOCK_TOTP_PASSWORD = "totp-e2e"
 
 
 class MockPinEntityFetcher(MockFinancialEntityFetcher):
@@ -265,12 +266,50 @@ class MockPinEntityFetcher(MockFinancialEntityFetcher):
 
 
 class MockManualLoginFetcher(MockFinancialEntityFetcher):
+    def __init__(self, entity):
+        super().__init__(entity)
+        self._authenticator_verified = False
+
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
-        if login_params.session and "awsWafToken" not in login_params.credentials:
+        if (
+            login_params.session
+            and "awsWafToken" not in login_params.credentials
+            and not (login_params.two_factor and login_params.two_factor.process_id)
+        ):
             return EntityLoginResult(
                 code=LoginResultCode.MANUAL_LOGIN,
-                details={"phone": "+34612345678", "password": "1234"},
+                details={
+                    "phone": login_params.credentials["phone"],
+                    "password": login_params.credentials["password"],
+                },
             )
+
+        if login_params.credentials.get("password") == MOCK_TOTP_PASSWORD:
+            two_factor = login_params.two_factor
+            if not two_factor or not two_factor.process_id:
+                self._authenticator_verified = False
+                return EntityLoginResult(
+                    code=LoginResultCode.CODE_REQUESTED,
+                    confirmation_type=LoginConfirmationType.IN_APP,
+                    process_id=MOCK_PROCESS_ID,
+                )
+            if two_factor.code is not None:
+                if two_factor.code != MOCK_PIN_CODE:
+                    return EntityLoginResult(code=LoginResultCode.INVALID_CODE)
+                self._authenticator_verified = True
+                return EntityLoginResult(
+                    code=LoginResultCode.CODE_REQUESTED,
+                    confirmation_type=LoginConfirmationType.IN_APP,
+                    process_id=MOCK_PROCESS_ID,
+                )
+            if not self._authenticator_verified:
+                return EntityLoginResult(
+                    code=LoginResultCode.CODE_REQUESTED,
+                    confirmation_type=LoginConfirmationType.AUTHENTICATOR,
+                    process_id=MOCK_PROCESS_ID,
+                    details={"pinLength": 6},
+                )
+            await asyncio.sleep(1)
 
         session = EntitySession(
             creation=datetime.now(tzlocal()),

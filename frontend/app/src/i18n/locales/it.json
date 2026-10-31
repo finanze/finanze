@@ -516,6 +516,7 @@
   },
   "pinpad": {
     "enterCode": "Inserisci il codice a {length} cifre per",
+    "authenticatorHint": "Inserisci il codice della tua app di autenticazione.",
     "codeDelayTip": "Info: a volte il codice 2FA può metterci un po' ad arrivare",
     "twoFactorOldTxsHint": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo per recuperare anche i movimenti più vecchi dei conti.",
     "twoFactorOldTxsHintDestination": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo inviato a {destination} per recuperare anche i movimenti più vecchi dei conti.",

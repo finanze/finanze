@@ -77,6 +77,7 @@ export interface PendingScrapeParams {
   options: FetchOptions
   processId: string | null
   pinLength: number
+  confirmationType?: LoginConfirmationType
   currentAction: "scrape" | "login"
   entityAccountId?: string
   message?: string | null
@@ -89,6 +90,7 @@ interface EntityWorkflowContextValue {
   processId: string | null
   pinRequired: boolean
   pinLength: number
+  pinConfirmationType: LoginConfirmationType | null
   pinError: boolean
   clearPinError: () => void
   inAppConfirmation: boolean
@@ -239,6 +241,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const [processId, setProcessId] = useState<string | null>(null)
   const [pinRequired, setPinRequired] = useState(false)
   const [pinLength, setPinLength] = useState(4)
+  const [pinConfirmationType, setPinConfirmationType] =
+    useState<LoginConfirmationType | null>(null)
   const [activePinEntityId, setActivePinEntityId] = useState<string | null>(
     null,
   )
@@ -300,6 +304,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       }))
       setProcessId(pending.processId)
       setPinLength(pending.pinLength)
+      setPinConfirmationType(pending.confirmationType || null)
       setCurrentAction(pending.currentAction)
       setPinRequired(true)
       setPinError(false)
@@ -327,6 +332,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     const { preserveSelectedFeatures = false } = options
     void stopSmsOtpListening()
     setPinRequired(false)
+    setPinConfirmationType(null)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
     setInAppOldTxsConfirmation(false)
@@ -358,6 +364,32 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       resetState()
     },
     [resetState],
+  )
+
+  const requestAuthenticatorCode = useCallback(
+    (
+      requestedProcessId: string | undefined,
+      requestedLength: number | undefined,
+    ) => {
+      if (
+        !requestedProcessId ||
+        typeof requestedLength !== "number" ||
+        !Number.isInteger(requestedLength) ||
+        requestedLength <= 0
+      ) {
+        console.error(
+          "Authenticator request is missing a process or code length",
+        )
+        throw new Error("Invalid authenticator request")
+      }
+      void stopSmsOtpListening()
+      setProcessId(requestedProcessId)
+      setPinConfirmationType(LoginConfirmationType.AUTHENTICATOR)
+      setPinLength(requestedLength)
+      setInAppConfirmation(false)
+      setPinRequired(true)
+    },
+    [],
   )
 
   const clearPinError = useCallback(() => {
@@ -518,6 +550,53 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ) => {
       if (!selectedEntity) return
 
+      const finishLogin = async (entityAccountId?: string) => {
+        updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+        if (entityAccountId) {
+          updateEntityAccount(
+            selectedEntity.id,
+            entityAccountId,
+            getNewAccountName(
+              selectedEntity,
+              entityAccountId,
+              pendingAccountNameRef.current,
+            ),
+          )
+        }
+
+        if (scrapeManualLogin.current.active) {
+          const features = scrapeManualLogin.current.features
+          const options = scrapeManualLogin.current.options
+          const accountId =
+            entityAccountId || scrapeManualLogin.current.entityAccountId
+          scrapeManualLogin.current = {
+            active: false,
+            features: [],
+            options: DEFAULT_FETCH_OPTIONS,
+          }
+          try {
+            await scrapeRef.current(
+              selectedEntity,
+              features,
+              options,
+              accountId,
+            )
+          } finally {
+            setView("entities")
+          }
+        } else {
+          showToast(
+            t.common.loginSuccessEntity.replace(
+              "{entity}",
+              selectedEntity.name,
+            ),
+            "success",
+          )
+          resetState()
+          setView("entities")
+        }
+      }
+
       try {
         setIsLoggingIn(true)
         setPinError(false)
@@ -553,8 +632,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         if (response.code === "CODE_REQUESTED") {
           setProcessId(response.processId || null)
           setCurrentAction("login")
+          if (
+            response.confirmationType === LoginConfirmationType.AUTHENTICATOR
+          ) {
+            requestAuthenticatorCode(
+              response.processId,
+              response.details?.pinLength,
+            )
+            return
+          }
           if (response.confirmationType === LoginConfirmationType.IN_APP) {
             void stopSmsOtpListening()
+            setPinRequired(false)
+            setPinConfirmationType(null)
             setInAppConfirmation(true)
             setIsLoggingIn(true)
             try {
@@ -568,27 +658,16 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 confirmResponse.code === "CREATED" ||
                 confirmResponse.code === "RESUMED"
               ) {
-                updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
-                if (confirmResponse.entityAccountId) {
-                  updateEntityAccount(
-                    selectedEntity.id,
-                    confirmResponse.entityAccountId,
-                    getNewAccountName(
-                      selectedEntity,
-                      confirmResponse.entityAccountId,
-                      pendingAccountNameRef.current,
-                    ),
-                  )
-                }
-                showToast(
-                  t.common.loginSuccessEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  ),
-                  "success",
+                await finishLogin(confirmResponse.entityAccountId)
+              } else if (
+                confirmResponse.code === LoginResultCode.CODE_REQUESTED &&
+                confirmResponse.confirmationType ===
+                  LoginConfirmationType.AUTHENTICATOR
+              ) {
+                requestAuthenticatorCode(
+                  confirmResponse.processId,
+                  confirmResponse.details?.pinLength,
                 )
-                resetState()
-                setView("entities")
               } else if (confirmResponse.code === "COOLDOWN") {
                 const waitSeconds = confirmResponse.details?.wait ?? null
                 const cooldownMessage = waitSeconds
@@ -646,56 +725,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               return
             }
           }
+          setPinConfirmationType(null)
           setPinRequired(true)
           setPinLength(selectedEntity.pin?.positions || 4)
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
-          updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
-          if (response.entityAccountId) {
-            updateEntityAccount(
-              selectedEntity.id,
-              response.entityAccountId,
-              getNewAccountName(
-                selectedEntity,
-                response.entityAccountId,
-                pendingAccountNameRef.current,
-              ),
-            )
-          }
-
-          if (scrapeManualLogin.current.active) {
-            const features = scrapeManualLogin.current.features
-            const options = scrapeManualLogin.current.options
-            const entityAccountId =
-              response.entityAccountId ||
-              scrapeManualLogin.current.entityAccountId
-
-            scrapeManualLogin.current = {
-              active: false,
-              features: [],
-              options: DEFAULT_FETCH_OPTIONS,
-            }
-
-            try {
-              await scrapeRef.current(
-                selectedEntity,
-                features,
-                options,
-                entityAccountId,
-              )
-            } finally {
-              setView("entities")
-            }
-          } else {
-            showToast(
-              t.common.loginSuccessEntity.replace(
-                "{entity}",
-                selectedEntity.name,
-              ),
-              "success",
-            )
-            resetState()
-            setView("entities")
-          }
+          await finishLogin(response.entityAccountId)
         } else if (response.code === "COOLDOWN") {
           const waitSeconds = response.details?.wait ?? null
           const cooldownMessage = waitSeconds
@@ -754,6 +788,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       formatCooldownTime,
       openChallengeWindow,
       processId,
+      requestAuthenticatorCode,
       resetState,
       selectedEntity,
       setView,
@@ -782,6 +817,52 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       ) => {
         if (!silent) {
           showToast(message, type, options)
+        }
+      }
+
+      const queueAuthenticator = (
+        confirmation: FetchResponse,
+        accountId?: string,
+      ) => {
+        const requestedProcessId = confirmation.details?.processId
+        const requestedLength = confirmation.details?.pinLength
+        if (
+          !entity ||
+          !requestedProcessId ||
+          typeof requestedLength !== "number" ||
+          !Number.isInteger(requestedLength) ||
+          requestedLength <= 0
+        ) {
+          console.error(
+            "Authenticator request is missing a process or code length",
+          )
+          throw new Error("Invalid authenticator request")
+        }
+        void stopSmsOtpListening()
+        const pending: PendingScrapeParams = {
+          entity,
+          features,
+          options: {
+            deep: options.deep,
+            avoidNewLogin: options.avoidNewLogin,
+            twoFactorOldTxs: options.twoFactorOldTxs,
+          },
+          processId: requestedProcessId,
+          pinLength: requestedLength,
+          confirmationType: LoginConfirmationType.AUTHENTICATOR,
+          currentAction: "scrape",
+          entityAccountId: accountId,
+        }
+        const hadPending = pendingScrapeParamsRef.current.size > 0
+        const activePending =
+          (activePinEntityId &&
+            pendingScrapeParamsRef.current.get(activePinEntityId)) ||
+          pendingScrapeParamsRef.current.values().next().value
+        pendingScrapeParamsRef.current.set(entity.id, pending)
+        if (!hadPending || activePending?.entity.id === entity.id) {
+          activatePendingEntry(pending)
+        } else if (activePending) {
+          activatePendingEntry(activePending)
         }
       }
 
@@ -1045,6 +1126,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             const processIdValue = response.details?.processId || null
             if (processIdValue) {
               setSelectedEntity(entity)
+              if (!activePinEntityId || activePinEntityId === entity.id) {
+                setPinRequired(false)
+                setPinConfirmationType(null)
+              }
               setInAppConfirmation(true)
               try {
                 const accountId =
@@ -1117,6 +1202,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                       return currentSelected
                     })
                   }
+                } else if (
+                  confirmResponse.code === FetchResultCode.CODE_REQUESTED &&
+                  confirmResponse.confirmationType ===
+                    LoginConfirmationType.AUTHENTICATOR
+                ) {
+                  queueAuthenticator(confirmResponse, accountId)
                 } else if (confirmResponse.code === FetchResultCode.COOLDOWN) {
                   const waitSeconds = confirmResponse.details?.wait ?? null
                   const cooldownMessage = waitSeconds
@@ -1150,6 +1241,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               }
             }
           } else if (entity) {
+            if (
+              response.confirmationType === LoginConfirmationType.AUTHENTICATOR
+            ) {
+              queueAuthenticator(response, entityAccountId)
+              return
+            }
             const processIdValue = response.details?.processId || null
             const pinLen = isOldTxsStage
               ? response.details?.pinLength || entity.pin?.positions || 4
@@ -1167,6 +1264,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               },
               processId: processIdValue,
               pinLength: pinLen,
+              confirmationType: response.confirmationType,
               currentAction: "scrape",
               entityAccountId,
               message: isOldTxsStage ? response.details?.message : undefined,
@@ -1565,8 +1663,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setView("entities")
             } else if (response.code === "CODE_REQUESTED") {
               setProcessId(response.processId || null)
-              setPinRequired(true)
-              setPinLength(selectedEntity.pin?.positions || 4)
+              if (
+                response.confirmationType ===
+                LoginConfirmationType.AUTHENTICATOR
+              ) {
+                requestAuthenticatorCode(
+                  response.processId,
+                  response.details?.pinLength,
+                )
+              } else {
+                setPinConfirmationType(null)
+                setPinRequired(true)
+                setPinLength(selectedEntity.pin?.positions || 4)
+              }
             } else if (response.code === "COOLDOWN") {
               const waitSeconds = response.details?.wait ?? null
               const cooldownMessage = waitSeconds
@@ -1619,6 +1728,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     [
       currentAction,
       formatCooldownTime,
+      requestAuthenticatorCode,
       storedCredentials,
       selectedEntity,
       selectedFeatures,
@@ -1645,6 +1755,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         const accountName = scrapeManualLogin.current.entityAccountId
           ? undefined
           : getDefaultAccountName(selectedEntity, credentials)
+        pendingAccountNameRef.current = accountName
 
         if (entityHasSmsPin(selectedEntity)) {
           await startSmsOtpListening()
@@ -1703,8 +1814,20 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setProcessId(loginResponse.processId || null)
           setCurrentAction("login")
           setStoredCredentials(credentials)
-          if (loginResponse.confirmationType === LoginConfirmationType.IN_APP) {
+          if (
+            loginResponse.confirmationType ===
+            LoginConfirmationType.AUTHENTICATOR
+          ) {
+            requestAuthenticatorCode(
+              loginResponse.processId,
+              loginResponse.details?.pinLength,
+            )
+          } else if (
+            loginResponse.confirmationType === LoginConfirmationType.IN_APP
+          ) {
             void stopSmsOtpListening()
+            setPinRequired(false)
+            setPinConfirmationType(null)
             setInAppConfirmation(true)
             try {
               const confirmResponse = await loginEntity({
@@ -1750,6 +1873,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 } finally {
                   setView("entities")
                 }
+              } else if (
+                confirmResponse.code === LoginResultCode.CODE_REQUESTED &&
+                confirmResponse.confirmationType ===
+                  LoginConfirmationType.AUTHENTICATOR
+              ) {
+                requestAuthenticatorCode(
+                  confirmResponse.processId,
+                  confirmResponse.details?.pinLength,
+                )
               } else if (confirmResponse.code === LoginResultCode.COOLDOWN) {
                 const waitSeconds = confirmResponse.details?.wait ?? null
                 const cooldownMessage = waitSeconds
@@ -1801,6 +1933,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               setView("entities")
             }
           } else {
+            setPinConfirmationType(null)
             setPinRequired(true)
             setPinLength(selectedEntity.pin?.positions || 4)
           }
@@ -1833,6 +1966,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     [
       formatCooldownTime,
       openChallengeWindow,
+      requestAuthenticatorCode,
       resetState,
       scrape,
       selectedEntity,
@@ -2143,6 +2277,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         processId,
         pinRequired,
         pinLength,
+        pinConfirmationType,
         pinError,
         clearPinError,
         inAppConfirmation,

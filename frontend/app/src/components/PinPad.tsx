@@ -4,7 +4,8 @@ import { ArrowRight, Delete, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useAppContext } from "@/context/AppContext"
 import { useI18n } from "@/i18n"
-import { FetchStage } from "@/types"
+import { FetchStage, LoginConfirmationType } from "@/types"
+import { cancelEntityLogin } from "@/services/api"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -20,6 +21,7 @@ export function PinPad() {
   const {
     selectedEntity,
     pinLength,
+    pinConfirmationType,
     currentAction,
     login,
     scrape,
@@ -44,6 +46,8 @@ export function PinPad() {
   const [pin, setPin] = useState<string[]>([])
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const { t } = useI18n()
+  const isAuthenticator =
+    pinConfirmationType === LoginConfirmationType.AUTHENTICATOR
 
   const isEntityFetching = selectedEntity
     ? fetchingEntityState.fetchingEntityIds.includes(selectedEntity.id)
@@ -61,7 +65,7 @@ export function PinPad() {
 
   const applySmsMessage = useRef<(message: string) => void>(() => {})
   applySmsMessage.current = (message: string) => {
-    if (!selectedEntity) return
+    if (!selectedEntity || isAuthenticator) return
     const code = parseSmsOtp(message, pinLength, selectedEntity.pin?.pattern)
     if (!code) return
     syncPinForEntity(code.split(""))
@@ -88,6 +92,7 @@ export function PinPad() {
   }, [selectedEntity])
 
   useEffect(() => {
+    if (isAuthenticator) return
     let cancelled = false
     let handle: { remove: () => Promise<void> } | null = null
     void getLastSmsOtpMessage().then(message => {
@@ -106,7 +111,7 @@ export function PinPad() {
       cancelled = true
       void handle?.remove()
     }
-  }, [])
+  }, [isAuthenticator])
 
   useEffect(() => {
     if (pinError) {
@@ -209,6 +214,11 @@ export function PinPad() {
     }
 
     if (selectedEntity) {
+      if (isAuthenticator) {
+        void cancelEntityLogin(selectedEntity.id).catch(error => {
+          console.error("Failed to cancel authenticator login:", error)
+        })
+      }
       const cancelledStage = getPendingScrapeParams(selectedEntity.id)?.options
         .stage
       if (cancelledStage === FetchStage.TWO_FACTOR_OLD_TXS) {
@@ -328,6 +338,11 @@ export function PinPad() {
         <CardTitle className="text-center">
           {enterCodeText} {selectedEntity.name}
         </CardTitle>
+        {isAuthenticator && (
+          <p className="text-center text-sm text-muted-foreground">
+            {t.pinpad.authenticatorHint}
+          </p>
+        )}
         {isOldTxsStage && (
           <p className="text-center text-sm text-muted-foreground">
             {oldTxsHint}
@@ -373,7 +388,7 @@ export function PinPad() {
             name="one-time-code"
             type="text"
             inputMode="numeric"
-            autoComplete="one-time-code"
+            autoComplete={isAuthenticator ? "off" : "one-time-code"}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
@@ -460,9 +475,11 @@ export function PinPad() {
           </Button>
         </div>
 
-        <div className="mt-3 text-center text-xs text-muted-foreground">
-          {t.pinpad.codeDelayTip}
-        </div>
+        {!isAuthenticator && (
+          <div className="mt-3 text-center text-xs text-muted-foreground">
+            {t.pinpad.codeDelayTip}
+          </div>
+        )}
       </CardContent>
       <ConfirmationDialog
         isOpen={showCancelDialog}
