@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url"
-import { dirname, join } from "node:path"
+import { dirname, isAbsolute, join } from "node:path"
 import {
   app,
   BrowserWindow,
@@ -358,6 +358,7 @@ app.whenReady().then(async () => {
     createAboutWindow(mainWindow)
   })
   ipcMain.handle("about-info", () => getAboutInfo())
+  ipcMain.handle("locale-country-code", () => app.getLocaleCountryCode())
   ipcMain.handle("external-login", async (_, id, request) => {
     return await promptLogin(id, request)
   })
@@ -402,6 +403,36 @@ app.whenReady().then(async () => {
     }
 
     return result.filePaths[0]
+  })
+
+  ipcMain.handle(
+    "select-file",
+    async (_, options?: { title?: string; extensions?: string[] }) => {
+      const extensions = (options?.extensions ?? []).filter(
+        ext => typeof ext === "string" && /^[a-z0-9]+$/i.test(ext),
+      )
+      const result = await dialog.showOpenDialog({
+        title: options?.title ?? "Select file",
+        properties: ["openFile"],
+        filters:
+          extensions.length > 0
+            ? [{ name: extensions.join(", ").toUpperCase(), extensions }]
+            : undefined,
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return null
+      }
+
+      return result.filePaths[0]
+    },
+  )
+
+  ipcMain.handle("show-item-in-folder", (_, path: string) => {
+    if (typeof path !== "string" || !isAbsolute(path)) {
+      return
+    }
+    shell.showItemInFolder(path)
   })
 
   ipcMain.on("completed-external-login", (_, id, result) => {

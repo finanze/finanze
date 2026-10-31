@@ -1,0 +1,6 @@
+lastUpdate: 2026-02-01T18:45:00+01:00
+version: 8
+general: {defaultCurrency: EUR}
+data:
+  autoRefresh:
+   mode: [

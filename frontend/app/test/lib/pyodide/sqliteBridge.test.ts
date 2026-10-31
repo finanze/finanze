@@ -18,6 +18,16 @@ const backupProcessorMocks = vi.hoisted(() => ({
   getFilePath: vi.fn(),
 }))
 
+const sqliteMocks = vi.hoisted(() => ({
+  isConnection: vi.fn(),
+  isSecretStored: vi.fn(),
+  checkEncryptionSecret: vi.fn(),
+  clearEncryptionSecret: vi.fn(),
+  setEncryptionSecret: vi.fn(),
+  createConnection: vi.fn(),
+  retrieveConnection: vi.fn(),
+}))
+
 vi.mock("@/lib/capacitor/plugins", () => ({
   BackupProcessor: backupProcessorMocks,
 }))
@@ -42,9 +52,17 @@ vi.mock("@capacitor-community/sqlite", () => {
 
   class SQLiteConnection {
     checkConnectionsConsistency = vi.fn().mockResolvedValue({ result: true })
-    isConnection = vi.fn().mockResolvedValue({ result: false })
-    createConnection = vi.fn(async () => makeFakeDb())
-    retrieveConnection = vi.fn(async () => makeFakeDb())
+    isConnection = sqliteMocks.isConnection
+    isSecretStored = sqliteMocks.isSecretStored
+    checkEncryptionSecret = sqliteMocks.checkEncryptionSecret
+    clearEncryptionSecret = sqliteMocks.clearEncryptionSecret
+    setEncryptionSecret = sqliteMocks.setEncryptionSecret
+    createConnection = sqliteMocks.createConnection.mockImplementation(
+      async () => makeFakeDb(),
+    )
+    retrieveConnection = sqliteMocks.retrieveConnection.mockImplementation(
+      async () => makeFakeDb(),
+    )
     closeConnection = vi.fn().mockResolvedValue(undefined)
     saveToStore = vi.fn().mockResolvedValue(undefined)
     initWebStore = vi.fn().mockResolvedValue(undefined)
@@ -59,6 +77,12 @@ let bridge: Bridge
 beforeEach(async () => {
   // Fresh module state per test: txOwner / connectionOwner / spanWaiters /
   // opLock / currentDb all reset.
+  for (const mock of Object.values(sqliteMocks)) mock.mockReset()
+  sqliteMocks.isConnection.mockResolvedValue({ result: false })
+  sqliteMocks.isSecretStored.mockResolvedValue({ result: true })
+  sqliteMocks.checkEncryptionSecret.mockResolvedValue({ result: false })
+  sqliteMocks.clearEncryptionSecret.mockResolvedValue(undefined)
+  sqliteMocks.setEncryptionSecret.mockResolvedValue(undefined)
   backupProcessorMocks.deleteFile.mockReset()
   backupProcessorMocks.deleteFile.mockResolvedValue({ success: true })
   backupProcessorMocks.getFilePath.mockReset()
@@ -100,6 +124,49 @@ async function openShared(dbName = "testdb.db") {
   const db = await main.openDatabase(dbName, false, "no-encryption", 1, false)
   return { main, db }
 }
+
+describe("sqliteBridge encryption secret", () => {
+  it.each([false, true])(
+    "classifies an active database state error as a wrong key (reuse: %s)",
+    async reuse => {
+      const nativeError = new Error(
+        "SetEncryptionSecret: State for: testdbSQLite.db not correct",
+      )
+      sqliteMocks.isConnection.mockResolvedValue({ result: reuse })
+      sqliteMocks.setEncryptionSecret.mockRejectedValueOnce(nativeError)
+      const main = bridge.getSqliteBridge("main")
+
+      await expect(
+        main.openDatabase("testdb.db", true, "secret", 1, false, "wrong"),
+      ).rejects.toMatchObject({
+        message: "[Bridge][sqlite] wrong key for testdb",
+        cause: nativeError,
+      })
+      expect(sqliteMocks.clearEncryptionSecret).toHaveBeenCalledOnce()
+      expect(sqliteMocks.setEncryptionSecret).toHaveBeenCalledWith("wrong")
+      expect(sqliteMocks.createConnection).not.toHaveBeenCalled()
+      expect(sqliteMocks.retrieveConnection).not.toHaveBeenCalled()
+
+      await expect(
+        main.openDatabase("testdb.db", true, "secret", 1, false, "correct"),
+      ).resolves.toBeDefined()
+    },
+  )
+
+  it.each([
+    "SetEncryptionSecret: State for: otherSQLite.db not correct",
+    "Keychain unavailable",
+  ])("preserves other secret errors: %s", async message => {
+    const nativeError = new Error(message)
+    sqliteMocks.setEncryptionSecret.mockRejectedValueOnce(nativeError)
+    const main = bridge.getSqliteBridge("main")
+
+    await expect(
+      main.openDatabase("testdb.db", true, "secret", 1, false, "wrong"),
+    ).rejects.toBe(nativeError)
+    expect(sqliteMocks.createConnection).not.toHaveBeenCalled()
+  })
+})
 
 describe("sqliteBridge staging export", () => {
   it("clears the previous export before each staging export", async () => {

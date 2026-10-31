@@ -1,4 +1,5 @@
-from datetime import datetime
+import unicodedata
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Set
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from domain.global_position import (
 )
 from domain.transactions import (
     AccountTx,
+    AccountTxSelection,
     BaseInvestmentTx,
     BaseTx,
     CryptoCurrencyTx,
@@ -27,13 +29,73 @@ from domain.transactions import (
     StockTx,
     TransactionQueryRequest,
     Transactions,
+    TransactionSortBy,
+    TransactionSortOrder,
     TxType,
 )
-from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.db.client import DBClient, DBCursor
+from infrastructure.repository.labeling.common import (
+    load_transfer_pairs,
+    load_tx_labels,
+    placeholders as sql_placeholders,
+)
 from infrastructure.repository.transaction.queries import TransactionQueries
 
 
-def _map_account_row(row) -> AccountTx:
+def _like_pattern(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+GLOB_SPECIAL_CHARS = "*?["
+LATIN_ACCENTED_RANGE = range(0x00C0, 0x0180)
+
+
+def _base_letter(char: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", char)
+    if len(decomposed) > 1 and all(unicodedata.combining(c) for c in decomposed[1:]):
+        return decomposed[0].lower()
+    return char.lower()
+
+
+def _accent_variants() -> dict[str, set[str]]:
+    variants: dict[str, set[str]] = {}
+    for code in LATIN_ACCENTED_RANGE:
+        char = chr(code)
+        base = _base_letter(char)
+        if base.isascii() and base != char.lower():
+            variants.setdefault(base, set()).add(char)
+    return variants
+
+
+ACCENT_VARIANTS = _accent_variants()
+
+
+def _glob_char(char: str) -> str:
+    if char in GLOB_SPECIAL_CHARS:
+        return f"[{char}]"
+    base = _base_letter(char)
+    options = {
+        char,
+        base,
+        base.upper(),
+        char.lower(),
+        char.upper(),
+        *ACCENT_VARIANTS.get(base, ()),
+    }
+    options = sorted(option for option in options if len(option) == 1)
+    return f"[{''.join(options)}]" if len(options) > 1 else char
+
+
+def _glob_pattern(value: str) -> str:
+    return f"*{''.join(_glob_char(char) for char in value)}*"
+
+
+def _day_after(value: date) -> str:
+    return (value + timedelta(days=1)).isoformat()
+
+
+def map_account_row(row) -> AccountTx:
     entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
@@ -62,6 +124,10 @@ def _map_account_row(row) -> AccountTx:
         interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
         avg_balance=Dezimal(row["avg_balance"]) if row["avg_balance"] else None,
         net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
+        counterparty=row["counterparty"],
+        iban=row["iban"],
+        linked_tx=row["linked_tx"],
+        labels_locked=bool(row["labels_locked"]),
     )
 
 
@@ -377,6 +443,10 @@ class TransactionSQLRepository(TransactionPort):
                         str(tx.avg_balance) if tx.avg_balance else None,
                         str(tx.net_amount) if tx.net_amount else None,
                         str(tx.entity_account_id) if tx.entity_account_id else None,
+                        tx.counterparty,
+                        tx.iban,
+                        tx.linked_tx,
+                        tx.labels_locked,
                     ),
                 )
 
@@ -446,7 +516,7 @@ class TransactionSQLRepository(TransactionPort):
             query += " ORDER BY at.date ASC"
 
             await cursor.execute(query, tuple(params))
-            return [_map_account_row(row) for row in await cursor.fetchall()]
+            return [map_account_row(row) for row in await cursor.fetchall()]
 
     async def _get_investment_txs_by_entity(
         self, entity_id: UUID
@@ -464,7 +534,7 @@ class TransactionSQLRepository(TransactionPort):
                 TransactionQueries.ACCOUNT_SELECT_BY_ENTITY,
                 (str(entity_id),),
             )
-            return [_map_account_row(row) for row in await cursor.fetchall()]
+            return [map_account_row(row) for row in await cursor.fetchall()]
 
     async def get_refs_by_entity_account(self, entity_account_id: UUID) -> Set[str]:
         async with self._db_client.read() as cursor:
@@ -494,7 +564,7 @@ class TransactionSQLRepository(TransactionPort):
                 TransactionQueries.ACCOUNT_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
-            account = [_map_account_row(row) for row in await cursor.fetchall()]
+            account = [map_account_row(row) for row in await cursor.fetchall()]
 
         return Transactions(investment=investment, account=account)
 
@@ -540,9 +610,51 @@ class TransactionSQLRepository(TransactionPort):
                 "EXISTS (SELECT 1 FROM investment_historic_txs ht WHERE ht.tx_id = tx.id AND ht.historic_entry_id = ?)"
             )
             params.append(str(query.historic_entry_id))
+        if query.labels:
+            conditions.append(
+                f"EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = tx.id AND l.label_id IN ({sql_placeholders(query.labels)}))"
+            )
+            params.extend([str(label_id) for label_id in query.labels])
+        if query.excluded_labels:
+            conditions.append(
+                f"NOT EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = tx.id AND l.label_id IN ({sql_placeholders(query.excluded_labels)}))"
+            )
+            params.extend([str(label_id) for label_id in query.excluded_labels])
+        if query.unlabeled:
+            conditions.append(
+                "tx.product_type = 'ACCOUNT' AND tx.linked_tx IS NULL AND NOT EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = tx.id)"
+            )
+        if query.search and query.search.strip():
+            search = query.search.strip()
+            glob = _glob_pattern(search)
+            search_conditions = [
+                "tx.name GLOB ?",
+                "tx.counterparty GLOB ?",
+            ]
+            params.extend([glob, glob])
+            if not query.unlabeled and (
+                not query.product_types
+                or ProductType.STOCK_ETF in query.product_types
+                or ProductType.FUND in query.product_types
+            ):
+                search_conditions.append(
+                    "(tx.product_type IN ('STOCK_ETF', 'FUND') AND tx.isin LIKE ? ESCAPE '\\')"
+                )
+                params.append(_like_pattern(search))
+            conditions.append(f"({' OR '.join(search_conditions)})")
 
         where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
-        order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
+        sort_column = {
+            TransactionSortBy.DATE: "tx.date",
+            TransactionSortBy.AMOUNT: "CAST(tx.amount AS NUMERIC)",
+        }[query.sort_by]
+        sort_direction = {
+            TransactionSortOrder.ASC: "ASC",
+            TransactionSortOrder.DESC: "DESC",
+        }[query.sort_order]
+        order_pagination = (
+            f"ORDER BY {sort_column} {sort_direction}, tx.id ASC LIMIT ? OFFSET ?"
+        )
         offset = (query.page - 1) * query.limit
         params.extend([query.limit, offset])
         sql = f"{base_sql} {where_clause} {order_pagination}"
@@ -551,13 +663,17 @@ class TransactionSQLRepository(TransactionPort):
             await cursor.execute(sql, tuple(params))
             rows = await cursor.fetchall()
 
-        tx_list = []
-        for row in rows:
-            if row["product_type"] == "ACCOUNT":
-                tx = _map_account_row(row)
-            else:
-                tx = _map_investment_row(row)
-            tx_list.append(tx)
+            tx_list = []
+            account_txs = []
+            for row in rows:
+                if row["product_type"] == "ACCOUNT":
+                    tx = map_account_row(row)
+                    account_txs.append(tx)
+                else:
+                    tx = _map_investment_row(row)
+                tx_list.append(tx)
+
+            await self._hydrate_labels(cursor, account_txs)
 
         return tx_list
 
@@ -588,7 +704,9 @@ class TransactionSQLRepository(TransactionPort):
             )
             row = await cursor.fetchone()
             if row:
-                return _map_account_row(row)
+                account_tx = map_account_row(row)
+                await self._hydrate_labels(cursor, [account_tx])
+                return account_tx
         return None
 
     async def delete_by_id(self, tx_id: UUID):
@@ -612,3 +730,140 @@ class TransactionSQLRepository(TransactionPort):
                 TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_ACCOUNT,
                 (str(entity_account_id),),
             )
+
+    async def delete_by_entity_and_source(self, entity_id: UUID, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_INVESTMENT_BY_ENTITY_AND_SOURCE,
+                (str(entity_id), source.value),
+            )
+            await cursor.execute(
+                TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_AND_SOURCE,
+                (str(entity_id), source.value),
+            )
+
+    @staticmethod
+    async def _hydrate_labels(cursor: DBCursor, txs: list[AccountTx]):
+        if not txs:
+            return
+        labels = await load_tx_labels(cursor, [tx.id for tx in txs])
+        pairs = await load_transfer_pairs(cursor, [tx.id for tx in txs])
+        for tx in txs:
+            tx.labels = labels.get(tx.id, [])
+            tx.transfer_pair = pairs.get(tx.id)
+
+    @staticmethod
+    def _selection_conditions(
+        selection: AccountTxSelection,
+    ) -> tuple[list[str], list]:
+        conditions: list[str] = []
+        params: list = []
+        if selection.ids is not None:
+            if not selection.ids:
+                conditions.append("1 = 0")
+            else:
+                conditions.append(f"at.id IN ({sql_placeholders(selection.ids)})")
+                params.extend([str(tx_id) for tx_id in selection.ids])
+        if selection.from_date:
+            conditions.append("at.date >= ?")
+            params.append(selection.from_date.isoformat())
+        if selection.to_date:
+            conditions.append("at.date < ?")
+            params.append(_day_after(selection.to_date))
+        if selection.entities:
+            conditions.append(
+                f"at.entity_id IN ({sql_placeholders(selection.entities)})"
+            )
+            params.extend([str(e) for e in selection.entities])
+        if selection.types:
+            conditions.append(f"at.type IN ({sql_placeholders(selection.types)})")
+            params.extend([t.value for t in selection.types])
+        if selection.with_labels:
+            conditions.append(
+                f"EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = at.id AND l.label_id IN ({sql_placeholders(selection.with_labels)}))"
+            )
+            params.extend([str(label_id) for label_id in selection.with_labels])
+        if selection.without_labels:
+            conditions.append(
+                f"NOT EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = at.id AND l.label_id IN ({sql_placeholders(selection.without_labels)}))"
+            )
+            params.extend([str(label_id) for label_id in selection.without_labels])
+        if selection.unlabeled_only:
+            conditions.append(
+                "NOT EXISTS (SELECT 1 FROM account_transaction_labels l WHERE l.tx_id = at.id)"
+            )
+        if not selection.include_locked:
+            conditions.append("at.labels_locked = FALSE")
+        if not selection.include_linked:
+            conditions.append("at.linked_tx IS NULL")
+        if selection.exclude_external_unmatched:
+            conditions.append("at.external_unmatched_at IS NULL")
+        if selection.search and selection.search.strip():
+            pattern = _glob_pattern(selection.search.strip())
+            conditions.append("(at.name GLOB ? OR at.counterparty GLOB ?)")
+            params.extend([pattern, pattern])
+        return conditions, params
+
+    async def get_account_txs(
+        self, selection: AccountTxSelection, limit: Optional[int] = None
+    ) -> list[AccountTx]:
+        conditions, params = self._selection_conditions(selection)
+        query = TransactionQueries.ACCOUNT_SELECT_BASE.value
+        if conditions:
+            query += " AND " + " AND ".join(conditions)
+        query += " ORDER BY at.date DESC, at.id"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, tuple(params))
+            txs = [map_account_row(row) for row in await cursor.fetchall()]
+            await self._hydrate_labels(cursor, txs)
+        return txs
+
+    async def count_account_txs(self, selection: AccountTxSelection) -> int:
+        conditions, params = self._selection_conditions(selection)
+        query = TransactionQueries.ACCOUNT_COUNT_BASE.value
+        if conditions:
+            query += " AND " + " AND ".join(conditions)
+
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, tuple(params))
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+
+    async def get_refs_by_entity(self, entity_id: UUID) -> set[str]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.GET_REFS_BY_ENTITY,
+                (str(entity_id), str(entity_id)),
+            )
+            return {row[0] for row in await cursor.fetchall()}
+
+    async def get_latest_account_tx_date(self, entity_id: UUID) -> Optional[datetime]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                TransactionQueries.GET_LATEST_REAL_ACCOUNT_TX_DATE,
+                (str(entity_id),),
+            )
+            row = await cursor.fetchone()
+            if not row or not row[0]:
+                return None
+            return datetime.fromisoformat(row[0])
+
+    async def get_investment_txs_in_range(
+        self, entity_ids: Optional[list[UUID]], from_date: date, to_date: date
+    ) -> list[BaseInvestmentTx]:
+        if entity_ids == []:
+            return []
+        query = TransactionQueries.INVESTMENT_SELECT_BASE.value
+        params = []
+        if entity_ids is not None:
+            query += f" AND it.entity_id IN ({sql_placeholders(entity_ids)})"
+            params.extend(str(entity_id) for entity_id in entity_ids)
+        query += " AND it.date >= ? AND it.date < ? ORDER BY it.date ASC"
+        params.extend([from_date.isoformat(), _day_after(to_date)])
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, tuple(params))
+            return [_map_investment_row(row) for row in await cursor.fetchall()]

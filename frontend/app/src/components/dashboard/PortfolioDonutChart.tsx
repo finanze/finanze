@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
 import {
   formatCurrency,
   formatPercentage,
@@ -528,181 +528,172 @@ export function PortfolioDonutChart({
             >
               <SlidersHorizontal className="h-4 w-4" />
             </Button>
-            <AnimatePresence>
-              {isOptionsOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2, ease: "easeInOut" }}
-                  className="absolute right-0 mt-2 w-80 rounded-md shadow-md bg-popover z-[99999] border p-4 text-popover-foreground"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <HandCoins className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includePendingMoney}
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-72 text-xs text-muted-foreground"
-                            side="left"
-                          >
-                            {t.dashboard.includePendingMoneyInfo}
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Switch
-                        disabled={forecastMode}
-                        checked={
-                          forecastMode ? false : dashboardOptions.includePending
-                        }
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includePending: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <Landmark className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includeLoans}
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-72 text-xs text-muted-foreground"
-                            side="left"
-                          >
-                            {t.dashboard.includeLoansInfo}
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Switch
-                        checked={dashboardOptions.includeLoans}
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includeLoans: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includeCardExpenses}
-                      </div>
-                      <Switch
-                        checked={dashboardOptions.includeCardExpenses}
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includeCardExpenses: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm flex items-center gap-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          {t.dashboard.includeRealEstateEquity}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className="text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <Info className="h-3.5 w-3.5" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="w-72 text-xs text-muted-foreground"
-                              side="left"
-                            >
-                              {t.dashboard.includeRealEstateEquityInfo}
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeRealEstate}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeRealEstate: Boolean(val),
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pl-6">
-                        <div className="text-sm text-muted-foreground">
-                          {t.dashboard.includeResidences}
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeResidences}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeResidences: Boolean(val),
-                            }))
-                          }
-                          disabled={!dashboardOptions.includeRealEstate}
-                        />
-                      </div>
-                    </div>
+            <AnimatedPopup
+              open={isOptionsOpen}
+              className="absolute right-0 mt-2 w-80 rounded-md shadow-md bg-popover z-[99999] border p-4 text-popover-foreground"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <HandCoins className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includePendingMoney}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-72 text-xs text-muted-foreground"
+                        side="left"
+                      >
+                        {t.dashboard.includePendingMoneyInfo}
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <div className="border-t border-border pt-3 mt-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <Hash className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.compactNumbers}
-                      </div>
-                      <Switch
-                        checked={dashboardOptions.compactNumbers}
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            compactNumbers: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="text-sm flex items-center gap-2">
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.privateMode}
-                      </div>
-                      <Switch
-                        checked={dataDisplayMode === DataDisplayMode.PRIVATE}
-                        onCheckedChange={val =>
-                          setDataDisplayMode(
-                            val
-                              ? DataDisplayMode.PRIVATE
-                              : DataDisplayMode.NONE,
-                          )
-                        }
-                      />
-                    </div>
+                  <Switch
+                    disabled={forecastMode}
+                    checked={
+                      forecastMode ? false : dashboardOptions.includePending
+                    }
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includePending: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includeLoans}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-72 text-xs text-muted-foreground"
+                        side="left"
+                      >
+                        {t.dashboard.includeLoansInfo}
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <Switch
+                    checked={dashboardOptions.includeLoans}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includeLoans: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includeCardExpenses}
+                  </div>
+                  <Switch
+                    checked={dashboardOptions.includeCardExpenses}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includeCardExpenses: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm flex items-center gap-2">
+                      <Home className="h-4 w-4 text-muted-foreground" />
+                      {t.dashboard.includeRealEstateEquity}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-72 text-xs text-muted-foreground"
+                          side="left"
+                        >
+                          {t.dashboard.includeRealEstateEquityInfo}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeRealEstate}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeRealEstate: Boolean(val),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pl-6">
+                    <div className="text-sm text-muted-foreground">
+                      {t.dashboard.includeResidences}
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeResidences}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeResidences: Boolean(val),
+                        }))
+                      }
+                      disabled={!dashboardOptions.includeRealEstate}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-border pt-3 mt-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <Hash className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.compactNumbers}
+                  </div>
+                  <Switch
+                    checked={dashboardOptions.compactNumbers}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        compactNumbers: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-sm flex items-center gap-2">
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.privateMode}
+                  </div>
+                  <Switch
+                    checked={dataDisplayMode === DataDisplayMode.PRIVATE}
+                    onCheckedChange={val =>
+                      setDataDisplayMode(
+                        val ? DataDisplayMode.PRIVATE : DataDisplayMode.NONE,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            </AnimatedPopup>
             {isOptionsOpen && (
               <div
                 className="fixed inset-0 z-[99998]"

@@ -10,6 +10,8 @@ import { ShieldCheck } from "lucide-react"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { PageTabs, useTabSearchParam } from "@/components/ui/PageTabs"
+import { ProvidersTab } from "@/components/integrations/ProvidersTab"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/Popover"
 import {
   AlertCircle,
+  Blocks,
   ChevronDown,
   ExternalLink,
   Landmark,
@@ -50,6 +53,8 @@ import {
   ENABLE_BANKING_PROVIDER,
 } from "@/components/ExternalEntityConnection"
 import { isAccountScopedEntity } from "@/utils/entityUtils"
+
+const INTEGRATION_TABS = ["entities", "providers"] as const
 
 interface CollapsibleEntityCategoryProps {
   contentId: string
@@ -85,7 +90,20 @@ function CollapsibleEntityCategory({
           className={`h-5 w-5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
       </button>
-      {isExpanded && <div id={contentId}>{children}</div>}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            id={contentId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -104,6 +122,7 @@ export default function EntityIntegrationsPage() {
     pinRequired,
     challengeRequired,
     inAppConfirmation,
+    inAppOldTxsConfirmation,
     cancelInAppConfirmation,
     cancelChallenge,
     selectEntity,
@@ -115,10 +134,18 @@ export default function EntityIntegrationsPage() {
   } = useEntityWorkflow()
 
   const { t } = useI18n()
+  const [tab, setTab] = useTabSearchParam(INTEGRATION_TABS, "entities")
+  const [hasVisitedProviders, setHasVisitedProviders] = useState(
+    tab === "providers",
+  )
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
   const [showManageAccounts, setShowManageAccounts] = useState(false)
+
+  useEffect(() => {
+    if (tab === "providers") setHasVisitedProviders(true)
+  }, [tab])
 
   const conn = useExternalEntityConnection()
   const {
@@ -138,7 +165,7 @@ export default function EntityIntegrationsPage() {
   )
   const enableBankingName = enableBankingIntegration?.name ?? "Enable Banking"
   const goToEnableBankingSetup = () =>
-    navigate(`/settings?tab=integrations&focus=${ENABLE_BANKING_PROVIDER}`)
+    navigate(`/entities?tab=providers&focus=${ENABLE_BANKING_PROVIDER}`)
 
   useModalBackHandler(showManageAccounts, () => setShowManageAccounts(false))
   useModalBackHandler(showAddWallet, () => setShowAddWallet(false))
@@ -376,7 +403,11 @@ export default function EntityIntegrationsPage() {
   const { hash } = useLocation()
   const hasScrolledToCrypto = useRef(false)
   useEffect(() => {
-    if (hash === "#crypto-enabled" && !hasScrolledToCrypto.current) {
+    if (
+      tab === "entities" &&
+      hash === "#crypto-enabled" &&
+      !hasScrolledToCrypto.current
+    ) {
       setTimeout(() => {
         const el = document.getElementById("crypto-enabled")
         if (el) {
@@ -385,7 +416,7 @@ export default function EntityIntegrationsPage() {
         }
       }, 80)
     }
-  }, [hash, connectedCryptoEntities.length, view])
+  }, [hash, connectedCryptoEntities.length, view, tab])
 
   return (
     <>
@@ -402,7 +433,17 @@ export default function EntityIntegrationsPage() {
           <h1 className="text-3xl font-bold">{t.entities.title}</h1>
         </motion.div>
 
-        {!__CONNECTIONS__ && (
+        <PageTabs
+          tabs={[
+            { key: "entities", label: t.entities.tabEntities, Icon: Landmark },
+            { key: "providers", label: t.entities.tabProviders, Icon: Blocks },
+          ]}
+          active={tab}
+          onChange={setTab}
+          layoutId="integration-tabs"
+        />
+
+        {!__CONNECTIONS__ && tab === "entities" && (
           <motion.div variants={fadeListItem}>
             <p className="text-sm text-muted-foreground">
               {t.entities.storeNotice.split("{link}")[0]}
@@ -419,7 +460,12 @@ export default function EntityIntegrationsPage() {
           </motion.div>
         )}
 
-        <motion.div variants={fadeListItem}>
+        <motion.div
+          variants={fadeListItem}
+          role="tabpanel"
+          aria-label={t.entities.tabEntities}
+          hidden={tab !== "entities"}
+        >
           <AnimatePresence mode="wait">
             {isLoadingEntities ? (
               <motion.div
@@ -444,10 +490,6 @@ export default function EntityIntegrationsPage() {
               >
                 {connectedEntities.length > 0 && (
                   <motion.div variants={fadeListItem} className="space-y-6">
-                    <h2 className="text-xl font-semibold">
-                      {t.entities.connected}
-                    </h2>
-
                     {/* Financial Institutions */}
                     {connectedFinancialEntities.length > 0 && (
                       <CollapsibleEntityCategory
@@ -723,7 +765,7 @@ export default function EntityIntegrationsPage() {
                                               onClick={goToEnableBankingSetup}
                                             >
                                               <Settings className="mr-2 h-3 w-3" />
-                                              {t.entities.goToSettings}
+                                              {t.entities.goToProviders}
                                             </Button>
                                           </div>
                                         </PopoverContent>
@@ -869,6 +911,13 @@ export default function EntityIntegrationsPage() {
             )}
           </AnimatePresence>
         </motion.div>
+        <div
+          role="tabpanel"
+          aria-label={t.entities.tabProviders}
+          hidden={tab !== "providers"}
+        >
+          {(tab === "providers" || hasVisitedProviders) && <ProvidersTab />}
+        </div>
       </motion.div>
 
       {/* Login Modal */}
@@ -991,7 +1040,9 @@ export default function EntityIntegrationsPage() {
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-center text-muted-foreground">
-                    {t.login.inAppConfirmationMessage}
+                    {inAppOldTxsConfirmation
+                      ? t.login.inAppOldTxsConfirmationMessage
+                      : t.login.inAppConfirmationMessage}
                   </p>
                   <Button
                     variant="outline"

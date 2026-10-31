@@ -196,6 +196,7 @@ class TestGetPeriodicFlowsExecute:
             icon="home",
             linked=True,
             max_amount=Dezimal("1000"),
+            label_id=uuid4(),
         )
         port = MagicMock()
         port.get_all = AsyncMock(return_value=[original])
@@ -218,4 +219,5 @@ class TestGetPeriodicFlowsExecute:
         assert out.icon == "home"
         assert out.linked is True
         assert out.max_amount == Dezimal("1000")
+        assert out.label_id == original.label_id
         assert out.next_date is not None

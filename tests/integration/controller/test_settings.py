@@ -189,3 +189,142 @@ class TestSettingsLifecycle:
 
         body = await (await client.get(SETTINGS_URL)).get_json()
         assert body["general"]["defaultCurrency"] == "JPY"
+
+
+ALL_SECTIONS = {"general", "data", "export", "importing", "assets", "labeling"}
+
+LABELING = {
+    "external": {
+        "enabled": True,
+        "provider": "OPENROUTER",
+        "model": "m/x",
+        "upstreamProvider": None,
+        "autoRun": False,
+        "minConfidence": 85,
+        "maxPerRun": 150,
+        "examples": {"enabled": True, "count": 10, "origins": ["MANUAL"]},
+        "instructions": "Rent goes to housing.",
+    }
+}
+
+
+class TestSettingsByKeys:
+    @pytest.mark.asyncio
+    async def test_get_without_keys_returns_all_sections(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        body = await (await client.get(SETTINGS_URL)).get_json()
+
+        assert set(body) == ALL_SECTIONS | {"lastUpdate", "version"}
+
+    @pytest.mark.asyncio
+    async def test_get_with_keys_returns_only_those_sections(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.get(
+            SETTINGS_URL, query_string=[("key", "general"), ("key", "labeling")]
+        )
+
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert set(body) == {"general", "labeling", "lastUpdate", "version"}
+        assert body["general"]["defaultCurrency"] == "EUR"
+        assert body["labeling"]["external"]["enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_get_with_invalid_key_returns_400(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.get(SETTINGS_URL, query_string={"key": "bogus"})
+
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_REQUEST"
+
+    @pytest.mark.asyncio
+    async def test_post_single_section_keeps_the_others(self, client):
+        await _signup_and_stay_logged_in(client)
+        await client.post(SETTINGS_URL, json=_build_settings(currency="USD"))
+
+        response = await client.post(SETTINGS_URL, json={"labeling": LABELING})
+        assert response.status_code == 204
+
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["labeling"] == LABELING
+        assert body["general"]["defaultCurrency"] == "USD"
+        assert body["assets"]["crypto"]["stablecoins"] == ["USDT", "USDC"]
+
+    @pytest.mark.asyncio
+    async def test_post_without_labeling_does_not_reset_it(self, client):
+        await _signup_and_stay_logged_in(client)
+        await client.post(SETTINGS_URL, json={"labeling": LABELING})
+
+        await client.post(SETTINGS_URL, json=_build_settings(currency="GBP"))
+
+        response = await client.get(SETTINGS_URL, query_string={"key": "labeling"})
+        body = await response.get_json()
+        assert body["labeling"] == LABELING
+
+    @pytest.mark.asyncio
+    async def test_post_section_reflects_in_partial_get(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        await client.post(
+            SETTINGS_URL,
+            json={"general": {"defaultCurrency": "CHF", "editMode": "DRAFT"}},
+        )
+
+        response = await client.get(SETTINGS_URL, query_string={"key": "general"})
+        body = await response.get_json()
+        assert body["general"] == {
+            "defaultCurrency": "CHF",
+            "defaultCommodityWeightUnit": "GRAM",
+            "editMode": "DRAFT",
+        }
+
+    @pytest.mark.asyncio
+    async def test_post_unknown_section_returns_400(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.post(
+            SETTINGS_URL, json={"general": {"defaultCurrency": "USD"}, "bogus": {}}
+        )
+
+        assert response.status_code == 400
+        body = await response.get_json()
+        assert body["code"] == "INVALID_SETTINGS"
+        assert "bogus" in body["message"]
+
+    @pytest.mark.asyncio
+    async def test_post_without_sections_returns_400(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.post(
+            SETTINGS_URL, json={"lastUpdate": "2025-01-01T00:00:00+00:00"}
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_post_invalid_section_does_not_save_anything(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.post(
+            SETTINGS_URL,
+            json={
+                "general": {"defaultCurrency": "USD"},
+                "data": {"autoRefresh": {"mode": "BOGUS"}},
+            },
+        )
+
+        assert response.status_code == 400
+        body = await (await client.get(SETTINGS_URL)).get_json()
+        assert body["general"]["defaultCurrency"] == "EUR"
+
+    @pytest.mark.asyncio
+    async def test_post_non_object_body_returns_400(self, client):
+        await _signup_and_stay_logged_in(client)
+
+        response = await client.post(SETTINGS_URL, json=["general"])
+
+        assert response.status_code == 400

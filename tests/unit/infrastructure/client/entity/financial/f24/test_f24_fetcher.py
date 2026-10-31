@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from domain.dezimal import Dezimal
+from domain.fetch_result import FetchOptions
 from domain.global_position import AccountType, EquityType, ProductType
 from domain.native_entities import F24
 from domain.transactions import TxType
@@ -447,3 +448,74 @@ async def test_map_investment_txs_skips_bond(caplog):
 
     assert txs == []
     assert "unsupported type t=2 kind k=9" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_transactions_maps_dividend_cashflow_with_withholding():
+    fetcher = _fetcher()
+    fetcher._client.switch_user = AsyncMock()
+    fetcher._client.get_trades = AsyncMock(return_value={"trades": []})
+    fetcher._client.get_orders_history = AsyncMock(
+        return_value={"orders": {"order": []}}
+    )
+    fetcher._client.get_cash_flows = AsyncMock(
+        return_value={
+            "cashflow": [
+                {
+                    "id": 1001,
+                    "type_code": "dividend",
+                    "type_code_name": "Dividends",
+                    "date": "2026-10-16",
+                    "datetime": "2026-10-16 16:08:06",
+                    "currency": "USD",
+                    "sum": "0.08",
+                    "sumRaw": "0.08",
+                    "comment": (
+                        "Dividends on security (Apple Hospitality REIT Inc "
+                        "(APLE.US)), record date 2026-09-30."
+                    ),
+                },
+                {
+                    "id": 1002,
+                    "type_code": "tax",
+                    "type_code_name": "Taxes",
+                    "date": "2026-10-16",
+                    "currency": "USD",
+                    "sum": "-0.01",
+                    "comment": "Corporate action tax on security ( APLE.US ), record date 2026-09-30",
+                },
+            ]
+        }
+    )
+    fetcher._client.find_by_ticker = AsyncMock(
+        return_value={
+            "isin": "US03784Y2000",
+            "mkt": "US",
+            "nm": "Apple Hospitality REIT Inc",
+            "type": 1,
+            "kind": 1,
+        }
+    )
+
+    result = await fetcher.transactions(set(), FetchOptions())
+
+    assert len(result.investment) == 1
+    dividend = result.investment[0]
+    assert dividend.ref
+    assert dividend.name == "Apple Hospitality REIT Inc"
+    assert dividend.ticker == "APLE.US"
+    assert dividend.isin == "US03784Y2000"
+    assert dividend.type == TxType.DIVIDEND
+    assert dividend.equity_type == EquityType.STOCK
+    assert dividend.amount == Dezimal("0.08")
+    assert dividend.retentions == Dezimal("0.01")
+    assert dividend.net_amount == Dezimal("0.07")
+    assert dividend.currency == "USD"
+    assert dividend.date.date().isoformat() == "2026-10-16"
+    assert dividend.date.tzinfo is not None
+    assert fetcher._client.get_cash_flows.await_count == 1
+
+    repeated = await fetcher.transactions({dividend.ref}, FetchOptions())
+
+    assert repeated.investment == []
+    fetcher._client.find_by_ticker.assert_awaited_once_with("APLE.US")

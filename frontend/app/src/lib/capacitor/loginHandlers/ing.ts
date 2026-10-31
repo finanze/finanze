@@ -28,7 +28,7 @@ export async function promptLogin(
     LoginWebView.removeAllListeners()
   }
 
-  function checkCompletion() {
+  async function checkCompletion() {
     console.debug(
       "ING checkCompletion: " +
         JSON.stringify({
@@ -46,6 +46,13 @@ export async function promptLogin(
       result.credentials.apiAuth &&
       result.credentials.apiExtendedSessionCtx
     ) {
+      if (completed) return
+      const genomaLoginCookie = await readNativeCookies(
+        "https://ing.ingdirect.es/genoma_login/rest/getScaStatus",
+      )
+      if (genomaLoginCookie) {
+        result.credentials.genomaLoginCookie = genomaLoginCookie
+      }
       result.success = true
       sendCompletion(result)
       setTimeout(() => {
@@ -62,6 +69,21 @@ export async function promptLogin(
       return cookies.raw
     } catch {
       return ""
+    }
+  }
+
+  // Earlier snapshots may hold a stale lb-os/JSESSIONID, which makes genoma_api return 401
+  async function refreshGenomaCookie() {
+    const genomaCookies = await readNativeCookies(
+      "https://ing.ingdirect.es/genoma_api/rest/client",
+    )
+    if (!genomaCookies || !genomaCookies.includes("genoma-session-id")) return
+    result.credentials.genomaCookie = genomaCookies
+    const sessionId = genomaCookies
+      .split("genoma-session-id=")[1]
+      ?.split(";")[0]
+    if (sessionId) {
+      result.credentials.genomaSessionId = sessionId
     }
   }
 
@@ -92,7 +114,7 @@ export async function promptLogin(
           if (sessionId) {
             result.credentials.genomaSessionId = sessionId
           }
-          checkCompletion()
+          await checkCompletion()
         }
       }
 
@@ -116,23 +138,9 @@ export async function promptLogin(
         if (cookieHeader) {
           result.credentials.apiCookie = cookieHeader
         }
-        // Also capture genoma cookies if not yet captured (use genoma path for Android)
-        if (!result.credentials.genomaCookie) {
-          const genomaCookies = await readNativeCookies(
-            "https://ing.ingdirect.es/genoma_api/rest/client",
-          )
-          if (genomaCookies && genomaCookies.includes("genoma-session-id")) {
-            result.credentials.genomaCookie = genomaCookies
-            const sessionId = genomaCookies
-              .split("genoma-session-id=")[1]
-              ?.split(";")[0]
-            if (sessionId) {
-              result.credentials.genomaSessionId = sessionId
-            }
-          }
-        }
+        await refreshGenomaCookie()
 
-        checkCompletion()
+        await checkCompletion()
       }
     })
 
@@ -153,7 +161,7 @@ export async function promptLogin(
           if (sessionId) {
             result.credentials.genomaSessionId = sessionId
           }
-          checkCompletion()
+          await checkCompletion()
         }
       }
 
@@ -163,7 +171,8 @@ export async function promptLogin(
         if (cookieHeader) {
           result.credentials.apiCookie = cookieHeader
         }
-        checkCompletion()
+        await refreshGenomaCookie()
+        await checkCompletion()
       }
     })
 

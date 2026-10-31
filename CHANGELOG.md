@@ -1,3 +1,40 @@
+## [0.11.0] - 2026-10-31
+
+### 🚀 Features
+
+- Add region restriction (#201)
+- Cash transactions support, analytics, labeling and more (#200)
+- Config in database (#205)
+- Add MCP server (#206)
+- Add mintos stock support
+- Add F24 dividends
+- Bottom mobile navigation bar customization
+- Add external and local AI model support (#208)
+- Move all integrations into one single section (#209)
+- Add MCP tool categories (#210)
+- Add Google Sheet setup support from web (#211)
+- Add MyInvestor dividend support (#212)
+- Update dependencies (#213)
+- Add Enable Banking business account support (#215)
+- Update Dockerfile
+- Add TX search by ISIN
+- Improve settings UI selectors
+- Add Trade Republic Authenticator support
+
+### 🐛 Bug Fixes
+
+- Take Urbanitae rent project term from the opening line (#199)
+- Repeated refresh in login (#203)
+- Improve database decryption in mobile
+- UI animation improvements & better MyInvestor support for old TXs (#214)
+- Gains calculation after split (#216)
+- Better base UX in empty pages
+- Properly remove external entity on disconnect (#224)
+- Calculation of budget (#225)
+
+### 📚 Documentation
+
+- Update README images
 ## [0.10.1] - 2026-09-28
 
 ### 🚀 Features

@@ -279,7 +279,9 @@ class TestUpdateRealEstate:
         re_port.get_by_id.return_value = existing_re
 
         updated_pf = _make_periodic_flow(id=pf_id)
-        pf_port.get_by_id.return_value = _make_periodic_flow(id=pf_id)
+        original_pf = _make_periodic_flow(id=pf_id)
+        original_pf.label_id = uuid4()
+        pf_port.get_by_id.return_value = original_pf
 
         flow = _make_flow(
             periodic_flow_id=pf_id,
@@ -293,6 +295,7 @@ class TestUpdateRealEstate:
 
         pf_port.get_by_id.assert_awaited_with(pf_id)
         pf_port.update.assert_awaited_once_with(updated_pf)
+        assert updated_pf.label_id == original_pf.label_id
         pf_port.save.assert_not_awaited()
 
     @pytest.mark.asyncio

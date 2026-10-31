@@ -1,6 +1,6 @@
 import { ChildProcess, spawn } from "node:child_process"
 import { join } from "node:path"
-import { readdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { EventEmitter } from "node:events"
 import {
   AppConfig,
@@ -22,6 +22,9 @@ interface BackendControllerOptions {
 
 type StatusListener = (status: BackendStatus) => void
 
+const LLAMA_SERVER_DIR = "llama"
+const LLAMA_SERVER_NAME = "finanze-llama-server"
+
 export class BackendController extends EventEmitter {
   private process: ChildProcess | null = null
   private outputBuffer: string[] = []
@@ -29,6 +32,7 @@ export class BackendController extends EventEmitter {
   private captureTimeout: ReturnType<typeof setTimeout> | null = null
   private static readonly MAX_OUTPUT_LINES = 1000
   private static readonly CAPTURE_AFTER_SPAWN_MS = 10_000
+  private static readonly FORCE_KILL_AFTER_MS = 30_000
   private status: BackendStatus = {
     state: "stopped",
     pid: null,
@@ -142,12 +146,20 @@ export class BackendController extends EventEmitter {
     })
 
     this.stoppingPromise = waitForExit
+    let forceKillTimeout: ReturnType<typeof setTimeout> | null = null
 
     try {
       if (this.options.appConfig.os === OS.WINDOWS) {
         await this.terminateWindowsProcess()
       } else {
-        this.process.kill()
+        const child = this.process
+        child.kill()
+        forceKillTimeout = setTimeout(() => {
+          if (this.process === child) {
+            console.warn("Backend did not stop in time, killing it")
+            child.kill("SIGKILL")
+          }
+        }, BackendController.FORCE_KILL_AFTER_MS)
       }
     } catch (error) {
       const serializedError = this.serializeError(error)
@@ -163,6 +175,9 @@ export class BackendController extends EventEmitter {
     }
 
     const result = await waitForExit
+    if (forceKillTimeout) {
+      clearTimeout(forceKillTimeout)
+    }
     this.stoppingPromise = null
     return result
   }
@@ -249,7 +264,17 @@ export class BackendController extends EventEmitter {
     }
 
     const executablePath = join(serverDirPath, serverFile)
-    return spawn(executablePath, args, { env: this.spawnEnv() })
+    const llamaServerPath = join(
+      binPath,
+      LLAMA_SERVER_DIR,
+      this.options.appConfig.os === OS.WINDOWS
+        ? `${LLAMA_SERVER_NAME}.exe`
+        : LLAMA_SERVER_NAME,
+    )
+    const prodArgs = existsSync(llamaServerPath)
+      ? [...args, "--llama-server-path", llamaServerPath]
+      : args
+    return spawn(executablePath, prodArgs, { env: this.spawnEnv() })
   }
 
   private attachProcess(child: ChildProcess) {

@@ -1,6 +1,7 @@
 from application.ports.connectable_integration import ConnectableIntegration
 from application.ports.external_integration_port import ExternalIntegrationPort
 from domain.external_integration import (
+    EXTERNAL_INTEGRATION_OPTIONAL_FIELDS,
     EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS,
     AvailableExternalIntegrations,
     ExternalIntegrationId,
@@ -25,5 +26,8 @@ class GetExternalIntegrationsImpl(GetExternalIntegrations):
             integration.payload_schema = EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS[
                 integration.id
             ]
+            optional_fields = EXTERNAL_INTEGRATION_OPTIONAL_FIELDS.get(integration.id)
+            if optional_fields:
+                integration.optional_fields = sorted(optional_fields)
 
         return AvailableExternalIntegrations(integrations)

@@ -25,6 +25,7 @@ interface ConfirmationDialogProps {
   isLoading?: boolean
   description?: string
   warning?: ReactNode
+  details?: ReactNode
 }
 
 export function ConfirmationDialog({
@@ -38,6 +39,7 @@ export function ConfirmationDialog({
   isLoading = false,
   description,
   warning,
+  details,
 }: ConfirmationDialogProps) {
   const { t } = useI18n()
 
@@ -68,6 +70,7 @@ export function ConfirmationDialog({
                 )}
               </CardHeader>
               <CardContent>
+                {details}
                 <p>{message}</p>
                 {warning && (
                   <div className="mt-3 flex items-start gap-2 pl-3 border-l-2 border-yellow-500/60 text-yellow-700 dark:text-yellow-400">

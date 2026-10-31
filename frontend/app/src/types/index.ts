@@ -99,6 +99,7 @@ export interface Entity {
   icon_url?: string | null
   status?: EntityStatus
   features: Feature[]
+  transaction_kinds?: TransactionKind[] | null
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
   session_category?: EntitySessionCategory
@@ -113,6 +114,20 @@ export interface Entity {
   fetchable?: boolean
   allows_hd_wallet?: boolean | null
   accounts?: EntityAccountInfo[]
+  internal_features?: InternalFeature[]
+}
+
+export enum InternalFeature {
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
+}
+
+export enum FetchStage {
+  MAIN = "MAIN",
+  TWO_FACTOR_OLD_TXS = "TWO_FACTOR_OLD_TXS",
+}
+
+export enum OldTxsRequirement {
+  MAIN_DEVICE_SIGNATURE = "MAIN_DEVICE_SIGNATURE",
 }
 
 export enum EntitySessionCategory {
@@ -155,6 +170,8 @@ export enum CredentialType {
   INTERNAL_TEMP = "INTERNAL_TEMP",
 }
 
+export type TransactionKind = "ACCOUNT" | "INVESTMENT"
+
 export type Feature =
   "POSITION" | "AUTO_CONTRIBUTIONS" | "TRANSACTIONS" | "HISTORIC"
 
@@ -169,6 +186,7 @@ export enum AuthResultCode {
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   USER_NOT_FOUND = "USER_NOT_FOUND",
   UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
+  REGION_RESTRICTED = "REGION_RESTRICTED",
 }
 
 export interface ChangePasswordRequest {
@@ -222,7 +240,6 @@ export interface CloudAuthResponse {
 
 export enum BackupFileType {
   DATA = "DATA",
-  CONFIG = "CONFIG",
 }
 
 export enum BackupMode {
@@ -312,11 +329,14 @@ export interface FetchRequest {
   token?: string
   avoidNewLogin?: boolean
   deep?: boolean
+  twoFactorOldTxs?: boolean
+  stage?: FetchStage
   entityAccountId?: string
 }
 
 export enum LoginConfirmationType {
   IN_APP = "IN_APP",
+  AUTHENTICATOR = "AUTHENTICATOR",
   CHALLENGE = "CHALLENGE",
 }
 
@@ -333,6 +353,7 @@ export interface LoginResponse {
   details?: {
     challengeDomain?: string
     wait?: number
+    pinLength?: number
     [key: string]: any
   }
   entityAccountId?: string
@@ -349,6 +370,11 @@ export interface FetchResponse {
     credentials?: Record<string, string>
     failedFeatures?: Feature[]
     completedFeatures?: Feature[]
+    stage?: FetchStage
+    message?: string | null
+    pinLength?: number
+    pinChannel?: PinChannel
+    oldTxsRequirement?: OldTxsRequirement
   }
 }
 
@@ -658,6 +684,7 @@ declare global {
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       getAboutInfo: () => Promise<AboutAppInfo>
+      getLocaleCountryCode?: () => Promise<string>
       requestExternalLogin: (
         id: string,
         request?: any,
@@ -669,6 +696,11 @@ declare global {
       restartBackend: () => Promise<BackendActionResult>
       getBackendStatus: () => Promise<BackendStatus>
       selectDirectory: (initialPath?: string) => Promise<string | null>
+      selectFile?: (options?: {
+        title?: string
+        extensions?: string[]
+      }) => Promise<string | null>
+      showItemInFolder?: (path: string) => Promise<void>
       onBackendStatusChange: (
         callback: (status: BackendStatus) => void,
       ) => () => void
@@ -738,6 +770,10 @@ declare global {
       onExternalCompleteUrl: (
         callback: (payload: { url: string }) => void,
       ) => () => void
+
+      onIntegrationCompleteUrl: (
+        callback: (payload: { url: string }) => void,
+      ) => () => void
     }
   }
 }
@@ -761,6 +797,7 @@ export enum ExternalIntegrationType {
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
   CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
+  AI_PROVIDER = "AI_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {
@@ -775,10 +812,21 @@ export interface ExternalIntegration {
   type: ExternalIntegrationType
   available: boolean
   payload_schema?: Record<string, string> | null
+  optional_fields?: string[] | null
 }
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
+}
+
+export interface ExternalIntegrationConnectionResult {
+  link?: string | null
+}
+
+export interface CompleteIntegrationOAuthRequest {
+  state: string
+  code?: string | null
+  error?: string | null
 }
 
 export enum ExternalEntityStatus {
@@ -803,6 +851,7 @@ export interface ProviderExternalEntityDetails {
   bic: string
   type: EntityType
   icon?: string | null
+  psu_types?: string[] | null
 }
 
 export interface ExternalEntityCandidates {
@@ -812,6 +861,11 @@ export interface ExternalEntityCandidates {
 export enum ExternalEntitySetupResponseCode {
   ALREADY_LINKED = "ALREADY_LINKED",
   CONTINUE_WITH_LINK = "CONTINUE_WITH_LINK",
+}
+
+export enum ExternalEntityPsuType {
+  PERSONAL = "personal",
+  BUSINESS = "business",
 }
 
 export interface ExternalEntityConnectionResult {
@@ -828,6 +882,7 @@ export interface ConnectExternalEntityRequest {
   provider?: string | null
   relink?: boolean
   completion_url?: string | null
+  psu_type?: ExternalEntityPsuType | null
 }
 
 export interface GoogleIntegrationCredentials {
@@ -896,6 +951,7 @@ export interface PeriodicFlow {
   } | null
   next_date?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface PendingFlow {
@@ -923,6 +979,7 @@ export interface CreatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface UpdatePeriodicFlowRequest {
@@ -938,6 +995,7 @@ export interface UpdatePeriodicFlowRequest {
   currency: string
   icon?: string
   max_amount?: number
+  label_id?: string | null
 }
 
 export interface CreatePendingFlowRequest {

@@ -336,14 +336,10 @@ test.describe('Manual Crypto Positions', () => {
             await addManualCryptoPosition(page)
         }
 
-        // Enter edit mode
         await page.getByRole('button', { name: 'Edit' }).click()
         await page.waitForTimeout(300)
 
-        // Click delete button (Trash2 icon, red) on the manual position
-        const deleteBtn = page.locator(
-            'button.text-red-500:has(.lucide-trash-2)',
-        )
+        const deleteBtn = page.locator('button[aria-label="Delete"]')
         await deleteBtn.last().click()
 
         // Confirmation dialog
@@ -396,9 +392,8 @@ test.describe('Manual Crypto Positions', () => {
         // Clean up: delete the manual position
         await page.getByRole('button', { name: 'Edit' }).click()
         await page.waitForTimeout(300)
-        const deleteBtn = page.locator(
-            'button.text-red-500:has(.lucide-trash-2)',
-        )
+
+        const deleteBtn = page.locator('button[aria-label="Delete"]')
         await deleteBtn.last().click()
         await expect(page.getByText('Delete manual position')).toBeVisible({
             timeout: 3_000,

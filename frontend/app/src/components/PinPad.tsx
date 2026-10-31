@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, Delete, X } from "lucide-react"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
+import { useAppContext } from "@/context/AppContext"
 import { useI18n } from "@/i18n"
+import { FetchStage, LoginConfirmationType } from "@/types"
+import { cancelEntityLogin } from "@/services/api"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -18,6 +21,7 @@ export function PinPad() {
   const {
     selectedEntity,
     pinLength,
+    pinConfirmationType,
     currentAction,
     login,
     scrape,
@@ -33,12 +37,17 @@ export function PinPad() {
     clearPendingScrapeParams,
     switchActivePinEntity,
     getPendingPinEntities,
+    processId,
   } = useEntityWorkflow()
+  const { showToast } = useAppContext()
   const pinByEntityRef = useRef<Map<string, string[]>>(new Map())
+  const processIdByEntityRef = useRef<Map<string, string | null>>(new Map())
   const otpInputRef = useRef<HTMLInputElement>(null)
   const [pin, setPin] = useState<string[]>([])
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const { t } = useI18n()
+  const isAuthenticator =
+    pinConfirmationType === LoginConfirmationType.AUTHENTICATOR
 
   const isEntityFetching = selectedEntity
     ? fetchingEntityState.fetchingEntityIds.includes(selectedEntity.id)
@@ -56,7 +65,7 @@ export function PinPad() {
 
   const applySmsMessage = useRef<(message: string) => void>(() => {})
   applySmsMessage.current = (message: string) => {
-    if (!selectedEntity) return
+    if (!selectedEntity || isAuthenticator) return
     const code = parseSmsOtp(message, pinLength, selectedEntity.pin?.pattern)
     if (!code) return
     syncPinForEntity(code.split(""))
@@ -69,11 +78,21 @@ export function PinPad() {
   }, [selectedEntity])
 
   useEffect(() => {
+    if (!selectedEntity) return
+    const previous = processIdByEntityRef.current.get(selectedEntity.id)
+    processIdByEntityRef.current.set(selectedEntity.id, processId)
+    if (previous && previous !== processId) {
+      syncPinForEntity([])
+    }
+  }, [processId, selectedEntity, syncPinForEntity])
+
+  useEffect(() => {
     if (!isIOS() || !selectedEntity) return
     otpInputRef.current?.focus()
   }, [selectedEntity])
 
   useEffect(() => {
+    if (isAuthenticator) return
     let cancelled = false
     let handle: { remove: () => Promise<void> } | null = null
     void getLastSmsOtpMessage().then(message => {
@@ -92,7 +111,7 @@ export function PinPad() {
       cancelled = true
       void handle?.remove()
     }
-  }, [])
+  }, [isAuthenticator])
 
   useEffect(() => {
     if (pinError) {
@@ -139,6 +158,8 @@ export function PinPad() {
           code: pinString,
           deep: optionsToUse.deep,
           avoidNewLogin: optionsToUse.avoidNewLogin,
+          twoFactorOldTxs: optionsToUse.twoFactorOldTxs,
+          stage: optionsToUse.stage,
         },
         pendingParams?.entityAccountId,
       )
@@ -193,6 +214,22 @@ export function PinPad() {
     }
 
     if (selectedEntity) {
+      if (isAuthenticator) {
+        void cancelEntityLogin(selectedEntity.id).catch(error => {
+          console.error("Failed to cancel authenticator login:", error)
+        })
+      }
+      const cancelledStage = getPendingScrapeParams(selectedEntity.id)?.options
+        .stage
+      if (cancelledStage === FetchStage.TWO_FACTOR_OLD_TXS) {
+        showToast(
+          t.features.twoFactorOldTxsSkipped.replace(
+            "{entity}",
+            selectedEntity.name,
+          ),
+          "warning",
+        )
+      }
       pinByEntityRef.current.delete(selectedEntity.id)
       clearPendingScrapeParams(selectedEntity.id)
     }
@@ -259,6 +296,16 @@ export function PinPad() {
   if (!selectedEntity) return null
 
   const pendingEntities = getPendingPinEntities()
+  const activePending = getPendingScrapeParams(selectedEntity.id)
+  const isOldTxsStage =
+    currentAction === "scrape" &&
+    activePending?.options.stage === FetchStage.TWO_FACTOR_OLD_TXS
+  const oldTxsHint = activePending?.message
+    ? t.pinpad.twoFactorOldTxsHintDestination.replace(
+        "{destination}",
+        activePending.message,
+      )
+    : t.pinpad.twoFactorOldTxsHint
   const idsRequiringCode = [
     selectedEntity.id,
     ...pendingEntities.map(p => p.id),
@@ -271,8 +318,9 @@ export function PinPad() {
   const cancelButtonLabel = isBackgroundFetch
     ? t.common.continueInBackground
     : t.common.cancel
-  const cancelMessage =
-    currentAction === "scrape"
+  const cancelMessage = isOldTxsStage
+    ? t.pinpad.cancelOldTxsDescription
+    : currentAction === "scrape"
       ? t.pinpad.cancelFetchDescription
       : t.pinpad.cancelLoginDescription
   const enterCodeText = t.pinpad.enterCode.replace(
@@ -290,6 +338,16 @@ export function PinPad() {
         <CardTitle className="text-center">
           {enterCodeText} {selectedEntity.name}
         </CardTitle>
+        {isAuthenticator && (
+          <p className="text-center text-sm text-muted-foreground">
+            {t.pinpad.authenticatorHint}
+          </p>
+        )}
+        {isOldTxsStage && (
+          <p className="text-center text-sm text-muted-foreground">
+            {oldTxsHint}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         {pendingEntities.length > 0 && (
@@ -330,7 +388,7 @@ export function PinPad() {
             name="one-time-code"
             type="text"
             inputMode="numeric"
-            autoComplete="one-time-code"
+            autoComplete={isAuthenticator ? "off" : "one-time-code"}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
@@ -417,9 +475,11 @@ export function PinPad() {
           </Button>
         </div>
 
-        <div className="mt-3 text-center text-xs text-muted-foreground">
-          {t.pinpad.codeDelayTip}
-        </div>
+        {!isAuthenticator && (
+          <div className="mt-3 text-center text-xs text-muted-foreground">
+            {t.pinpad.codeDelayTip}
+          </div>
+        )}
       </CardContent>
       <ConfirmationDialog
         isOpen={showCancelDialog}

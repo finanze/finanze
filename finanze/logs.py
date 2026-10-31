@@ -32,6 +32,7 @@ _THIRD_PARTY_LOGGERS = [
     "aiocache",
     "aiocache.base",
     "httpx",
+    "mcp",
 ]
 
 

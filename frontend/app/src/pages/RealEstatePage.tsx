@@ -7,6 +7,7 @@ import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { DeletePropertyDialog } from "@/components/ui/DeletePropertyDialog"
 import {
   Plus,
@@ -289,22 +290,20 @@ export default function RealEstatePage() {
       {/* Properties Grid */}
       {realEstateList.length === 0 ? (
         <motion.div variants={fadeListItem}>
-          <Card className="p-8 text-center">
-            <Home className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              {t.realEstate.addProperty}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              {t.realEstate.emptyStateDescription}
-            </p>
-            <Button
-              onClick={handleAddProperty}
-              className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t.realEstate.addProperty}
-            </Button>
+          <Card className="hidden overflow-hidden md:block">
+            <EmptyState
+              icon={Home}
+              title={t.investments.noInvestmentsRegistered}
+              description={t.realEstate.emptyStateDescription}
+              className="py-16"
+            />
           </Card>
+          <EmptyState
+            icon={Home}
+            title={t.investments.noInvestmentsRegistered}
+            description={t.realEstate.emptyStateDescription}
+            className="py-16 md:hidden"
+          />
         </motion.div>
       ) : (
         <motion.div variants={fadeListItem}>

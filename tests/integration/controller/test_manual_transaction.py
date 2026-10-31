@@ -9,6 +9,7 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.fetch_record import DataSource
 from domain.global_position import ProductType
+from domain.labeling import LabelingTrigger
 from domain.transactions import (
     AccountTx,
     CryptoCurrencyTx,
@@ -270,6 +271,59 @@ class TestAddAccountTransactionAndRead:
         assert tx.interest_rate == Dezimal("3.5")
         assert tx.avg_balance == Dezimal("50000")
 
+    @pytest.mark.asyncio
+    async def test_add_account_tx_with_iban(
+        self, client, entity_port, transaction_port, virtual_import_registry
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(iban="es76 2100 0000 0001")
+        )
+        assert response.status_code == 204
+        assert transaction_port.save.await_args[0][0].account[0].iban == (
+            "ES76210000000001"
+        )
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(iban="ES76/2100")
+        )
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_add_account_tx_external_labeling_flag(
+        self,
+        client,
+        entity_port,
+        virtual_import_registry,
+        transaction_labeler,
+    ):
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(external_labeling=False)
+        )
+        assert response.status_code == 204
+        transaction_labeler.classify.assert_awaited_once()
+        transaction_labeler.classify_external.assert_not_awaited()
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(external_labeling=True)
+        )
+        assert response.status_code == 204
+        transaction_labeler.classify_external.assert_awaited_once()
+        assert (
+            transaction_labeler.classify_external.await_args[0][1]
+            == LabelingTrigger.MANUAL
+        )
+
+        response = await client.post(
+            ADD_TX_URL, json=_account_tx_payload(external_labeling="yes")
+        )
+        assert response.status_code == 400
+
 
 class TestAddStockTransactionAndRead:
     @pytest.mark.asyncio
@@ -514,6 +568,45 @@ class TestUpdateManualTransactionAndRead:
         assert txs[0]["name"] == "Updated Salary"
         assert txs[0]["amount"] == 3000.0
         assert txs[0]["source"] == "MANUAL"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "external_labeling, expected_trigger",
+        [(None, LabelingTrigger.AUTO), (True, LabelingTrigger.MANUAL), (False, None)],
+    )
+    async def test_update_account_tx_external_labeling_flag(
+        self,
+        client,
+        entity_port,
+        transaction_port,
+        virtual_import_registry,
+        transaction_labeler,
+        external_labeling,
+        expected_trigger,
+    ):
+        tx_id = uuid.uuid4()
+        existing_tx = MagicMock()
+        existing_tx.id = tx_id
+        existing_tx.source = DataSource.MANUAL
+        existing_tx.entity = _make_entity()
+        existing_tx.product_type = ProductType.ACCOUNT
+        transaction_port.get_by_id = AsyncMock(return_value=existing_tx)
+        entity_port.get_by_id = AsyncMock(return_value=_make_entity())
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+
+        payload = _account_tx_payload()
+        if external_labeling is not None:
+            payload["external_labeling"] = external_labeling
+        response = await client.put(f"{ADD_TX_URL}/{tx_id}", json=payload)
+        assert response.status_code == 204
+
+        if expected_trigger is None:
+            transaction_labeler.classify_external.assert_not_awaited()
+        else:
+            transaction_labeler.classify_external.assert_awaited_once()
+            selection, trigger = transaction_labeler.classify_external.await_args[0]
+            assert selection.ids == [tx_id]
+            assert trigger == expected_trigger
 
     @pytest.mark.asyncio
     async def test_update_stock_tx_success(

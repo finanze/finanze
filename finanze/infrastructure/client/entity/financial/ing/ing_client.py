@@ -16,6 +16,7 @@ from domain.native_entity import EntityCredentials
 from infrastructure.client.http.http_session import new_impersonated_http_session
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
+SCA_STATUS_TIMEOUT = 30
 
 DATE_FORMAT = "%d/%m/%Y"
 DASHED_DATE_FORMAT = "%Y-%m-%d"
@@ -23,10 +24,12 @@ DASHED_DATE_FORMAT = "%Y-%m-%d"
 
 class INGAPIClient:
     GENOMA_BASE_URL = "https://ing.ingdirect.es/genoma_api/rest"
+    GENOMA_LOGIN_BASE_URL = "https://ing.ingdirect.es/genoma_login/rest"
     API_BASE_URL = "https://api.ing.ingdirect.es"
 
     def __init__(self):
         self._genoma_session = None
+        self._genoma_login_session = None
         self._api_session = None
         self._session_expiration = None
 
@@ -39,11 +42,26 @@ class INGAPIClient:
         body: Optional[dict] = None,
         params: Optional[dict] = None,
         api: bool = True,
+        headers: Optional[dict] = None,
     ) -> dict:
         base_url = self.API_BASE_URL if api else self.GENOMA_BASE_URL
         session = self._api_session if api else self._genoma_session
+        return await self._send(
+            session, method, base_url + path, body=body, params=params, headers=headers
+        )
+
+    async def _send(
+        self,
+        session,
+        method: str,
+        url: str,
+        body: Optional[dict] = None,
+        params: Optional[dict] = None,
+        headers: Optional[dict] = None,
+        **kwargs,
+    ) -> dict:
         response = await session.request(
-            method, base_url + path, json=body, params=params
+            method, url, json=body, params=params, headers=headers, **kwargs
         )
 
         if response.ok:
@@ -144,6 +162,78 @@ class INGAPIClient:
         ]
         self._api_session.headers["User-Agent"] = user_agent
 
+        self._genoma_login_session = None
+        genoma_login_cookie = payload.get("genomaLoginCookie")
+        if genoma_login_cookie:
+            self._genoma_login_session = new_impersonated_http_session()
+            self._genoma_login_session.headers["Cookie"] = genoma_login_cookie
+            self._genoma_login_session.headers["User-Agent"] = user_agent
+
+    def supports_sca(self) -> bool:
+        return self._genoma_login_session is not None
+
+    def _xsrf_token(self) -> Optional[str]:
+        cookie_header = self._genoma_session.headers.get("Cookie") or ""
+        for cookie in cookie_header.split(";"):
+            name, _, value = cookie.strip().partition("=")
+            if name == "XSRF-TOKEN" and value:
+                return value
+        return None
+
+    async def start_sca(self) -> dict:
+        return await self._execute_request(
+            "/sca/documentation",
+            "GET",
+            api=False,
+            headers={"X-Ing-Reset-Validations": "1"},
+        )
+
+    async def get_sca_status(self, security_process_id: str) -> dict:
+        try:
+            return await self._send(
+                self._genoma_login_session,
+                "GET",
+                self.GENOMA_LOGIN_BASE_URL + "/getScaStatus",
+                params={
+                    "secProcessId": security_process_id,
+                    "isLogin": "false",
+                    "device": "false",
+                    "model": "false",
+                    "version": "false",
+                },
+                timeout=SCA_STATUS_TIMEOUT,
+            )
+        except httpx.HTTPStatusError:
+            raise
+        # curl_cffi (desktop) and TlsHttp (mobile) raise their own transport errors
+        except Exception as e:
+            self._log.warning(f"ING SCA status request failed: {e}")
+            return {}
+
+    async def confirm_sca(self, security_process_id: str) -> dict:
+        headers = {"X-Ing-Securityprocessid": security_process_id}
+        xsrf_token = self._xsrf_token()
+        if xsrf_token:
+            headers["X-XSRF-TOKEN"] = xsrf_token
+        return await self._execute_request(
+            "/sca/documentation",
+            "PUT",
+            body={"processId": security_process_id},
+            api=False,
+            headers=headers,
+        )
+
+    async def synchronize_access_token(self) -> bool:
+        response = await self._get_request("/saf/tpa/accesstoken/synchronize")
+        tokens = response.get("accessTokens") or []
+        access_token = tokens[0].get("accessToken") if tokens else None
+        if not access_token:
+            return False
+        current = self._api_session.headers.get("Authorization") or ""
+        scheme = current.split(" ", 1)[0] if " " in current else "Bearer"
+        self._api_session.headers["Authorization"] = f"{scheme} {access_token}"
+        return True
+
     async def get_user(self) -> dict:
         return await self._get_request("/client", api=False)
 
@@ -206,6 +296,27 @@ class INGAPIClient:
                 "toDate": to_date.strftime(DATE_FORMAT) if to_date else None,
             },
             api=False,
+        )
+
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_account_transactions(
+        self,
+        product_id: str,
+        from_date: date,
+        offset: int = 0,
+        limit: int = 100,
+        to_date: Optional[date] = None,
+    ) -> dict:
+        to_date = to_date or datetime.now(tzlocal()).date()
+        return await self._get_request(
+            f"/v2/products/{product_id}/transactions",
+            params={
+                "limit": limit,
+                "offset": offset,
+                "fromDate": from_date.strftime(DASHED_DATE_FORMAT),
+                "toDate": to_date.strftime(DASHED_DATE_FORMAT),
+                "filterEru": "false",
+            },
         )
 
     @cached(cache=Cache.MEMORY, ttl=120)

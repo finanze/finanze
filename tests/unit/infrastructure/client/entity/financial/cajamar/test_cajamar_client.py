@@ -1,8 +1,14 @@
-from unittest.mock import AsyncMock, patch
+import json
+from datetime import date
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
-from infrastructure.client.entity.financial.cajamar.cajamar_client import CajamarClient
+from infrastructure.client.entity.financial.cajamar.cajamar_client import (
+    CajamarClient,
+    CajamarSignatureRequired,
+)
 
 
 def _client():
@@ -94,3 +100,87 @@ def test_api_version_and_app_version():
     assert CajamarClient.API_VERSION == "/v19.39.0"
     assert CajamarClient.APP_VERSION == "1.143.51"
     assert CajamarClient.BASE_URL == "https://api.cajamar.es/amea-web/abh"
+
+
+@pytest.mark.asyncio
+async def test_get_account_txs_params():
+    client = _client()
+    path = CajamarClient.API_VERSION + "/account/acc-1/transactions"
+
+    await client.get_account_txs("acc-1", 2, 16)
+    await client.get_account_txs(
+        "acc-1", 1, 16, date_from=date(2024, 10, 13), date_to=date(2026, 10, 13)
+    )
+    await client.get_account_txs(
+        "acc-1", 3, 16, date_from=date(2024, 10, 13), date_to=date(2026, 10, 13)
+    )
+
+    assert client._post_request.await_args_list == [
+        ((path,), {"params": {"pageNumber": 2, "pageSize": 16}}),
+        ((path,), {"params": {"dateFrom": "2024-10-13", "dateTo": "2026-10-13"}}),
+        (
+            (path,),
+            {
+                "params": {
+                    "dateFrom": "2024-10-13",
+                    "dateTo": "2026-10-13",
+                    "pageSize": 16,
+                    "pageNumber": 3,
+                }
+            },
+        ),
+    ]
+
+
+def _raw_response(status, body):
+    response = MagicMock()
+    response.ok = 200 <= status < 300
+    response.status = status
+    response.text = AsyncMock(
+        return_value=body if isinstance(body, str) else json.dumps(body)
+    )
+    response.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            f"HTTP {status}", request=MagicMock(), response=MagicMock()
+        )
+    )
+    return response
+
+
+def _session_client(response):
+    client = _client()
+    del client._post_request
+    client._session = MagicMock()
+    client._session.request = AsyncMock(return_value=response)
+    return client
+
+
+@pytest.mark.asyncio
+async def test_get_account_txs_raises_signature_required_on_sgn000():
+    client = _session_client(
+        _raw_response(
+            500,
+            {
+                "code": "SGN000",
+                "message": "Please activate PhoneSign",
+                "errorId": None,
+            },
+        )
+    )
+
+    with pytest.raises(CajamarSignatureRequired):
+        await client.get_account_txs(
+            "acc-1", 1, 16, date_from=date(2024, 10, 14), date_to=date(2026, 10, 14)
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [_raw_response(500, {"code": "E0001"}), _raw_response(500, "not json")],
+)
+async def test_get_account_txs_raises_http_error_on_other_failures(response):
+    client = _session_client(response)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.get_account_txs("acc-1", 1, 16)

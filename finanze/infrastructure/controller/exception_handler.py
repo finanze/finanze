@@ -5,27 +5,52 @@ from quart import jsonify, request
 from application.ports.error_reporter_port import ErrorReporterPort
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
+    INTEGRATION_SETUP_BAD_REQUEST_CODES,
+    INTEGRATION_SETUP_UNAUTHORIZED_CODES,
     AddressNotFound,
     BackupConflict,
     BackupTransferFailed,
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
+    ExternalLabelingUnavailable,
     ExternalProviderAppNotLinked,
     IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
+    InvalidBudgetLabel,
+    InvalidLabelingRule,
     InvalidProvidedCredentials,
     InvalidTemplateDefaultValue,
     InvalidToken,
+    LabelingRuleNotFound,
+    LabelNotFound,
+    LocalModelError,
+    LocalModelErrorCode,
     TemplateNotFound,
     TooManyRequests,
     TransactionNotFound,
     UnauthorizedToken,
     NoUserLogged,
     PermissionDenied,
+    ProtectedLabel,
     InvalidUserCredentials,
 )
+
+LOCAL_MODEL_ERROR_STATUSES = {
+    LocalModelErrorCode.MISSING_SERVER_URL: 400,
+    LocalModelErrorCode.INVALID_URL: 400,
+    LocalModelErrorCode.INVALID_MODEL: 400,
+    LocalModelErrorCode.INVALID_FILE: 400,
+    LocalModelErrorCode.DOWNLOAD_FAILED: 400,
+    LocalModelErrorCode.NOT_DELETABLE: 400,
+    LocalModelErrorCode.UNSUPPORTED_MODEL: 400,
+    LocalModelErrorCode.MODEL_NOT_FOUND: 404,
+    LocalModelErrorCode.HUGGING_FACE_REPO_NOT_FOUND: 404,
+    LocalModelErrorCode.IMPORT_UNSUPPORTED: 409,
+    LocalModelErrorCode.INSUFFICIENT_SPACE: 507,
+    LocalModelErrorCode.RUNTIME_FAILED: 500,
+}
 
 
 def build_unexpected_error_handler(error_reporter: Optional[ErrorReporterPort] = None):
@@ -56,6 +81,30 @@ def handle_entity_not_found(e):
 
 def handle_tx_not_found(e):
     return jsonify({"code": "TX_NOT_FOUND", "message": str(e)}), 404
+
+
+def handle_label_not_found(e):
+    return jsonify({"code": "LABEL_NOT_FOUND"}), 404
+
+
+def handle_protected_label(e):
+    return jsonify({"code": "PROTECTED_LABEL"}), 403
+
+
+def handle_invalid_budget_label(e):
+    return jsonify({"code": "INVALID_BUDGET_LABEL"}), 400
+
+
+def handle_labeling_rule_not_found(e):
+    return jsonify({"code": "LABELING_RULE_NOT_FOUND"}), 404
+
+
+def handle_invalid_labeling_rule(e: InvalidLabelingRule):
+    return jsonify({"code": "INVALID_LABELING_RULE", "message": e.details}), 400
+
+
+def handle_external_labeling_unavailable(e: ExternalLabelingUnavailable):
+    return jsonify({"code": "EXTERNAL_LABELING_UNAVAILABLE", "message": e.details}), 502
 
 
 def handle_invalid_login_credentials(e):
@@ -91,11 +140,12 @@ def handle_integration_not_found(e):
 
 
 def handle_integration_setup_error(e):
-    if e.code in (
-        IntegrationSetupErrorCode.INVALID_CREDENTIALS,
-        IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
-    ):
+    if e.code in INTEGRATION_SETUP_UNAUTHORIZED_CODES:
         return jsonify({"code": e.code.value}), 401
+    if e.code in INTEGRATION_SETUP_BAD_REQUEST_CODES:
+        return jsonify({"code": e.code.value}), 400
+    if e.code == IntegrationSetupErrorCode.UNREACHABLE:
+        return jsonify({"code": e.code.value}), 502
 
     return jsonify({"code": e.code.value}), 500
 
@@ -143,11 +193,25 @@ def handle_external_provider_app_not_linked(e):
     return jsonify({"code": "EXTERNAL_PROVIDER_APP_NOT_LINKED"}), 409
 
 
+def handle_local_model_error(e: LocalModelError):
+    return jsonify(
+        {"code": e.code.value, "message": e.details}
+    ), LOCAL_MODEL_ERROR_STATUSES.get(e.code, 502)
+
+
 def register_exception_handlers(
     app, error_reporter: Optional[ErrorReporterPort] = None
 ):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
+    app.register_error_handler(LabelNotFound, handle_label_not_found)
+    app.register_error_handler(ProtectedLabel, handle_protected_label)
+    app.register_error_handler(InvalidBudgetLabel, handle_invalid_budget_label)
+    app.register_error_handler(LabelingRuleNotFound, handle_labeling_rule_not_found)
+    app.register_error_handler(InvalidLabelingRule, handle_invalid_labeling_rule)
+    app.register_error_handler(
+        ExternalLabelingUnavailable, handle_external_labeling_unavailable
+    )
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(InvalidUserCredentials, handle_invalid_login_credentials)
     app.register_error_handler(DataEncryptedError, handle_user_not_logged)
@@ -167,6 +231,7 @@ def register_exception_handlers(
     app.register_error_handler(BackupConflict, handle_backup_conflict)
     app.register_error_handler(BackupTransferFailed, handle_backup_transfer_failed)
     app.register_error_handler(PermissionDenied, handle_permission_denied)
+    app.register_error_handler(LocalModelError, handle_local_model_error)
     app.register_error_handler(
         ExternalProviderAppNotLinked, handle_external_provider_app_not_linked
     )

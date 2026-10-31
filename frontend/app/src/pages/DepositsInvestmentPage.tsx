@@ -5,6 +5,7 @@ import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent } from "@/components/ui/Card"
+import { EmptyState } from "@/components/ui/EmptyState"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
@@ -24,15 +25,14 @@ import { useEntityImages } from "@/hooks/useEntityImages"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowDownWideNarrow,
   ArrowUpDown,
+  ArrowUpNarrowWide,
   Calendar,
   ChevronDown,
   Layers,
   Percent,
   TrendingUp,
-  Pencil,
-  Trash2,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
@@ -42,6 +42,7 @@ import {
   ManualPositionsEditBanner,
   useManualPositions,
 } from "@/components/manual/ManualPositionsManager"
+import { ManualPositionActions } from "@/components/manual/ManualPositionActions"
 import type { Entity } from "@/types"
 import type { GainsTimelineQuery } from "@/types/gainsTimeline"
 import type { ManualPositionDraft } from "@/components/manual/manualPositionTypes"
@@ -235,7 +236,6 @@ function DepositsViewContent({
 }: DepositsViewContentProps) {
   const {
     drafts,
-    isEditMode,
     enterEditMode,
     editByOriginalId,
     editByLocalId,
@@ -479,6 +479,14 @@ function DepositsViewContent({
     [displayItems, sortBy, sortOrder],
   )
 
+  const emptyPositionsTitle =
+    selectedEntities.length > 0
+      ? t.investments.noPositionsFound.replace(
+          "{type}",
+          t.common.deposits.toLowerCase(),
+        )
+      : t.investments.noInvestmentsRegistered
+
   const handleSliceClick = useCallback((slice: { name: string }) => {
     const ref = itemRefs.current[slice.name]
     if (ref) {
@@ -526,30 +534,27 @@ function DepositsViewContent({
           filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
+          showClearFilters={false}
           hideLabelOnMobile
         />
       </motion.div>
 
       <motion.div variants={fadeListItem}>
         {sortedDisplayItems.length === 0 ? (
-          <Card className="p-14 text-center flex flex-col items-center gap-4">
-            {getIconForAssetType(
-              ProductType.DEPOSIT,
-              "h-16 w-16",
-              "text-gray-400 dark:text-gray-600",
-            )}
-            <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-              {selectedEntities.length > 0
-                ? t.investments.noPositionsFound.replace(
-                    "{type}",
-                    t.common.deposits.toLowerCase(),
-                  )
-                : t.investments.noPositionsAvailable.replace(
-                    "{type}",
-                    t.common.deposits.toLowerCase(),
-                  )}
-            </div>
-          </Card>
+          <>
+            <Card className="hidden md:block overflow-hidden">
+              <EmptyState
+                iconNode={getIconForAssetType(ProductType.DEPOSIT, "h-5 w-5")}
+                title={emptyPositionsTitle}
+                className="py-16"
+              />
+            </Card>
+            <EmptyState
+              iconNode={getIconForAssetType(ProductType.DEPOSIT, "h-5 w-5")}
+              title={emptyPositionsTitle}
+              className="py-16 md:hidden"
+            />
+          </>
         ) : (
           <div className="space-y-6">
             <Card className="-mx-6 rounded-none border-x-0">
@@ -669,9 +674,9 @@ function DepositsViewContent({
                 }
               >
                 {sortOrder === "asc" ? (
-                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                  <ArrowUpNarrowWide size={16} />
                 ) : (
-                  <ArrowRight size={16} className="rotate-90" />
+                  <ArrowDownWideNarrow size={16} />
                 )}
               </button>
             </div>
@@ -708,7 +713,7 @@ function DepositsViewContent({
                     ? "ring-2 ring-offset-0 ring-primary"
                     : ""
 
-                const showActions = isEditMode && isManual
+                const showActions = isManual
 
                 return (
                   <Card
@@ -919,12 +924,9 @@ function DepositsViewContent({
                             </div>
 
                             {showActions && (
-                              <div className="flex items-center gap-2 pt-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex items-center gap-2"
-                                  onClick={() => {
+                              <div className="flex items-center justify-end gap-0.5 pt-1">
+                                <ManualPositionActions
+                                  onEdit={() => {
                                     if (manualDraft?.originalId) {
                                       editByOriginalId(manualDraft.originalId)
                                     } else if (manualDraft) {
@@ -933,15 +935,7 @@ function DepositsViewContent({
                                       editByOriginalId(item.originalId)
                                     }
                                   }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                  {t.common.edit}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-red-500 hover:text-red-600"
-                                  onClick={() => {
+                                  onDelete={() => {
                                     if (manualDraft?.originalId) {
                                       deleteByOriginalId(manualDraft.originalId)
                                     } else if (manualDraft) {
@@ -950,9 +944,7 @@ function DepositsViewContent({
                                       deleteByOriginalId(item.originalId)
                                     }
                                   }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                />
                               </div>
                             )}
                           </div>

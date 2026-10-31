@@ -1,4 +1,6 @@
+import html
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
@@ -37,6 +39,13 @@ CANCELLED_PHASES = ["CLOSED", "CANCELED", "CANCELED_WITH_COMPENSATION"]
 
 INVESTMENT_TXS = ["INVESTMENT", "PREFUNDING_INVESTMENT"]
 REFUND_TXS = ["INVESTMENT_REFUND", "PREFUNDING_INVESTMENT_REFUND", "INVESTMENT_ERROR"]
+
+# Rent projects carry the payment frequency in investmentPeriod ("Quarterly"),
+# their term only appears in the opening line text ("Term: 60 months")
+TERM_PATTERN = re.compile(
+    r"(?:term|plazo)\W*(\d+)(?:\s*-\s*(\d+))?\s*(months?|meses|mes|years?|años|año)",
+    re.IGNORECASE,
+)
 
 
 class UrbanitaeFetcher(FinancialEntityFetcher):
@@ -82,6 +91,21 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=URBANITAE, products=products)
 
+    @staticmethod
+    def _investment_months(investment_period, opening_line) -> Optional[int]:
+        # investmentPeriod may be a single value or a range like "48-54"
+        try:
+            return max(int(p) for p in str(investment_period).split("-"))
+        except ValueError:
+            pass
+
+        match = TERM_PATTERN.search(html.unescape(opening_line or ""))
+        if not match:
+            return None
+        amount = int(match.group(2) or match.group(1))
+        unit = match.group(3).lower()
+        return amount * 12 if unit.startswith(("year", "añ")) else amount
+
     async def _map_investment(self, inv) -> RealEstateCFDetail | None:
         project_id = inv.get("projectId")
         project_details = await self._client.get_project_detail(project_id)
@@ -91,8 +115,17 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             self._log.warning("No details found for project %s", project_id)
             return None
 
-        # investmentPeriod may be a single value or a range like "48-54"
-        months = max(int(p) for p in str(details["investmentPeriod"]).split("-"))
+        months = self._investment_months(
+            details["investmentPeriod"], project_details.get("openingLine")
+        )
+        if months is None:
+            self._log.warning(
+                "No investment term found for project %s (investmentPeriod %r), skipping",
+                project_id,
+                details["investmentPeriod"],
+            )
+            return None
+
         interest_rate = Dezimal(
             fund_details.get("apreciationProfitability")
             or fund_details.get("totalNetProfitability")

@@ -1,4 +1,5 @@
 import base64
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -7,6 +8,7 @@ from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import (
     ExternalEntityLinkError,
     ExternalIntegrationRequired,
+    ProviderPsuTypeNotSupported,
 )
 from domain.external_entity import (
     ExternalEntity,
@@ -14,6 +16,8 @@ from domain.external_entity import (
     ExternalEntityLoginRequest,
     ExternalEntityStatus,
     ExternalEntitySetupResponseCode,
+    ExternalEntityTxFetchRequest,
+    PsuType,
 )
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import AccountType, ProductType
@@ -212,6 +216,169 @@ class TestCompleteLink:
             await fetcher.complete_link(_external_entity(), {})
 
 
+class TestPsuType:
+    @staticmethod
+    def _aspsp(**extra):
+        return {
+            "name": "Bank",
+            "country": "ES",
+            "maximum_consent_validity": 7776000,
+            **extra,
+        }
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_personal_when_bank_lists_no_types(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(return_value=[self._aspsp()])
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(), institution_id="ES:Bank"
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "personal"
+        assert result.payload["psu_type"] == "personal"
+
+    @pytest.mark.asyncio
+    async def test_sends_requested_type_and_stores_it(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["personal", "business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(),
+                institution_id="ES:Bank",
+                psu_type=PsuType.BUSINESS,
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_auto_selects_the_only_listed_type(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-1"}
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(
+                external_entity=_external_entity(), institution_id="ES:Bank"
+            )
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_rejects_requested_type_not_listed_by_bank(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["business"])]
+        )
+        client.start_auth = AsyncMock()
+
+        with pytest.raises(ProviderPsuTypeNotSupported):
+            await fetcher.create_or_link(
+                ExternalEntityLoginRequest(
+                    external_entity=_external_entity(),
+                    institution_id="ES:Bank",
+                    psu_type=PsuType.PERSONAL,
+                )
+            )
+
+        client.start_auth.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_relink_reuses_stored_type(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[self._aspsp(psu_types=["personal", "business"])]
+        )
+        client.start_auth = AsyncMock(
+            return_value={"url": "https://auth", "authorization_id": "auth-2"}
+        )
+        external_entity = _external_entity(
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "psu_type": "business",
+            },
+        )
+
+        result = await fetcher.create_or_link(
+            ExternalEntityLoginRequest(external_entity=external_entity, relink=True)
+        )
+
+        assert client.start_auth.await_args.kwargs["psu_type"] == "business"
+        assert result.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_complete_link_stores_session_type(self):
+        fetcher, client = _make_fetcher()
+        client.create_session = AsyncMock(
+            return_value={
+                "session_id": "sess-1",
+                "accounts": [],
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "access": {"valid_until": "2024-01-01T00:00:00+00:00"},
+                "psu_type": "business",
+            }
+        )
+
+        completion = await fetcher.complete_link(
+            _external_entity(payload={"psu_type": "personal"}), {"code": "code-1"}
+        )
+
+        assert completion.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_complete_link_falls_back_to_stored_type(self):
+        fetcher, client = _make_fetcher()
+        client.create_session = AsyncMock(
+            return_value={
+                "session_id": "sess-1",
+                "accounts": [],
+                "aspsp": {"name": "Bank", "country": "ES"},
+                "access": {"valid_until": "2024-01-01T00:00:00+00:00"},
+            }
+        )
+
+        completion = await fetcher.complete_link(
+            _external_entity(payload={"psu_type": "business"}), {"code": "code-1"}
+        )
+
+        assert completion.payload["psu_type"] == "business"
+
+    @pytest.mark.asyncio
+    async def test_get_entities_exposes_listed_types(self):
+        fetcher, client = _make_fetcher()
+        client.get_aspsps = AsyncMock(
+            return_value=[
+                self._aspsp(psu_types=["personal", "business"]),
+                {"name": "Other", "country": "ES"},
+            ]
+        )
+
+        entities = await fetcher.get_entities(country="ES")
+
+        assert entities[0].psu_types == ["personal", "business"]
+        assert entities[1].psu_types is None
+
+
 class TestGlobalPosition:
     @pytest.mark.asyncio
     async def test_builds_accounts_from_balances(self):
@@ -261,3 +428,148 @@ class TestGlobalPosition:
         assert accounts[0].currency == "EUR"
         assert accounts[0].type == AccountType.SAVINGS
         assert accounts[0].iban == "ES123"
+
+    @pytest.mark.asyncio
+    async def test_builds_checking_account_when_it_is_the_only_account(self):
+        fetcher, client = _make_fetcher()
+        client.get_account_balances = AsyncMock(
+            return_value={
+                "balances": [
+                    {
+                        "balance_type": "CLAV",
+                        "balance_amount": {"amount": "42.00", "currency": "EUR"},
+                    }
+                ]
+            }
+        )
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "N26"},
+                "accounts": [
+                    {
+                        "uid": "checking-account",
+                        "currency": "EUR",
+                        "name": "Main",
+                        "cash_account_type": "CACC",
+                    }
+                ],
+            },
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="N26",
+            natural_id="N26",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        position = await fetcher.global_position(
+            ExternalEntityFetchRequest(external_entity=external_entity, entity=entity)
+        )
+
+        accounts = position.products[ProductType.ACCOUNT].entries
+        assert len(accounts) == 1
+        assert str(accounts[0].total) == "42.00"
+        assert accounts[0].type == AccountType.CHECKING
+
+    @pytest.mark.asyncio
+    async def test_missing_balance_log_includes_safe_account_metadata(self, caplog):
+        fetcher, client = _make_fetcher()
+        client.get_account_balances = AsyncMock(return_value={"balances": []})
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            provider_instance_id="sess-1",
+            payload={
+                "aspsp": {"name": "N26"},
+                "accounts": [
+                    {
+                        "uid": "private-account-uid",
+                        "currency": "EUR",
+                        "cash_account_type": "CACC",
+                    }
+                ],
+            },
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="N26",
+            natural_id="N26",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        await fetcher.global_position(
+            ExternalEntityFetchRequest(external_entity=external_entity, entity=entity)
+        )
+
+        assert "N26" in caplog.text
+        assert "CACC" in caplog.text
+        assert "balance count 0" in caplog.text
+        assert "private-account-uid" not in caplog.text
+
+
+class TestTransactions:
+    @pytest.mark.asyncio
+    async def test_paginates_and_skips_registered_refs(self):
+        fetcher, client = _make_fetcher()
+        client.get_account_transactions = AsyncMock(
+            side_effect=[
+                {
+                    "transactions": [
+                        {
+                            "entry_reference": "A",
+                            "transaction_amount": {"currency": "EUR", "amount": "10"},
+                            "credit_debit_indicator": "DBIT",
+                            "status": "BOOK",
+                            "booking_date": "2026-09-01",
+                        }
+                    ],
+                    "continuation_key": "next",
+                },
+                {
+                    "transactions": [
+                        {
+                            "entry_reference": "B",
+                            "transaction_amount": {"currency": "EUR", "amount": "5"},
+                            "credit_debit_indicator": "CRDT",
+                            "status": "BOOK",
+                            "booking_date": "2026-09-02",
+                        }
+                    ],
+                    "continuation_key": None,
+                },
+            ]
+        )
+        external_entity = _external_entity(
+            status=ExternalEntityStatus.LINKED,
+            payload={"accounts": [{"uid": "acc-uid", "iban": "ES123"}]},
+        )
+        entity = Entity(
+            id=uuid4(),
+            name="Bank",
+            natural_id="BANKESMM",
+            type=EntityType.FINANCIAL_INSTITUTION,
+            origin=EntityOrigin.EXTERNALLY_PROVIDED,
+            icon_url=None,
+        )
+
+        result = await fetcher.transactions(
+            ExternalEntityTxFetchRequest(
+                external_entity=external_entity,
+                entity=entity,
+                from_date=date(2026, 8, 1),
+                registered_txs={"ES123:A"},
+            )
+        )
+
+        assert [tx.ref for tx in result.account] == ["ES123:B"]
+        assert result.account[0].iban == "ES123"
+        assert client.get_account_transactions.await_args_list[1].args == (
+            "acc-uid",
+            "2026-08-01",
+            "next",
+        )

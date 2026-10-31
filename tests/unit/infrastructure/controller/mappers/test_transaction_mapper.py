@@ -3,9 +3,16 @@ from uuid import UUID
 import pytest
 
 from domain.global_position import ProductType
-from domain.transactions import AddManualTransactionRequest, FundTx, TxType
+from domain.transactions import (
+    AccountTx,
+    AddManualTransactionRequest,
+    FundTx,
+    TxType,
+    UpdateManualTransactionRequest,
+)
 from infrastructure.controller.mappers.transaction_mapper import (
     map_add_manual_transaction,
+    map_update_manual_transaction,
 )
 
 ENTITY_ID = "e0000000-0000-0000-0000-000000000001"
@@ -103,3 +110,60 @@ def test_map_empty_list_raises():
 def test_map_invalid_body_raises():
     with pytest.raises(ValueError, match="Body must be a JSON object or array"):
         map_add_manual_transaction("invalid")
+
+
+def _account_body(**overrides):
+    body = {
+        "product_type": "ACCOUNT",
+        "entity_id": ENTITY_ID,
+        "date": "2025-03-01T12:00:00",
+        "ref": "TX-ACC",
+        "name": "Transfer",
+        "amount": "100",
+        "currency": "EUR",
+        "type": "INFLOW",
+    }
+    body.update(overrides)
+    return body
+
+
+def test_map_account_iban_is_normalized():
+    tx = map_add_manual_transaction(_account_body(iban=" es76 0000 0001 ")).txs[0]
+    assert isinstance(tx, AccountTx)
+    assert tx.iban == "ES7600000001"
+
+    tx = map_add_manual_transaction(_account_body(iban="")).txs[0]
+    assert tx.iban is None
+
+
+def test_map_account_invalid_iban_raises():
+    with pytest.raises(ValueError, match="Invalid IBAN"):
+        map_add_manual_transaction(_account_body(iban="ES76-0001"))
+
+
+def test_map_external_labeling_defaults_to_none():
+    assert map_add_manual_transaction(_account_body()).external_labeling is None
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_map_external_labeling(value):
+    request = map_add_manual_transaction(_account_body(external_labeling=value))
+    assert request.external_labeling is value
+
+
+def test_map_external_labeling_invalid_raises():
+    with pytest.raises(ValueError, match="external_labeling must be a boolean"):
+        map_add_manual_transaction(_account_body(external_labeling="yes"))
+
+
+def test_map_update_manual_transaction():
+    tx_id = UUID("b0000000-0000-0000-0000-000000000001")
+    request = map_update_manual_transaction(
+        _account_body(external_labeling=False), tx_id
+    )
+    assert isinstance(request, UpdateManualTransactionRequest)
+    assert request.tx.id == tx_id
+    assert request.external_labeling is False
+
+    request = map_update_manual_transaction(_account_body(), tx_id)
+    assert request.external_labeling is None

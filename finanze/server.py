@@ -2,7 +2,9 @@ import argparse
 import asyncio
 import logging
 import os
+import signal
 import socket
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 import uvicorn
@@ -16,6 +18,9 @@ from application.use_cases.calculate_savings import CalculateSavingsImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
+)
+from application.use_cases.complete_external_integration_connection import (
+    CompleteExternalIntegrationConnectionImpl,
 )
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
@@ -71,6 +76,11 @@ from application.use_cases.get_external_integrations import GetExternalIntegrati
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_gains_timeline import GetGainsTimelineImpl
 from application.use_cases.get_networth_timeline import GetNetworthTimelineImpl
+from application.use_cases.get_networth_summary import GetNetworthSummaryImpl
+from application.use_cases.get_mcp_config import GetMcpConfigImpl
+from application.use_cases.update_mcp_config import UpdateMcpConfigImpl
+from application.use_cases.regenerate_mcp_token import RegenerateMcpTokenImpl
+from application.use_cases.authorize_mcp_access import AuthorizeMcpAccessImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_market_forecast_closed_positions import (
@@ -117,6 +127,42 @@ from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
+from application.use_cases.create_label import CreateLabelImpl
+from application.use_cases.create_labeling_rule import CreateLabelingRuleImpl
+from application.use_cases.delete_label import DeleteLabelImpl
+from application.use_cases.delete_labeling_rule import DeleteLabelingRuleImpl
+from application.use_cases.get_external_labeling_providers import (
+    GetExternalLabelingProvidersImpl,
+)
+from application.use_cases.get_external_labeling_models import (
+    GetExternalLabelingModelsImpl,
+)
+from application.use_cases.get_local_models import GetLocalModelsImpl
+from application.use_cases.download_local_model import DownloadLocalModelImpl
+from application.use_cases.delete_local_model import DeleteLocalModelImpl
+from application.use_cases.list_hugging_face_quants import (
+    ListHuggingFaceQuantsImpl,
+)
+from application.use_cases.import_local_model import ImportLocalModelImpl
+from application.use_cases.get_labeling_rules import GetLabelingRulesImpl
+from application.use_cases.get_labels import GetLabelsImpl
+from application.use_cases.preview_labeling_rule import PreviewLabelingRuleImpl
+from application.use_cases.relabel_transactions import RelabelTransactionsImpl
+from application.use_cases.update_label import UpdateLabelImpl
+from application.use_cases.update_labeling_rule import UpdateLabelingRuleImpl
+from application.use_cases.update_transaction_labels import (
+    UpdateTransactionLabelsImpl,
+)
+from application.use_cases.validate_ai_model import ValidateAIModelImpl
+from application.use_cases.get_ai_server_info import GetAIServerInfoImpl
+from application.use_cases.get_cashflow_summary import GetCashflowSummaryImpl
+from application.use_cases.get_recurring_movements import GetRecurringMovementsImpl
+from application.use_cases.ignore_recurring_movement import (
+    IgnoreRecurringMovementImpl,
+)
+from application.use_cases.restore_recurring_movement import (
+    RestoreRecurringMovementImpl,
+)
 from domain.backup import BackupFileType
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
@@ -126,6 +172,20 @@ from infrastructure.client.cloud.backup.backup_client import BackupClient
 from infrastructure.client.cloud.backup.http_file_transfer_strategy import (
     HttpFileTransferStrategy,
 )
+from infrastructure.client.ai.openai.openai_client import OpenAIClient
+from infrastructure.client.ai.openai_compatible.openai_compatible_client import (
+    OpenAICompatibleClient,
+)
+from infrastructure.client.ai.openrouter.openrouter_client import OpenRouterClient
+from infrastructure.local_models.huggingface_catalog_client import (
+    HuggingFaceCatalogClient,
+)
+from infrastructure.local_models.llama_router_client import LlamaRouterClient
+from infrastructure.local_models.llama_router_process import LlamaRouterProcess
+from infrastructure.local_models.local_model_catalog import StaticLocalModelCatalog
+from infrastructure.local_models.local_model_imports import LocalModelFileImports
+from infrastructure.local_models.local_model_runtime import LocalModelRuntimeAdapter
+from infrastructure.local_models.local_models_ai_client import LocalModelsAIClient
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.zerion.zerion_client import ZerionClient
@@ -206,7 +266,10 @@ from infrastructure.cloud.backup.backup_processor_adapter import (
     BackupProcessorAdapter,
 )
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
-from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.config.legacy_config_backup_importer import (
+    LegacyConfigBackupImporter,
+)
 from infrastructure.config.server_details_adapter import (
     ServerDetailsAdapter,
     detect_distribution,
@@ -221,10 +284,26 @@ from infrastructure.crypto.public_key_derivation_adapter import (
 )
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.keychain.public_keychain_adapter import PublicKeychainAdapter
+from infrastructure.labeling.ai_labeling_presets import (
+    LABELING_BATCH_SIZES,
+    LABELING_PRESETS,
+)
+from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
+from infrastructure.labeling.transaction_labeler_adapter import (
+    TransactionLabelerAdapter,
+)
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
 from infrastructure.file_storage.local_file_storage import LocalFileStorage
+from infrastructure.mcp.gateway import McpGateway
+from infrastructure.mcp.server_factory import (
+    MCP_PATH,
+    build_http_app,
+    build_mcp_server,
+)
+from infrastructure.mcp.use_cases import McpUseCases
+from infrastructure.mcp.tool_catalog import McpToolCatalog
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -269,6 +348,17 @@ from infrastructure.repository.fetch.fetch_pointers_repository import (
 from infrastructure.repository.keychain.public_keychain_repository import (
     PublicKeychainRepository,
 )
+from infrastructure.repository.labeling.label_repository import LabelRepository
+from infrastructure.repository.mcp.mcp_config_repository import McpConfigRepository
+from infrastructure.repository.cashflow.ignored_recurring_movement_repository import (
+    IgnoredRecurringMovementRepository,
+)
+from infrastructure.repository.labeling.labeling_rule_repository import (
+    LabelingRuleRepository,
+)
+from infrastructure.repository.labeling.transaction_label_repository import (
+    TransactionLabelRepository,
+)
 from infrastructure.repository.position.manual_position_data_repository import (
     ManualPositionDataSQLRepository,
 )
@@ -285,6 +375,7 @@ from infrastructure.repository.instrument_history.instrument_price_history_repos
     InstrumentPriceHistorySQLRepository,
 )
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
+from infrastructure.repository.settings.settings_repository import SettingsRepository
 from infrastructure.repository.templates.template_repository import TemplateRepository
 from infrastructure.repository.tracked_updates.tracked_updates_repository import (
     TrackedUpdatesRepository,
@@ -304,13 +395,24 @@ from infrastructure.telemetry.noop_error_reporter import NoopErrorReporter
 from infrastructure.telemetry.sentry_error_reporter import SentryErrorReporter
 from infrastructure.user_files.user_data_manager import UserDataManager
 
+GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 5
+
+
+async def serve(server: uvicorn.Server):
+    # uvicorn re-raises SIGTERM after shutting down, which would skip our cleanup
+    signal.signal(signal.SIGTERM, lambda *_: None)
+    await server.serve()
+
 
 class FinanzeServer:
     def __init__(self, args: argparse.Namespace):
         self._args = args
         self._quart_app = None
+        self._asgi_app = None
+        self._mcp_servers = []
         self._db_client = None
         self._financial_entity_fetchers = None
+        self._local_model_runtime = None
         self._error_reporter = NoopErrorReporter()
         self._log = logging.getLogger(__name__)
 
@@ -368,7 +470,8 @@ class FinanzeServer:
 
         static_upload_dir = args.data_dir / Path("static")
 
-        config_loader = ConfigLoader()
+        settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
+        mcp_config_repository = McpConfigRepository(db_client)
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -377,6 +480,29 @@ class FinanzeServer:
         gocardless_client = GoCardlessClient(port=args.port)
         enablebanking_client = EnableBankingClient()
         polymarket_fetcher = PolymarketFetcher()
+        models_dir = args.data_dir / Path("models")
+        llama_router = LlamaRouterClient()
+        llama_process = LlamaRouterProcess(
+            args.llama_server_path, models_dir, llama_router
+        )
+        await llama_process.cleanup_stale()
+        local_model_runtime = LocalModelRuntimeAdapter(
+            llama_process,
+            os.getenv("FINANZE_LLAMA_SERVER_URL"),
+            os.getenv("FINANZE_LLAMA_SERVER_API_KEY"),
+        )
+        self._local_model_runtime = local_model_runtime
+        local_model_imports = LocalModelFileImports(models_dir)
+        local_model_catalog = StaticLocalModelCatalog()
+        hugging_face_catalog = HuggingFaceCatalogClient()
+        ai_clients = {
+            ExternalIntegrationId.OPENROUTER: OpenRouterClient(),
+            ExternalIntegrationId.OPENAI: OpenAIClient(),
+            ExternalIntegrationId.OPENAI_COMPATIBLE: OpenAICompatibleClient(),
+            ExternalIntegrationId.LOCAL_MODELS: LocalModelsAIClient(
+                local_model_runtime, llama_router, local_model_catalog
+            ),
+        }
 
         crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -432,6 +558,16 @@ class FinanzeServer:
             ExternalIntegrationId.ENABLE_BANKING: enablebanking_client,
             ExternalIntegrationId.ETHPLORER: ethplorer_client,
             ExternalIntegrationId.ZERION: zerion_client,
+            **ai_clients,
+        }
+
+        external_labeling_providers = {
+            integration_id: AILabelingProvider(
+                client,
+                LABELING_PRESETS.get(integration_id, []),
+                LABELING_BATCH_SIZES.get(integration_id),
+            )
+            for integration_id, client in ai_clients.items()
         }
 
         sheets_adapter = SheetsAdapter(sheets_initiator)
@@ -476,6 +612,12 @@ class FinanzeServer:
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
         entity_account_repository = EntityAccountRepository(client=db_client)
+        label_repository = LabelRepository(client=db_client)
+        labeling_rule_repository = LabelingRuleRepository(client=db_client)
+        transaction_label_repository = TransactionLabelRepository(client=db_client)
+        ignored_recurring_movement_repository = IgnoredRecurringMovementRepository(
+            client=db_client
+        )
 
         public_keychain_data_repository = PublicKeychainRepository(client=db_client)
         public_keychain_fetcher_client = PublicKeychainClient()
@@ -503,10 +645,21 @@ class FinanzeServer:
 
         transaction_handler = TransactionHandler(client=db_client)
 
+        transaction_labeler = TransactionLabelerAdapter(
+            transaction_port=transaction_repository,
+            transaction_label_port=transaction_label_repository,
+            labeling_rule_port=labeling_rule_repository,
+            label_port=label_repository,
+            config_port=settings_repository,
+            external_integration_port=external_integration_repository,
+            providers=external_labeling_providers,
+            transaction_handler_port=transaction_handler,
+        )
+
         user_login = UserLoginImpl(
             db_manager,
             data_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
@@ -514,12 +667,14 @@ class FinanzeServer:
         register_user = RegisterUserImpl(
             db_manager,
             data_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
         )
-        change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
+        change_user_password = ChangeUserPasswordImpl(
+            db_manager, data_manager, settings_repository
+        )
         server_options_port = ServerDetailsAdapter(args)
         if os.getenv("ENV_FF"):
             feature_flag_port = EnvFeatureFlagAdapter()
@@ -538,7 +693,7 @@ class FinanzeServer:
         )
         user_logout = UserLogoutImpl(
             db_manager,
-            config_loader,
+            settings_repository,
             sheets_initiator,
             cloud_register,
             self._error_reporter,
@@ -564,7 +719,7 @@ class FinanzeServer:
             transaction_repository,
             historic_repository,
             financial_entity_fetchers,
-            config_loader,
+            settings_repository,
             credentials_port,
             sessions_repository,
             last_fetches_repository,
@@ -577,6 +732,8 @@ class FinanzeServer:
             real_estate_repository,
             feature_flag_port,
             fetch_pointers_port=fetch_pointers_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
             error_reporter=self._error_reporter,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
@@ -599,6 +756,8 @@ class FinanzeServer:
             external_integration_repository,
             last_fetches_repository,
             transaction_handler,
+            transaction_repository,
+            transaction_labeler,
         )
         export_sheets = ExportSheetsImpl(
             position_repository,
@@ -611,7 +770,7 @@ class FinanzeServer:
             entity_repository,
             template_repository,
             template_processor,
-            config_loader,
+            settings_repository,
         )
         export_file = ExportFileImpl(
             position_repository,
@@ -629,11 +788,13 @@ class FinanzeServer:
             sheets_adapter,
             entity_repository,
             external_integration_repository,
-            config_loader,
+            settings_repository,
             virtual_import_registry,
             template_repository,
             template_parser,
             transaction_handler,
+            transaction_label_repository,
+            transaction_labeler,
         )
         import_file = ImportFileImpl(
             position_port=position_repository,
@@ -644,6 +805,7 @@ class FinanzeServer:
             template_port=template_repository,
             template_parser=template_parser,
             transaction_handler_port=transaction_handler,
+            transaction_labeler=transaction_labeler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
             financial_entity_fetchers,
@@ -665,8 +827,8 @@ class FinanzeServer:
             historic_repository,
             fetch_pointers_repository,
         )
-        get_settings = GetSettingsImpl(config_loader)
-        update_settings = UpdateSettingsImpl(config_loader)
+        get_settings = GetSettingsImpl(settings_repository)
+        update_settings = UpdateSettingsImpl(settings_repository)
         get_telemetry_consent = GetTelemetryConsentImpl(telemetry_consent_port)
         update_telemetry_consent = UpdateTelemetryConsentImpl(
             telemetry_consent_port, self._error_reporter
@@ -691,6 +853,16 @@ class FinanzeServer:
             real_estate_repository,
             historic_metal_price_client,
         )
+        get_networth_summary = GetNetworthSummaryImpl(
+            position_repository,
+            entity_repository,
+            real_estate_repository,
+            exchange_rate_storage,
+        )
+        get_mcp_config = GetMcpConfigImpl(mcp_config_repository)
+        update_mcp_config = UpdateMcpConfigImpl(mcp_config_repository)
+        regenerate_mcp_token = RegenerateMcpTokenImpl(mcp_config_repository)
+        authorize_mcp_access = AuthorizeMcpAccessImpl(mcp_config_repository, db_manager)
         get_transactions = GetTransactionsImpl(
             transaction_repository, entity_repository
         )
@@ -727,6 +899,9 @@ class FinanzeServer:
             external_entity_repository,
             external_entity_fetchers,
             external_integration_repository,
+            transaction_repository,
+            last_fetches_repository,
+            transaction_handler,
         )
         get_available_external_entities = GetAvailableExternalEntitiesImpl(
             entity_repository,
@@ -771,7 +946,14 @@ class FinanzeServer:
             external_integrations,
         )
         disconnect_external_integrations = DisconnectExternalIntegrationImpl(
-            external_integration_repository
+            external_integration_repository,
+            external_integrations,
+        )
+        complete_external_integration_connection = (
+            CompleteExternalIntegrationConnectionImpl(
+                external_integration_repository,
+                external_integrations,
+            )
         )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
@@ -781,8 +963,12 @@ class FinanzeServer:
             crypto_asset_info_client, entity_repository
         )
 
-        save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
-        update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
+        save_periodic_flow = SavePeriodicFlowImpl(
+            periodic_flow_repository, label_repository
+        )
+        update_periodic_flow = UpdatePeriodicFlowImpl(
+            periodic_flow_repository, label_repository
+        )
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
         get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
         save_pending_flow = SavePendingFlowImpl(pending_flow_repository)
@@ -863,12 +1049,18 @@ class FinanzeServer:
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
             historic_port=historic_repository,
+            label_port=label_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
             transaction_port=transaction_repository,
             virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
+            label_port=label_repository,
+            transaction_label_port=transaction_label_repository,
+            transaction_labeler=transaction_labeler,
         )
         delete_manual_transaction = DeleteManualTransactionImpl(
             transaction_port=transaction_repository,
@@ -941,12 +1133,110 @@ class FinanzeServer:
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
 
+        get_labels = GetLabelsImpl(label_repository)
+        create_label = CreateLabelImpl(label_repository)
+        update_label = UpdateLabelImpl(label_repository)
+        delete_label = DeleteLabelImpl(
+            label_repository, labeling_rule_repository, transaction_handler
+        )
+        get_labeling_rules = GetLabelingRulesImpl(labeling_rule_repository)
+        create_labeling_rule = CreateLabelingRuleImpl(
+            labeling_rule_repository,
+            label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        update_labeling_rule = UpdateLabelingRuleImpl(
+            labeling_rule_repository,
+            label_repository,
+            transaction_label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        delete_labeling_rule = DeleteLabelingRuleImpl(
+            labeling_rule_repository, transaction_label_repository, transaction_handler
+        )
+        preview_labeling_rule = PreviewLabelingRuleImpl(transaction_repository)
+        relabel_transactions = RelabelTransactionsImpl(
+            transaction_repository,
+            transaction_label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        update_transaction_labels = UpdateTransactionLabelsImpl(
+            transaction_repository,
+            transaction_label_repository,
+            label_repository,
+            transaction_labeler,
+            transaction_handler,
+        )
+        get_external_labeling_providers = GetExternalLabelingProvidersImpl(
+            external_integration_repository, external_labeling_providers
+        )
+        get_external_labeling_models = GetExternalLabelingModelsImpl(
+            external_integration_repository, external_labeling_providers
+        )
+        validate_ai_model = ValidateAIModelImpl(
+            external_integration_repository, ai_clients
+        )
+        get_ai_server_info = GetAIServerInfoImpl(
+            external_integration_repository, ai_clients
+        )
+        get_local_models = GetLocalModelsImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
+            local_model_catalog,
+        )
+        download_local_model = DownloadLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_catalog,
+            hugging_face_catalog,
+        )
+        delete_local_model = DeleteLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
+        )
+        list_hugging_face_quants = ListHuggingFaceQuantsImpl(hugging_face_catalog)
+        import_local_model = ImportLocalModelImpl(
+            external_integration_repository,
+            local_model_runtime,
+            llama_router,
+            local_model_imports,
+        )
+        get_cashflow_summary = GetCashflowSummaryImpl(
+            transaction_repository,
+            label_repository,
+            entity_repository,
+            exchange_rate_storage,
+            periodic_flow_repository,
+            auto_contrib_repository,
+        )
+        get_recurring_movements = GetRecurringMovementsImpl(
+            transaction_repository,
+            label_repository,
+            entity_repository,
+            periodic_flow_repository,
+            exchange_rate_storage,
+            ignored_recurring_movement_repository,
+        )
+        ignore_recurring_movement = IgnoreRecurringMovementImpl(
+            ignored_recurring_movement_repository
+        )
+        restore_recurring_movement = RestoreRecurringMovementImpl(
+            ignored_recurring_movement_repository
+        )
+
         backup_processor = BackupProcessorAdapter()
         backup_repository = BackupClient(HttpFileTransferStrategy())
 
         backupable_ports = {
             BackupFileType.DATA: db_manager,
-            BackupFileType.CONFIG: config_loader,
         }
         upload_backup = UploadBackupImpl(
             data_initiator=db_manager,
@@ -963,6 +1253,8 @@ class FinanzeServer:
             backup_repository=backup_repository,
             backup_local_registry=cloud_register,
             cloud_register=cloud_register,
+            legacy_config_importer=LegacyConfigBackupImporter(settings_repository),
+            error_reporter=self._error_reporter,
         )
         get_backups = GetBackupsImpl(
             backupable_ports=backupable_ports,
@@ -995,6 +1287,7 @@ class FinanzeServer:
         self._log.info("Setting up REST API...")
 
         self._quart_app = quart(static_upload_dir, self._error_reporter)
+        mcp_tool_catalog = McpToolCatalog()
         await register_routes(
             self._quart_app,
             user_login,
@@ -1036,6 +1329,7 @@ class FinanzeServer:
             get_external_integrations,
             connect_external_integrations,
             disconnect_external_integrations,
+            complete_external_integration_connection,
             save_periodic_flow,
             update_periodic_flow,
             delete_periodic_flow,
@@ -1084,6 +1378,120 @@ class FinanzeServer:
             get_euribor_rates,
             get_telemetry_consent,
             update_telemetry_consent,
+            get_labels_uc=get_labels,
+            create_label_uc=create_label,
+            update_label_uc=update_label,
+            delete_label_uc=delete_label,
+            get_labeling_rules_uc=get_labeling_rules,
+            create_labeling_rule_uc=create_labeling_rule,
+            update_labeling_rule_uc=update_labeling_rule,
+            delete_labeling_rule_uc=delete_labeling_rule,
+            preview_labeling_rule_uc=preview_labeling_rule,
+            relabel_transactions_uc=relabel_transactions,
+            update_transaction_labels_uc=update_transaction_labels,
+            get_external_labeling_providers_uc=get_external_labeling_providers,
+            get_external_labeling_models_uc=get_external_labeling_models,
+            validate_ai_model_uc=validate_ai_model,
+            get_ai_server_info_uc=get_ai_server_info,
+            get_cashflow_summary_uc=get_cashflow_summary,
+            get_recurring_movements_uc=get_recurring_movements,
+            ignore_recurring_movement_uc=ignore_recurring_movement,
+            restore_recurring_movement_uc=restore_recurring_movement,
+            get_mcp_config_uc=get_mcp_config,
+            update_mcp_config_uc=update_mcp_config,
+            regenerate_mcp_token_uc=regenerate_mcp_token,
+            mcp_tool_catalog=mcp_tool_catalog,
+            get_local_models_uc=get_local_models,
+            download_local_model_uc=download_local_model,
+            delete_local_model_uc=delete_local_model,
+            list_hugging_face_quants_uc=list_hugging_face_quants,
+            import_local_model_uc=import_local_model,
+        )
+
+        self._log.info("Setting up MCP server...")
+        mcp_use_cases = McpUseCases(
+            get_settings=get_settings,
+            get_available_entities=get_available_entities,
+            get_networth_summary=get_networth_summary,
+            get_position=get_entities_position,
+            update_position=update_position,
+            get_contributions=get_contributions,
+            update_contributions=update_contributions,
+            get_historic=get_historic,
+            settle_manual_investment=settle_manual_investment,
+            partial_amortize_manual_investment=partial_amortize_manual_investment,
+            unsettle_manual_investment=unsettle_manual_investment,
+            delete_manual_historic_entry=delete_manual_historic_entry,
+            get_networth_timeline=get_networth_timeline,
+            get_gains_timeline=get_gains_timeline,
+            get_transactions=get_transactions,
+            add_manual_transaction=add_manual_transaction,
+            update_manual_transaction=update_manual_transaction,
+            delete_manual_transaction=delete_manual_transaction,
+            update_transaction_labels=update_transaction_labels,
+            get_periodic_flows=get_periodic_flows,
+            save_periodic_flow=save_periodic_flow,
+            update_periodic_flow=update_periodic_flow,
+            delete_periodic_flow=delete_periodic_flow,
+            query_pending_flows=query_pending_flows,
+            save_pending_flow=save_pending_flow,
+            update_pending_flow=update_pending_flow,
+            delete_pending_flow=delete_pending_flow,
+            settle_pending_flow=settle_pending_flow,
+            get_money_events=get_money_events,
+            get_labels=get_labels,
+            create_label=create_label,
+            update_label=update_label,
+            delete_label=delete_label,
+            get_labeling_rules=get_labeling_rules,
+            create_labeling_rule=create_labeling_rule,
+            update_labeling_rule=update_labeling_rule,
+            delete_labeling_rule=delete_labeling_rule,
+            preview_labeling_rule=preview_labeling_rule,
+            relabel_transactions=relabel_transactions,
+            get_cashflow_summary=get_cashflow_summary,
+            get_recurring_movements=get_recurring_movements,
+            ignore_recurring_movement=ignore_recurring_movement,
+            restore_recurring_movement=restore_recurring_movement,
+            get_exchange_rates=get_exchange_rates,
+            get_euribor_rates=get_euribor_rates,
+            get_instruments=get_instruments,
+            get_instrument_info=get_instrument_info,
+            search_crypto_assets=search_crypto_assets,
+            get_crypto_asset_details=get_crypto_asset_details,
+            get_crypto_wallet_addresses=get_crypto_wallet_addresses,
+            derive_crypto_addresses=derive_crypto_addresses,
+            connect_crypto_wallet=connect_crypto_wallet,
+            update_crypto_wallet=update_crypto_wallet,
+            delete_crypto_wallet=delete_crypto_wallet,
+            fetch_crypto_data=fetch_crypto_data,
+            save_commodities=save_commodities,
+            get_external_integrations=get_external_integrations,
+            connect_external_integration=connect_external_integrations,
+            disconnect_external_integration=disconnect_external_integrations,
+            list_real_estate=list_real_estate,
+            create_real_estate=create_real_estate,
+            update_real_estate=update_real_estate,
+            delete_real_estate=delete_real_estate,
+            calculate_savings=calculate_savings,
+            calculate_loan=calculate_loan,
+            forecast=forecast,
+            fetch_financial_data=fetch_financial_data,
+        )
+        version = resolve_version()
+        self._mcp_servers = [
+            build_mcp_server(
+                mcp_use_cases,
+                version,
+                writes_enabled,
+                self._error_reporter,
+                mcp_tool_catalog,
+            )
+            for writes_enabled in (False, True)
+        ]
+        read_app, full_app = [build_http_app(s) for s in self._mcp_servers]
+        self._asgi_app = McpGateway(
+            self._quart_app, read_app, full_app, authorize_mcp_access, MCP_PATH
         )
 
         self._log.info("Warming up exchange rates...")
@@ -1124,17 +1532,21 @@ class FinanzeServer:
         self._log.info("Starting server...")
 
         config = uvicorn.Config(
-            self._quart_app,
+            self._asgi_app,
             host="0.0.0.0",
             port=self._args.port,
             log_config=None,
             log_level=None,
             access_log=True,
+            timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS,
         )
         server = uvicorn.Server(config)
 
         try:
-            await server.serve()
+            async with AsyncExitStack() as stack:
+                for mcp_server in self._mcp_servers:
+                    await stack.enter_async_context(mcp_server.session_manager.run())
+                await serve(server)
         except OSError as e:
             self._log.error(f"Could not start server on port {self._args.port}: {e}")
             if e.errno == 48:
@@ -1151,8 +1563,17 @@ class FinanzeServer:
             self._log.info("Finanze server shutting down.")
             await self._error_reporter.flush()
             await self._close_financial_entity_fetchers()
+            await self._stop_local_models()
             if self._db_client and await self._db_client.silent_close():
                 self._log.info("Database connection closed.")
+
+    async def _stop_local_models(self):
+        if self._local_model_runtime is None:
+            return
+        try:
+            await self._local_model_runtime.stop()
+        except Exception:
+            self._log.warning("Error stopping local models runtime", exc_info=True)
 
     async def _close_financial_entity_fetchers(self):
         fetchers = self._financial_entity_fetchers or {}

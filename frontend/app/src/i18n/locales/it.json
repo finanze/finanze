@@ -1,6 +1,7 @@
 {
   "common": {
     "back": "Indietro",
+    "backTo": "Torna a {page}",
     "backToTop": "Torna in alto",
     "submit": "Continua",
     "loading": "Caricamento...",
@@ -205,10 +206,12 @@
     "averageBuyPrice": "Prezzo medio di acquisto",
     "perSharePrice": "per quota",
     "isin": "ISIN",
+    "ticker": "Ticker",
     "portfolio": "Portafoglio",
     "ofInvestmentType": "di {type}",
     "noPositionsFound": "Nessuna posizione di {type} trovata per le entità selezionate",
     "noPositionsAvailable": "Nessun {type} disponibile",
+    "noInvestmentsRegistered": "Nessun investimento registrato",
     "numberOfAssets": "Numero di beni",
     "asset": "bene",
     "assets": "beni",
@@ -481,6 +484,7 @@
     "invalidPasswordFormat": "La chiave di crittografia deve contenere almeno 8 caratteri",
     "inAppConfirmationTitle": "Conferma l'accesso su",
     "inAppConfirmationMessage": "Apri l'app dell'istituto finanziario sul tuo telefono e conferma la richiesta di accesso.",
+    "inAppOldTxsConfirmationMessage": "Apri l'app dell'istituto finanziario sul tuo telefono e conferma la richiesta di accesso ai movimenti più vecchi.",
     "challengeTitle": "Verifica di sicurezza per",
     "challengeMessage": "Completa la verifica di sicurezza per continuare.",
     "cloudRestore": {
@@ -504,14 +508,22 @@
       "guestCreationFailed": "Impossibile preparare l'account. Riprova.",
       "loginAfterRestoreFailed": "Dati ripristinati ma l'accesso non è riuscito. Prova ad accedere manualmente.",
       "backToSignup": "Torna alla registrazione"
+    },
+    "regionRestricted": {
+      "title": "Non disponibile nel tuo paese",
+      "description": "Finanze non può essere utilizzata nel tuo paese o regione attuale. Ci scusiamo per l'inconveniente."
     }
   },
   "pinpad": {
     "enterCode": "Inserisci il codice a {length} cifre per",
+    "authenticatorHint": "Inserisci il codice della tua app di autenticazione.",
     "codeDelayTip": "Info: a volte il codice 2FA può metterci un po' ad arrivare",
+    "twoFactorOldTxsHint": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo per recuperare anche i movimenti più vecchi dei conti.",
+    "twoFactorOldTxsHintDestination": "I dati principali sono già stati recuperati. Inserisci il codice aggiuntivo inviato a {destination} per recuperare anche i movimenti più vecchi dei conti.",
     "cancelConfirmationTitle": "Annullare la verifica?",
     "cancelLoginDescription": "Vuoi uscire dal processo di accesso?",
     "cancelFetchDescription": "Vuoi uscire dal processo di recupero?",
+    "cancelOldTxsDescription": "I dati principali sono già salvati. Vuoi saltare i movimenti più vecchi dei conti?",
     "pendingRequests": "Altre entità richiedono un codice",
     "switchToEntity": "{entity}",
     "otpInputLabel": "Codice di verifica"
@@ -520,6 +532,12 @@
     "INVALID_CODE": "Codice fornito non valido",
     "INVALID_CREDENTIALS": "Credenziali non valide per {entity}",
     "INVALID_PRIVATE_KEY": "La chiave privata fornita per {integration} non è valida.",
+    "INVALID_URL": "L'URL di {integration} non è valido.",
+    "UNREACHABLE": "Impossibile raggiungere {integration}. Verifica che il server sia in esecuzione e che l'URL sia corretto.",
+    "NOT_A_MODEL_ROUTER": "Questo server serve un solo modello. Collegalo come Custom AI, oppure avvia llama-server senza -m per gestire i modelli da Finanze.",
+    "MISSING_SERVER_URL": "Inserisci l'URL del server per {integration}.",
+    "AUTHORIZATION_DENIED": "L'accesso a {integration} è stato negato o non sono stati concessi i permessi necessari.",
+    "AUTHORIZATION_EXPIRED": "L'autorizzazione di {integration} è scaduta o non è più valida. Riprova.",
     "NO_CREDENTIALS_AVAILABLE": "Nessuna credenziale disponibile per {entity}",
     "UNEXPECTED_ERROR": "Si è verificato un errore imprevisto con {entity}",
     "UNAUTHORIZED": "Credenziali non valide o scadute per {entity}",
@@ -534,6 +552,7 @@
     "LINK_EXPIRED": "Il link di connessione è scaduto. Ricollega l'entità per continuare.",
     "PARTIALLY_COMPLETED": "Non tutte le fonti sono state caricate correttamente per {entity}.",
     "PARTIALLY_COMPLETED_FEATURES": "Alcune funzionalità non sono state caricate per {entity}: {features}.",
+    "OLD_TXS_MAIN_DEVICE_SIGNATURE_REQUIRED": "{entity} non ha consentito di recuperare i movimenti più vecchi di 3 mesi. Richiedili prima nell'app di {entity} sul tuo dispositivo principale, approva la firma lì e aggiorna di nuovo.",
     "COOLDOWN_WITH_WAIT": "Attendi {time} prima di riprovare con {entity}.",
     "DISABLED": "Importazione dati disabilitata nelle impostazioni.",
     "UNSUPPORTED_FILE_FORMAT": "Il tipo di file selezionato non è supportato. Carica un file CSV, TSV o XLSX.",
@@ -561,6 +580,8 @@
   },
   "entities": {
     "title": "Integrazioni",
+    "tabEntities": "Entità",
+    "tabProviders": "Provider",
     "storeNotice": "Questa versione non supporta connessioni con entità finanziarie. Puoi gestire i tuoi dati manualmente, importarli da file, visita {link} per altre opzioni.",
     "storeNoticeLink": "finanze.me",
     "connected": "Connesso",
@@ -573,7 +594,7 @@
     "cannotConnect": "Impossibile connettersi",
     "requiresExternalIntegrations": "Richiede configurazione dell'integrazione",
     "setupIntegrationsMessage": "Configura le integrazioni richieste per connettere questa entità:",
-    "goToSettings": "Vai alle Impostazioni",
+    "goToProviders": "Configura provider",
     "userEntered": "Inserito dall'utente",
     "importData": "Importa",
     "runImport": "Importa dati",
@@ -625,8 +646,12 @@
     "enableBankingNoLinkedAccountsBefore": "Potresti non aver ancora collegato questa banca nella",
     "enableBankingNoLinkedAccountsLinkLabel": "dashboard di Enable Banking",
     "enableBankingNoLinkedAccountsAfter": ". Collegala prima lì, poi riprova.",
+    "psuTypeTitle": "Tipo di conto",
+    "psuTypePersonal": "Privato",
+    "psuTypeBusiness": "Aziendale",
     "confirmConnection": "Completa Connessione",
     "providerLinkInstructions": "Termina il processo nella finestra aperta, quindi conferma la connessione.",
+    "completingConnection": "Completamento della connessione, potrebbe richiedere alcuni secondi...",
     "openLink": "Apri Link",
     "dismiss": "Ignora",
     "continueLink": "Continua collegamento",
@@ -641,6 +666,8 @@
     "POSITION": "Posizioni",
     "AUTO_CONTRIBUTIONS": "Contributi Automatici",
     "TRANSACTIONS": "Transazioni",
+    "accountTransactions": "Mov. conto",
+    "investmentTransactions": "Mov. investimenti",
     "HISTORIC": "Dati Storici",
     "selectFeatures": "Seleziona i dati da recuperare da",
     "selectAll": "Seleziona tutto",
@@ -648,6 +675,12 @@
     "fetchSelected": "Recupera",
     "deepScrape": "Forza recupero completo",
     "deepScrapeDescription": "Recupera di nuovo i dati precedenti (potrebbe richiedere molto tempo, potresti essere bloccato e non è consigliato)",
+    "twoFactorOldTxs": "Includi movimenti più vecchi dei conti",
+    "twoFactorOldTxsDescription": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Alla fine verrà richiesto un codice di verifica aggiuntivo.",
+    "twoFactorOldTxsEntityDescription": {
+      "e0000000-0000-0000-0000-000000000011": "Recupera i movimenti dei conti oltre il limite abituale di 3 mesi. Prima di aggiornare, richiedi i movimenti più vecchi di 3 mesi nell'app di Cajamar sul tuo dispositivo principale e approva la firma lì."
+    },
+    "twoFactorOldTxsSkipped": "I movimenti più vecchi dei conti di {entity} sono stati saltati",
     "advancedOptions": "Opzioni avanzate",
     "availableFeatures": "Funzionalità Disponibili",
     "supportedProducts": "Prodotti Supportati",
@@ -669,6 +702,22 @@
     "dataDisplayModeDescription": "Nascondi i dati finanziari sensibili sfocando importi e percentuali.",
     "dataDisplayModeNone": "Disattivata",
     "dataDisplayModePrivate": "Attiva",
+    "bottomNav": {
+      "title": "Barra inferiore",
+      "inBar": "Nella barra",
+      "inMenu": "Nel menu Altro",
+      "slots": "{used}/{max}",
+      "fixedMenu": "Altro rimane alla fine",
+      "minimum": "Almeno 4 pagine devono rimanere nella barra.",
+      "maximum": "Tutti i 6 posti sono occupati. Sposta una pagina nel menu per liberarne uno.",
+      "moveToMenu": "Sposta {page} nel menu",
+      "moveToBar": "Sposta {page} nella barra",
+      "reorder": "Riordina {page}",
+      "remove": "Rimuovi collegamento a {page}",
+      "addShortcut": "Aggiungi collegamento",
+      "add": "Aggiungi collegamento a {page}",
+      "reset": "Ripristina predefiniti"
+    },
     "userTitle": "Account",
     "userDescription": "Gestisci il tuo account.",
     "biometricCredentialsActionTitle": "Disabilita accesso biometrico",
@@ -686,6 +735,14 @@
     },
     "defaultCurrency": "Valuta Principale",
     "defaultCommodityWeightUnit": "Unità di peso predefinita per le materie prime",
+    "currencyOptions": {
+      "EUR": "EUR - Euro",
+      "USD": "USD - Dollaro statunitense"
+    },
+    "currencyChangeTitle": "Modificare la valuta principale?",
+    "currencyChangeMessage": "Vuoi impostare {currency} come valuta principale?",
+    "currencyChangeWarning": "Tutti i beni e i dati verranno visualizzati in {currency}. Anche le nuove registrazioni useranno {currency}.",
+    "currencyChangeConfirm": "Usa {currency}",
     "editMode": "Modalità di modifica manuale",
     "editModeDescription": "Scegli come aggiornare le tue posizioni e i tuoi contributi.",
     "editModeOptions": {
@@ -760,6 +817,68 @@
       "errorReportingLabel": "Invia segnalazioni di errore",
       "errorReportingDescription": "Condividi segnalazioni pseudonime di crash ed errori identificate solo da un ID di installazione per poterli correggere. Importi, dati dei conti e dati personali non vengono mai inviati.",
       "installId": "ID di installazione"
+    },
+    "mcp": {
+      "toolCategories": {
+        "title": "Categorie di strumenti",
+        "category": "Categoria",
+        "read": "Lettura",
+        "write": "Scrittura",
+        "essential": "Essenziali",
+        "essentialLocked": "Contesto ed entità sono sempre disponibili",
+        "writesPaused": "La scrittura è sospesa dalla modalità globale di sola lettura",
+        "activeCount": "{active}/{total} attivi",
+        "toolCount": "{count} strumenti",
+        "readAccess": "Lettura di {category}",
+        "writeAccess": "Scrittura di {category}",
+        "readTools": "Strumenti di lettura di {category}",
+        "writeTools": "Strumenti di scrittura di {category}",
+        "restoreDefaults": "Ripristina predefiniti",
+        "names": {
+          "positions": "Posizioni e patrimonio",
+          "transactions": "Transazioni",
+          "activity_labels": "Attività ed etichette",
+          "budget": "Budget e contributi",
+          "crypto": "Cripto",
+          "real_estate": "Immobili",
+          "market_data": "Dati di mercato",
+          "calculators": "Calcolatori",
+          "connections": "Connessioni e aggiornamento"
+        }
+      },
+      "tabTitle": "MCP",
+      "title": "Server MCP",
+      "description": "Consenti ad assistenti IA e client compatibili con MCP di consultare i tuoi dati Finanze tramite il Model Context Protocol.",
+      "enableLabel": "Attiva server MCP",
+      "enableDescription": "I client autenticati con il token di accesso possono leggere posizioni, transazioni, flussi e altro.",
+      "readOnlyLabel": "Sola lettura",
+      "readOnlyDescription": "Quando è attiva, gli assistenti possono solo leggere i tuoi dati. Disattivala per consentire loro di creare, modificare ed eliminare dati, collegare integrazioni e aggiornare entità.",
+      "readOnlyWarning": "La modalità di sola lettura è disattivata. Gli assistenti possono modificare ed eliminare i tuoi dati. Controlla con attenzione ciò che fanno.",
+      "connectionTitle": "Connessione",
+      "serverUrl": "URL del server",
+      "token": "Token di accesso",
+      "regenerateToken": "Rigenera",
+      "regenerateConfirmTitle": "Rigenerare il token di accesso?",
+      "regenerateConfirmMessage": "I client che usano il token attuale smetteranno di funzionare finché non aggiornerai la loro configurazione.",
+      "tokenRegenerated": "Token di accesso rigenerato",
+      "runningNote": "Finanze deve essere in esecuzione e sbloccato perché i client possano connettersi. Riconnetti i client dopo aver cambiato gli accessi o le categorie per aggiornare gli strumenti disponibili.",
+      "clientsTitle": "Configurazione del client",
+      "clientsDescription": "Copia la configurazione per il tuo client. Il testo copiato include il tuo token di accesso.",
+      "clients": {
+        "vscode": "VS Code",
+        "claudeCode": "Claude Code",
+        "cursor": "Cursor",
+        "claudeDesktop": "Claude Desktop"
+      },
+      "clientHints": {
+        "vscode": "Aggiungilo a .vscode/mcp.json nel tuo workspace o al tuo mcp.json utente.",
+        "claudeCode": "Eseguilo in un terminale.",
+        "cursor": "Aggiungilo a ~/.cursor/mcp.json o a .cursor/mcp.json nel tuo progetto.",
+        "claudeDesktop": "Aggiungilo a claude_desktop_config.json e riavvia Claude Desktop. Richiede Node.js."
+      },
+      "loadError": "Impossibile caricare le impostazioni MCP",
+      "updateError": "Impossibile aggiornare le impostazioni MCP",
+      "regenerateError": "Impossibile rigenerare il token di accesso"
     },
     "cloud": {
       "tabTitle": "Cloud",
@@ -874,7 +993,6 @@
         "MANUAL": "Decidi tu quando controllare e sincronizzare i backup"
       },
       "data": "Dati",
-      "config": "Configurazione",
       "lastBackup": "Data Ultimo Backup",
       "noBackupYet": "Nessun backup ancora",
       "pendingBackup": "In sospeso",
@@ -997,7 +1115,6 @@
       "clientIdRequired": "L'ID Client è richiesto quando si configura l'integrazione con Google Sheets",
       "clientSecretRequired": "Il Secret Client è richiesto quando si configura l'integrazione con Google Sheets"
     },
-    "googleSheetsWebDisabled": "Usa l'app desktop",
     "integrationHintButton": "Vedi istruzioni",
     "privateKeyField": {
       "dropHint": "Trascina qui il tuo file di chiave privata",
@@ -1011,7 +1128,61 @@
     },
     "integration": {
       "GOOGLE_SHEETS": {
-        "description": "Configura Google Sheets per abilitare l'importazione e l'esportazione dei dati."
+        "description": "Configura Google Sheets per abilitare l'importazione e l'esportazione dei dati.",
+        "help": "Come ottenere le credenziali",
+        "hint": {
+          "title": "Configura l'accesso a Google Sheets",
+          "steps": [
+            [
+              "Apri la ",
+              {
+                "type": "link",
+                "label": "Google Cloud Console",
+                "url": "https://console.cloud.google.com/"
+              },
+              ", crea o seleziona un progetto e abilita la ",
+              {
+                "type": "link",
+                "label": "API di Google Sheets",
+                "url": "https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+              },
+              "."
+            ],
+            [
+              "Configura la ",
+              {
+                "type": "link",
+                "label": "schermata di consenso OAuth",
+                "url": "https://console.cloud.google.com/auth/overview"
+              },
+              " e pubblicala **In produzione** (può restare non verificata), altrimenti l'accesso scade ogni 7 giorni."
+            ],
+            [
+              "Crea un ",
+              {
+                "type": "link",
+                "label": "client OAuth",
+                "url": "https://console.cloud.google.com/auth/clients"
+              },
+              " di tipo **Applicazione web** (i client di tipo App desktop non sono più supportati)."
+            ],
+            [
+              "Aggiungi questo URL agli **URI di reindirizzamento autorizzati** ",
+              {
+                "type": "copylink",
+                "label": "https://finanze.me/oauth/v1/integration/callback/",
+                "url": "https://finanze.me/oauth/v1/integration/callback/"
+              },
+              ". Questo campo è **molto importante**."
+            ],
+            [
+              "Incolla l'**ID client** e il **Client secret** qui sotto, premi Configura e autorizza l'accesso con il tuo account Google."
+            ],
+            [
+              "*Google potrebbe avvisare che l'app non è verificata, essendo la tua app puoi continuare da \"Avanzate\".*"
+            ]
+          ]
+        }
       },
       "ETHERSCAN": {
         "description": "Configura la tua API Etherscan per aumentare la frequenza di recupero dei dati per le reti ETH e BSC (a pagamento) (consigliato solo se il recupero standard fallisce, o se usi un'API a pagamento).",
@@ -1174,16 +1345,216 @@
             }
           ]
         }
+      },
+      "OPENROUTER": {
+        "description": "Collega OpenRouter per ottenere suggerimenti automatici di etichette per i tuoi movimenti con il modello che preferisci.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API OpenRouter",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Crea un account su "
+            },
+            {
+              "type": "link",
+              "label": "openrouter.ai",
+              "url": "https://openrouter.ai/settings/keys"
+            },
+            {
+              "type": "text",
+              "value": ", genera una nuova chiave API e incollala qui sotto. L'utilizzo viene fatturato da OpenRouter."
+            }
+          ]
+        }
+      },
+      "OPENAI": {
+        "description": "Collega OpenAI per ottenere suggerimenti automatici di etichette per i tuoi movimenti con i modelli GPT.",
+        "help": "Come ottenere una chiave API",
+        "hint": {
+          "title": "Ottieni una chiave API OpenAI",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Accedi alla piattaforma OpenAI su "
+            },
+            {
+              "type": "link",
+              "label": "platform.openai.com",
+              "url": "https://platform.openai.com/api-keys"
+            },
+            {
+              "type": "text",
+              "value": ", crea una nuova chiave segreta e incollala qui sotto. L'utilizzo viene fatturato da OpenAI."
+            }
+          ]
+        }
+      },
+      "OPENAI_COMPATIBLE": {
+        "description": "Collega qualsiasi server compatibile con OpenAI, come Ollama, LM Studio, vLLM o llama.cpp, per etichettare i tuoi movimenti con modelli ospitati da te.",
+        "help": "Come collegarlo",
+        "hint": {
+          "title": "Collegare un server compatibile con OpenAI",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Inserisci l'URL base dell'API del server, ad esempio http://localhost:11434/v1 per Ollama o http://localhost:1234/v1 per LM Studio. La chiave API serve solo se il tuo server la richiede."
+            }
+          ]
+        }
+      },
+      "LOCAL_MODELS": {
+        "description": "Esegui piccoli modelli di IA in modo privato, su questo dispositivo o sul tuo server llama.cpp. Scaricali da qui e usali per etichettare i tuoi movimenti.",
+        "help": "Come funziona",
+        "hint": {
+          "title": "Modelli locali",
+          "parts": [
+            {
+              "type": "text",
+              "value": "I modelli vengono eseguiti con "
+            },
+            {
+              "type": "link",
+              "label": "llama.cpp",
+              "url": "https://github.com/ggml-org/llama.cpp"
+            },
+            {
+              "type": "text",
+              "value": ". Per usare il tuo server, avvia llama-server in modalità router (senza -m) e inserisci il suo URL e la chiave API. Ollama, LM Studio o un llama-server con un solo modello vanno in Custom AI."
+            }
+          ]
+        }
       }
     },
     "disableIntegration": "Disabilita integrazione",
     "integrationEnabledSuccess": "Integrazione {integration} abilitata con successo",
+    "integrationAwaitingAuthorization": "In attesa dell'autorizzazione nel browser...",
     "integrationDisabledSuccess": "Integrazione {integration} disabilitata con successo",
     "integrationRequiredMessage": "Abilita l'integrazione Google Sheets in Integrazioni per configurare queste impostazioni.",
+    "integrationInsecureKeyWarning": "Questa connessione non è cifrata (http), quindi la chiave API viene inviata in chiaro. Usa https o solo una rete di cui ti fidi.",
+    "localModels": {
+      "builtInMode": "Motore integrato",
+      "serverMode": "Il mio server llama.cpp",
+      "builtInNotice": "I modelli vengono eseguiti su questo dispositivo con il motore integrato. Si avvia solo quando serve e si ferma dopo un po' di inattività.",
+      "serverNotice": "Inserisci l'URL di un server llama.cpp avviato in modalità router (senza -m). Ollama, LM Studio o un llama-server con un solo modello vanno in Custom AI.",
+      "envUrlNotice": "L'ambiente del server definisce già FINANZE_LLAMA_SERVER_URL = {url}{key}. Lascia i campi vuoti per usarlo, i valori inseriti qui lo sostituiscono.",
+      "envKeySuffix": " e una chiave API",
+      "precedence": "Priorità: valori inseriti, poi l'ambiente e poi il motore integrato.",
+      "overridesEnvironment": "facoltativo, sostituisce l'ambiente",
+      "envKeyPlaceholder": "Definita nell'ambiente",
+      "using": {
+        "BUILT_IN": "In uso il motore integrato",
+        "ENVIRONMENT": "In uso il server dell'ambiente ({url})",
+        "PAYLOAD": "In uso {url}"
+      },
+      "unreachable": "Non disponibile",
+      "manage": "Gestisci modelli",
+      "dialogTitle": "Modelli locali",
+      "moreModels": "+{count} altri",
+      "models": "Modelli",
+      "noModels": "Ancora nessun modello. Scaricane uno consigliato o qualsiasi modello GGUF da Hugging Face.",
+      "externalHint": "Anche i modelli nella cartella dei modelli del tuo server compaiono qui. Dopo aver aggiunto dei file, premi Aggiorna.",
+      "import": "Importa GGUF",
+      "importTitle": "Seleziona un file di modello GGUF",
+      "importSuccess": "{model} importato",
+      "importHint": "I file importati vengono usati dalla loro posizione, non vengono copiati. Puoi anche mettere file GGUF nella cartella dei modelli e premere Aggiorna.",
+      "openFolder": "Apri cartella",
+      "recommended": "Consigliati",
+      "params": "{params} parametri",
+      "downloadSize": "{size} da scaricare",
+      "ram": "~{ram} di RAM",
+      "ramWarning": "Potrebbe non entrare nella memoria di questo dispositivo",
+      "languages": "Lingue: {languages}",
+      "downloadStarted": "Download di {model} in corso",
+      "cancelDownload": "Annulla download",
+      "downloadFailed": "Il download di {model} non è riuscito o è stato interrotto.",
+      "deleteTitle": "Elimina modello",
+      "deleteMessage": "{model} verrà eliminato. Potrai scaricarlo di nuovo più tardi.",
+      "deleteImportedMessage": "{model} verrà rimosso da Finanze. Il file originale viene mantenuto.",
+      "deleted": "{model} eliminato",
+      "huggingFace": "Altri modelli da Hugging Face",
+      "huggingFaceHint": "Inserisci un repository di Hugging Face con file GGUF, ad esempio unsloth/Qwen3.5-4B-GGUF. I modelli piccoli (meno di 4B parametri) funzionano meglio sulla maggior parte dei dispositivi.",
+      "repoPlaceholder": "proprietario/repository",
+      "find": "Cerca",
+      "variant": "Variante",
+      "noQuants": "Nessun file GGUF compatibile trovato in questo repository.",
+      "invalidRepo": "Inserisci il repository come proprietario/nome.",
+      "unverifiedModel": "Impossibile verificare se questo modello è compatibile. Se non si avvia, eliminalo e provane un altro.",
+      "failedHint": "Non è stato possibile avviarlo. Il motore potrebbe non supportarlo o potrebbe richiedere più memoria di quella disponibile.",
+      "failedLogHint": "I dettagli sono in llama-server.log nella cartella dei modelli.",
+      "decisions": "Modello decisionale",
+      "states": {
+        "UNLOADED": "Pronto",
+        "LOADING": "Caricamento",
+        "LOADED": "Caricato",
+        "SLEEPING": "Inattivo",
+        "DOWNLOADING": "Download in corso",
+        "FAILED": "Avvio non riuscito",
+        "MISSING": "File non trovato"
+      },
+      "sources": {
+        "CATALOG": "Consigliato",
+        "HUGGING_FACE": "Hugging Face",
+        "IMPORTED": "Importato",
+        "SERVER": "Server"
+      },
+      "errors": {
+        "MISSING_SERVER_URL": "Inserisci l'URL del tuo server llama.cpp.",
+        "INVALID_URL": "L'URL del server non è valido.",
+        "UNREACHABLE": "Impossibile raggiungere il server. Verifica che sia in esecuzione e che l'URL sia corretto.",
+        "UNAUTHORIZED": "Il server ha rifiutato la chiave API.",
+        "NOT_A_MODEL_ROUTER": "Questo server serve un solo modello. Collegalo come Custom AI, oppure avvia llama-server senza -m per gestire i modelli da qui.",
+        "SERVER_ERROR": "Il server ha restituito un errore.",
+        "RUNTIME_FAILED": "Impossibile avviare il motore integrato.",
+        "MODEL_NOT_FOUND": "Modello non trovato.",
+        "INVALID_MODEL": "Il modello non è valido.",
+        "DOWNLOAD_FAILED": "Impossibile scaricare il modello.",
+        "NOT_DELETABLE": "Questo modello è gestito dal server e non può essere eliminato da qui.",
+        "INSUFFICIENT_SPACE": "Spazio libero su disco insufficiente per questo modello.",
+        "IMPORT_UNSUPPORTED": "L'importazione di file è disponibile solo con il motore integrato.",
+        "INVALID_FILE": "Il file non è un modello GGUF valido.",
+        "HUGGING_FACE_UNAVAILABLE": "Impossibile ottenere il repository da Hugging Face.",
+        "HUGGING_FACE_REPO_NOT_FOUND": "Impossibile trovare questo repository Hugging Face. Potrebbe essere privato o ad accesso limitato.",
+        "UNSUPPORTED_MODEL": "È un modello encoder o di embedding, non può etichettare i movimenti. Scegli un modello di chat o di decisione."
+      }
+    },
+    "aiServer": {
+      "button": "Dettagli del server",
+      "title": "Dettagli del server",
+      "refresh": "Aggiorna",
+      "status": "Stato",
+      "connected": "Connesso",
+      "respondedWithError": "Ha risposto con un errore",
+      "unreachable": "Non raggiungibile",
+      "latency": "{ms} ms",
+      "server": "Server",
+      "unknownServer": "Server compatibile con OpenAI",
+      "endpoint": "Endpoint",
+      "apiKey": "Chiave API",
+      "apiKeySet": "Inviata con ogni richiesta",
+      "apiKeyNotSet": "Non impostata",
+      "models": "Modelli",
+      "modelCount": "{count} disponibili",
+      "loadedCount": "{count} caricati",
+      "loaded": "Caricato",
+      "notLoaded": "Non caricato",
+      "context": "{context} di contesto",
+      "decisions": "Modello di decisione",
+      "noModels": "Il server non elenca alcun modello.",
+      "unknownHint": "Versione, modelli caricati e dimensione del contesto vengono mostrati per Ollama, LM Studio, llama.cpp e vLLM.",
+      "errors": {
+        "UNREACHABLE": "Impossibile connettersi. Verifica che il server sia in esecuzione, che l'URL sia corretto e che accetti connessioni da questo dispositivo.",
+        "UNAUTHORIZED": "Il server ha rifiutato la chiave API.",
+        "NOT_FOUND": "Non c'è un elenco di modelli a questo URL. Controlla il percorso, di solito termina con /v1.",
+        "SERVER_ERROR": "Il server ha restituito un errore durante l'elenco dei modelli.",
+        "INVALID_RESPONSE": "Il server ha risposto, ma non con un elenco di modelli compatibile con OpenAI."
+      }
+    },
     "integrationCategories": {
       "ENTITY_PROVIDER": "Provider bancari",
       "CRYPTO_PROVIDER": "Provider crypto",
       "CRYPTO_MARKET_PROVIDER": "Dati di mercato crypto",
+      "AI_PROVIDER": "Provider di IA",
       "DATA_SOURCE": "Fonti dati"
     }
   },
@@ -1250,7 +1621,7 @@
     "includePendingMoneyInfo": "Con questa opzione abilitata, il denaro in sospeso (uscite o entrate) verrà considerato nella sezione Denaro in Sospeso quando si calcola il patrimonio netto.",
     "includeLoans": "Includi prestiti e crediti",
     "includeLoansInfo": "Questa opzione fa sì che il capitale residuo dei prestiti e l'importo utilizzato delle linee di credito vengano considerati nel calcolo del patrimonio netto. I prestiti associati a un immobile non verranno considerati, poiché sono già calcolati nel patrimonio immobiliare (vedi opzione sotto).",
-    "includeCardExpenses": "Sottrai spese delle carte",
+    "includeCardExpenses": "Sottrai utilizzo delle carte di credito",
     "includeRealEstateEquity": "Includi patrimonio immobiliare",
     "includeRealEstateEquityInfo": "Attivando questa opzione, il patrimonio immobiliare verrà considerato nel calcolo del patrimonio netto. Il patrimonio immobiliare è definito come la valutazione dell'immobile meno il capitale residuo dei prestiti correlati. Se vuoi considerare anche le residenze, seleziona l'opzione sottostante.",
     "includeResidences": "Includi residenze",
@@ -1735,6 +2106,12 @@
     "selectAccounts": "Seleziona conti...",
     "selectProductTypes": "Seleziona tipi di prodotto...",
     "selectTransactionTypes": "Seleziona tipi di transazione...",
+    "scope": {
+      "label": "Mostra",
+      "all": "Tutto",
+      "account": "Conti",
+      "investment": "Investimenti"
+    },
     "form": {
       "createTitle": "Aggiungi transazione",
       "editTitle": "Modifica transazione",
@@ -1808,6 +2185,384 @@
       "calendarView": "Calendario"
     }
   },
+  "labels": {
+    "title": "Etichette",
+    "tabs": {
+      "labels": "Etichette",
+      "rules": "Regole",
+      "automation": "Automazione"
+    },
+    "base": {
+      "salary": "Stipendio",
+      "business_income": "Redditi d'impresa",
+      "rental_income": "Affitti percepiti",
+      "refunds": "Rimborsi",
+      "gifts_received": "Regali ricevuti",
+      "interest": "Interessi",
+      "other_income": "Altre entrate",
+      "housing": "Casa",
+      "utilities": "Utenze",
+      "groceries": "Spesa alimentare",
+      "restaurants": "Ristoranti",
+      "transport": "Trasporti",
+      "shopping": "Acquisti",
+      "subscriptions": "Abbonamenti",
+      "health": "Salute",
+      "insurance": "Assicurazioni",
+      "education": "Istruzione",
+      "leisure": "Tempo libero",
+      "travel": "Viaggi",
+      "personal_care": "Cura personale",
+      "pets": "Animali domestici",
+      "family": "Famiglia",
+      "gifts_donations": "Regali e donazioni",
+      "taxes": "Tasse",
+      "bank_fees": "Commissioni bancarie",
+      "cash_withdrawal": "Prelievo contanti",
+      "debt_payments": "Pagamento debiti",
+      "other_expense": "Altre spese",
+      "internal_transfer": "Giroconto",
+      "savings_investment": "Risparmio e investimenti"
+    },
+    "origins": {
+      "MANUAL": "Manuale",
+      "RULE": "Regole",
+      "EXTERNAL": "Suggerimenti"
+    },
+    "settlement": "Investimento",
+    "settlementHint": "Questo movimento è la parte in contanti di un'operazione di investimento, quindi non viene conteggiato come entrata o spesa.",
+    "editTransactionLabels": "Modifica etichette",
+    "addLabel": "Etichetta",
+    "searchLabels": "Cerca etichette...",
+    "transactionLabelsSaved": "Etichette aggiornate",
+    "saveError": "Impossibile salvare le modifiche",
+    "deleteError": "Impossibile eliminare",
+    "createRuleFromMovement": "Crea regola",
+    "lockLabels": "Blocca etichette",
+    "lockLabelsHint": "Durante la rietichettatura, regole e suggerimenti non modificheranno mai le etichette di questo movimento.",
+    "unlinkSettlement": "Scollega dall'operazione di investimento",
+    "transferPair": "Trasferimento",
+    "transferPairOtherEntity": "un'altra entità",
+    "transferPairHint": "Abbinato come trasferimento a un movimento dello stesso importo in {entity}.",
+    "unpairTransfer": "Separa trasferimento",
+    "unpairTransferHint": "Le etichette vengono bloccate così questo movimento non viene abbinato di nuovo.",
+    "newLabel": "Nuova etichetta",
+    "editLabel": "Modifica etichetta",
+    "labelName": "Nome",
+    "labelDescription": "Descrizione",
+    "labelDescriptionHint": "Facoltativa. Aiuta i suggerimenti a capire cosa appartiene a questa etichetta.",
+    "baseLabelNameHint": "Lascia vuoto per mantenere il nome predefinito.",
+    "nameRequired": "Inserisci un nome",
+    "color": "Colore",
+    "customColor": "Colore personalizzato",
+    "category": "Tipo",
+    "advanced": "Avanzate",
+    "subcategory": "Sottocategoria",
+    "protectedLabel": "Etichetta protetta",
+    "subcategories": {
+      "NEED": "Necessità",
+      "WANTS": "Desiderio",
+      "SAVINGS": "Risparmio",
+      "NONE": "Nessuna"
+    },
+    "categoryHints": {
+      "EXPENSE": "Raggruppata con le tue etichette di spesa.",
+      "INCOME": "Raggruppata con le tue etichette di entrata.",
+      "EXCLUDED": "I movimenti con questa etichetta non vengono conteggiati come entrate o spese, ad esempio i giroconti tra i tuoi conti."
+    },
+    "excluded": "Esclusa",
+    "labelSaved": "Etichetta salvata",
+    "labelDeleted": "Etichetta eliminata",
+    "usage": "{count} movimenti",
+    "noUsage": "Non ancora usata",
+    "changeIcon": "Cambia icona",
+    "categories": {
+      "EXPENSE": "Spese",
+      "INCOME": "Entrate",
+      "EXCLUDED": "Non conteggiate nei totali"
+    },
+    "deleteLabelTitle": "Elimina etichetta",
+    "deleteLabelMessage": "Eliminare l'etichetta \"{name}\"? Verrà rimossa da tutti i movimenti.",
+    "deleteLabelWarning": "Anche le regole che applicano solo questa etichetta verranno eliminate.",
+    "unlabeled": "Senza etichetta",
+    "anyLabel": "Qualsiasi etichetta",
+    "includeLabel": "Con questa etichetta",
+    "excludeLabel": "Senza questa etichetta",
+    "counterparty": "Controparte",
+    "searchTextPlaceholder": "Cerca per nome",
+    "manualLabelsHint": "Le etichette scelte qui vengono mantenute. Lascia vuoto per far decidere alle tue regole.",
+    "rules": {
+      "newRule": "Nuova regola",
+      "editRule": "Modifica regola",
+      "name": "Nome",
+      "namePlaceholder": "Facoltativo",
+      "when": "Quando il movimento corrisponde",
+      "then": "Applica queste etichette",
+      "textField": "Campo",
+      "textOperator": "Condizione",
+      "textValue": "Testo",
+      "textValuePlaceholder": "es. netflix",
+      "fields": {
+        "ANY": "Tutti",
+        "NAME": "Descrizione",
+        "COUNTERPARTY": "Controparte"
+      },
+      "operators": {
+        "CONTAINS": "Contiene",
+        "STARTS_WITH": "Inizia con",
+        "EQUALS": "È esattamente",
+        "REGEX": "Corrisponde al modello"
+      },
+      "anyType": "Qualsiasi tipo",
+      "lookIn": "Cerca in",
+      "amount": "Importo",
+      "min": "Min",
+      "max": "Max",
+      "dateRange": "Date",
+      "moreConditions": "Altre condizioni",
+      "minAmount": "Importo minimo",
+      "maxAmount": "Importo massimo",
+      "anyCurrency": "Qualsiasi valuta",
+      "dayOfMonth": "Giorno del mese",
+      "dayFrom": "Dal giorno",
+      "dayTo": "Al giorno",
+      "dayOfMonthHint": "Gli intervalli possono attraversare la fine del mese, es. 28 – 3.",
+      "applyToExisting": "Applica ai movimenti esistenti",
+      "applyToExistingHint": "Etichetta i movimenti che già corrispondono, tranne quelli con etichette mantenute.",
+      "preview": "Anteprima",
+      "previewCount": "{count} movimenti corrispondono",
+      "conditionRequired": "Aggiungi almeno una condizione",
+      "labelRequired": "Scegli almeno un'etichetta",
+      "invalidRule": "La regola non è valida, rivedi le condizioni",
+      "saved": "Regola salvata",
+      "savedApplied": "Regola salvata e applicata a {count} movimenti",
+      "deleted": "Regola eliminata",
+      "emptyTitle": "Nessuna regola",
+      "empty": "Le regole etichettano automaticamente i tuoi movimenti. Creane una qui o usa \"Crea regola\" da qualsiasi movimento.",
+      "unnamed": "Regola senza nome",
+      "daysSummary": "Giorni {from} – {to}",
+      "kind": "Tipo di regola",
+      "kinds": {
+        "MATCH": "Soddisfa condizioni",
+        "TRANSFER": "Trasferimenti tra conti"
+      },
+      "kindHints": {
+        "MATCH": "Etichetta ogni movimento che corrisponde per testo, tipo, importo o date.",
+        "TRANSFER": "Abbina il denaro che esce da un conto con lo stesso importo che arriva in un altro."
+      },
+      "transferWhen": "Quando due movimenti sembrano un trasferimento",
+      "transferExplanation": "Un'uscita in un conto e un'entrata dello stesso importo e valuta in un altro conto, entro i giorni consentiti, vengono abbinate ed entrambe etichettate. I conti della stessa entità vengono abbinati solo se i loro IBAN sono noti.",
+      "transferThen": "Etichetta entrambi i movimenti con",
+      "transferApplyToExistingHint": "Abbina ed etichetta anche i movimenti esistenti, tranne quelli con etichette mantenute.",
+      "transferEntitiesHint": "Lascia vuoto per abbinare movimenti tra tutte le tue entità.",
+      "accounts": "Conti",
+      "anyAccount": "Qualsiasi conto",
+      "accountsHint": "Solo movimenti di questi conti. I movimenti senza IBAN noto non corrispondono mai.",
+      "transferAccountsHint": "Entrambi i movimenti devono appartenere a questi conti. Lascia vuoto per usarli tutti.",
+      "transferUnnamed": "Trasferimenti tra i miei conti",
+      "maxDays": "Massimo giorni di distanza",
+      "maxDaysHint": "Giorni consentiti tra l'uscita e l'entrata. 0 significa lo stesso giorno.",
+      "maxDaysSummary": "Fino a {days} giorni di distanza",
+      "sameDay": "Stesso giorno",
+      "deleteTitle": "Elimina regola",
+      "deleteMessage": "Eliminare questa regola? Le etichette applicate verranno rimosse dai movimenti."
+    },
+    "relabel": {
+      "title": "Rietichetta movimenti",
+      "description": "Esegui di nuovo le regole sui movimenti esistenti. Vengono saltati quelli con etichette mantenute e i regolamenti di investimenti.",
+      "open": "Rietichetta",
+      "count": "Conta",
+      "run": "Rietichetta",
+      "withLabels": "Con etichette",
+      "withoutLabels": "Senza le etichette",
+      "unlabeledOnly": "Solo movimenti senza etichetta",
+      "replace": "Sostituisci le etichette da",
+      "lockedHint": "I movimenti con etichette bloccate non vengono mai modificati.",
+      "includeExternal": "Usa {provider} come riserva quando nessuna regola corrisponde",
+      "includeExternalHint": "I movimenti ancora senza etichetta dopo l'applicazione delle regole vengono inviati a {provider} per un suggerimento. Usa la tua configurazione di Suggerimenti esterni.",
+      "retryUnmatched": "Riprova i movimenti che {provider} non è riuscito a etichettare",
+      "retryUnmatchedHint": "Per impostazione predefinita vengono saltati per non pagarli di nuovo.",
+      "matched": "{count} movimenti selezionati",
+      "summary": "{rules} etichettati dalle regole · {external} etichettati dai suggerimenti",
+      "done": "Movimenti rietichettati",
+      "externalFailed": "Movimenti rietichettati, ma non è stato possibile ottenere suggerimenti"
+    },
+    "automation": {
+      "rulesTitle": "Regole",
+      "rulesAlwaysOn": "Applica le regole ai nuovi movimenti",
+      "rulesAlwaysOnHint": "Ogni movimento sincronizzato, importato o aggiunto manualmente viene etichettato dalle regole attive appena viene salvato.",
+      "alwaysOn": "Sempre attivo",
+      "optional": "Facoltativo"
+    },
+    "external": {
+      "title": "Suggerimenti esterni",
+      "enable": "Usa un provider esterno",
+      "description": "Etichetta con un modello esterno i movimenti che nessuna regola riconosce.",
+      "moreSettings": "Altre impostazioni",
+      "noProviders": "Nessun provider disponibile.",
+      "provider": "Provider",
+      "connected": "Collegato",
+      "notConnected": "Non collegato",
+      "unavailableHere": "Non disponibile su questo dispositivo",
+      "providerUnavailable": "{provider} non è disponibile su questo dispositivo, quindi qui i suggerimenti vengono saltati. Continuano a funzionare sui dispositivi che lo supportano. Scegli un altro provider per avere suggerimenti anche qui.",
+      "connectProvider": "Configuralo nelle integrazioni",
+      "connectRequired": "Collega il provider o disattiva i suggerimenti esterni per salvare.",
+      "model": "Modello",
+      "decisionModel": "Modello decisionale",
+      "customModel": "Altro modello",
+      "customModelHint": "Usa qualsiasi altro ID di modello offerto da {provider}.",
+      "customModelUnlistedHint": "Per un modello che il tuo server può eseguire ma non compare sopra, ad esempio dietro un proxy o con un alias.",
+      "customModelPlaceholder": "openai/gpt-6-luna",
+      "customModelPlaceholders": {
+        "OPENAI": "gpt-6.1-sol",
+        "OPENAI_COMPATIBLE": "qwen3.5:9b"
+      },
+      "customModelNotice": "Alcuni modelli possono essere lenti e costosi quando si categorizzano molti movimenti. Si consigliano modelli più veloci ed economici.",
+      "validate": "Verifica",
+      "modelValid": "Modello supportato",
+      "modelInvalid": "Modello non trovato o non supportato",
+      "upstreamProvider": "Provider",
+      "upstreamProviderPlaceholder": "Provider (opzionale)",
+      "upstreamProviderHint": "Facoltativamente, instrada le richieste verso un provider specifico, ad es. openai/flex. Verrà usato solo quel provider, senza alternative.",
+      "minConfidence": "Confidenza minima (%)",
+      "minConfidenceHint": "I suggerimenti sotto questa confidenza vengono scartati.",
+      "minConfidenceNotApplicable": "Questo modello non indica la confidenza, quindi vengono applicati tutti i suggerimenti.",
+      "maxPerRun": "Movimenti massimi per esecuzione",
+      "maxPerRunHint": "Limita l'utilizzo a ogni sincronizzazione o rietichettatura.",
+      "autoRun": "Usa come riserva quando nessuna regola corrisponde",
+      "autoRunHint": "Quando arrivano nuovi movimenti (sincronizzazioni, importazioni o inserimenti manuali), vengono applicate prima le tue regole e solo quelli rimasti senza etichetta vengono inviati al provider per un suggerimento. Se disattivato, il provider viene usato solo quando rietichetti.",
+      "examples": "Fornisci esempi",
+      "examplesHint": "Includi in ogni richiesta alcuni dei tuoi movimenti già etichettati, così il modello impara come etichetti e suggerisce con più precisione.",
+      "examplesCount": "Numero di esempi",
+      "examplesFrom": "Usa etichette impostate da",
+      "instructions": "Istruzioni personalizzate",
+      "instructionsHint": "Per utenti esperti. Indicazioni aggiuntive inviate al modello, ad esempio come etichettare determinati pagamenti.",
+      "instructionsPlaceholder": "ad es. I bonifici di Ana sono affitto. I pagamenti del club di padel sono tempo libero.",
+      "privacyNotice": "Al provider vengono inviati descrizione, controparte, importo, valuta e data dei movimenti. Numeri di conto e saldi non vengono mai condivisi.",
+      "providerAndModelRequired": "Scegli un provider e un modello",
+      "loadingModels": "Caricamento modelli...",
+      "noModelsAvailable": "Ancora nessun modello disponibile.",
+      "searchModels": "Cerca modelli",
+      "noModelsMatch": "Nessun modello corrisponde alla ricerca.",
+      "modelsError": "Impossibile caricare i modelli dal provider.",
+      "modelUnavailable": "Il modello selezionato ({model}) non è più disponibile. Scegline un altro.",
+      "manageModels": "Gestisci modelli",
+      "modelLoaded": "Caricato",
+      "modelFailed": "Avvio non riuscito",
+      "modelLoadFailed": "{model} non si è avviato l'ultima volta che è stato usato. Potrebbe non essere compatibile o richiedere più memoria. Scegli un altro modello o controlla Gestisci modelli.",
+      "smallModelWarning": "I modelli piccoli potrebbero non gestire bene così tante etichette e suggerire quelle sbagliate. I modelli più grandi danno risultati migliori."
+    }
+  },
+  "cashflow": {
+    "title": "Attività",
+    "tabs": {
+      "analysis": "Analisi"
+    },
+    "presets": {
+      "thisMonth": "Questo mese",
+      "lastMonth": "Mese scorso",
+      "last3Months": "3 mesi",
+      "last6Months": "6 mesi",
+      "last12Months": "12 mesi",
+      "ytd": "Da inizio anno",
+      "custom": "Personalizzato"
+    },
+    "income": "Entrate",
+    "expenses": "Spese",
+    "net": "Netto",
+    "savingsRate": "Tasso di risparmio",
+    "targetShort": "obiettivo",
+    "expensesToIncomeRatio": "Spese come % delle entrate",
+    "vsPrevious": "Variazione vs periodo precedente",
+    "movementsCount": "{count} movimenti",
+    "excludedCount": "{count} esclusi",
+    "excludedInfo": "Non vengono conteggiati i regolamenti di investimenti né i movimenti con etichette escluse dai totali.",
+    "evolution": "Andamento",
+    "evolutionViews": {
+      "bars": "Grafico a barre",
+      "composition": "Composizione della spesa",
+      "heatmap": "Mappa di calore giornaliera"
+    },
+    "evolutionViewLabels": {
+      "bars": "Spesa",
+      "composition": "Spese",
+      "heatmap": "Giornaliera"
+    },
+    "composition": {
+      "modes": {
+        "labels": "Etichette",
+        "budget": "Necessità, desideri e risparmio"
+      },
+      "otherLabels": "Altre etichette",
+      "remainder": "Resto",
+      "spending": "Spesa",
+      "savings": "Risparmio"
+    },
+    "heatmap": {
+      "hint": "Passa il mouse o tocca un giorno per vederne i movimenti",
+      "noMovements": "Nessun movimento",
+      "view": "Vedi"
+    },
+    "empty": {
+      "title": "Qui apparirà il grafico del flusso di cassa",
+      "description": "Aggiungi entrate e uscite per visualizzarle in questo grafico.",
+      "filteredTitle": "Nessun dato per i filtri selezionati",
+      "filteredDescription": "Prova a modificare il periodo o le entità selezionate.",
+      "goToTransactions": "Vai alle transazioni",
+      "noExpenses": "Nessuna spesa in questo periodo",
+      "noIncome": "Nessuna entrata in questo periodo",
+      "noCounterparties": "Nessun movimento in questo periodo"
+    },
+    "byLabel": "Per etichetta",
+    "overlapHint": "I movimenti con più etichette vengono conteggiati in ciascuna.",
+    "topCounterparties": "Movimenti principali",
+    "budget": {
+      "title": "Andamento del budget",
+      "saved": "Risparmiato",
+      "needs": "Necessità",
+      "wants": "Desideri",
+      "targetInfo": "Obiettivi dal budget ricorrente attuale, applicati a ogni mese intero del periodo; le percentuali obiettivo sono calcolate sulle entrate ricorrenti. Gli importi effettivi coprono le date selezionate in Attività. Le spese per necessità e desideri seguono le sottocategorie delle etichette di spesa. Le spese senza etichetta sono considerate necessarie; quelle con entrambe le sottocategorie vengono contate una sola volta come desideri. L'importo investito include i movimenti netti etichettati come risparmio più acquisti e investimenti meno vendite e rimborsi di capitale. I movimenti di denaro collegati a investimenti sono conteggiati solo tramite l'operazione di investimento.",
+      "investedBreakdown": "Dettaglio investimenti",
+      "savingsMovements": "Movimenti di risparmio",
+      "investmentTransactions": "Operazioni di investimento",
+      "actual": "Effettivo",
+      "notSet": "Non impostato",
+      "noTarget": "Nessun obiettivo",
+      "noLabelTargets": "Nessun obiettivo per etichetta",
+      "incompleteTarget": "Incompleto",
+      "incomplete": "Alcuni importi del budget non hanno un tasso di cambio. Il confronto è incompleto.",
+      "unlinked": "Non collegato",
+      "empty": "Nessuna voce di budget per questi mesi",
+      "openBudget": "Apri budget",
+      "difference": "Differenza",
+      "available": "Disponibile",
+      "exceeded": "Superato",
+      "remaining": "Rimanente",
+      "extra": "Extra"
+    },
+    "recurring": {
+      "title": "Storico dei movimenti ricorrenti",
+      "description": "Movimenti ricorrenti rilevati in tutto lo storico disponibile, indipendentemente dall'intervallo selezionato.",
+      "empty": "Nessun movimento ricorrente rilevato",
+      "emptyHint": "Pagamenti ed entrate regolari compaiono qui dopo alcune ripetizioni.",
+      "next": "Prossimo {date}",
+      "occurrences": "{count} volte",
+      "upTo": "fino a {amount}",
+      "track": "Aggiungi",
+      "tracked": "Aggiunto al budget",
+      "trackedBadge": "Nel budget",
+      "trackedAs": "Voce di budget",
+      "openRecurring": "Apri budget",
+      "budgetLabel": "Etichetta del budget",
+      "noLabel": "Nessuna etichetta",
+      "showMore": "Mostra di più",
+      "ignore": "Ignora",
+      "ignoredToast": "Movimento ignorato",
+      "ignoredSection": "Ignorati ({count})",
+      "restore": "Ripristina",
+      "restoredToast": "Movimento ripristinato"
+    }
+  },
   "time": {
     "justNow": "proprio ora",
     "minuteAgo": "1 minuto fa",
@@ -1859,7 +2614,9 @@
       "SWITCH_TO": "Switch F. Destinazione",
       "INVESTMENT": "Investimento",
       "FEE": "Commissione",
-      "SPLIT": "Frazionamento"
+      "SPLIT": "Frazionamento",
+      "INFLOW": "Entrata",
+      "OUTFLOW": "Uscita"
     },
     "productType": {
       "ACCOUNT": "Conto",
@@ -2138,7 +2895,7 @@
     "showNumbers": "Mostra dettagli",
     "hideNumbers": "Nascondi dettagli",
     "totalBalance": "Saldo Totale",
-    "totalCardUsed": "Utilizzo Totale Carte",
+    "totalCreditCardUsed": "Utilizzo carte di credito",
     "totalDebt": "Debito Residuo",
     "monthlyPayments": "Pagamenti Mensili",
     "avgInterest": "interesse medio",
@@ -2203,24 +2960,59 @@
     "FUND_PORTFOLIO": "Portafoglio di Fondi"
   },
   "management": {
-    "title": "Gestione",
-    "recurring": "Ricorrente",
+    "title": "I miei soldi",
+    "recurring": "Budget",
     "pending": "In sospeso",
-    "recurringMoney": "Denaro Ricorrente",
-    "recurringMoneyDescription": "Gestisci le tue entrate e uscite ricorrenti",
-    "pendingMoney": "Denaro in Sospeso",
+    "recurringMoney": "Budget",
+    "recurringMoneyDescription": "Le tue entrate, uscite e investimenti ricorrenti",
+    "pendingMoney": "In sospeso",
     "pendingMoneyDescription": "Gestisci le tue entrate e uscite occasionali",
     "autoContributions": "Contributi",
     "autoContributionsDescription": "Rivedi i tuoi contributi periodici di investimento",
+    "cashflow": "Attività",
+    "cashflowDescription": "Analizza entrate e spese, organizza i movimenti con etichette e regole",
+    "labels": "Etichette e regole",
+    "labelsDescription": "Organizza i movimenti dei tuoi conti con le etichette",
+    "tabs": {
+      "overview": "Panoramica",
+      "earnings": "Entrate",
+      "expenses": "Uscite",
+      "investments": "Investimenti"
+    },
+    "overview": {
+      "suggestionsHint": "{count} spese ricorrenti suggerite dai tuoi prestiti",
+      "review": "Rivedi"
+    },
+    "upcoming": {
+      "title": "Prossimi",
+      "agenda": "Agenda",
+      "month": "Mese",
+      "empty": "Niente in programma nei prossimi {days} giorni",
+      "showAll": "Mostra tutto",
+      "showLess": "Mostra meno"
+    },
     "earnings": "Entrate",
     "expenses": "Uscite",
-    "addNew": "Aggiungi nuovo",
+    "addNew": "Aggiungi",
     "name": "Nome",
     "namePlaceholder": "Inserisci il nome",
     "amount": "Importo",
     "amountPlaceholder": "Inserisci l'importo",
     "category": "Categoria",
+    "categoryFilter": {
+      "title": "Categorie",
+      "include": "Includi categoria",
+      "exclude": "Escludi categoria"
+    },
+    "categoryLegend": {
+      "showMore": "Mostra +{count}"
+    },
     "categoryPlaceholder": "Inserisci la categoria",
+    "budgetLabel": {
+      "title": "Etichetta",
+      "help": "Collega un'etichetta per confrontare questo budget con le spese e le entrate in Attività.",
+      "unassigned": "Non assegnato"
+    },
     "iconLabel": "Icona",
     "frequencyLabel": "Frequenza",
     "flowSubtype": "Tipo",
@@ -2246,6 +3038,7 @@
     "deleteError": "Errore nell'eliminazione dell'elemento",
     "loadError": "Errore nel caricamento dei dati",
     "optional": "Opzionale",
+    "recommended": "Consigliato",
     "flowType": {
       "EARNING": "Entrata",
       "EXPENSE": "Uscita"
@@ -2288,10 +3081,10 @@
     },
     "unsavedChanges": "Hai modifiche non salvate",
     "requiredFields": "Campi obbligatori",
-    "sortBy": "Ordina per",
+    "sortBy": "Ordina",
     "sortByAmount": "Importo",
     "sortByDate": "Data",
-    "groupBy": "Raggruppa per",
+    "groupBy": "Raggruppa",
     "groupByCategory": "Categoria",
     "uncategorized": "Non categorizzato",
     "nextPayment": "Prossimo",
@@ -2299,10 +3092,14 @@
     "today": "Oggi",
     "tomorrow": "Domani",
     "inDays": "Tra {days} giorni",
-    "monthlyRecurringEarnings": "Entrate ricorrenti mensili",
-    "monthlyRecurringExpenses": "Uscite ricorrenti mensili",
-    "savableAmount": "Importo risparmiabile",
-    "monthlyInvestedAmount": "Investito mensile",
+    "monthlyRecurringEarnings": "Entrate mensili",
+    "monthlyRecurringExpenses": "Spese mensili",
+    "flowDistributionEmptyTitle": "Qui apparirà la tua distribuzione mensile",
+    "flowDistributionEmptyDescription": "Aggiungi entrate e uscite ricorrenti per vederne la distribuzione.",
+    "savableAmount": "Risparmio",
+    "remainingCash": "Liquidità residua",
+    "remainingCashDescription": "Entrate mensili rimanenti dopo spese ricorrenti e investimenti ({percentage}% delle entrate).",
+    "monthlyInvestedAmount": "Investito",
     "savingsRate": "Tasso di risparmio",
     "investedRate": "Tasso investito",
     "ofEarnings": "delle entrate",
@@ -2346,9 +3143,7 @@
     "goToIntegrations": "Vai alle Integrazioni",
     "contributionsDistribution": "Distribuzione dei contributi",
     "other": "Altro",
-    "monthlyPerTarget": "Mensile per destinazione",
-    "activeContributions": "Contributi attivi",
-    "monthlyAverageContribution": "Media mensile contributo",
+    "monthlyAverageContribution": "Mensile",
     "source": "Fonte",
     "manualContributions": {
       "unnamed": "Contributo manuale",
@@ -2357,8 +3152,9 @@
       "editTitle": "Modifica contributo",
       "entity": "Entità",
       "targetName": "Nome destinazione",
-      "targetNameHelper": "Nome amichevole opzionale mostrato nell'elenco",
-      "targetHelper": "ISIN, IBAN o identificatore",
+      "targetNameHelper": "Lascia vuoto per usare il nome",
+      "optionalFields": "Campi opzionali",
+      "cryptoTargetIdentifier": "Simbolo o indirizzo del contratto",
       "currency": "Valuta",
       "suggestions": "Suggerimenti",
       "noSuggestions": "Nessun suggerimento disponibile",
@@ -3392,6 +4188,7 @@
     "dataDirPlaceholder": "Posizione predefinita",
     "logDir": "Directory log",
     "logDirPlaceholder": "Posizione predefinita",
+    "openFolder": "Apri cartella",
     "logLevel": "Livello di log in console",
     "logFileLevel": "Livello di log su file",
     "inheritLogLevel": "Uguale al livello di log della console",

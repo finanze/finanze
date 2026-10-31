@@ -1,10 +1,12 @@
 import abc
 
-from application.ports.connectable_integration import ConnectableIntegration
+from application.ports.oauth_connectable_integration import (
+    OAuthConnectableIntegration,
+)
 from domain.user import User
 
 
-class SheetsInitiator(ConnectableIntegration, metaclass=abc.ABCMeta):
+class SheetsInitiator(OAuthConnectableIntegration, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def connect(self, user: User):
         raise NotImplementedError

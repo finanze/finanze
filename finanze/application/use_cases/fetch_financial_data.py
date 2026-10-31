@@ -25,13 +25,15 @@ from application.ports.public_keychain_loader import PublicKeychainLoader
 from application.ports.real_estate_port import RealEstatePort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.ports.transaction_label_port import TransactionLabelPort
+from application.ports.transaction_labeler import TransactionLabeler
 from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
-from domain.native_entity import CredentialType
-from domain.entity_login import EntityLoginParams, LoginResultCode
+from domain.native_entity import CredentialType, InternalFeature
+from domain.entity_login import EntityLoginParams, LoginResultCode, TwoFactor
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_pointer import FetchPointerContext
@@ -42,6 +44,7 @@ from domain.fetch_result import (
     FetchRequest,
     FetchResult,
     FetchResultCode,
+    FetchStage,
 )
 from domain.global_position import (
     FactoringDetail,
@@ -58,11 +61,20 @@ from domain.historic import (
     Historic,
     RealEstateCFEntry,
 )
-from domain.transactions import TxType
+from domain.transactions import AccountTxSelection, TxType
+from domain.labeling import LabelingTrigger
+from domain.settlement import settlement_window
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
-FETCH_POINTER_SUPPORTED_ENTITIES = [native_entities.MY_INVESTOR]
+FETCH_POINTER_SUPPORTED_ENTITIES = [
+    native_entities.MY_INVESTOR,
+    native_entities.UNICAJA,
+    native_entities.CAJAMAR,
+    native_entities.TRADE_REPUBLIC,
+    native_entities.B100,
+    native_entities.ING,
+]
 POSITION_UPDATE_COOLDOWN_SECONDS = int(
     os.environ.get("POSITION_UPDATE_COOLDOWN_SECONDS", 60)
 )
@@ -98,13 +110,14 @@ def handle_cooldown(last_fetches, update_cooldown) -> Optional[FetchResult]:
     if last_fetches:
         last_fetch = last_fetches[0].date
 
-    if last_fetch and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown:
-        remaining_seconds = (
-            update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
-        )
+    if not last_fetch:
+        return None
+
+    elapsed = (datetime.now(tzlocal()) - last_fetch).total_seconds()
+    if elapsed < update_cooldown:
         details = {
             "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
-            "wait": remaining_seconds,
+            "wait": int(update_cooldown - elapsed),
         }
         return FetchResult(FetchResultCode.COOLDOWN, details=details)
 
@@ -128,8 +141,9 @@ def split_features_by_cooldown(
     cooled_last = None
     for feature in features:
         last_fetch = last_by_feature.get(feature)
-        if last_fetch and (now - last_fetch).seconds < update_cooldown:
-            cooled_waits.append(update_cooldown - (now - last_fetch).seconds)
+        elapsed = (now - last_fetch).total_seconds() if last_fetch else None
+        if elapsed is not None and elapsed < update_cooldown:
+            cooled_waits.append(int(update_cooldown - elapsed))
             if cooled_last is None or last_fetch > cooled_last:
                 cooled_last = last_fetch
         else:
@@ -166,6 +180,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
         real_estate_port: RealEstatePort,
         feature_flag_port: FeatureFlagPort,
         fetch_pointers_port: FetchPointersPort,
+        transaction_label_port: TransactionLabelPort,
+        transaction_labeler: TransactionLabeler,
         error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._position_port = position_port
@@ -187,6 +203,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._feature_flag_port = feature_flag_port
         self._error_reporter = error_reporter
         self._fetch_pointers_port = fetch_pointers_port
+        self._transaction_label_port = transaction_label_port
+        self._transaction_labeler = transaction_labeler
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -242,6 +260,15 @@ class FetchFinancialDataImpl(FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
+            fetch_options = fetch_request.fetch_options or FetchOptions()
+            if fetch_options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+                return await self._fetch_two_factor_old_txs(
+                    entity,
+                    fetch_request.two_factor,
+                    fetch_options,
+                    entity_account_id,
+                )
+
             if not features:
                 features = DEFAULT_FEATURES
 
@@ -298,6 +325,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 login_details = login_result.details or {}
                 if "challenge_domain" in login_details:
                     details["challengeDomain"] = login_details["challenge_domain"]
+                if "pinLength" in login_details:
+                    details["pinLength"] = login_details["pinLength"]
                 return FetchResult(
                     FetchResultCode.CODE_REQUESTED,
                     details=details,
@@ -340,7 +369,12 @@ class FetchFinancialDataImpl(FetchFinancialData):
                         entity_account_id, entity.id, session
                     )
 
-            fetch_options = fetch_request.fetch_options or FetchOptions()
+            if fetch_options.two_factor_old_txs and (
+                Feature.TRANSACTIONS not in features
+                or not self._supports_two_factor_old_txs(entity)
+            ):
+                fetch_options.two_factor_old_txs = False
+
             if (
                 Feature.TRANSACTIONS in features
                 and entity in FETCH_POINTER_SUPPORTED_ENTITIES
@@ -452,9 +486,104 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 for feature, error in failures:
                     self._report(error, entity, tags={"feature": feature.value})
                 details["failedFeatures"] = [feature.value for feature in failed]
+
+            if transactions_ok and options.two_factor_old_txs:
+                old_txs_result = await self._request_old_txs_code(
+                    entity, specific_fetcher, data, details
+                )
+                if old_txs_result:
+                    return old_txs_result
+
+            if failed:
                 return FetchResult(
                     FetchResultCode.PARTIALLY_COMPLETED, data=data, details=details
                 )
+            return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
+        finally:
+            await self._close_fetcher(specific_fetcher)
+
+    @staticmethod
+    def _supports_two_factor_old_txs(entity: Entity) -> bool:
+        return Feature.TRANSACTIONS in entity.features and (
+            InternalFeature.TWO_FACTOR_OLD_TXS in entity.internal_features
+        )
+
+    async def _request_old_txs_code(
+        self,
+        entity: Entity,
+        specific_fetcher: FinancialEntityFetcher,
+        data: FetchedData,
+        details: dict,
+    ) -> Optional[FetchResult]:
+        try:
+            result = await specific_fetcher.request_old_txs_code()
+        except Exception as e:
+            self._log.exception(e)
+            self._report(e, entity, tags={"stage": FetchStage.TWO_FACTOR_OLD_TXS.value})
+            return None
+
+        if not result:
+            return None
+        if result.code != LoginResultCode.CODE_REQUESTED:
+            if result.details:
+                details.update(result.details)
+            return None
+
+        old_txs_details = {
+            **details,
+            **(result.details or {}),
+            "stage": FetchStage.TWO_FACTOR_OLD_TXS.value,
+            "message": result.message,
+        }
+        if result.process_id:
+            old_txs_details["processId"] = result.process_id
+        return FetchResult(
+            FetchResultCode.CODE_REQUESTED,
+            data=data,
+            details=old_txs_details,
+            confirmation_type=result.confirmation_type,
+        )
+
+    async def _fetch_two_factor_old_txs(
+        self,
+        entity: Entity,
+        two_factor: Optional[TwoFactor],
+        options: FetchOptions,
+        entity_account_id: UUID,
+    ) -> FetchResult:
+        if not self._supports_two_factor_old_txs(entity):
+            return FetchResult(FetchResultCode.FEATURE_NOT_SUPPORTED)
+
+        if not two_factor or not (two_factor.code or two_factor.process_id):
+            return FetchResult(FetchResultCode.INVALID_CODE)
+
+        specific_fetcher = self._entity_fetchers[entity]
+        try:
+            confirm_result = await specific_fetcher.confirm_old_txs_code(two_factor)
+            if confirm_result.code != LoginResultCode.CREATED:
+                return FetchResult(
+                    FETCH_BAD_LOGIN_CODES.get(
+                        confirm_result.code, FetchResultCode.UNEXPECTED_LOGIN_ERROR
+                    ),
+                    details={
+                        "message": confirm_result.message,
+                        "stage": FetchStage.TWO_FACTOR_OLD_TXS.value,
+                    },
+                )
+
+            options.deep = False
+            options.pointer_context = None
+            transactions = await self._fetch_and_store_transactions(
+                entity, specific_fetcher, options, entity_account_id
+            )
+
+            data = FetchedData(transactions=transactions)
+            details = {"completedFeatures": [Feature.TRANSACTIONS.value]}
+            old_txs_result = await self._request_old_txs_code(
+                entity, specific_fetcher, data, details
+            )
+            if old_txs_result:
+                return old_txs_result
             return FetchResult(FetchResultCode.COMPLETED, data=data, details=details)
         finally:
             await self._close_fetcher(specific_fetcher)
@@ -540,8 +669,15 @@ class FetchFinancialDataImpl(FetchFinancialData):
             for tx in transactions.account or []:
                 tx.entity_account_id = entity_account_id
 
+        account_txs = (transactions.account or []) if transactions else []
+        investment_txs = (transactions.investment or []) if transactions else []
+        previous = {}
+
         async with self._transaction_handler_port.start():
             if options.deep:
+                previous = await self._transaction_label_port.get_classifications_by_entity_account(
+                    entity_account_id
+                )
                 await self._transaction_port.delete_by_entity_account_id(
                     entity_account_id
                 )
@@ -551,12 +687,36 @@ class FetchFinancialDataImpl(FetchFinancialData):
                     )
             if transactions:
                 await self._transaction_port.save(transactions)
+            if previous and account_txs:
+                await self._transaction_label_port.restore(
+                    {
+                        tx.id: previous[(tx.entity.id, tx.ref)]
+                        for tx in account_txs
+                        if (tx.entity.id, tx.ref) in previous
+                    }
+                )
+            if account_txs:
+                await self._transaction_labeler.classify(
+                    AccountTxSelection(ids=[tx.id for tx in account_txs])
+                )
+            if investment_txs:
+                await self._transaction_labeler.link_settlements(
+                    settlement_window(investment_txs)
+                )
             if options.pointer_context:
                 await self._fetch_pointers_port.save(
                     list(options.pointer_context.pointers.values())
                 )
             await self._update_last_fetch(
                 entity.id, [Feature.TRANSACTIONS], entity_account_id
+            )
+
+        new_account_ids = [
+            tx.id for tx in account_txs if (tx.entity.id, tx.ref) not in previous
+        ]
+        if new_account_ids:
+            await self._transaction_labeler.classify_external(
+                AccountTxSelection(ids=new_account_ids), LabelingTrigger.AUTO
             )
         return transactions
 

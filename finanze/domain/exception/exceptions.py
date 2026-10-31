@@ -89,6 +89,25 @@ class IntegrationSetupErrorCode(str, Enum):
     UNKNOWN = "UNKNOWN"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     INVALID_PRIVATE_KEY = "INVALID_PRIVATE_KEY"
+    INVALID_URL = "INVALID_URL"
+    UNREACHABLE = "UNREACHABLE"
+    NOT_A_MODEL_ROUTER = "NOT_A_MODEL_ROUTER"
+    MISSING_SERVER_URL = "MISSING_SERVER_URL"
+    AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
+    AUTHORIZATION_EXPIRED = "AUTHORIZATION_EXPIRED"
+
+
+INTEGRATION_SETUP_UNAUTHORIZED_CODES = (
+    IntegrationSetupErrorCode.INVALID_CREDENTIALS,
+    IntegrationSetupErrorCode.INVALID_PRIVATE_KEY,
+)
+INTEGRATION_SETUP_BAD_REQUEST_CODES = (
+    IntegrationSetupErrorCode.INVALID_URL,
+    IntegrationSetupErrorCode.NOT_A_MODEL_ROUTER,
+    IntegrationSetupErrorCode.MISSING_SERVER_URL,
+    IntegrationSetupErrorCode.AUTHORIZATION_DENIED,
+    IntegrationSetupErrorCode.AUTHORIZATION_EXPIRED,
+)
 
 
 class IntegrationSetupError(Exception):
@@ -99,6 +118,48 @@ class IntegrationSetupError(Exception):
 
 class IntegrationNotFound(Exception):
     pass
+
+
+class AIProviderErrorCode(str, Enum):
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
+    UNAVAILABLE = "UNAVAILABLE"
+    MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+
+
+class AIProviderError(Exception):
+    def __init__(self, code: AIProviderErrorCode, details: str):
+        self.code = code
+        self.details = details
+        super().__init__(details)
+
+
+class LocalModelErrorCode(str, Enum):
+    MISSING_SERVER_URL = "MISSING_SERVER_URL"
+    INVALID_URL = "INVALID_URL"
+    UNREACHABLE = "UNREACHABLE"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    NOT_A_MODEL_ROUTER = "NOT_A_MODEL_ROUTER"
+    SERVER_ERROR = "SERVER_ERROR"
+    RUNTIME_FAILED = "RUNTIME_FAILED"
+    MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
+    INVALID_MODEL = "INVALID_MODEL"
+    DOWNLOAD_FAILED = "DOWNLOAD_FAILED"
+    NOT_DELETABLE = "NOT_DELETABLE"
+    INSUFFICIENT_SPACE = "INSUFFICIENT_SPACE"
+    IMPORT_UNSUPPORTED = "IMPORT_UNSUPPORTED"
+    INVALID_FILE = "INVALID_FILE"
+    HUGGING_FACE_UNAVAILABLE = "HUGGING_FACE_UNAVAILABLE"
+    HUGGING_FACE_REPO_NOT_FOUND = "HUGGING_FACE_REPO_NOT_FOUND"
+    UNSUPPORTED_MODEL = "UNSUPPORTED_MODEL"
+
+
+class LocalModelError(Exception):
+    def __init__(self, code: LocalModelErrorCode, details: Optional[str] = None):
+        self.code = code
+        self.details = details or code.value
+        super().__init__(self.details)
 
 
 class RealEstateNotFound(Exception):
@@ -165,8 +226,40 @@ class ProviderInstitutionNotFound(Exception):
     pass
 
 
+class ProviderPsuTypeNotSupported(Exception):
+    pass
+
+
 class TransactionNotFound(Exception):
     pass
+
+
+class LabelNotFound(Exception):
+    pass
+
+
+class ProtectedLabel(Exception):
+    pass
+
+
+class InvalidBudgetLabel(Exception):
+    pass
+
+
+class LabelingRuleNotFound(Exception):
+    pass
+
+
+class InvalidLabelingRule(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        super().__init__(details)
+
+
+class ExternalLabelingUnavailable(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        super().__init__(details)
 
 
 class RelatedAccountNotFound(Exception):

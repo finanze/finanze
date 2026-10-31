@@ -96,7 +96,8 @@ from infrastructure.controller.exception_handler import register_exception_handl
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.user_files.user_data_manager import UserDataManager
-from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.config.file_legacy_config_source import FileLegacyConfigSource
+from infrastructure.repository.settings.settings_repository import SettingsRepository
 
 from application.ports.sheets_initiator import SheetsInitiator
 from application.ports.cloud_register import CloudRegister
@@ -110,6 +111,9 @@ from application.ports.position_port import PositionPort
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.transaction_port import TransactionPort
+from application.ports.transaction_label_port import TransactionLabelPort
+from application.ports.transaction_labeler import TransactionLabeler
+from application.ports.label_port import LabelPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
@@ -201,7 +205,7 @@ async def app(tmp_path):
     db_client = DBClient()
     db_manager = DBManager(db_client)
     data_manager = UserDataManager(str(tmp_path))
-    config_loader = ConfigLoader()
+    config_loader = SettingsRepository(db_client, FileLegacyConfigSource())
 
     sheets_initiator = MagicMock(spec=SheetsInitiator)
 
@@ -243,6 +247,13 @@ async def app(tmp_path):
     auto_contr_port = AsyncMock(spec=AutoContributionsPort)
     auto_contr_port.get_all_grouped_by_entity = AsyncMock(return_value={})
     transaction_port = AsyncMock(spec=TransactionPort)
+    transaction_label_port = AsyncMock(spec=TransactionLabelPort)
+    transaction_label_port.get_classifications_by_entity_account = AsyncMock(
+        return_value={}
+    )
+    label_port = AsyncMock(spec=LabelPort)
+    label_port.get_all = AsyncMock(return_value=[])
+    transaction_labeler = AsyncMock(spec=TransactionLabeler)
     historic_port = AsyncMock(spec=HistoricPort)
     fetch_pointers_port = AsyncMock(spec=FetchPointersPort)
     historic_port.get_by_manual_key.return_value = None
@@ -260,10 +271,8 @@ async def app(tmp_path):
     data_initiator.get_hashed_password = AsyncMock(return_value="hashed-password")
 
     backupable_data = AsyncMock(spec=Backupable)
-    backupable_config = AsyncMock(spec=Backupable)
     backupable_ports = {
         BackupFileType.DATA: backupable_data,
-        BackupFileType.CONFIG: backupable_config,
     }
 
     keychain_loader = AsyncMock(spec=PublicKeychainLoader)
@@ -306,7 +315,7 @@ async def app(tmp_path):
     user_logout_uc = UserLogoutImpl(
         db_manager, config_loader, sheets_initiator, cloud_register
     )
-    change_password_uc = ChangeUserPasswordImpl(db_manager, data_manager)
+    change_password_uc = ChangeUserPasswordImpl(db_manager, data_manager, config_loader)
     get_status_uc = GetStatusImpl(
         db_manager, data_manager, server_details_port, feature_flag_port
     )
@@ -340,6 +349,8 @@ async def app(tmp_path):
         real_estate_repo,
         feature_flag_port,
         fetch_pointers_port=fetch_pointers_port,
+        transaction_label_port=transaction_label_port,
+        transaction_labeler=transaction_labeler,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -412,6 +423,9 @@ async def app(tmp_path):
         virtual_import_registry,
         transaction_handler_port,
         historic_port,
+        label_port,
+        transaction_label_port,
+        transaction_labeler,
     )
     unsettle_manual_investment_uc = UnsettleManualInvestmentImpl(
         historic_port,
@@ -432,6 +446,9 @@ async def app(tmp_path):
         transaction_port,
         virtual_import_registry,
         transaction_handler_port,
+        label_port,
+        transaction_label_port,
+        transaction_labeler,
     )
     delete_manual_transaction_uc = DeleteManualTransactionImpl(
         transaction_port,
@@ -480,8 +497,8 @@ async def app(tmp_path):
     )
     list_real_estate_uc = ListRealEstateImpl(real_estate_repo, position_port)
 
-    save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo)
-    update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo)
+    save_periodic_flow_uc = SavePeriodicFlowImpl(periodic_flow_repo, label_port)
+    update_periodic_flow_uc = UpdatePeriodicFlowImpl(periodic_flow_repo, label_port)
     delete_periodic_flow_uc = DeletePeriodicFlowImpl(periodic_flow_repo)
     get_periodic_flows_uc = GetPeriodicFlowsImpl(periodic_flow_repo)
     save_pending_flow_uc = SavePendingFlowImpl(pending_flow_repo)
@@ -725,6 +742,10 @@ async def app(tmp_path):
         pending_flow_port,
         file_storage_port,
         historic_port,
+        fetch_pointers_port,
+        transaction_handler_port,
+        transaction_labeler,
+        feature_flag_port,
     )
 
     await db_client.silent_close()
@@ -745,6 +766,11 @@ async def db_client(app):
 @pytest_asyncio.fixture
 async def entity_fetchers(app):
     return app[2]
+
+
+@pytest_asyncio.fixture
+async def feature_flag_port(app):
+    return app[35]
 
 
 @pytest_asyncio.fixture
@@ -770,6 +796,21 @@ async def last_fetches_port(app):
 @pytest_asyncio.fixture
 async def transaction_port(app):
     return app[7]
+
+
+@pytest_asyncio.fixture
+async def fetch_pointers_port(app):
+    return app[32]
+
+
+@pytest_asyncio.fixture
+async def transaction_handler_port(app):
+    return app[33]
+
+
+@pytest_asyncio.fixture
+async def transaction_labeler(app):
+    return app[34]
 
 
 @pytest_asyncio.fixture

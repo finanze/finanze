@@ -1,0 +1,29 @@
+version: 4
+general:
+  defaultCurrency: EUR
+export:
+  sheets:
+    globals:
+      spreadsheetId: export-sheet
+    transactions:
+    - range: Account Txs
+      data:
+      - account
+    - range: Investment Txs
+      data: investment
+importing:
+  sheets:
+    globals:
+      spreadsheetId: import-sheet
+    transactions:
+    - range: Imported
+      data: account
+      template:
+        id: tpl-import
+    - range: Invest
+      data:
+      - investment
+assets:
+  crypto:
+    stablecoins:
+    - USDC

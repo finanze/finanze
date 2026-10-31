@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock
 import pytest
 from dateutil.tz import tzlocal
 
-from application.use_cases.manual_historic_common import ManualHistoricWriter
+from application.use_cases.manual_historic_common import (
+    ManualHistoricWriter,
+    make_investment_tx,
+)
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.dezimal import Dezimal
 from domain.fetch_record import DataSource
@@ -237,6 +240,71 @@ async def test_upsert_ongoing_reuses_existing_id():
 
     assert result.id == existing.id
     historic_port.upsert.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_upsert_ongoing_keeps_last_tx_date_from_related_txs():
+    entity = _make_entity()
+    factoring = _make_factoring()
+    manual_key = ManualHistoricWriter.manual_key_for(entity.id, factoring)
+    repayment_date = datetime(2024, 6, 15, tzinfo=tzlocal())
+    related_txs = [
+        make_investment_tx(
+            entity,
+            factoring,
+            ProductType.FACTORING,
+            TxType.INVESTMENT,
+            factoring.amount,
+            Dezimal(0),
+            Dezimal(0),
+            factoring.start,
+        ),
+        make_investment_tx(
+            entity,
+            factoring,
+            ProductType.FACTORING,
+            TxType.REPAYMENT,
+            Dezimal("300"),
+            Dezimal(0),
+            Dezimal(0),
+            repayment_date,
+        ),
+    ]
+
+    existing = FactoringEntry(
+        id=uuid4(),
+        name=factoring.name,
+        invested=factoring.amount,
+        repaid=Dezimal("300"),
+        returned=Dezimal("300"),
+        currency="EUR",
+        last_invest_date=factoring.start,
+        last_tx_date=repayment_date,
+        effective_maturity=None,
+        net_return=Dezimal("300"),
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        interests=Dezimal(0),
+        state="OUTSTANDING",
+        entity=entity,
+        product_type=ProductType.FACTORING,
+        related_txs=related_txs,
+        entity_account_id=None,
+        source=DataSource.MANUAL,
+        manual_key=manual_key,
+        interest_rate=factoring.interest_rate,
+        gross_interest_rate=factoring.interest_rate,
+        maturity=factoring.maturity,
+        type=factoring.type,
+    )
+
+    historic_port = AsyncMock()
+    historic_port.get_by_manual_key.return_value = existing
+    writer = ManualHistoricWriter(historic_port)
+
+    result = await writer.upsert_ongoing(entity, factoring, ProductType.FACTORING)
+
+    assert result.last_tx_date == repayment_date
 
 
 @pytest.mark.asyncio

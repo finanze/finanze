@@ -25,6 +25,8 @@
 		A1B2C3D4E5F60718293A4BC0 /* ImageProcessorPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4BC1 /* ImageProcessorPlugin.swift */; };
 		AA00000000SPM00000000001 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000SPM00000000002 /* CapApp-SPM */; };
 		B1C2D3E4F5061728394A5B6C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6D /* PrivacyInfo.xcprivacy */; };
+		C1D2E3F4A5B60718293A4BD0 /* DeviceCountryPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B60718293A4BD1 /* DeviceCountryPlugin.swift */; };
+		D1E2F3A4B5C60718293A4BE0 /* LightHapticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4BE1 /* LightHapticsPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -62,6 +64,8 @@
 		9A1B2C3D4E5F60718293A4BA /* NativeCookiesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCookiesPlugin.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4BC1 /* ImageProcessorPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessorPlugin.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5061728394A5B6D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C1D2E3F4A5B60718293A4BD1 /* DeviceCountryPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCountryPlugin.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293A4BE1 /* LightHapticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightHapticsPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +117,8 @@
 				9A1B2C3D4E5F60718293A4B5 /* BackupProcessorPlugin.swift */,
 				9A1B2C3D4E5F60718293A4B8 /* FileTransferPlugin.swift */,
 				A1B2C3D4E5F60718293A4BC1 /* ImageProcessorPlugin.swift */,
+				C1D2E3F4A5B60718293A4BD1 /* DeviceCountryPlugin.swift */,
+				D1E2F3A4B5C60718293A4BE1 /* LightHapticsPlugin.swift */,
 				9A1B2C3D4E5F60718293A4BA /* NativeCookiesPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -238,6 +244,8 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9A1B2C3D4E5F60718293A4B6 /* BackupProcessorPlugin.swift in Sources */,
 				A1B2C3D4E5F60718293A4BC0 /* ImageProcessorPlugin.swift in Sources */,
+				C1D2E3F4A5B60718293A4BD0 /* DeviceCountryPlugin.swift in Sources */,
+				D1E2F3A4B5C60718293A4BE0 /* LightHapticsPlugin.swift in Sources */,
 				8D8FDB822F1FEE4600E8F3FA /* MyViewController.swift in Sources */,
 				9A1B2C3D4E5F60718293A4B7 /* FileTransferPlugin.swift in Sources */,
 				9A1B2C3D4E5F60718293A4B9 /* NativeCookiesPlugin.swift in Sources */,
@@ -406,7 +414,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.11.000;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -436,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.11.000;
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -587,7 +595,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.11.000;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -617,7 +625,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.10.100;
+				MARKETING_VERSION = 0.11.000;
 				PRODUCT_BUNDLE_IDENTIFIER = me.finanze;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

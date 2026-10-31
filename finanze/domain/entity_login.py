@@ -14,6 +14,7 @@ from domain.status import FeatureFlags
 
 class LoginConfirmationType(str, Enum):
     IN_APP = "IN_APP"
+    AUTHENTICATOR = "AUTHENTICATOR"
     CHALLENGE = "CHALLENGE"
 
 

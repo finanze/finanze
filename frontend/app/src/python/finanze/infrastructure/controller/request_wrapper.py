@@ -65,6 +65,12 @@ class RequestWrapper:
     def args(self):
         return self
 
+    def __getitem__(self, key):
+        values = self._args.get(key)
+        if not values:
+            raise KeyError(key)
+        return values[0]
+
     def get(self, key, default=None, type=None):
         vals = self._args.get(key)
         if not vals:

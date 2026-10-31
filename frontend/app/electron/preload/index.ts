@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
   getAboutInfo: () => ipcRenderer.invoke("about-info") as Promise<AboutAppInfo>,
 
+  getLocaleCountryCode: () =>
+    ipcRenderer.invoke("locale-country-code") as Promise<string>,
+
   requestExternalLogin: async (
     id: string,
     request: ExternalLoginRequest = {},
@@ -63,6 +66,12 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     ipcRenderer.invoke("select-directory", initialPath) as Promise<
       string | null
     >,
+
+  selectFile: (options?: { title?: string; extensions?: string[] }) =>
+    ipcRenderer.invoke("select-file", options) as Promise<string | null>,
+
+  showItemInFolder: (path: string) =>
+    ipcRenderer.invoke("show-item-in-folder", path) as Promise<void>,
 
   checkForUpdates: () => ipcRenderer.invoke("auto-update-check"),
 
@@ -179,5 +188,15 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     })
 
     return () => ipcRenderer.removeAllListeners("external-complete-url")
+  },
+
+  onIntegrationCompleteUrl: (callback: (payload: { url: string }) => void) => {
+    ipcRenderer.removeAllListeners("integration-complete-url")
+
+    ipcRenderer.on("integration-complete-url", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("integration-complete-url")
   },
 } as const)

@@ -124,9 +124,11 @@ test.describe('Manual Commodities', () => {
         await navigateToCommodities(page)
 
         // Empty state should show initially
-        await expect(page.getByText('No commodities registered')).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(
+            page
+                .getByText('No investments registered')
+                .filter({ visible: true }),
+        ).toBeVisible({ timeout: 10_000 })
 
         await createCommodity(page, 'E2E Gold Coin')
     })
@@ -144,21 +146,17 @@ test.describe('Manual Commodities', () => {
             await createCommodity(page, 'E2E Edit Coin')
         }
 
-        // Find the "E2E Edit Coin" card button and click the three-dot menu inside it
+        // Expand the commodity card to reveal its actions
         const editCoinCard = page.getByRole('button', {
             name: /E2E Edit Coin/,
         })
         await expect(editCoinCard).toBeVisible({ timeout: 5_000 })
-        // The MoreVertical button is a nested button inside the card
-        const moreBtn = editCoinCard.getByRole('button').first()
-        await moreBtn.click()
-        await page.waitForTimeout(500)
+        await editCoinCard.click()
+        await expect(editCoinCard).toHaveAttribute('aria-expanded', 'true')
 
-        // Click Edit in the popover (portaled to body) — wait for it to be visible
-        const editBtn = page.getByRole('button', { name: 'Edit', exact: true })
+        const editBtn = page.locator('button[aria-label="Edit"]')
         await expect(editBtn).toBeVisible({ timeout: 3_000 })
         await editBtn.click()
-        await page.waitForTimeout(500)
 
         // Edit dialog — change amount (dynamic ID: amount-{id})
         await expect(page.locator('[id^="amount-"]')).toBeVisible({
@@ -188,21 +186,15 @@ test.describe('Manual Commodities', () => {
             await createCommodity(page, 'E2E Delete Coin')
         }
 
-        // Find the "E2E Delete Coin" card button and click the three-dot menu inside it
+        // Expand the commodity card to reveal its actions
         const deleteCoinCard = page.getByRole('button', {
             name: /E2E Delete Coin/,
         })
         await expect(deleteCoinCard).toBeVisible({ timeout: 5_000 })
-        // The MoreVertical button is a nested button inside the card
-        const moreBtn = deleteCoinCard.getByRole('button').first()
-        await moreBtn.click()
-        await page.waitForTimeout(500)
+        await deleteCoinCard.click()
+        await expect(deleteCoinCard).toHaveAttribute('aria-expanded', 'true')
 
-        // Click Delete in popover — wait for it to be visible
-        const deleteButton = page.getByRole('button', {
-            name: 'Delete',
-            exact: true,
-        })
+        const deleteButton = page.locator('button[aria-label="Delete"]')
         await expect(deleteButton).toBeVisible({ timeout: 3_000 })
         await deleteButton.click()
         await page.waitForTimeout(500)

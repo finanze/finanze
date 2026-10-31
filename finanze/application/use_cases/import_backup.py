@@ -1,6 +1,7 @@
 import hashlib
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 from dateutil.tz import tzlocal
 
@@ -10,6 +11,8 @@ from application.ports.backup_repository import BackupRepository
 from application.ports.cloud_register import CloudRegister
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator
+from application.ports.error_reporter_port import ErrorReporterPort
+from application.ports.legacy_config_importer import LegacyConfigImporter
 from domain.backup import (
     BackupProcessRequest,
     ImportBackupRequest,
@@ -17,6 +20,7 @@ from domain.backup import (
     BackupDownloadParams,
     BackupInfo,
     BackupSyncResult,
+    BackupTransferPiece,
     FullBackupInfo,
     SyncStatus,
     BackupInfoParams,
@@ -44,6 +48,8 @@ class ImportBackupImpl(ImportBackup):
         backup_repository: BackupRepository,
         backup_local_registry: BackupLocalRegistry,
         cloud_register: CloudRegister,
+        legacy_config_importer: Optional[LegacyConfigImporter] = None,
+        error_reporter: Optional[ErrorReporterPort] = None,
     ):
         self._data_initiator = data_initiator
         self._backupable_ports = backupable_ports
@@ -51,6 +57,8 @@ class ImportBackupImpl(ImportBackup):
         self._backup_repository = backup_repository
         self._backup_local_registry = backup_local_registry
         self._cloud_register = cloud_register
+        self._legacy_config_importer = legacy_config_importer
+        self._error_reporter = error_reporter
 
         self._log = logging.getLogger(__name__)
 
@@ -145,13 +153,29 @@ class ImportBackupImpl(ImportBackup):
 
                 piece_types_to_import.add(piece.type)
 
+        download_types = list(piece_types_to_import)
+        import_legacy_config = (
+            self._legacy_config_importer is not None
+            and BackupFileType.DATA in piece_types_to_import
+            and BackupFileType.CONFIG not in piece_types_to_import
+            and BackupFileType.CONFIG in remote_backup_pieces
+        )
+        if import_legacy_config:
+            download_types.append(BackupFileType.CONFIG)
+
         pieces = await self._backup_repository.download(
-            BackupDownloadParams(types=list(piece_types_to_import), auth=user_auth)
+            BackupDownloadParams(types=download_types, auth=user_auth)
         )
 
         imported_backup_infos = []
         affected_pieces = {}
+        legacy_config_piece = None
         for piece in pieces.pieces:
+            if piece.type not in piece_types_to_import:
+                if import_legacy_config and piece.type == BackupFileType.CONFIG:
+                    legacy_config_piece = piece
+                continue
+
             backupable = self._backupable_ports.get(piece.type)
 
             process_request = BackupProcessRequest(
@@ -191,7 +215,28 @@ class ImportBackupImpl(ImportBackup):
         if imported_backup_infos:
             await self._backup_local_registry.insert(imported_backup_infos)
 
+        if legacy_config_piece is not None:
+            await self._import_legacy_config(legacy_config_piece, bkg_pass)
+
         return BackupSyncResult(pieces=affected_pieces)
+
+    async def _import_legacy_config(self, piece: BackupTransferPiece, password: str):
+        try:
+            processed = await self._backup_processor.decompile(
+                BackupProcessRequest(
+                    protocol=piece.protocol,
+                    password=password,
+                    type=piece.type,
+                    payload=piece.payload,
+                )
+            )
+            await self._legacy_config_importer.import_data(processed.payload)
+        except Exception as e:
+            self._log.warning("Could not import legacy config backup piece: %s", e)
+            if self._error_reporter:
+                self._error_reporter.capture_exception(
+                    e, tags={"use_case": "import_backup", "phase": "legacy_config"}
+                )
 
     async def _check_cooldown(self, types: list[BackupFileType], role: CloudUserRole):
         local_backup_registry = (await self._backup_local_registry.get_info()).pieces

@@ -60,3 +60,53 @@ class TestLoadRateMatrix:
         await client._load_rate_matrix(5)
 
         assert client._rates["EUR"] == {"USD": Dezimal("1.1")}
+
+
+class TestFetchWithFallback:
+    PRIMARY = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"
+    FALLBACK = "https://latest.currency-api.pages.dev/v1"
+
+    @pytest.mark.asyncio
+    async def test_primary_source_is_used_when_available(self):
+        client = _build_client()
+        primary = {"date": "2026-07-27", "eur": {"usd": 1.1}}
+        client._fetch = AsyncMock(return_value=primary)
+
+        assert await client._fetch_rates("EUR", 5) == primary
+        client._fetch.assert_awaited_once_with(
+            f"{self.PRIMARY}/currencies/eur.min.json", 5
+        )
+
+    @pytest.mark.asyncio
+    async def test_fallback_source_is_used_when_primary_fails(self):
+        client = _build_client()
+        fallback = {"date": "2026-07-27", "usd": {"eur": 0.9}}
+        client._fetch = AsyncMock(side_effect=[RuntimeError("blocked"), fallback])
+
+        assert await client._fetch_rates("USD", 5) == fallback
+        assert [call.args for call in client._fetch.await_args_list] == [
+            (f"{self.PRIMARY}/currencies/usd.min.json", 5),
+            (f"{self.FALLBACK}/currencies/usd.min.json", 5),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_available_currencies_use_fallback_when_primary_fails(self):
+        client = _build_client()
+        currencies = {"eur": "Euro", "usd": "US Dollar"}
+        client._fetch = AsyncMock(side_effect=[RuntimeError("blocked"), currencies])
+
+        assert await client.get_available_currencies(timeout=5) == currencies
+        assert client._fetch.await_args_list[1].args == (
+            f"{self.FALLBACK}/currencies.min.json",
+            5,
+        )
+
+    @pytest.mark.asyncio
+    async def test_last_error_is_raised_when_all_sources_fail(self):
+        client = _build_client()
+        client._fetch = AsyncMock(
+            side_effect=[RuntimeError("blocked"), RuntimeError("down")]
+        )
+
+        with pytest.raises(RuntimeError, match="down"):
+            await client._fetch_rates("EUR", 5)

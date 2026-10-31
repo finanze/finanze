@@ -79,17 +79,17 @@ jobs:
           echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
           echo "$PYENV_ROOT/versions/finanze/bin" >> $GITHUB_PATH
 
-      - name: Install packaging & runtime deps
-        shell: bash
-        run: |
-          pip install -r requirements-packaging.txt -r requirements.txt
-
       - name: Setup virtual env (non-Windows)
         if: ${{ matrix.os == 'ubuntu-latest' }}
         shell: bash
         run: |
           python3 -m venv $HOME/venv
           echo "$HOME/venv/bin" >> $GITHUB_PATH
+
+      - name: Install packaging & runtime deps
+        shell: bash
+        run: |
+          pip install -r requirements-packaging.txt -r requirements.txt
 
       - name: Package
         env:

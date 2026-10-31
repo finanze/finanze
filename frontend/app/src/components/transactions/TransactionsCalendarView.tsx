@@ -17,7 +17,8 @@ import {
   type MarketForecastTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
-import { formatCurrency } from "@/lib/formatters"
+import { DataSource } from "@/types"
+import { formatCurrency, formatIban } from "@/lib/formatters"
 import { FormattedMarketValue } from "@/components/ui/FormattedMarketValue"
 import { Sensitive } from "@/components/ui/Sensitive"
 import {
@@ -36,6 +37,11 @@ import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { EntityBadge } from "@/components/ui/EntityBadge"
+import { AnimatedPopup } from "@/components/ui/AnimatedPopup"
+import {
+  TransactionLabels,
+  isLabelableTx,
+} from "@/components/labels/TransactionLabels"
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,6 +52,8 @@ import {
 } from "lucide-react"
 
 type TransactionItem = TransactionsResult["transactions"][number]
+
+type BadgeClickType = "entity" | "productType" | "transactionType" | "label"
 
 const formatDateKey = (date: Date): string => {
   const year = date.getFullYear()
@@ -60,10 +68,9 @@ interface TransactionsCalendarViewProps {
   currentMonth: number
   currentYear: number
   onMonthChange: (month: number, year: number) => void
-  onBadgeClick: (
-    type: "entity" | "productType" | "transactionType",
-    value: string,
-  ) => void
+  onBadgeClick: (type: BadgeClickType, value: string) => void
+  onEditLabels?: (tx: TransactionItem) => void
+  renderActions?: (tx: TransactionItem) => React.ReactNode
 }
 
 interface DayTransactions {
@@ -80,6 +87,8 @@ export function TransactionsCalendarView({
   currentYear,
   onMonthChange,
   onBadgeClick,
+  onEditLabels,
+  renderActions,
 }: TransactionsCalendarViewProps) {
   const { t, locale } = useI18n()
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
@@ -220,7 +229,7 @@ export function TransactionsCalendarView({
     if (displayType === "neutral") {
       return "bg-gray-400 dark:bg-gray-500"
     }
-    if (type === TxType.FEE) {
+    if (type === TxType.FEE || type === TxType.OUTFLOW) {
       return "bg-red-500 dark:bg-red-400"
     }
     return "bg-blue-500 dark:bg-blue-400"
@@ -318,23 +327,24 @@ export function TransactionsCalendarView({
               >
                 {currentYear}
               </Button>
-              {showYearPicker && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {yearOptions.map(year => (
-                    <button
-                      key={year}
-                      onClick={() => handleYearSelect(year)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                        year === currentYear
-                          ? "bg-gray-100 dark:bg-gray-700 font-medium"
-                          : ""
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <AnimatedPopup
+                open={showYearPicker}
+                className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto"
+              >
+                {yearOptions.map(year => (
+                  <button
+                    key={year}
+                    onClick={() => handleYearSelect(year)}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      year === currentYear
+                        ? "bg-gray-100 dark:bg-gray-700 font-medium"
+                        : ""
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </AnimatedPopup>
             </div>
           </div>
         </div>
@@ -435,6 +445,8 @@ export function TransactionsCalendarView({
             day={selectedDay}
             onClose={() => setSelectedDayIndex(null)}
             onBadgeClick={onBadgeClick}
+            onEditLabels={onEditLabels}
+            renderActions={renderActions}
             onPrevDay={() => handleDayNavigation("prev")}
             onNextDay={() => handleDayNavigation("next")}
             canNavigatePrev={canNavigatePrev}
@@ -456,10 +468,9 @@ export function TransactionsCalendarView({
 interface DayDetailModalProps {
   day: DayTransactions
   onClose: () => void
-  onBadgeClick: (
-    type: "entity" | "productType" | "transactionType",
-    value: string,
-  ) => void
+  onBadgeClick: (type: BadgeClickType, value: string) => void
+  onEditLabels?: (tx: TransactionItem) => void
+  renderActions?: (tx: TransactionItem) => React.ReactNode
   onPrevDay: () => void
   onNextDay: () => void
   canNavigatePrev: boolean
@@ -470,6 +481,8 @@ function DayDetailModal({
   day,
   onClose,
   onBadgeClick,
+  onEditLabels,
+  renderActions,
   onPrevDay,
   onNextDay,
   canNavigatePrev,
@@ -524,6 +537,10 @@ function DayDetailModal({
         return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
       case TxType.FEE:
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+      case TxType.INFLOW:
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
+      case TxType.OUTFLOW:
+        return "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-100"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
     }
@@ -531,6 +548,7 @@ function DayDetailModal({
 
   const hasExtraDetails = (tx: TransactionItem): boolean => {
     if (tx.type === TxType.DIVIDEND && tx.amount !== undefined) return true
+    if (renderActions && tx.source === DataSource.MANUAL) return true
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
@@ -564,6 +582,9 @@ function DayDetailModal({
         const accountTx = tx as AccountTx
         return !!(
           tx.type === TxType.INTEREST ||
+          (renderActions && isLabelableTx(tx)) ||
+          accountTx.counterparty ||
+          accountTx.iban ||
           accountTx.fees ||
           accountTx.retentions ||
           (accountTx.interest_rate && accountTx.interest_rate > 0) ||
@@ -840,6 +861,24 @@ function DayDetailModal({
         const accountTx = tx as AccountTx
         return (
           <div className="space-y-1 pt-2">
+            {accountTx.counterparty && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.labels.counterparty}:
+                </span>{" "}
+                {accountTx.counterparty}
+              </div>
+            )}
+            {accountTx.iban && (
+              <div className={`${detailRowClass} break-all`}>
+                <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
+                <Sensitive>
+                  <span className="font-mono">
+                    {formatIban(accountTx.iban, true)}
+                  </span>
+                </Sensitive>
+              </div>
+            )}
             {grossAmountField}
             {tx.type === TxType.INTEREST && tx.amount !== undefined && (
               <div className={detailRowClass}>
@@ -1131,9 +1170,13 @@ function DayDetailModal({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2 ml-2">
-              <span className="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
-                {day.transactions.length} {t.transactions.items}
+            <div className="flex items-center gap-1 sm:gap-2 ml-2">
+              <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {day.transactions.length}
+                <span className="hidden sm:inline">
+                  {" "}
+                  {t.transactions.items}
+                </span>
               </span>
               <Button
                 variant="ghost"
@@ -1146,7 +1189,7 @@ function DayDetailModal({
             </div>
           </div>
 
-          <div className="p-3 sm:p-4 overflow-y-auto space-y-2 sm:space-y-3">
+          <div className="py-2 sm:p-4 overflow-y-auto space-y-2 sm:space-y-3">
             {day.transactions.map(tx => {
               const isExpanded = expandedTxs.has(tx.id)
               const hasDetails = hasExtraDetails(tx)
@@ -1160,7 +1203,10 @@ function DayDetailModal({
               )
 
               return (
-                <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
+                <div
+                  key={tx.id}
+                  className="p-3 rounded-none sm:rounded-lg bg-muted/50"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 pr-1.5">
@@ -1228,6 +1274,17 @@ function DayDetailModal({
                           onClick={() => onBadgeClick("entity", tx.entity.id)}
                           className="text-xs"
                         />
+                        {isLabelableTx(tx) && (
+                          <TransactionLabels
+                            tx={tx as AccountTx}
+                            onLabelClick={labelId =>
+                              onBadgeClick("label", labelId)
+                            }
+                            onEdit={
+                              onEditLabels ? () => onEditLabels(tx) : undefined
+                            }
+                          />
+                        )}
                         {hasDetails && (
                           <button
                             onClick={() => toggleExpanded(tx.id)}
@@ -1255,6 +1312,7 @@ function DayDetailModal({
                           className="overflow-hidden"
                         >
                           {renderTransactionDetails(tx)}
+                          {renderActions?.(tx)}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1262,10 +1320,6 @@ function DayDetailModal({
                 </div>
               )
             })}
-          </div>
-
-          <div className="p-3 sm:hidden border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 text-center">
-            {day.transactions.length} {t.transactions.items}
           </div>
         </Card>
       </motion.div>

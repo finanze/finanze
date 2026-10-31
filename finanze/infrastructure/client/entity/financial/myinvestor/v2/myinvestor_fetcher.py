@@ -1,4 +1,8 @@
+import asyncio
 import logging
+import re
+import time
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
@@ -20,11 +24,13 @@ from domain.dezimal import Dezimal
 from domain.entity_login import (
     EntityLoginParams,
     EntityLoginResult,
+    LoginConfirmationType,
     LoginResultCode,
+    TwoFactor,
 )
 from domain.fetch_record import DataSource
 from domain.fetch_pointer import FetchPointer
-from domain.fetch_result import FetchOptions
+from domain.fetch_result import FetchOptions, FetchStage
 from domain.global_position import (
     Account,
     Accounts,
@@ -51,7 +57,9 @@ from domain.global_position import (
 )
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import MY_INVESTOR
+from domain.settlement import SETTLEMENT_MAX_DAYS
 from domain.transactions import (
+    ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS,
     AccountTx,
     DepositTx,
     FundPortfolioTx,
@@ -59,6 +67,7 @@ from domain.transactions import (
     StockTx,
     Transactions,
     TxType,
+    normalize_iban,
 )
 from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client import (
     MyInvestorAPIV2Client,
@@ -113,6 +122,7 @@ BEGINNING = date.fromisocalendar(2018, 1, 1)
 
 ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
+ACCOUNT_MOVEMENTS_MAX_LOOKBACK = timedelta(days=ACCOUNT_MOVEMENTS_MAX_LOOKBACK_DAYS)
 
 ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
 
@@ -122,6 +132,75 @@ STOCK_ORDERS_POINTER = "stock_orders"
 FUND_ORDERS_POINTER = "fund_orders"
 PENSION_ORDERS_POINTER = "pension_orders"
 DEPOSIT_TXS_POINTER = "deposit_txs"
+ACCOUNT_TXS_POINTER = "account_txs"
+DIVIDENDS_POINTER = "dividends"
+
+DEPOSIT_MOVEMENT_CLASS = "MOVIMIENTOS DEPOSITOS"
+INTEREST_MOVEMENT_CLASS = "LIQUIDACION INTERESES CUENTA"
+DIVIDEND_MOVEMENT_CLASS = "RENDIMIENTOS DE VALORES"
+DIVIDEND_MOVEMENT_TYPE = "ABONO DE DIVIDENDO"
+
+OLD_TXS_SIGNATURE_TTL_SECONDS = 600
+SIGNATURE_APPROVAL_TIMEOUT_SECONDS = 120
+SIGNATURE_POLL_INTERVAL_SECONDS = 3
+INAPP_SIGNATURE_METHOD = "INAPP"
+PENDING_SIGNATURE_STATUS = "PENDING"
+COMPLETE_SIGNATURE_STATUS = "COMPLETE"
+
+
+@dataclass(frozen=True)
+class _OldTxsCursor:
+    account: dict
+    related_security_account_id: Optional[str]
+    from_date: date
+    to_date: date
+    signature_request_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _PendingSignature:
+    signature_request_id: str
+    requested_at: float
+
+
+def _signature_methods(data: dict) -> list[str]:
+    return [
+        method
+        for group in data.get("pendingSignatureMethods") or []
+        for method in (group if isinstance(group, list) else [group])
+    ]
+
+
+def _is_generic_movement(tx_class: str, raw_tx_type: str) -> bool:
+    if tx_class in (DEPOSIT_MOVEMENT_CLASS, INTEREST_MOVEMENT_CLASS):
+        return False
+    if tx_class == "ME" and raw_tx_type == "RETE.LIQUIDA":
+        return False
+    if tx_class == "0" and raw_tx_type == "INTERESES S/F":
+        return False
+    return True
+
+
+def _map_account_movement(
+    ref, name, raw_amount, currency, tx_date, iban=None
+) -> AccountTx:
+    amount = round(abs(raw_amount), 2)
+    return AccountTx(
+        id=uuid4(),
+        ref=ref,
+        name=name,
+        amount=amount,
+        currency=currency,
+        type=TxType.INFLOW if raw_amount > 0 else TxType.OUTFLOW,
+        product_type=ProductType.ACCOUNT,
+        date=tx_date,
+        entity=MY_INVESTOR,
+        fees=Dezimal(0),
+        retentions=Dezimal(0),
+        net_amount=amount,
+        source=DataSource.REAL,
+        iban=iban,
+    )
 
 
 def _map_deposit_tx(
@@ -144,7 +223,7 @@ def _map_deposit_tx(
     )
 
 
-def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
+def _map_account_tx(ref, name, amount, currency, tx_date, retentions, iban=None):
     amount = round(amount, 2)
     retentions = round(retentions, 2)
     net_amount = amount - retentions
@@ -164,6 +243,7 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
         interest_rate=None,
         avg_balance=None,
         source=DataSource.REAL,
+        iban=iban,
     )
 
 
@@ -184,7 +264,19 @@ def _parse_asset_type(raw_asset_type) -> AssetType:
 class MyInvestorFetcherV2(FinancialEntityFetcher):
     def __init__(self):
         self._client = MyInvestorAPIV2Client()
+        self._old_txs_cursors: list[_OldTxsCursor] = []
+        self._pending_signature: Optional[_PendingSignature] = None
+        self._signed_request_id: Optional[str] = None
+        self._cancel_event = asyncio.Event()
         self._log = logging.getLogger(__name__)
+
+    def cancel_login(self) -> None:
+        self._cancel_event.set()
+
+    def _reset_old_txs_state(self):
+        self._old_txs_cursors = []
+        self._pending_signature = None
+        self._signed_request_id = None
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         if await self._client.is_under_maintenance():
@@ -233,6 +325,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
+        if options.stage == FetchStage.TWO_FACTOR_OLD_TXS:
+            return await self._fetch_old_account_txs(registered_txs, options)
+
+        self._reset_old_txs_state()
         accounts = await self._get_active_owned_accounts()
 
         target_accounts = [
@@ -252,15 +348,17 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             creation_date = datetime.fromisoformat(account["creationDate"]).date()
             if creation_date < min_creation_date:
                 min_creation_date = creation_date
+            security_account = await self._get_related_security_account(account_id)
             related_security_account_id = (
-                await self._get_related_security_account(account_id)
-            )["accountId"]
-            investment_txs += await self._get_investment_txs(
-                registered_txs,
-                related_security_account_id,
-                creation_date,
-                options,
+                security_account["accountId"] if security_account else None
             )
+            if related_security_account_id:
+                investment_txs += await self._get_investment_txs(
+                    registered_txs,
+                    related_security_account_id,
+                    creation_date,
+                    options,
+                )
 
             account_related_txs = await self._classify_account_txs(
                 account,
@@ -271,7 +369,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
             investment_txs += account_related_txs["deposit"]
             investment_txs += account_related_txs["portfolio"]
+            investment_txs += account_related_txs["dividends"]
             account_txs += account_related_txs["interests"]
+            account_txs += account_related_txs["movements"]
 
         pension_fund_txs = []
         pension_fund_accounts = await self._client.get_pension_accounts()
@@ -292,6 +392,110 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         investment_txs += pension_fund_txs
 
         return Transactions(investment=investment_txs, account=account_txs)
+
+    async def _fetch_old_account_txs(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        signature_request_id = self._signed_request_id
+        self._signed_request_id = None
+        if not signature_request_id or not self._old_txs_cursors:
+            return Transactions(investment=[], account=[])
+
+        cursor = self._old_txs_cursors.pop(0)
+        result = await self._classify_account_txs(
+            cursor.account,
+            registered_txs,
+            cursor.related_security_account_id,
+            cursor.from_date,
+            options,
+            replace(cursor, signature_request_id=signature_request_id),
+        )
+        return Transactions(
+            investment=result["deposit"] + result["portfolio"] + result["dividends"],
+            account=result["interests"] + result["movements"],
+        )
+
+    async def request_old_txs_code(self) -> Optional[EntityLoginResult]:
+        self._pending_signature = None
+        if not self._old_txs_cursors:
+            return None
+
+        cursor = self._old_txs_cursors[0]
+        data = await self._get_account_flows(
+            cursor.account, cursor.from_date, cursor.to_date
+        )
+        signature_request_id = data.get("signatureRequestId")
+        methods = _signature_methods(data)
+        if not signature_request_id or INAPP_SIGNATURE_METHOD not in methods:
+            self._log.warning(
+                f"Unsupported MyInvestor older movements signature: {methods}"
+            )
+            self._old_txs_cursors = []
+            return None
+
+        await self._client.start_inapp_signature(signature_request_id)
+        self._pending_signature = _PendingSignature(
+            signature_request_id=signature_request_id, requested_at=time.monotonic()
+        )
+        self._cancel_event.clear()
+        return EntityLoginResult(
+            LoginResultCode.CODE_REQUESTED,
+            confirmation_type=LoginConfirmationType.IN_APP,
+            process_id=signature_request_id,
+        )
+
+    async def confirm_old_txs_code(self, two_factor: TwoFactor) -> EntityLoginResult:
+        pending = self._pending_signature
+        self._pending_signature = None
+        if (
+            not pending
+            or time.monotonic() - pending.requested_at > OLD_TXS_SIGNATURE_TTL_SECONDS
+            or (
+                two_factor.process_id
+                and two_factor.process_id != pending.signature_request_id
+            )
+        ):
+            return EntityLoginResult(
+                LoginResultCode.NOT_LOGGED,
+                message="MyInvestor older movements signature expired or not requested",
+            )
+
+        status = await self._wait_for_signature(pending.signature_request_id)
+        if status is None:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="Approval cancelled by user.",
+            )
+        if status != COMPLETE_SIGNATURE_STATUS:
+            return EntityLoginResult(
+                LoginResultCode.NOT_LOGGED,
+                message=f"MyInvestor older movements signature not completed: {status}",
+            )
+
+        self._signed_request_id = pending.signature_request_id
+        return EntityLoginResult(LoginResultCode.CREATED)
+
+    async def _wait_for_signature(self, signature_request_id: str) -> Optional[str]:
+        status = PENDING_SIGNATURE_STATUS
+        deadline = time.monotonic() + SIGNATURE_APPROVAL_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            signature = await self._client.get_signature(signature_request_id)
+            if self._cancel_event.is_set():
+                return None
+            status = signature.get("status")
+            if (
+                status != PENDING_SIGNATURE_STATUS
+                or INAPP_SIGNATURE_METHOD not in _signature_methods(signature)
+            ):
+                return status
+            try:
+                await asyncio.wait_for(
+                    self._cancel_event.wait(), timeout=SIGNATURE_POLL_INTERVAL_SECONDS
+                )
+                return None
+            except TimeoutError:
+                pass
+        return status
 
     async def _get_investment_txs(
         self,
@@ -425,17 +629,48 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         related_security_account_id,
         min_date: date,
         options: Optional[FetchOptions] = None,
+        old_txs: Optional[_OldTxsCursor] = None,
     ):
         account_id = account["accountId"]
+        account_type = account.get("accountType")
+        cash_iban = normalize_iban(account.get("iban"))
         pointer_key = self._pointer_key(DEPOSIT_TXS_POINTER, account_id)
+        movements_pointer_key = self._pointer_key(ACCOUNT_TXS_POINTER, account_id)
         has_pointer_context = (
             options is not None and options.pointer_context is not None
         )
-        if has_pointer_context:
-            min_date = min(
-                self._pointer_date(options, pointer_key, min_date), date.today()
+        ignore_pointers = old_txs is not None or bool(
+            options and options.two_factor_old_txs
+        )
+        today = date.today()
+        include_movements = account_type == "CASH_ACCOUNT"
+        include_dividends = include_movements and bool(related_security_account_id)
+        dividends_pointer_key = self._pointer_key(
+            DIVIDENDS_POINTER, related_security_account_id
+        )
+        dividends_min_date = min_date
+        if include_dividends and not ignore_pointers:
+            fallback = min_date
+            if registered_txs and not (options and options.deep):
+                fallback = self._pointer_date(options, movements_pointer_key, today)
+            dividends_threshold = self._pointer_date(
+                options, dividends_pointer_key, fallback
             )
-        account_type = account.get("accountType")
+            dividends_min_date = max(
+                min_date,
+                min(dividends_threshold, today) - timedelta(days=SETTLEMENT_MAX_DAYS),
+            )
+        movements_min_date = max(min_date, today - ACCOUNT_MOVEMENTS_MAX_LOOKBACK)
+        if has_pointer_context and not ignore_pointers:
+            min_date = min(self._pointer_date(options, pointer_key, min_date), today)
+            movements_min_date = min(
+                self._pointer_date(options, movements_pointer_key, movements_min_date),
+                today,
+            )
+        if include_movements:
+            min_date = min(min_date, movements_min_date)
+        if include_dividends:
+            min_date = min(min_date, dividends_min_date)
         portfolio_account_details = {}
 
         if account_type == "CASH_PORTFOLIO":
@@ -446,22 +681,29 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         deposit_txs = []
         interest_txs = []
         portfolio_txs = []
+        movement_txs = []
+        dividend_candidates = {}
         result = {
             "deposit": deposit_txs,
             "interests": interest_txs,
             "portfolio": portfolio_txs,
+            "movements": movement_txs,
+            "dividends": [],
         }
 
-        to_date = from_date = date.today()
-        from_date += timedelta(days=1)
+        flows = (
+            self._signed_account_flows(old_txs)
+            if old_txs
+            else self._account_flows(
+                account,
+                related_security_account_id,
+                min_date,
+                has_pointer_context,
+                options,
+            )
+        )
         latest_fetched_tx_date = None
-        while from_date > min_date:
-            from_date -= ACCOUNT_TX_FETCH_STEP
-            if has_pointer_context:
-                from_date = max(from_date, min_date)
-            raw_txs = (
-                await self._client.get_account_movements(account_id, from_date, to_date)
-            )["flowList"]
+        async for raw_txs in flows:
             current_latest_tx_date = self._latest_account_tx_date(raw_txs)
             if current_latest_tx_date and (
                 latest_fetched_tx_date is None
@@ -471,11 +713,20 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             for tx in raw_txs:
                 ref = tx["reference"]
+                if (
+                    include_dividends
+                    and tx.get("operationClass") == DIVIDEND_MOVEMENT_CLASS
+                    and tx.get("operationType") == DIVIDEND_MOVEMENT_TYPE
+                    and self._account_tx_date(tx).date() >= dividends_min_date
+                    and Dezimal(tx["amount"]) > 0
+                    and self._dividend_ref(related_security_account_id, ref)
+                    not in registered_txs
+                ):
+                    dividend_candidates[ref] = tx
                 if ref in registered_txs:
-                    self._update_pointer(options, pointer_key, latest_fetched_tx_date)
-                    return result
+                    continue
 
-                tx_class = tx["operationClass"]
+                tx_class = tx.get("operationClass")
                 raw_tx_type = tx["operationType"]
                 tx_date = self._account_tx_date(tx)
                 currency = tx["currency"]
@@ -483,7 +734,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 raw_amount = Dezimal(tx["amount"])
                 amount = abs(raw_amount)
 
-                if tx_class == "MOVIMIENTOS DEPOSITOS":
+                if tx_class == DEPOSIT_MOVEMENT_CLASS:
                     if raw_tx_type == "ABONO LIQUIDAC DEPO":
                         related_deposit_data = tx.get("depositSettlementDetails")
                         if not related_deposit_data:
@@ -551,7 +802,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             )
                         )
 
-                elif tx_class == "LIQUIDACION INTERESES CUENTA":
+                elif tx_class == INTEREST_MOVEMENT_CLASS:
                     if (
                         raw_tx_type == "LIQUIDAC. INTERESES"
                     ):  # Old one, retention is already deducted
@@ -560,7 +811,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         retentions = amount - net_amount
                         interest_txs.append(
                             _map_account_tx(
-                                ref, name, amount, currency, tx_date, retentions
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                tx_date,
+                                retentions,
+                                cash_iban,
                             )
                         )
 
@@ -574,7 +831,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         retentions = amount * CAPITAL_GAINS_BASE_TAX
                         interest_txs.append(
                             _map_account_tx(
-                                ref, name, amount, currency, tx_date, retentions
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                tx_date,
+                                retentions,
+                                cash_iban,
                             )
                         )
 
@@ -605,10 +868,290 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             )
                         )
 
-            to_date -= ACCOUNT_TX_FETCH_STEP
+                if (
+                    include_movements
+                    and raw_amount != 0
+                    and tx_date.date() >= movements_min_date
+                    and _is_generic_movement(tx_class, raw_tx_type)
+                ):
+                    movement_txs.append(
+                        _map_account_movement(
+                            ref, name, raw_amount, currency, tx_date, cash_iban
+                        )
+                    )
 
         self._update_pointer(options, pointer_key, latest_fetched_tx_date)
+        if include_movements:
+            self._update_pointer(options, movements_pointer_key, latest_fetched_tx_date)
+        if include_dividends:
+            dividends = await self._fetch_dividends(
+                related_security_account_id, list(dividend_candidates.values())
+            )
+            result["dividends"] = dividends
+            linked_refs = {tx.linked_tx: tx.ref for tx in dividends}
+            for movement in movement_txs:
+                movement.linked_tx = linked_refs.get(movement.ref)
+            unresolved_dates = [
+                self._account_tx_date(tx).date()
+                for ref, tx in dividend_candidates.items()
+                if ref not in linked_refs
+            ]
+            self._update_pointer(
+                options,
+                dividends_pointer_key,
+                min(unresolved_dates) if unresolved_dates else today,
+            )
         return result
+
+    async def _get_account_flows(
+        self,
+        account: dict,
+        from_date: date,
+        to_date: date,
+        signature_id: Optional[str] = None,
+    ) -> dict:
+        signature = {"signature_id": signature_id} if signature_id else {}
+        account_uuid = account.get("accountUuid")
+        if account_uuid and account_uuid != "null":
+            return await self._client.get_account_movements(
+                account_uuid, from_date, to_date, version=3, **signature
+            )
+        return await self._client.get_account_movements(
+            account["accountId"], from_date, to_date, **signature
+        )
+
+    async def _account_flows(
+        self,
+        account: dict,
+        related_security_account_id: Optional[str],
+        min_date: date,
+        clamp: bool,
+        options: Optional[FetchOptions],
+    ):
+        to_date = from_date = date.today()
+        from_date += timedelta(days=1)
+        while from_date > min_date:
+            from_date -= ACCOUNT_TX_FETCH_STEP
+            if clamp:
+                from_date = max(from_date, min_date)
+            data = await self._get_account_flows(account, from_date, to_date)
+            if data.get("signatureRequestId"):
+                if options and options.two_factor_old_txs:
+                    self._old_txs_cursors.append(
+                        _OldTxsCursor(
+                            account=account,
+                            related_security_account_id=related_security_account_id,
+                            from_date=min_date,
+                            to_date=to_date,
+                        )
+                    )
+                else:
+                    self._log.info(
+                        f"MyInvestor requires signature for movements until {to_date}, skipping"
+                    )
+                return
+            yield data["flowList"]
+            to_date -= ACCOUNT_TX_FETCH_STEP
+
+    async def _signed_account_flows(self, cursor: _OldTxsCursor):
+        data = await self._get_account_flows(
+            cursor.account,
+            cursor.from_date,
+            cursor.to_date,
+            cursor.signature_request_id,
+        )
+        if data.get("signatureRequestId"):
+            raise ValueError("MyInvestor did not accept older movements signature")
+        yield data["flowList"]
+
+    @staticmethod
+    def _dividend_ref(securities_account_id: str, cash_ref: str) -> str:
+        return f"dividend:{securities_account_id}:{cash_ref}"
+
+    @staticmethod
+    def _dividend_name(value: str) -> str:
+        if not isinstance(value, str):
+            return ""
+        return " ".join(value.strip().removesuffix("@").split()).upper()
+
+    @staticmethod
+    def _dividend_dates(data: dict) -> list[date]:
+        dates = []
+        for key in ("operationDate", "execDate", "valueDate"):
+            value = data.get(key)
+            if not value:
+                continue
+            try:
+                dates.append(_parse_datetime(value).date())
+            except (TypeError, ValueError):
+                continue
+        return dates
+
+    @classmethod
+    def _dividend_event_matches(cls, flow: dict, event: dict) -> bool:
+        if (
+            event.get("eventType") != "DE"
+            or not all(
+                isinstance(event.get(key), str) and event[key]
+                for key in ("eventId", "isin", "toolDescription")
+            )
+            or cls._dividend_name(flow["concept"])
+            != cls._dividend_name(event["toolDescription"])
+        ):
+            return False
+        return any(
+            abs((flow_date - event_date).days) <= SETTLEMENT_MAX_DAYS
+            for flow_date in cls._dividend_dates(flow)
+            for event_date in cls._dividend_dates(event)
+            if event_date <= date.today()
+        )
+
+    def _map_dividend(
+        self, securities_account_id: str, flow: dict, event: dict, details: dict
+    ) -> Optional[StockTx]:
+        if (
+            details.get("eventType") != "DE"
+            or details.get("originEmissionIsin") != event["isin"]
+            or details.get("eventCurrency") != flow["currency"]
+            or details.get("originEmissionCurrency") != flow["currency"]
+            or flow["currency"] != "EUR"
+            or self._dividend_name(details.get("toolDescription") or "")
+            != self._dividend_name(event["toolDescription"])
+            or (details.get("ticker") and details["ticker"] != event.get("ticker"))
+            or not self._dividend_dates(details)
+        ):
+            return None
+        if not any(
+            abs((flow_date - event_date).days) <= SETTLEMENT_MAX_DAYS
+            for flow_date in self._dividend_dates(flow)
+            for event_date in self._dividend_dates(details)
+        ):
+            return None
+        operation_ref = flow.get("operationRef") or ""
+        if not isinstance(operation_ref, str):
+            return None
+        quantity_match = re.search(
+            r"@\s+([0-9]+(?:\.[0-9]+)?)\s+[0-9]+\s*$", operation_ref
+        )
+        if operation_ref.count("@") != 1 or not quantity_match:
+            return None
+        try:
+            shares = Dezimal(quantity_match.group(1))
+            gross_per_share = Dezimal(details["taxSharesMarketExpenses"])
+            origin_tax = Dezimal(details["taxSharesOriginWithholding"])
+            destination_tax = Dezimal(details["taxSharesDestinationWithholding"])
+            expense_rate = Dezimal(details["marketExpensesPercent"])
+            net_amount = Dezimal(flow["amount"])
+            values = (
+                shares,
+                gross_per_share,
+                origin_tax,
+                destination_tax,
+                expense_rate,
+                net_amount,
+            )
+            if not all(value.val.is_finite() for value in values):
+                return None
+            if (
+                shares <= 0
+                or gross_per_share <= 0
+                or origin_tax < 0
+                or destination_tax < 0
+                or expense_rate != 0
+                or net_amount <= 0
+            ):
+                return None
+            gross = gross_per_share * shares
+            withholding = (origin_tax + destination_tax) * shares
+            amount = round(gross, 2)
+            retentions = round(withholding, 2)
+            if (
+                round(gross - withholding, 2) != net_amount
+                or amount != net_amount + retentions
+            ):
+                return None
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            return None
+        return StockTx(
+            id=uuid4(),
+            ref=self._dividend_ref(securities_account_id, flow["reference"]),
+            name=event["toolDescription"].strip(),
+            amount=amount,
+            net_amount=net_amount,
+            currency=flow["currency"],
+            type=TxType.DIVIDEND,
+            date=self._account_tx_date(flow),
+            entity=MY_INVESTOR,
+            isin=event["isin"],
+            ticker=event.get("ticker"),
+            market=event.get("marketId"),
+            shares=shares,
+            price=Dezimal(0),
+            fees=Dezimal(0),
+            retentions=retentions,
+            product_type=ProductType.STOCK_ETF,
+            source=DataSource.REAL,
+            linked_tx=flow["reference"],
+        )
+
+    async def _fetch_dividends(
+        self, securities_account_id: str, flows: list[dict]
+    ) -> list[StockTx]:
+        if not flows:
+            return []
+        try:
+            events = await self._client.get_financial_events(securities_account_id)
+        except Exception:
+            self._log.exception("Could not fetch MyInvestor dividend events")
+            return []
+        if not isinstance(events, list) or any(
+            not isinstance(event, dict) for event in events
+        ):
+            self._log.warning("Invalid MyInvestor dividend events response")
+            return []
+        details_by_id = {}
+        matches = {}
+        event_uses = {}
+        for flow in flows:
+            candidates = []
+            for event in events:
+                if not self._dividend_event_matches(flow, event):
+                    continue
+                event_id = event["eventId"]
+                if event_id not in details_by_id:
+                    try:
+                        details_by_id[
+                            event_id
+                        ] = await self._client.get_financial_event_details(
+                            securities_account_id, event_id
+                        )
+                    except Exception:
+                        self._log.exception(
+                            "Could not fetch MyInvestor dividend details"
+                        )
+                        details_by_id[event_id] = None
+                details = details_by_id[event_id]
+                if not isinstance(details, dict):
+                    candidates.append((event_id, None))
+                    continue
+                dividend = self._map_dividend(
+                    securities_account_id, flow, event, details
+                )
+                if dividend:
+                    candidates.append((event_id, dividend))
+                    event_uses[event_id] = event_uses.get(event_id, 0) + 1
+            matches[flow["reference"]] = candidates
+        dividends = []
+        for cash_ref, candidates in matches.items():
+            if len(candidates) == 1:
+                event_id, dividend = candidates[0]
+                if dividend and event_uses[event_id] == 1:
+                    dividends.append(dividend)
+                    continue
+            self._log.warning(
+                "MyInvestor dividend flow %s could not be uniquely reconciled", cash_ref
+            )
+        return dividends
 
     async def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
         accounts = await self._get_active_owned_accounts()
