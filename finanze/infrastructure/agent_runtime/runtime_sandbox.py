@@ -26,7 +26,8 @@ class AgentRuntimeInstanceDirs:
 
 class AgentRuntimeSandbox:
     def __init__(self, root: Path):
-        self._root = root
+        # Runtimes start in their own work dir, so relative paths would break.
+        self._root = root.absolute()
 
     def runtime_dir(self, provider: str) -> Path:
         path = self._root / provider / RUNTIME_DIR

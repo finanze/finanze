@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -14,9 +15,13 @@ from application.use_cases.disconnect_external_integration import (
 from application.use_cases.get_external_integrations import (
     GetExternalIntegrationsImpl,
 )
+from application.use_cases.get_external_labeling_models import (
+    GetExternalLabelingModelsImpl,
+)
 from application.use_cases.poll_external_integration_connection import (
     PollExternalIntegrationConnectionImpl,
 )
+from dateutil.tz import tzlocal
 from domain.data_init import DatasourceInitContext
 from domain.external_integration import ExternalIntegrationId
 from infrastructure.agent_runtime.runtime_pool import AgentRuntimePool
@@ -36,6 +41,7 @@ from infrastructure.client.ai.github_copilot.github_copilot_client import (
 from infrastructure.client.ai.github_copilot.github_device_flow import (
     ACCESS_TOKEN_URL,
     DEVICE_CODE_URL,
+    REFRESH_GRANT_TYPE,
     VERIFICATION_URI,
     GitHubDeviceFlow,
 )
@@ -51,9 +57,14 @@ from infrastructure.controller.routes.disconnect_external_integration import (
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
+from infrastructure.controller.routes.get_external_labeling_models import (
+    get_external_labeling_models,
+)
 from infrastructure.controller.routes.poll_external_integration_connection import (
     poll_external_integration_connection,
 )
+from infrastructure.labeling.ai_labeling_presets import LABELING_PRESETS
+from infrastructure.labeling.ai_labeling_provider import AILabelingProvider
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -65,6 +76,30 @@ COPILOT = ExternalIntegrationId.GITHUB_COPILOT
 DEVICE_CODE = "device-code-secret"
 TOKEN = "gho_device_token"
 MODELS = [CopilotModelEntry(id="gpt-5-mini", name="GPT-5 mini", enabled=True)]
+NOW = datetime(2026, 11, 1, 12, 0, tzinfo=tzlocal())
+ACCESS_TTL = timedelta(hours=8)
+REFRESH_TTL = timedelta(days=184)
+
+
+def _expiring_response(access_token: str, refresh_token: str) -> dict:
+    return {
+        "access_token": access_token,
+        "expires_in": int(ACCESS_TTL.total_seconds()),
+        "refresh_token": refresh_token,
+        "refresh_token_expires_in": int(REFRESH_TTL.total_seconds()),
+        "scope": "",
+        "token_type": "bearer",
+    }
+
+
+def _expiring_payload(access_token: str, refresh_token: str, issued_at) -> dict:
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_at": (issued_at + ACCESS_TTL).isoformat(),
+        "refresh_token_expires_at": (issued_at + REFRESH_TTL).isoformat(),
+    }
 
 
 class Clock:
@@ -72,6 +107,14 @@ class Clock:
         self.now = 0.0
 
     def __call__(self) -> float:
+        return self.now
+
+
+class WallClock:
+    def __init__(self):
+        self.now = NOW
+
+    def __call__(self) -> datetime:
         return self.now
 
 
@@ -96,6 +139,7 @@ class FakeRuntime:
 class FakeGitHub:
     def __init__(self):
         self.token_responses: list[dict] = []
+        self.token_requests: list[dict] = []
 
     async def post(self, url, **kwargs):
         if url == DEVICE_CODE_URL:
@@ -108,6 +152,7 @@ class FakeGitHub:
             }
         else:
             assert url == ACCESS_TOKEN_URL
+            self.token_requests.append(kwargs["data"])
             body = self.token_responses.pop(0)
         return HttpResponse(httpx.Response(200, json=body))
 
@@ -125,6 +170,7 @@ async def ctx(tmp_path, monkeypatch):
     repository = ExternalIntegrationRepository(client)
 
     clock = Clock()
+    wall = WallClock()
     github = FakeGitHub()
     runtimes: list[FakeRuntime] = []
     state = SimpleNamespace(models=MODELS, started=[])
@@ -138,11 +184,13 @@ async def ctx(tmp_path, monkeypatch):
     sandbox = AgentRuntimeSandbox(tmp_path / "agent_runtimes")
     pool = AgentRuntimePool()
     copilot = GitHubCopilotClient(
-        GitHubDeviceFlow("Iv1.client", GITHUB_DEVICE_SCOPE, github, clock),
+        GitHubDeviceFlow("Iv1.client", GITHUB_DEVICE_SCOPE, github, clock, wall),
         CopilotRuntimeProvisioner(sandbox.runtime_dir(PROVIDER)),
         pool,
         sandbox,
+        repository,
         runtime_factory=runtime_factory,
+        now=wall,
     )
     integrations = {COPILOT: copilot}
 
@@ -150,6 +198,9 @@ async def ctx(tmp_path, monkeypatch):
     connect_uc = ConnectExternalIntegrationImpl(repository, integrations)
     poll_uc = PollExternalIntegrationConnectionImpl(repository, integrations)
     disconnect_uc = DisconnectExternalIntegrationImpl(repository, integrations)
+    models_uc = GetExternalLabelingModelsImpl(
+        repository, {COPILOT: AILabelingProvider(copilot, LABELING_PRESETS[COPILOT])}
+    )
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -172,10 +223,18 @@ async def ctx(tmp_path, monkeypatch):
     async def poll_route(integration_id: str):
         return await poll_external_integration_connection(poll_uc, integration_id)
 
+    @app.route(
+        "/api/v1/labeling/external/providers/<provider_id>/models", methods=["GET"]
+    )
+    async def models_route(provider_id: str):
+        return await get_external_labeling_models(models_uc, provider_id)
+
     yield SimpleNamespace(
         http=app.test_client(),
         repository=repository,
+        copilot=copilot,
         clock=clock,
+        wall=wall,
         github=github,
         runtimes=runtimes,
         state=state,
@@ -318,3 +377,66 @@ async def test_migration_seeds_github_copilot_integration(ctx):
         "GitHub Copilot",
         "AI_PROVIDER",
     )
+
+
+async def _connect(ctx, token_response: dict):
+    device = await _start(ctx)
+    ctx.github.token_responses = [token_response]
+    ctx.clock.now = 5
+    assert (await _poll(ctx, device["flow_id"])).status_code == 200
+
+
+async def _model_ids(ctx) -> list[str]:
+    response = await ctx.http.get(
+        f"/api/v1/labeling/external/providers/{COPILOT.value}/models"
+    )
+    assert response.status_code == 200
+    return [model["id"] for model in (await response.get_json())["models"]]
+
+
+@pytest.mark.asyncio
+async def test_expiring_token_is_refreshed_and_rotation_persisted(ctx):
+    await _connect(ctx, _expiring_response("ghu_first", "ghr_first"))
+
+    assert await ctx.repository.get_payload(COPILOT) == _expiring_payload(
+        "ghu_first", "ghr_first", NOW
+    )
+    assert await _model_ids(ctx) == ["gpt-5-mini"]
+    assert len(ctx.github.token_requests) == 1
+
+    refreshed_at = NOW + ACCESS_TTL - timedelta(minutes=2)
+    ctx.wall.now = refreshed_at
+    ctx.github.token_responses = [_expiring_response("ghu_second", "ghr_second")]
+
+    assert await _model_ids(ctx) == ["gpt-5-mini"]
+
+    assert ctx.github.token_requests[-1] == {
+        "client_id": "Iv1.client",
+        "grant_type": REFRESH_GRANT_TYPE,
+        "refresh_token": "ghr_first",
+    }
+    assert await ctx.repository.get_payload(COPILOT) == _expiring_payload(
+        "ghu_second", "ghr_second", refreshed_at
+    )
+    assert [token for _, token in ctx.state.started] == ["ghu_first", "ghu_second"]
+    assert ctx.runtimes[0].stopped
+    assert (await _integration(ctx))["status"] == "ON"
+
+    assert await _model_ids(ctx) == ["gpt-5-mini"]
+    assert len(ctx.github.token_requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_refresh_after_disconnect_does_not_reconnect(ctx):
+    await _connect(ctx, _expiring_response("ghu_first", "ghr_first"))
+    stale = await ctx.repository.get_payload(COPILOT)
+    assert (
+        await ctx.http.delete(f"/api/v1/integrations/{COPILOT.value}")
+    ).status_code == 204
+
+    ctx.wall.now = NOW + ACCESS_TTL - timedelta(minutes=2)
+    ctx.github.token_responses = [_expiring_response("ghu_second", "ghr_second")]
+    await ctx.copilot.list_models(stale)
+
+    assert (await _integration(ctx))["status"] == "OFF"
+    assert await ctx.repository.get_payload(COPILOT) is None

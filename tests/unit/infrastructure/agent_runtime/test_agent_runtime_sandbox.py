@@ -1,4 +1,5 @@
 import stat
+from pathlib import Path
 
 import pytest
 from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
@@ -14,6 +15,19 @@ def test_runtime_dir_is_private(tmp_path):
     assert runtime_dir == tmp_path / "agents" / "copilot" / "runtime"
     assert runtime_dir.is_dir()
     assert _mode(runtime_dir) == 0o700
+
+
+@pytest.mark.asyncio
+async def test_relative_root_yields_absolute_paths(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    sandbox = AgentRuntimeSandbox(Path(".storage") / "agents")
+
+    runtime_dir = sandbox.runtime_dir("copilot")
+    instance = await sandbox.create_instance("copilot")
+
+    assert runtime_dir == tmp_path / ".storage" / "agents" / "copilot" / "runtime"
+    for path in (runtime_dir, instance.root, instance.home, instance.work):
+        assert path.is_absolute()
 
 
 @pytest.mark.asyncio

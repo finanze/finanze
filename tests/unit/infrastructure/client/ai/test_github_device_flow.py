@@ -4,12 +4,18 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from dateutil.tz import tzlocal
-from domain.exception.exceptions import IntegrationSetupError, IntegrationSetupErrorCode
+from domain.exception.exceptions import (
+    AIProviderError,
+    AIProviderErrorCode,
+    IntegrationSetupError,
+    IntegrationSetupErrorCode,
+)
 from domain.external_integration import DeviceAuthorizationStatus
 from infrastructure.client.ai.github_copilot.github_device_flow import (
     ACCESS_TOKEN_URL,
     DEVICE_CODE_URL,
     DEVICE_GRANT_TYPE,
+    REFRESH_GRANT_TYPE,
     VERIFICATION_URI,
     GitHubDeviceFlow,
 )
@@ -18,12 +24,28 @@ from infrastructure.client.http.http_response import HttpResponse
 CLIENT_ID = "Iv1.client"
 SCOPE = "read:user"
 DEVICE_CODE = "device-code-secret"
+NOW = datetime(2026, 11, 1, 12, 0, tzinfo=tzlocal())
 DEVICE_RESPONSE = {
     "device_code": DEVICE_CODE,
     "user_code": "ABCD-1234",
     "verification_uri": VERIFICATION_URI,
     "expires_in": 900,
     "interval": 5,
+}
+EXPIRING_TOKEN_RESPONSE = {
+    "access_token": "ghu_access",
+    "expires_in": 28800,
+    "refresh_token": "ghr_refresh",
+    "refresh_token_expires_in": 15897600,
+    "scope": "",
+    "token_type": "bearer",
+}
+EXPIRING_TOKEN_PAYLOAD = {
+    "access_token": "ghu_access",
+    "token_type": "bearer",
+    "refresh_token": "ghr_refresh",
+    "expires_at": (NOW + timedelta(hours=8)).isoformat(),
+    "refresh_token_expires_at": (NOW + timedelta(seconds=15897600)).isoformat(),
 }
 
 
@@ -48,7 +70,11 @@ def _flow(*responses) -> tuple[GitHubDeviceFlow, AsyncMock, Clock]:
     session = AsyncMock()
     session.post.side_effect = list(responses)
     clock = Clock()
-    return GitHubDeviceFlow(CLIENT_ID, SCOPE, session, clock), session, clock
+    return (
+        GitHubDeviceFlow(CLIENT_ID, SCOPE, session, clock, lambda: NOW),
+        session,
+        clock,
+    )
 
 
 async def _started(*poll_responses):
@@ -195,6 +221,18 @@ class TestPoll:
         )
 
     @pytest.mark.asyncio
+    async def test_expiring_token_keeps_refresh_token_and_expiries(self):
+        flow, _, clock, authorization = await _started(
+            _response(200, EXPIRING_TOKEN_RESPONSE)
+        )
+
+        clock.advance(5)
+        result = await flow.poll(authorization.flow_id)
+
+        assert result.status == DeviceAuthorizationStatus.AUTHORIZED
+        assert result.payload == EXPIRING_TOKEN_PAYLOAD
+
+    @pytest.mark.asyncio
     async def test_slow_down_increases_interval(self):
         flow, _, clock, authorization = await _started(
             _response(200, {"error": "slow_down", "interval": 7}),
@@ -262,3 +300,57 @@ class TestPoll:
             IntegrationSetupErrorCode.AUTHORIZATION_EXPIRED,
         )
         assert session.post.await_count == 1
+
+
+class TestRefresh:
+    @pytest.mark.asyncio
+    async def test_exchanges_refresh_token_without_client_secret(self):
+        flow, session, _ = _flow(_response(200, EXPIRING_TOKEN_RESPONSE))
+
+        payload = await flow.refresh("ghr_old")
+
+        assert payload == EXPIRING_TOKEN_PAYLOAD
+        call = session.post.await_args
+        assert call.args[0] == ACCESS_TOKEN_URL
+        assert call.kwargs["data"] == {
+            "client_id": CLIENT_ID,
+            "grant_type": REFRESH_GRANT_TYPE,
+            "refresh_token": "ghr_old",
+        }
+        assert call.kwargs["follow_redirects"] is False
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"error": "bad_refresh_token"},
+            {"error": "unsupported_grant_type"},
+            {"access_token": ""},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_rejected_refresh_is_invalid_credentials(self, body):
+        flow, _, _ = _flow(_response(200, body))
+
+        with pytest.raises(AIProviderError) as error:
+            await flow.refresh("ghr_old")
+
+        assert error.value.code == AIProviderErrorCode.INVALID_CREDENTIALS
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            _response(502, {"message": "bad gateway"}),
+            _response(429, {"message": "slow"}),
+            _response(403, {"message": "forbidden"}),
+            _response(200, "<html>"),
+            httpx.ConnectError("offline"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_transient_failures_are_unavailable(self, response):
+        flow, _, _ = _flow(response)
+
+        with pytest.raises(AIProviderError) as error:
+            await flow.refresh("ghr_old")
+
+        assert error.value.code == AIProviderErrorCode.UNAVAILABLE

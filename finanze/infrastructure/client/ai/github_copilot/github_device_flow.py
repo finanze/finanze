@@ -8,11 +8,17 @@ from typing import Callable, Optional
 
 import httpx
 from dateutil.tz import tzlocal
-from domain.exception.exceptions import IntegrationSetupError, IntegrationSetupErrorCode
+from domain.exception.exceptions import (
+    AIProviderError,
+    AIProviderErrorCode,
+    IntegrationSetupError,
+    IntegrationSetupErrorCode,
+)
 from domain.external_integration import (
     DeviceAuthorizationPollResult,
     DeviceAuthorizationStatus,
     ExternalIntegrationDeviceAuthorization,
+    ExternalIntegrationPayload,
 )
 
 from infrastructure.client.http.http_session import HttpSession, get_http_session
@@ -21,9 +27,14 @@ DEVICE_CODE_URL = "https://github.com/login/device/code"
 ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 VERIFICATION_URI = "https://github.com/login/device"
 DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+REFRESH_GRANT_TYPE = "refresh_token"
 DEFAULT_INTERVAL_SECONDS = 5
 SLOW_DOWN_INCREMENT_SECONDS = 5
 REQUEST_TIMEOUT_SECONDS = 30
+TOKEN_EXPIRIES = (
+    ("expires_in", "expires_at"),
+    ("refresh_token_expires_in", "refresh_token_expires_at"),
+)
 
 
 @dataclass(eq=False)
@@ -35,6 +46,10 @@ class _PendingFlow:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
+def _local_now() -> datetime:
+    return datetime.now(tzlocal())
+
+
 class GitHubDeviceFlow:
     def __init__(
         self,
@@ -42,11 +57,13 @@ class GitHubDeviceFlow:
         scope: str,
         session: Optional[HttpSession] = None,
         clock: Callable[[], float] = time.monotonic,
+        now: Callable[[], datetime] = _local_now,
     ):
         self._client_id = client_id
         self._scope = scope
         self._session = session or get_http_session()
         self._clock = clock
+        self._now = now
         self._flows: dict[str, _PendingFlow] = {}
         self._log = logging.getLogger(__name__)
 
@@ -128,15 +145,10 @@ class GitHubDeviceFlow:
             access_token = body.get("access_token")
             if isinstance(access_token, str) and access_token:
                 self._flows.pop(flow_id, None)
-                payload = {"access_token": access_token}
-                for key in ("token_type", "scope"):
-                    value = body.get(key)
-                    if isinstance(value, str):
-                        payload[key] = value
                 return DeviceAuthorizationPollResult(
                     status=DeviceAuthorizationStatus.AUTHORIZED,
                     interval=flow.interval,
-                    payload=payload,
+                    payload=self._token_payload(access_token, body),
                 )
 
             error = body.get("error")
@@ -163,6 +175,46 @@ class GitHubDeviceFlow:
                 )
             self._log.warning(f"GitHub device authorization failed: {error}")
             raise IntegrationSetupError(IntegrationSetupErrorCode.UNKNOWN)
+
+    async def refresh(self, refresh_token: str) -> ExternalIntegrationPayload:
+        try:
+            body = await self._post(
+                ACCESS_TOKEN_URL,
+                {
+                    "client_id": self._client_id,
+                    "grant_type": REFRESH_GRANT_TYPE,
+                    "refresh_token": refresh_token,
+                },
+            )
+        except (_TransientError, IntegrationSetupError) as e:
+            raise AIProviderError(
+                AIProviderErrorCode.UNAVAILABLE,
+                "Could not refresh the GitHub Copilot session",
+            ) from e
+
+        access_token = body.get("access_token")
+        if not isinstance(access_token, str) or not access_token:
+            self._log.warning(f"GitHub token refresh failed: {body.get('error')}")
+            raise AIProviderError(
+                AIProviderErrorCode.INVALID_CREDENTIALS,
+                "GitHub Copilot session expired, reconnect the integration",
+            )
+        return self._token_payload(access_token, body)
+
+    def _token_payload(
+        self, access_token: str, body: dict
+    ) -> ExternalIntegrationPayload:
+        payload = {"access_token": access_token}
+        for key in ("token_type", "scope", "refresh_token"):
+            value = body.get(key)
+            if isinstance(value, str) and value:
+                payload[key] = value
+        now = self._now()
+        for source, target in TOKEN_EXPIRIES:
+            seconds = body.get(source)
+            if isinstance(seconds, int) and seconds > 0:
+                payload[target] = (now + timedelta(seconds=seconds)).isoformat()
+        return payload
 
     async def _post(self, url: str, form: dict[str, str]) -> dict:
         try:

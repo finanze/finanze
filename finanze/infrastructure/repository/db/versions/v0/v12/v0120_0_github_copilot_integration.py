@@ -9,10 +9,10 @@ SQL = """
       """
 
 
-class V011011GitHubCopilotIntegration(DBVersionMigration, QueryMixin):
+class V01200GitHubCopilotIntegration(DBVersionMigration, QueryMixin):
     @property
     def name(self):
-        return "v0.11.0:11_github_copilot_integration"
+        return "v0.12.0:0_github_copilot_integration"
 
     async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         for statement in self.parse_block(SQL):

@@ -955,6 +955,7 @@ async def test_github_copilot_labels_and_relabel_keeps_them_after_delisting(
         _CopilotProvisioner(),
         pool,
         AgentRuntimeSandbox(tmp_path),
+        env.integration_port,
         runtime_factory=runtime_factory,
         clock=clock,
     )

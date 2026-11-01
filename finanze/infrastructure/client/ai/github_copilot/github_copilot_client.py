@@ -3,12 +3,15 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Awaitable, Callable, Optional
+from datetime import datetime, timedelta
+from typing import AsyncIterator, Awaitable, Callable, Optional, TypeVar
 
 from application.ports.ai_client import AIClient
 from application.ports.device_connectable_integration import (
     DeviceConnectableIntegration,
 )
+from application.ports.external_integration_port import ExternalIntegrationPort
+from dateutil.tz import tzlocal
 from domain.ai import (
     AIClientFeature,
     AIGeneration,
@@ -27,6 +30,7 @@ from domain.exception.exceptions import (
 from domain.external_integration import (
     DeviceAuthorizationPollResult,
     ExternalIntegrationDeviceAuthorization,
+    ExternalIntegrationId,
     ExternalIntegrationPayload,
 )
 
@@ -56,6 +60,7 @@ GITHUB_DEVICE_SCOPE = "read:user"
 PROVIDER = "github_copilot"
 CATALOG_TTL_SECONDS = 120
 GENERATION_TIMEOUT_SECONDS = 120
+TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
 REASONING_EFFORT_ORDER = ("low", "medium", "high", "xhigh", "max")
 REASONING_EFFORTS = {
     AIReasoningEffort.NONE: "low",
@@ -68,6 +73,11 @@ REASONING_EFFORTS = {
 RuntimeFactory = Callable[
     [str, str, AgentRuntimeInstanceDirs], Awaitable[CopilotRuntimeHandle]
 ]
+T = TypeVar("T")
+
+
+def _local_now() -> datetime:
+    return datetime.now(tzlocal())
 
 
 def resolve_github_copilot_client_id() -> str:
@@ -122,17 +132,25 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
         provisioner: CopilotRuntimeProvisioner,
         pool: AgentRuntimePool,
         sandbox: AgentRuntimeSandbox,
+        external_integration_port: ExternalIntegrationPort,
         runtime_factory: RuntimeFactory = _start_copilot_runtime,
         clock: Callable[[], float] = time.monotonic,
+        now: Callable[[], datetime] = _local_now,
     ):
         self._device_flow = device_flow
         self._provisioner = provisioner
         self._pool = pool
         self._sandbox = sandbox
+        self._external_integration_port = external_integration_port
         self._runtime_factory = runtime_factory
         self._clock = clock
+        self._now = now
         self._catalogs: dict[str, tuple[float, list[CopilotModelEntry]]] = {}
         self._catalog_lock = asyncio.Lock()
+        # Refresh rotates tokens while callers may still hold a superseded payload.
+        self._current: Optional[ExternalIntegrationPayload] = None
+        self._superseded: set[str] = set()
+        self._refresh_lock = asyncio.Lock()
         self._log = logging.getLogger(__name__)
 
     def features(self) -> set[AIClientFeature]:
@@ -176,27 +194,41 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
             raise IntegrationSetupError(IntegrationSetupErrorCode.NOT_ENTITLED)
 
         self._catalogs = {self._pool.fingerprint(token): (self._clock(), entries)}
+        self._current = payload
 
     async def teardown(self):
         self._catalogs.clear()
+        self._current = None
+        self._superseded.clear()
         await self._pool.invalidate(PROVIDER)
 
     async def list_models(
         self, credentials: Optional[ExternalIntegrationPayload]
     ) -> list[AIModel]:
-        entries = await self._catalog(self._token(credentials), max_age=0)
+        entries = await self._call(
+            credentials, lambda token: self._catalog(token, max_age=0)
+        )
         return [_to_model(entry) for entry in entries if entry.enabled]
 
     async def get_model(
         self, model_id: str, credentials: Optional[ExternalIntegrationPayload]
     ) -> Optional[AIModel]:
-        entry = await self._find(self._token(credentials), model_id)
+        entry = await self._call(credentials, lambda token: self._find(token, model_id))
         return _to_model(entry) if entry else None
 
     async def generate(
         self, request: AIGenerationRequest, credentials: ExternalIntegrationPayload
     ) -> AIGeneration:
-        token = self._token(credentials)
+        text = await self._call(
+            credentials, lambda token: self._complete(request, token)
+        )
+        if not text:
+            return AIGeneration(status=AIGenerationStatus.INCOMPLETE)
+        return AIGeneration(status=AIGenerationStatus.COMPLETED, text=text)
+
+    async def _complete(
+        self, request: AIGenerationRequest, token: str
+    ) -> Optional[str]:
         entry = await self._find(token, request.model)
         if entry is None:
             raise AIProviderError(
@@ -204,29 +236,92 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
                 f"Model {request.model} is not available in GitHub Copilot",
             )
 
-        try:
-            async with self._runtime(token) as runtime:
-                text = await runtime.complete(
-                    model=entry.id,
-                    instructions=request.instructions,
-                    prompt="\n\n".join(message.content for message in request.messages),
-                    schema=request.response_schema.schema
-                    if request.response_schema
-                    else None,
-                    reasoning_effort=_reasoning_effort(entry, request.reasoning_effort),
-                    timeout=GENERATION_TIMEOUT_SECONDS,
-                )
-        except CopilotRuntimeUnavailable as e:
-            raise AIProviderError(
-                AIProviderErrorCode.UNAVAILABLE,
-                "GitHub Copilot runtime is not available",
-            ) from e
-        except CopilotRuntimeError as e:
-            raise await self._provider_error(token, e) from e
+        async with self._runtime(token) as runtime:
+            return await runtime.complete(
+                model=entry.id,
+                instructions=request.instructions,
+                prompt="\n\n".join(message.content for message in request.messages),
+                schema=request.response_schema.schema
+                if request.response_schema
+                else None,
+                reasoning_effort=_reasoning_effort(entry, request.reasoning_effort),
+                timeout=GENERATION_TIMEOUT_SECONDS,
+            )
 
-        if not text:
-            return AIGeneration(status=AIGenerationStatus.INCOMPLETE)
-        return AIGeneration(status=AIGenerationStatus.COMPLETED, text=text)
+    async def _call(
+        self,
+        credentials: Optional[ExternalIntegrationPayload],
+        operation: Callable[[str], Awaitable[T]],
+    ) -> T:
+        credentials = await self._credentials(credentials)
+        can_refresh = bool(credentials.get("refresh_token"))
+        while True:
+            token = credentials["access_token"]
+            try:
+                return await operation(token)
+            except CopilotRuntimeUnavailable as e:
+                raise AIProviderError(
+                    AIProviderErrorCode.UNAVAILABLE,
+                    "GitHub Copilot runtime is not available",
+                ) from e
+            except CopilotRuntimeError as e:
+                if not can_refresh or e.kind != CopilotErrorKind.AUTH:
+                    raise await self._provider_error(token, e) from e
+            can_refresh = False
+            await self._pool.discard(PROVIDER, token)
+            credentials = await self._refresh(credentials)
+
+    async def _credentials(
+        self, credentials: Optional[ExternalIntegrationPayload]
+    ) -> ExternalIntegrationPayload:
+        if not (credentials or {}).get("access_token"):
+            raise AIProviderError(
+                AIProviderErrorCode.INVALID_CREDENTIALS,
+                "GitHub Copilot is not connected",
+            )
+        if self._is_superseded(credentials):
+            credentials = self._current
+
+        expiry = credentials.get("expires_at")
+        if not credentials.get("refresh_token") or not expiry:
+            return credentials
+        expires_at = datetime.fromisoformat(expiry)
+        now = self._now()
+        if expires_at - now > TOKEN_REFRESH_MARGIN:
+            return credentials
+        try:
+            return await self._refresh(credentials)
+        except AIProviderError as e:
+            if e.code != AIProviderErrorCode.UNAVAILABLE or now >= expires_at:
+                raise
+            self._log.warning("Could not refresh the GitHub Copilot token yet")
+            return credentials
+
+    async def _refresh(
+        self, stale: ExternalIntegrationPayload
+    ) -> ExternalIntegrationPayload:
+        async with self._refresh_lock:
+            if self._is_superseded(stale):
+                return self._current
+            fresh = await self._device_flow.refresh(stale["refresh_token"])
+            await self._external_integration_port.update_payload(
+                ExternalIntegrationId.GITHUB_COPILOT, fresh
+            )
+            self._superseded.add(self._pool.fingerprint(stale["refresh_token"]))
+            self._current = fresh
+            catalog = self._catalogs.pop(
+                self._pool.fingerprint(stale["access_token"]), None
+            )
+            if catalog is not None:
+                self._catalogs[self._pool.fingerprint(fresh["access_token"])] = catalog
+            return fresh
+
+    def _is_superseded(self, credentials: ExternalIntegrationPayload) -> bool:
+        refresh_token = credentials.get("refresh_token")
+        return (
+            bool(refresh_token)
+            and self._pool.fingerprint(refresh_token) in self._superseded
+        )
 
     @asynccontextmanager
     async def _runtime(self, token: str) -> AsyncIterator[CopilotRuntimeHandle]:
@@ -257,16 +352,8 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
             cached = self._catalogs.get(key)
             if cached is not None and self._clock() - cached[0] < max_age:
                 return cached[1]
-            try:
-                async with self._runtime(token) as runtime:
-                    entries = await runtime.list_models()
-            except CopilotRuntimeUnavailable as e:
-                raise AIProviderError(
-                    AIProviderErrorCode.UNAVAILABLE,
-                    "GitHub Copilot runtime is not available",
-                ) from e
-            except CopilotRuntimeError as e:
-                raise await self._provider_error(token, e) from e
+            async with self._runtime(token) as runtime:
+                entries = await runtime.list_models()
             self._catalogs[key] = (self._clock(), entries)
             return entries
 
@@ -300,16 +387,6 @@ class GitHubCopilotClient(AIClient, DeviceConnectableIntegration):
         if kind == CopilotErrorKind.RUNTIME:
             await self._pool.discard(PROVIDER, token)
         return AIProviderError(AIProviderErrorCode.UNAVAILABLE, str(error))
-
-    @staticmethod
-    def _token(credentials: Optional[ExternalIntegrationPayload]) -> str:
-        token = (credentials or {}).get("access_token")
-        if not token:
-            raise AIProviderError(
-                AIProviderErrorCode.INVALID_CREDENTIALS,
-                "GitHub Copilot is not connected",
-            )
-        return token
 
 
 def _setup_error_code(kind: CopilotErrorKind) -> IntegrationSetupErrorCode:

@@ -1,7 +1,11 @@
+import asyncio
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
+from application.ports.external_integration_port import ExternalIntegrationPort
+from dateutil.tz import tzlocal
 from domain.ai import (
     AIClientFeature,
     AIGenerationRequest,
@@ -20,6 +24,7 @@ from domain.exception.exceptions import (
     IntegrationSetupError,
     IntegrationSetupErrorCode,
 )
+from domain.external_integration import ExternalIntegrationId
 from infrastructure.agent_runtime.runtime_pool import AgentRuntimePool
 from infrastructure.agent_runtime.runtime_sandbox import AgentRuntimeSandbox
 from infrastructure.client.ai.github_copilot.copilot_runtime_provisioner import (
@@ -41,6 +46,8 @@ from infrastructure.client.ai.github_copilot.github_copilot_client import (
 
 TOKEN = "gho_token"
 CREDENTIALS = {"access_token": TOKEN}
+NOW = datetime(2026, 11, 1, 12, 0, tzinfo=tzlocal())
+EXPIRES_AT = NOW + timedelta(hours=8)
 EXECUTABLE = "/runtime/copilot"
 SCHEMA = {"type": "object", "properties": {}}
 MINI_PRICING = AIModelPricing(
@@ -74,6 +81,26 @@ class Clock:
         return self.now
 
 
+class WallClock:
+    def __init__(self):
+        self.now = NOW
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def _expiring(access: str, refresh: str, expires_at: datetime = EXPIRES_AT) -> dict:
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+EXPIRING = _expiring("gho_a", "ghr_a")
+REFRESHED = _expiring("gho_b", "ghr_b", EXPIRES_AT + timedelta(hours=8))
+
+
 class FakeRuntime:
     def __init__(self, env: "Env"):
         self.env = env
@@ -93,6 +120,8 @@ class FakeRuntime:
 
     async def complete(self, **kwargs):
         self.env.completions.append(kwargs)
+        if self.env.complete_errors:
+            raise self.env.complete_errors.pop(0)
         if self.env.complete_error:
             raise self.env.complete_error
         return self.env.text
@@ -118,6 +147,7 @@ class Env:
         self.models = MODELS
         self.list_error: Exception | None = None
         self.complete_error: Exception | None = None
+        self.complete_errors: list[Exception] = []
         self.factory_error: Exception | None = None
         self.text = '{"labels": []}'
         self.list_calls = 0
@@ -125,8 +155,10 @@ class Env:
         self.runtimes: list[FakeRuntime] = []
         self.started: list[tuple] = []
         self.clock = Clock()
+        self.wall = WallClock()
         self.provisioner = FakeProvisioner()
         self.device_flow = AsyncMock()
+        self.integrations = AsyncMock(spec=ExternalIntegrationPort)
         self.pool = AgentRuntimePool()
         self.sandbox = AgentRuntimeSandbox(tmp_path)
         self.tmp_path = tmp_path
@@ -135,9 +167,15 @@ class Env:
             self.provisioner,
             self.pool,
             self.sandbox,
+            self.integrations,
             runtime_factory=self.factory,
             clock=self.clock,
+            now=self.wall,
         )
+
+    @property
+    def tokens(self) -> list[str]:
+        return [token for _, token, _ in self.started]
 
     async def factory(self, executable, token, dirs):
         self.started.append((executable, token, dirs))
@@ -186,6 +224,7 @@ def test_features_and_client_id(monkeypatch, tmp_path):
         FakeProvisioner(),
         AgentRuntimePool(),
         AgentRuntimeSandbox(tmp_path),
+        AsyncMock(spec=ExternalIntegrationPort),
     )
     assert client.features() == {
         AIClientFeature.GENERATION,
@@ -438,3 +477,147 @@ class TestGenerate:
         )
         assert env.list_calls == 2
         assert len(env.completions) == 1
+
+
+class TestTokenRefresh:
+    @pytest.mark.asyncio
+    async def test_token_far_from_expiry_is_not_refreshed(self, env):
+        env.wall.now = EXPIRES_AT - timedelta(minutes=6)
+
+        await env.client.generate(_request(), EXPIRING)
+
+        env.device_flow.refresh.assert_not_awaited()
+        assert env.tokens == ["gho_a"]
+
+    @pytest.mark.asyncio
+    async def test_token_without_refresh_token_is_used_as_is(self, env):
+        env.wall.now = EXPIRES_AT + timedelta(hours=1)
+
+        await env.client.generate(
+            _request(), {**CREDENTIALS, "expires_at": EXPIRES_AT.isoformat()}
+        )
+
+        env.device_flow.refresh.assert_not_awaited()
+        assert env.tokens == [TOKEN]
+
+    @pytest.mark.asyncio
+    async def test_expiring_token_is_rotated_and_stale_payloads_follow(self, env):
+        env.device_flow.refresh.return_value = REFRESHED
+        await env.client.generate(_request(), EXPIRING)
+
+        env.wall.now = EXPIRES_AT - timedelta(minutes=4)
+        await env.client.generate(_request(), EXPIRING)
+        await env.client.generate(_request(), EXPIRING)
+
+        env.device_flow.refresh.assert_awaited_once_with("ghr_a")
+        env.integrations.update_payload.assert_awaited_once_with(
+            ExternalIntegrationId.GITHUB_COPILOT, REFRESHED
+        )
+        assert env.tokens == ["gho_a", "gho_b"]
+        assert env.runtimes[0].stopped
+        assert env.list_calls == 1
+        assert len(env.completions) == 3
+
+    @pytest.mark.asyncio
+    async def test_concurrent_calls_refresh_once(self, env):
+        async def refresh(refresh_token):
+            await asyncio.sleep(0)
+            return REFRESHED
+
+        env.device_flow.refresh.side_effect = refresh
+        env.wall.now = EXPIRES_AT - timedelta(minutes=1)
+
+        await asyncio.gather(
+            *(env.client.generate(_request(), EXPIRING) for _ in range(3))
+        )
+
+        assert env.device_flow.refresh.await_count == 1
+        assert env.integrations.update_payload.await_count == 1
+        assert env.tokens == ["gho_b"]
+
+    @pytest.mark.asyncio
+    async def test_unreachable_refresh_keeps_still_valid_token(self, env):
+        env.device_flow.refresh.side_effect = AIProviderError(
+            AIProviderErrorCode.UNAVAILABLE, "offline"
+        )
+        env.wall.now = EXPIRES_AT - timedelta(minutes=1)
+
+        result = await env.client.generate(_request(), EXPIRING)
+
+        assert result.status == AIGenerationStatus.COMPLETED
+        assert env.tokens == ["gho_a"]
+        env.integrations.update_payload.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_unreachable_refresh_after_expiry_is_unavailable(self, env):
+        env.device_flow.refresh.side_effect = AIProviderError(
+            AIProviderErrorCode.UNAVAILABLE, "offline"
+        )
+        env.wall.now = EXPIRES_AT
+
+        await _provider_error(
+            env.client.generate(_request(), EXPIRING), AIProviderErrorCode.UNAVAILABLE
+        )
+        assert env.started == []
+
+    @pytest.mark.asyncio
+    async def test_rejected_refresh_is_invalid_credentials(self, env):
+        env.device_flow.refresh.side_effect = AIProviderError(
+            AIProviderErrorCode.INVALID_CREDENTIALS, "bad_refresh_token"
+        )
+        env.wall.now = EXPIRES_AT - timedelta(minutes=1)
+
+        await _provider_error(
+            env.client.list_models(EXPIRING), AIProviderErrorCode.INVALID_CREDENTIALS
+        )
+        env.integrations.update_payload.assert_not_awaited()
+        assert env.started == []
+
+    @pytest.mark.asyncio
+    async def test_auth_error_refreshes_and_retries_once(self, env):
+        env.device_flow.refresh.return_value = REFRESHED
+        env.complete_errors = [CopilotRuntimeError(CopilotErrorKind.AUTH, "401")]
+
+        result = await env.client.generate(_request(), EXPIRING)
+
+        assert result.status == AIGenerationStatus.COMPLETED
+        env.device_flow.refresh.assert_awaited_once_with("ghr_a")
+        env.integrations.update_payload.assert_awaited_once_with(
+            ExternalIntegrationId.GITHUB_COPILOT, REFRESHED
+        )
+        assert env.tokens == ["gho_a", "gho_b"]
+        assert env.runtimes[0].stopped
+        assert len(env.completions) == 2
+
+    @pytest.mark.asyncio
+    async def test_repeated_auth_error_is_invalid_credentials(self, env):
+        env.device_flow.refresh.return_value = REFRESHED
+        env.complete_error = CopilotRuntimeError(CopilotErrorKind.AUTH, "401")
+
+        await _provider_error(
+            env.client.generate(_request(), EXPIRING),
+            AIProviderErrorCode.INVALID_CREDENTIALS,
+        )
+        assert env.device_flow.refresh.await_count == 1
+        assert all(runtime.stopped for runtime in env.runtimes)
+
+    @pytest.mark.asyncio
+    async def test_forbidden_is_not_refreshed(self, env):
+        env.complete_error = CopilotRuntimeError(CopilotErrorKind.FORBIDDEN, "403")
+
+        await _provider_error(
+            env.client.generate(_request(), EXPIRING),
+            AIProviderErrorCode.INVALID_CREDENTIALS,
+        )
+        env.device_flow.refresh.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_teardown_forgets_rotation(self, env):
+        env.device_flow.refresh.return_value = REFRESHED
+        env.wall.now = EXPIRES_AT - timedelta(minutes=1)
+        await env.client.generate(_request(), EXPIRING)
+
+        await env.client.teardown()
+        await env.client.generate(_request(), EXPIRING)
+
+        assert env.device_flow.refresh.await_count == 2

@@ -21,6 +21,12 @@ class ExternalIntegrationPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def update_payload(
+        self, integration: ExternalIntegrationId, payload: ExternalIntegrationPayload
+    ):
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_payload(
         self, integration: ExternalIntegrationId
     ) -> Optional[ExternalIntegrationPayload]:

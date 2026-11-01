@@ -16,6 +16,13 @@ class ExternalIntegrationQueries(str, Enum):
         WHERE id = ?
     """
 
+    UPDATE_PAYLOAD = """
+        UPDATE external_integrations
+        SET payload = ?
+        WHERE id = ?
+          AND status = ?
+    """
+
     GET_PAYLOAD = "SELECT payload FROM external_integrations WHERE id = ? AND status = ? AND payload IS NOT NULL"
 
     GET_PAYLOADS_BY_TYPE = """

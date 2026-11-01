@@ -490,6 +490,9 @@ class FinanzeServer:
 
         settings_repository = SettingsRepository(db_client, FileLegacyConfigSource())
         mcp_config_repository = McpConfigRepository(db_client)
+        external_integration_repository = ExternalIntegrationRepository(
+            client=db_client
+        )
         sheets_initiator = SheetsServiceLoader()
         cloud_register = CloudDataRegister()
         etherscan_client = EtherscanClient()
@@ -534,6 +537,7 @@ class FinanzeServer:
             ),
             agent_runtime_pool,
             agent_runtime_sandbox,
+            external_integration_repository,
         )
 
         crypto_entity_fetchers = {
@@ -630,9 +634,6 @@ class FinanzeServer:
         last_fetches_repository = LastFetchesRepository(client=db_client)
         fetch_pointers_repository = FetchPointersRepository(client=db_client)
         tracked_updates_repository = TrackedUpdatesRepository(client=db_client)
-        external_integration_repository = ExternalIntegrationRepository(
-            client=db_client
-        )
         periodic_flow_repository = PeriodicFlowRepository(client=db_client)
         pending_flow_repository = PendingFlowRepository(client=db_client)
         real_estate_repository = RealEstateRepository(client=db_client)

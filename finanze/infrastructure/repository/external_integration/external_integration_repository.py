@@ -39,6 +39,19 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 ),
             )
 
+    async def update_payload(
+        self, integration: ExternalIntegrationId, payload: ExternalIntegrationPayload
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ExternalIntegrationQueries.UPDATE_PAYLOAD,
+                (
+                    json.dumps(payload),
+                    integration.value,
+                    ExternalIntegrationStatus.ON.value,
+                ),
+            )
+
     async def get_payload(
         self, integration: ExternalIntegrationId
     ) -> Optional[ExternalIntegrationPayload]:
